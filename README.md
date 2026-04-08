@@ -1,93 +1,121 @@
-# tao-skill-external
+# TAO-Next Skill Bank
 
+Consolidated skill bank for the TAO-Next agent-driven ML training platform. Skills are organized into four layers following the TAO-Next Skills Taxonomy.
 
-
-## Getting started
-
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
-
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
+## Directory Structure
 
 ```
-cd existing_repo
-git remote add origin https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-skill-external.git
-git branch -M main
-git push -uf origin main
+tao-skill-external/
+  applications/          # High-level workflows (multi-step pipelines)
+    deft-cosmos-rl/      #   DEFT iterative data improvement for video QA
+    sda-vcn/             #   Mining-based SDA for visual change detection
+    normal-train/        #   Standard single-step train/eval/export
+  models/                # Trainable networks
+    cosmos-rl/           #   Cosmos-Reason2-8B video QA SFT
+    visual-changenet/    #   Binary image classification + segmentation
+    clip/                #   CLIP vision-language model
+    cosmos-predict-2-5/  #   Text-to-video generation
+  data/                  # Data processing skills
+    siglip-embed/        #   SigLIP image/video embeddings
+    knn-mining/          #   k-NN similarity mining (cuML)
+    qwen-caption/        #   VLM captioning via Qwen endpoint
+    nim-embedding/       #   Video embeddings via NIM endpoint
+    changenet-data-prepare/  # CSV generation for VCN training
+  platform/              # Compute backends
+    lepton/              #   DGX Cloud Lepton managed GPU compute
 ```
 
-## Integrate with your tools
+## Skill Layers
 
-- [ ] [Set up project integrations](https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-skill-external/-/settings/integrations)
+### Applications
 
-## Collaborate with your team
+High-level multi-step workflows that compose model and data skills into pipelines. Each application defines `init` and `iteration` stages in its `config.json`, with stage dependencies and conditional execution.
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+Examples:
+- **deft-cosmos-rl**: 10-stage iterative loop (gap analysis, captioning, video generation, data merge, training, evaluation)
+- **sda-vcn**: Mining-based SDA with embedding, k-NN search, and retraining
 
-## Test and Deploy
+### Models
 
-Use the built-in continuous integration in GitLab.
+Trainable networks with TAO container-based execution. Each model skill defines actions (`train`, `evaluate`, `inference`, `export`), data source mappings, and spec parameter injection rules.
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+Examples:
+- **cosmos-rl**: HuggingFace-based SFT with FSDP parallelism
+- **visual-changenet**: Siamese classification + pixel-level segmentation
 
-***
+### Data
 
-# Editing this README
+Data processing skills for embeddings, mining, captioning, and dataset preparation. These are non-trainable skills that transform or enrich data as part of larger workflows.
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+Examples:
+- **siglip-embed**: Generate SigLIP embeddings for images
+- **knn-mining**: GPU-accelerated k-NN similarity search
+- **changenet-data-prepare**: CSV generation with filename normalization
 
-## Suggestions for a good README
+### Platform
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+Compute backend configurations defining credential requirements, resource shapes, and failure modes.
 
-## Name
-Choose a self-explaining name for your project.
+## Skill Package Format
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+Each skill is a directory containing:
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+```
+{skill-name}/
+  config.json              # Structured config: actions, inputs, outputs, credentials
+  {skill-name}.md          # Agent documentation (plain markdown, no frontmatter)
+  defaults-{action}.json   # Per-action default spec values (JSON only)
+  scripts/                 # Inline scripts for workflow stages (optional)
+```
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+### config.json
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+The structured config defines everything the planner and execution engine need:
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+- **actions**: Commands, config format, inputs/outputs, upload excludes
+- **data_sources**: How dataset URIs map to spec paths
+- **spec_params**: Runtime-injected values (results_dir, checkpoints)
+- **required_credentials**: Platform credentials needed
+- **key_defaults**: Override broken upstream defaults
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+### {skill-name}.md
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+Agent-readable documentation covering:
+- Model/skill overview and use cases
+- Data format requirements
+- Important parameters and their effects
+- Hardware recommendations
+- Error patterns and fixes
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+### defaults-{action}.json
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+Complete default spec for each action. The planner loads these and applies user overrides on top. All defaults are JSON format regardless of what the container expects (the script runner converts to YAML/TOML/JSON at runtime).
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+## Execution Patterns
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+| Pattern | Description | Example |
+|---|---|---|
+| **Single-step** | One model action (train/eval) | `generate_plan(network_arch="cosmos-rl", action="train")` |
+| **Multi-step workflow** | Orchestrated pipeline with init + iteration stages | `generate_plan(workflow="deft-cosmos-rl")` |
+| **Config mode** | Script runner writes spec file, runs command | Visual ChangeNet (YAML spec) |
+| **Args mode** | Script runner builds CLI args from config | Cosmos Predict 2.5, SigLIP embed |
 
-## License
-For open source projects, say how it is licensed.
+## Skill Discovery
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+The TAO-Next planner discovers skills via the `SkillBank` class:
+
+1. Model skills are searched in both `models/` and `data/` directories
+2. Workflow skills are loaded from `applications/`
+3. Platform configs are loaded from `platform/`
+4. Skill names use hyphen-case (`cosmos-rl`, not `cosmos_rl`)
+
+The `TAO_SKILL_BANK_PATH` environment variable overrides the default discovery path.
+
+## Adding a New Skill
+
+1. Create a directory under the appropriate layer (`models/`, `data/`, `applications/`, `platform/`)
+2. Add `config.json` with actions, inputs, outputs
+3. Add `{name}.md` with agent documentation
+4. Add `defaults-{action}.json` for each action with default spec values
+5. If the skill has inline scripts, add them under `scripts/`
+6. Test: verify `SkillBank().get_model_config('{name}')` returns your config
