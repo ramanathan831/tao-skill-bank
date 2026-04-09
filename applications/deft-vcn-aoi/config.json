@@ -4,20 +4,56 @@
   "description": "VCN AOI SDA pipeline: mining-based iterative data improvement for visual change detection. Each iteration identifies failure cases, mines similar samples from a source pool using SigLIP embeddings + k-NN, merges them into training data, and retrains.",
   "prerequisites": {
     "required": [
-      {"name": "kpi_dataset_uri", "description": "S3 URI of the KPI/validation dataset (must contain CSV annotations and images/ folder)"},
-      {"name": "platform", "description": "Compute backend (lepton)"},
-      {"name": "mining_source_csv", "description": "S3 URI of the source pool CSV for mining (large unlabeled/weakly-labeled dataset)"},
-      {"name": "mining_source_images", "description": "S3 URI of the source pool images directory"}
+      {
+        "name": "kpi_dataset_uri",
+        "description": "S3 URI of the KPI/validation dataset (must contain CSV annotations and images/ folder)"
+      },
+      {
+        "name": "platform",
+        "description": "Compute backend (lepton)"
+      },
+      {
+        "name": "mining_source_csv",
+        "description": "S3 URI of the source pool CSV for mining (large unlabeled/weakly-labeled dataset)"
+      },
+      {
+        "name": "mining_source_images",
+        "description": "S3 URI of the source pool images directory"
+      }
     ],
     "optional": [
-      {"name": "train_dataset_uri", "description": "Initial training dataset URI (triggers SFT before the SDA loop)"},
-      {"name": "init_checkpoint", "description": "Initial model checkpoint (pretrained VCN weights)"},
-      {"name": "iteration_count", "description": "Number of SDA iterations to run (default: 3)"},
-      {"name": "continual_model", "description": "Chain checkpoints across iterations (default: true)"},
-      {"name": "continual_dataset", "description": "Accumulate training data across iterations (default: true)"},
-      {"name": "topn", "description": "Number of nearest neighbors per query in k-NN mining (default: 5)"},
-      {"name": "knn_metric", "description": "Distance metric for k-NN mining (default: cosine)"},
-      {"name": "min_recall", "description": "Minimum NO_PASS recall for threshold optimization (default: 1.0)"}
+      {
+        "name": "train_dataset_uri",
+        "description": "Initial training dataset URI (triggers SFT before the SDA loop)"
+      },
+      {
+        "name": "init_checkpoint",
+        "description": "Initial model checkpoint (pretrained VCN weights)"
+      },
+      {
+        "name": "iteration_count",
+        "description": "Number of SDA iterations to run (default: 3)"
+      },
+      {
+        "name": "continual_model",
+        "description": "Chain checkpoints across iterations (default: true)"
+      },
+      {
+        "name": "continual_dataset",
+        "description": "Accumulate training data across iterations (default: true)"
+      },
+      {
+        "name": "topn",
+        "description": "Number of nearest neighbors per query in k-NN mining (default: 5)"
+      },
+      {
+        "name": "knn_metric",
+        "description": "Distance metric for k-NN mining (default: cosine)"
+      },
+      {
+        "name": "min_recall",
+        "description": "Minimum NO_PASS recall for threshold optimization (default: 1.0)"
+      }
     ]
   },
   "iteration_defaults": {
@@ -47,10 +83,14 @@
           "min-recall": "{min_recall}"
         },
         "inputs": {
-          "inference-results": {"type": "folder"}
+          "inference-results": {
+            "type": "folder"
+          }
         },
         "outputs": {
-          "output-json": {"type": "file"}
+          "output-json": {
+            "type": "file"
+          }
         }
       },
       {
@@ -67,12 +107,20 @@
           "mode": "eval-only"
         },
         "inputs": {
-          "inference-results": {"type": "folder"},
-          "threshold-json": {"type": "file"},
-          "kpi-csv": {"type": "file"}
+          "inference-results": {
+            "type": "folder"
+          },
+          "threshold-json": {
+            "type": "file"
+          },
+          "kpi-csv": {
+            "type": "file"
+          }
         },
         "outputs": {
-          "output-metrics": {"type": "file"}
+          "output-metrics": {
+            "type": "file"
+          }
         }
       },
       {
@@ -101,10 +149,14 @@
           "min-recall": "{min_recall}"
         },
         "inputs": {
-          "inference-results": {"type": "folder"}
+          "inference-results": {
+            "type": "folder"
+          }
         },
         "outputs": {
-          "output-json": {"type": "file"}
+          "output-json": {
+            "type": "file"
+          }
         }
       },
       {
@@ -122,12 +174,20 @@
           "mode": "eval-only"
         },
         "inputs": {
-          "inference-results": {"type": "folder"},
-          "threshold-json": {"type": "file"},
-          "kpi-csv": {"type": "file"}
+          "inference-results": {
+            "type": "folder"
+          },
+          "threshold-json": {
+            "type": "file"
+          },
+          "kpi-csv": {
+            "type": "file"
+          }
         },
         "outputs": {
-          "output-metrics": {"type": "file"}
+          "output-metrics": {
+            "type": "file"
+          }
         }
       }
     ],
@@ -146,13 +206,23 @@
           "mode": "gap-analysis"
         },
         "inputs": {
-          "inference-results": {"type": "folder"},
-          "threshold-json": {"type": "file"},
-          "kpi-csv": {"type": "file"}
+          "inference-results": {
+            "type": "folder"
+          },
+          "threshold-json": {
+            "type": "file"
+          },
+          "kpi-csv": {
+            "type": "file"
+          }
         },
         "outputs": {
-          "output-metrics": {"type": "file"},
-          "output-gaps": {"type": "file"}
+          "output-metrics": {
+            "type": "file"
+          },
+          "output-gaps": {
+            "type": "file"
+          }
         }
       },
       {
@@ -168,12 +238,20 @@
           "output-source-parquet": "{storage_root}/embeddings/source_pool.parquet"
         },
         "inputs": {
-          "gaps-parquet": {"type": "file"},
-          "source-csv": {"type": "file"}
+          "gaps-parquet": {
+            "type": "file"
+          },
+          "source-csv": {
+            "type": "file"
+          }
         },
         "outputs": {
-          "output-target-parquet": {"type": "file"},
-          "output-source-parquet": {"type": "file"}
+          "output-target-parquet": {
+            "type": "file"
+          },
+          "output-source-parquet": {
+            "type": "file"
+          }
         }
       },
       {
@@ -219,11 +297,17 @@
           "output-csv": "{storage_root}/training_data/annotations.csv"
         },
         "inputs": {
-          "mined-parquet": {"type": "file"},
-          "source-pool-parquet": {"type": "file"}
+          "mined-parquet": {
+            "type": "file"
+          },
+          "source-pool-parquet": {
+            "type": "file"
+          }
         },
         "outputs": {
-          "output-csv": {"type": "file"}
+          "output-csv": {
+            "type": "file"
+          }
         }
       },
       {
@@ -249,10 +333,14 @@
           "min-recall": "{min_recall}"
         },
         "inputs": {
-          "inference-results": {"type": "folder"}
+          "inference-results": {
+            "type": "folder"
+          }
         },
         "outputs": {
-          "output-json": {"type": "file"}
+          "output-json": {
+            "type": "file"
+          }
         }
       },
       {
@@ -269,14 +357,32 @@
           "mode": "eval-only"
         },
         "inputs": {
-          "inference-results": {"type": "folder"},
-          "threshold-json": {"type": "file"},
-          "kpi-csv": {"type": "file"}
+          "inference-results": {
+            "type": "folder"
+          },
+          "threshold-json": {
+            "type": "file"
+          },
+          "kpi-csv": {
+            "type": "file"
+          }
         },
         "outputs": {
-          "output-metrics": {"type": "file"}
+          "output-metrics": {
+            "type": "file"
+          }
         }
       }
     ]
-  }
+  },
+  "tags": [
+    "pcb",
+    "aoi",
+    "defect",
+    "changenet",
+    "mining",
+    "deft",
+    "sda",
+    "visual-inspection"
+  ]
 }

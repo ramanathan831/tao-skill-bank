@@ -9,65 +9,133 @@
       "command": "visual_changenet train -e {config_path}",
       "config_format": "yaml",
       "inputs": {
-        "dataset.classify.train_dataset.csv_path": {"type": "file"},
-        "dataset.classify.train_dataset.images_dir": {"type": "folder"},
-        "dataset.classify.validation_dataset.csv_path": {"type": "file", "optional": true},
-        "dataset.classify.validation_dataset.images_dir": {"type": "folder", "optional": true}
+        "dataset.classify.train_dataset.csv_path": {
+          "type": "file"
+        },
+        "dataset.classify.train_dataset.images_dir": {
+          "type": "folder"
+        },
+        "dataset.classify.validation_dataset.csv_path": {
+          "type": "file",
+          "optional": true
+        },
+        "dataset.classify.validation_dataset.images_dir": {
+          "type": "folder",
+          "optional": true
+        }
       },
-      "outputs": {"results_dir": {"type": "folder"}},
-      "upload_excludes": ["inputs/"]
+      "outputs": {
+        "results_dir": {
+          "type": "folder"
+        }
+      },
+      "upload_excludes": [
+        "inputs/"
+      ]
     },
     "evaluate": {
       "command": "visual_changenet evaluate -e {config_path}",
       "config_format": "yaml",
       "inputs": {
-        "dataset.classify.test_dataset.csv_path": {"type": "file"},
-        "dataset.classify.test_dataset.images_dir": {"type": "folder"},
-        "evaluate.checkpoint": {"type": "file"}
+        "dataset.classify.test_dataset.csv_path": {
+          "type": "file"
+        },
+        "dataset.classify.test_dataset.images_dir": {
+          "type": "folder"
+        },
+        "evaluate.checkpoint": {
+          "type": "file"
+        }
       },
-      "outputs": {"results_dir": {"type": "folder"}},
-      "upload_excludes": ["inputs/"]
+      "outputs": {
+        "results_dir": {
+          "type": "folder"
+        }
+      },
+      "upload_excludes": [
+        "inputs/"
+      ]
     },
     "inference": {
       "command": "visual_changenet inference -e {config_path}",
       "config_format": "yaml",
       "inputs": {
-        "dataset.classify.infer_dataset.csv_path": {"type": "file"},
-        "dataset.classify.infer_dataset.images_dir": {"type": "folder"},
-        "inference.checkpoint": {"type": "file"}
+        "dataset.classify.infer_dataset.csv_path": {
+          "type": "file"
+        },
+        "dataset.classify.infer_dataset.images_dir": {
+          "type": "folder"
+        },
+        "inference.checkpoint": {
+          "type": "file"
+        }
       },
-      "outputs": {"results_dir": {"type": "folder"}},
-      "upload_excludes": ["inputs/"]
+      "outputs": {
+        "results_dir": {
+          "type": "folder"
+        }
+      },
+      "upload_excludes": [
+        "inputs/"
+      ]
     },
     "segment_train": {
       "command": "visual_changenet train -e {config_path}",
       "config_format": "yaml",
       "inputs": {
-        "dataset.segment.root_dir": {"type": "folder"}
+        "dataset.segment.root_dir": {
+          "type": "folder"
+        }
       },
-      "outputs": {"results_dir": {"type": "folder"}},
-      "upload_excludes": ["inputs/"],
+      "outputs": {
+        "results_dir": {
+          "type": "folder"
+        }
+      },
+      "upload_excludes": [
+        "inputs/"
+      ],
       "notes": "Requires CUDA ops compilation (~5 min) on first run. Uses ViT-Large NVDINOv2 backbone."
     },
     "segment_evaluate": {
       "command": "visual_changenet evaluate -e {config_path}",
       "config_format": "yaml",
       "inputs": {
-        "dataset.segment.root_dir": {"type": "folder"},
-        "evaluate.checkpoint": {"type": "file"}
+        "dataset.segment.root_dir": {
+          "type": "folder"
+        },
+        "evaluate.checkpoint": {
+          "type": "file"
+        }
       },
-      "outputs": {"results_dir": {"type": "folder"}},
-      "upload_excludes": ["inputs/"]
+      "outputs": {
+        "results_dir": {
+          "type": "folder"
+        }
+      },
+      "upload_excludes": [
+        "inputs/"
+      ]
     },
     "segment_inference": {
       "command": "visual_changenet inference -e {config_path}",
       "config_format": "yaml",
       "inputs": {
-        "dataset.segment.root_dir": {"type": "folder"},
-        "inference.checkpoint": {"type": "file"}
+        "dataset.segment.root_dir": {
+          "type": "folder"
+        },
+        "inference.checkpoint": {
+          "type": "file"
+        }
       },
-      "outputs": {"results_dir": {"type": "folder"}},
-      "upload_excludes": ["inputs/"]
+      "outputs": {
+        "results_dir": {
+          "type": "folder"
+        }
+      },
+      "upload_excludes": [
+        "inputs/"
+      ]
     }
   },
   "data_sources": {
@@ -75,16 +143,24 @@
       "dataset.classify.train_dataset": {
         "source": "train_dataset",
         "mapping": {
-          "csv_path": {"path": "train.csv"},
-          "images_dir": {"path": "images/"}
+          "csv_path": {
+            "path": "train.csv"
+          },
+          "images_dir": {
+            "path": "images/"
+          }
         }
       },
       "dataset.classify.validation_dataset": {
         "source": "eval_dataset",
         "optional": true,
         "mapping": {
-          "csv_path": {"path": "val.csv"},
-          "images_dir": {"path": "images/"}
+          "csv_path": {
+            "path": "val.csv"
+          },
+          "images_dir": {
+            "path": "images/"
+          }
         }
       }
     },
@@ -92,8 +168,12 @@
       "dataset.classify.test_dataset": {
         "source": "eval_dataset",
         "mapping": {
-          "csv_path": {"path": "test.csv"},
-          "images_dir": {"path": "images/"}
+          "csv_path": {
+            "path": "test.csv"
+          },
+          "images_dir": {
+            "path": "images/"
+          }
         }
       }
     },
@@ -101,8 +181,12 @@
       "dataset.classify.infer_dataset": {
         "source": "eval_dataset",
         "mapping": {
-          "csv_path": {"path": "infer.csv"},
-          "images_dir": {"path": "images/"}
+          "csv_path": {
+            "path": "infer.csv"
+          },
+          "images_dir": {
+            "path": "images/"
+          }
         }
       }
     }
@@ -124,5 +208,15 @@
     "num_epochs": "train.num_epochs",
     "batch_size": "dataset.classify.batch_size",
     "learning_rate": "train.optim.lr"
-  }
+  },
+  "tags": [
+    "pcb",
+    "aoi",
+    "defect",
+    "classification",
+    "segmentation",
+    "siamese",
+    "visual-inspection"
+  ],
+  "description": "Visual ChangeNet for binary image classification and segmentation in AOI defect detection."
 }

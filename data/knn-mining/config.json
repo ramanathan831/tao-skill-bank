@@ -8,11 +8,17 @@
       "mode": "args",
       "num_gpus": 1,
       "inputs": {
-        "source-parquet": {"type": "file"},
-        "target-parquet": {"type": "file"}
+        "source-parquet": {
+          "type": "file"
+        },
+        "target-parquet": {
+          "type": "file"
+        }
       },
       "outputs": {
-        "output-parquet": {"type": "file"}
+        "output-parquet": {
+          "type": "file"
+        }
       },
       "args": {
         "source-parquet": "{source_parquet}",
@@ -28,5 +34,13 @@
         "knn_metric": "cosine"
       }
     }
-  }
+  },
+  "tags": [
+    "mining",
+    "similarity",
+    "knn",
+    "nearest-neighbor",
+    "cuml"
+  ],
+  "description": "GPU-accelerated k-NN nearest neighbor mining using cuML for similarity-based data retrieval."
 }

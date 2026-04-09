@@ -7,11 +7,17 @@
       "command": "python -u cosmos_video_generation/caption_utils/vLLM_qwen_video_caption_generation.py",
       "mode": "args",
       "inputs": {
-        "weak-video-list": {"type": "file"},
-        "prompt-file": {"type": "file"}
+        "weak-video-list": {
+          "type": "file"
+        },
+        "prompt-file": {
+          "type": "file"
+        }
       },
       "outputs": {
-        "output-json": {"type": "file"}
+        "output-json": {
+          "type": "file"
+        }
       },
       "args": {
         "weak-video-list": "{storage_root}/gaps/gaps.parquet",
@@ -21,5 +27,12 @@
         "output-json": "{storage_root}/captions/captions.jsonl"
       }
     }
-  }
+  },
+  "tags": [
+    "captioning",
+    "vlm",
+    "qwen",
+    "text-generation"
+  ],
+  "description": "VLM captioning via Qwen endpoint for generating text descriptions of images/videos."
 }
