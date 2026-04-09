@@ -1,0 +1,70 @@
+{
+  "name": "anomalygen",
+  "type": "model",
+  "description": "Cosmos AnomalyGen SDG pipeline: synthetic defect image generation for AOI. Three-step pipeline: Automatic Mask Placement (AMP) -> JSONL preparation -> SDG inference via torchrun.",
+  "container_image": "nvcr.io/nvidian/iva/anomalygen_light:computex20260325",
+  "required_credentials": [
+    {"name": "HF_TOKEN", "description": "HuggingFace token for gated Cosmos Predict2 model download"}
+  ],
+  "actions": {
+    "amp": {
+      "command": "python3 -m scripts.anomaly_gen.automatic_mask_placement",
+      "mode": "args",
+      "description": "Automatic Mask Placement: place defect submask templates onto clean images using ROI masks with seed variation.",
+      "args": {
+        "submask": {"type": "file", "required": true, "description": "Path to submask template image"},
+        "roi_image": {"type": "file", "required": true, "description": "Path to ROI mask image"},
+        "n": {"type": "int", "default": 1, "description": "Number of mask placements per call"},
+        "seed_range": {"type": "string", "required": true, "description": "Seed range as 'start end' (e.g., '1 5')"},
+        "output_base_dir": {"type": "folder", "required": true, "description": "Output directory for placed masks"},
+        "image_size": {"type": "string", "required": true, "description": "Image dimensions as 'width height'"}
+      },
+      "inputs": {
+        "submask": {"type": "file"},
+        "roi_image": {"type": "file"}
+      },
+      "outputs": {
+        "output_base_dir": {"type": "folder"}
+      }
+    },
+    "inference": {
+      "command": "torchrun --nproc_per_node=1 -m scripts.anomaly_gen.synthetic_dataset_generation",
+      "mode": "args",
+      "description": "SDG inference: generate synthetic anomaly images from clean images + auto-placed masks using the AnomalyGen diffusion model.",
+      "args": {
+        "config": {"type": "string", "default": "cosmos_predict2/configs/base/ag_config.py", "description": "AnomalyGen config path"},
+        "ag_checkpoint_dir": {"type": "folder", "required": true, "description": "Fine-tuned AnomalyGen checkpoint directory (must contain ag_config.yaml)"},
+        "step": {"type": "int", "required": true, "description": "Checkpoint step number to load"},
+        "input_data_path": {"type": "file", "required": true, "description": "JSONL file with image-mask pairs and generation parameters"},
+        "output_image_path": {"type": "folder", "required": true, "description": "Output directory for generated images"},
+        "seed": {"type": "int", "default": 0, "description": "Random seed for reproducibility"}
+      },
+      "extra_args": ["-- experiment=predict2_anomaly_gen_fsdp_2b"],
+      "inputs": {
+        "ag_checkpoint_dir": {"type": "folder"},
+        "input_data_path": {"type": "file"}
+      },
+      "outputs": {
+        "output_image_path": {"type": "folder"}
+      },
+      "notes": "Takes ~30 min for 25 entries. The bare '--' before 'experiment=' is required to separate argparse args from config overrides."
+    }
+  },
+  "pretrained_models": {
+    "cosmos_predict2": {
+      "path": "checkpoints/nvidia/Cosmos-Predict2-2B-Text2Image/",
+      "source": "huggingface",
+      "gated": true,
+      "notes": "Requires HF_TOKEN and model agreement acceptance"
+    },
+    "nvdinov2": {
+      "path": "checkpoints/NVDINOV2/nv_dinov2_classification_model.ckpt",
+      "source": "ngc"
+    },
+    "c_radio_v3": {
+      "path": "checkpoints/nvidia/C-RADIO-V3/model.safetensors",
+      "source": "huggingface"
+    }
+  },
+  "download_script": "python -m scripts.download_checkpoints --model_types text2image --model_sizes 2B"
+}

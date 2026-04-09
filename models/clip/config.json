@@ -1,0 +1,98 @@
+{
+  "network_arch": "clip",
+  "container_image": "nvcr.io/nvidia/tao/tao-toolkit:6.26.3-pyt",
+  "data_format": "default",
+  "gpu_spec_key": "train.num_gpus",
+  "actions": {
+    "train": {
+      "command": "clip train -e {config_path}",
+      "config_format": "yaml",
+      "inputs": {
+        "dataset.train.datasets[0].image_dir": {"type": "folder"},
+        "dataset.train.datasets[0].caption_dir": {"type": "folder"},
+        "dataset.val.datasets[0].image_dir": {"type": "folder"},
+        "dataset.val.datasets[0].caption_dir": {"type": "folder"},
+        "train.pretrained_model_path": {"type": "file", "optional": true},
+        "train.resume_training_checkpoint_path": {"type": "file", "optional": true}
+      },
+      "outputs": {"results_dir": {"type": "folder"}},
+      "upload_excludes": ["inputs/"]
+    },
+    "evaluate": {
+      "command": "clip evaluate -e {config_path}",
+      "config_format": "yaml",
+      "inputs": {
+        "dataset.val.datasets[0].image_dir": {"type": "folder"},
+        "dataset.val.datasets[0].caption_dir": {"type": "folder"},
+        "evaluate.checkpoint": {"type": "file"}
+      },
+      "outputs": {"results_dir": {"type": "folder"}},
+      "upload_excludes": ["inputs/"]
+    },
+    "export": {
+      "command": "clip export -e {config_path}",
+      "config_format": "yaml",
+      "inputs": {
+        "export.checkpoint": {"type": "file"}
+      },
+      "outputs": {"results_dir": {"type": "folder"}},
+      "upload_excludes": ["inputs/"]
+    }
+  },
+  "data_sources": {
+    "train": {
+      "dataset.train.datasets": {
+        "source": "train_datasets",
+        "multiple_sources": true,
+        "mapping": {
+          "image_dir": {"path": "images.tar.gz"},
+          "image_list_file": {"path": "image_list.txt", "optional": true},
+          "caption_dir": {"path": "captions.tar.gz"},
+          "caption_file_suffix": {"optional": true}
+        }
+      },
+      "dataset.val.datasets": {
+        "source": "eval_dataset",
+        "multiple_sources": true,
+        "mapping": {
+          "image_dir": {"path": "images.tar.gz"},
+          "image_list_file": {"path": "image_list.txt", "optional": true},
+          "caption_dir": {"path": "captions.tar.gz"},
+          "caption_file_suffix": {"optional": true}
+        }
+      }
+    },
+    "evaluate": {
+      "dataset.val.datasets": {
+        "source": "eval_dataset",
+        "multiple_sources": true,
+        "mapping": {
+          "image_dir": {"path": "images.tar.gz"},
+          "image_list_file": {"path": "image_list.txt", "optional": true},
+          "caption_dir": {"path": "captions.tar.gz"},
+          "caption_file_suffix": {"optional": true}
+        }
+      }
+    }
+  },
+  "spec_params": {
+    "train": {
+      "results_dir": "output_dir",
+      "train.pretrained_model_path": "ptm_if_no_resume_model",
+      "train.resume_training_checkpoint_path": "resume_model"
+    },
+    "evaluate": {
+      "results_dir": "output_dir",
+      "evaluate.checkpoint": "parent_model"
+    },
+    "export": {
+      "results_dir": "output_dir",
+      "export.checkpoint": "parent_model"
+    }
+  },
+  "key_defaults": {},
+  "spec_shorthand_keys": {
+    "num_epochs": "train.num_epochs",
+    "num_gpus": "train.num_gpus"
+  }
+}

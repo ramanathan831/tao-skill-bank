@@ -1,93 +1,169 @@
-# tao-skill-external
+# TAO-Next Skill Bank
 
+Consolidated skill bank for the TAO-Next agent-driven ML training platform. Skills are structured, discoverable units with explicit scope, inputs, actions, and execution references. The agent uses these skills to move from high-level intent to concrete runnable sandbox code without hard-coding per-workflow logic.
 
+Based on the TAO-Next Skills Taxonomy proposal.
 
-## Getting started
+## Taxonomy Overview
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+The taxonomy is organized around the layers of the TAO-Next stack. Each layer has its own purpose while depending on the layers beneath it.
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+| Layer | Primary Purpose | Examples | Depends On |
+|---|---|---|---|
+| **Applications** | Publish a complete workflow or product/use-case capability | DEFT (SDA), HALP, AutoML, AOI | Models, Data, Platform |
+| **Models** | Publish flattened network-centric skills and action knowledge | Cosmos-RL, Visual ChangeNet, CLIP, AnomalyGen | Platform |
+| **Data** | Publish data acquisition, preparation, analysis, and enhancement capabilities | SigLIP Embed, k-NN Mining, Qwen Caption, Pseudolabelling | Platform |
+| **Optimization** | Publish model-agnostic optimization skills (latency vs accuracy) | Quantization, Pruning, Distillation | Models, Platform |
+| **Deployment** | Publish inference serving runtime skills | GroundingDINO serving, VLM serving | Platform, Models |
+| **Platform** | Publish where and how GPU jobs run | Available platforms, runner interface (run/status/cancel) | Independent base layer |
 
-## Add your files
+> **Note:** Optimization and Deployment layers are defined in the taxonomy but not yet populated in this repo. They will be added as skills are developed.
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
+## Directory Structure
 
 ```
-cd existing_repo
-git remote add origin https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-skill-external.git
-git branch -M main
-git push -uf origin main
+tao-skill-external/
+  applications/              # Workflow and use-case skills
+    deft-cosmos-rl/          #   DEFT iterative data improvement for video QA
+    deft-vcn-aoi/                 #   Mining-based SDA for visual change detection
+    normal-train/            #   Standard single-step train/eval/export
+  models/                    # Network-centric skills
+    cosmos-rl/               #   Cosmos-Reason2-8B video QA SFT
+    visual-changenet/        #   Binary classification + segmentation for AOI
+    clip/                    #   CLIP vision-language model
+    cosmos-predict-2-5/      #   Text-to-video generation
+    anomalygen/              #   Cosmos AnomalyGen synthetic defect generation
+  data/                      # Data processing skills
+    siglip-embed/            #   SigLIP image/video embeddings
+    knn-mining/              #   k-NN similarity mining (cuML)
+    qwen-caption/            #   VLM captioning via Qwen endpoint
+    nim-embedding/           #   Video embeddings via NIM endpoint
+    changenet-data-prepare/  #   CSV generation for VCN training
+  platform/                  # Compute backends
+    lepton/                  #   DGX Cloud Lepton managed GPU compute
 ```
 
-## Integrate with your tools
+## Skill Layers
 
-- [ ] [Set up project integrations](https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-skill-external/-/settings/integrations)
+### Applications
 
-## Collaborate with your team
+Application skills represent the highest layer of abstraction. They package a full product or workflow view while explicitly depending on referenced model, data, and platform skills rather than duplicating their execution logic.
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+Application skills define `init` and `iteration` stages in their `config.json`, with stage dependencies and conditional execution. Each stage references a model or data skill by name, or runs an inline script.
 
-## Test and Deploy
+Examples:
+- **deft-cosmos-rl**: DEFT pipeline for video QA — 10-stage iterative loop (gap analysis, captioning, video generation, data merge, training, evaluation)
+- **deft-vcn-aoi**: Mining-based SDA for AOI — embedding, k-NN search, merge, retrain loop
 
-Use the built-in continuous integration in GitLab.
+The DEFT AOI use case shows how an application skill decomposes into domain-specific stages: data mining for retrieval, anomaly generation using AnomalyGen/Cosmos Predict 2.5, gap analysis, data enhancement, fine-tuning, and loop-back evaluation.
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+### Models
 
-***
+Model skills are flattened into network-centric skills. The agent discovers a model as a named network and then learns the operational details needed to run actions on that network.
 
-# Editing this README
+Each model skill publishes:
+- Container URI or runnable image reference
+- Checkpoint references
+- Specification templates or schemas (via `defaults-{action}.json`)
+- Action-specific configuration (train, evaluate, inference, export)
+- Supported data formats
+- Platform requirements
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+The model layer is not only executable — it is also **recommendatory**. It helps the agent answer: which network is best suited for a given data type and purpose.
 
-## Suggestions for a good README
+Examples:
+- **cosmos-rl**: Cosmos-Reason2-8B video QA SFT with FSDP parallelism
+- **visual-changenet**: Siamese classification + pixel-level segmentation for AOI
+- **anomalygen**: Cosmos AnomalyGen synthetic defect image generation
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+### Data
 
-## Name
-Choose a self-explaining name for your project.
+Data skills capture capabilities applied to datasets rather than networks — preparation, analysis, enhancement, and transformation operations.
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+Application skills depend heavily on data skills. For example, the AOI flow uses data mining (k-NN retrieval), anomaly generation, embedding, and CSV preparation to improve coverage before fine-tuning begins.
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+Examples:
+- **siglip-embed**: SigLIP image embeddings for similarity search
+- **knn-mining**: GPU-accelerated k-NN nearest neighbor mining
+- **changenet-data-prepare**: CSV generation with filename normalization for VCN
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+### Platform
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+Platform skills form the lowest layer and serve as the execution foundation. This layer has two responsibilities:
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+1. **Platform discovery** — publish available compute platforms so the agent knows where jobs can run
+2. **Runner interface** — publish a common interface for long-running GPU jobs: run, status, cancel
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+For normal model training, the agent uses the selected model skill to assemble the network-specific execution contract and uses the platform skill to launch the job through the common runner.
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+## Skill Publication Contract
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+Each skill must provide enough metadata to function as a discoverable, composable contract.
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+| Contract Field | Purpose |
+|---|---|
+| Name and hierarchy path | Identity, discoverability, and placement in the taxonomy |
+| Purpose and scope | What the skill is for and what it should not be used for |
+| Inputs and outputs | Accepted inputs, produced outputs, and data formats |
+| Actions | Operations the agent can request from the skill |
+| Execution references | Container URIs, checkpoints, schemas, configs |
+| Platform requirements | Runner constraints, GPU expectations, environment needs |
+| Troubleshooting guide | Expert knowledge, error patterns, and behavior notes |
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+In this repo, the contract is split across two files:
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+- **`config.json`** — structured metadata: actions, inputs/outputs, execution references, credentials, data sources
+- **`{skill-name}.md`** — agent-readable documentation: purpose/scope, data formats, parameters, troubleshooting
 
-## License
-For open source projects, say how it is licensed.
+## Skill Package Format
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+```
+{skill-name}/
+  config.json              # Structured config (contract fields above)
+  {skill-name}.md          # Agent documentation (plain markdown, no frontmatter)
+  defaults-{action}.json   # Per-action default spec values (JSON only)
+  scripts/                 # Inline scripts for workflow stages (optional)
+```
+
+### defaults-{action}.json
+
+Complete default spec for each action. The planner loads these and applies user overrides on top. All defaults are JSON format regardless of what the container expects — the script runner converts to the container's native format (YAML/TOML/JSON) at runtime.
+
+## Execution Patterns
+
+The taxonomy supports distinct execution patterns depending on whether the user request maps to a known network action or a higher-level application workflow.
+
+| Scenario | Skills Composed by Agent | Result |
+|---|---|---|
+| Normal training or inference on a known network | Model skill + Platform skill | Agent generates sandbox code using the network's container, schemas, configs, command line, env vars, and platform requirements |
+| High-level application workflow (e.g., AutoML) | Application skill + referenced skills + Platform skill | Agent generates sandbox code from high-level workflow knowledge while grounding execution in the platform layer |
+| Application use case (e.g., DEFT AOI) | Application skill + referenced Model/Data skills + Platform skill | Agent decomposes the use case, selects required sub-skills, and orchestrates the closed-loop workflow |
+
+## Skill Discovery
+
+The TAO-Next planner discovers skills via the `SkillBank` class:
+
+1. Model skills are searched in both `models/` and `data/` directories
+2. Workflow skills are loaded from `applications/`
+3. Platform configs are loaded from `platform/`
+4. Skill names use hyphen-case (`cosmos-rl`, not `cosmos_rl`)
+
+The `TAO_SKILL_BANK_PATH` environment variable overrides the default discovery path.
+
+## Design Rules
+
+- Keep application skills workflow-centric — avoid embedding low-level runtime duplication when a referenced model or data skill already exists.
+- Keep model skills flattened at the network level so the agent can reason cleanly about network choice and action contracts.
+- Treat the platform layer as the base execution contract for all GPU jobs.
+- Publish enough execution metadata for code synthesis, not just narrative descriptions.
+- Use explicit references between skills so composition remains deterministic and explainable.
+
+## Adding a New Skill
+
+1. Choose the correct layer: `models/` for trainable networks, `data/` for data processing, `applications/` for workflows, `platform/` for compute backends
+2. Create a directory: `{layer}/{skill-name}/`
+3. Add `config.json` with actions, inputs, outputs, credentials, execution references
+4. Add `{skill-name}.md` with agent documentation (purpose, data formats, parameters, error patterns)
+5. Add `defaults-{action}.json` for each action with default spec values
+6. If the skill has inline scripts, add them under `scripts/`
+7. Test: verify `SkillBank().get_model_config('{skill-name}')` returns your config
