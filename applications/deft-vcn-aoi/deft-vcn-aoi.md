@@ -1,4 +1,4 @@
-# SDA VCN (Visual ChangeNet) Workflow
+# DEFT VCN AOI Workflow
 
 Mining-based iterative data augmentation for binary image classification. Unlike the Cosmos SDA pipeline (which generates synthetic videos), VCN SDA mines similar images from a large source pool using embedding-based k-NN search, merges them with existing training data, and retrains.
 

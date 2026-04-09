@@ -1,5 +1,5 @@
 {
-  "name": "sda-vcn",
+  "name": "deft-vcn-aoi",
   "type": "workflow",
   "description": "VCN AOI SDA pipeline: mining-based iterative data improvement for visual change detection. Each iteration identifies failure cases, mines similar samples from a source pool using SigLIP embeddings + k-NN, merges them into training data, and retrains.",
   "prerequisites": {
