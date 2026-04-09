@@ -23,7 +23,10 @@
   "iteration_defaults": {
     "count": 3,
     "continual_model": true,
-    "continual_dataset": true
+    "continual_dataset": true,
+    "topn": 5,
+    "knn_metric": "cosine",
+    "min_recall": 1.0
   },
   "stages": {
     "init": [
@@ -36,7 +39,7 @@
       {
         "name": "threshold_optimization",
         "type": "cpu",
-        "script": "workflow/sda-vcn/scripts/compute_vcn_optimal_threshold.py",
+        "script": "applications/deft-vcn-aoi/scripts/compute_vcn_optimal_threshold.py",
         "image": "nvcr.io/nvidian/iva/smart_data_augmentation",
         "args": {
           "inference-results": "{storage_root}/init/inference",
@@ -53,7 +56,7 @@
       {
         "name": "zero_shot_eval",
         "type": "cpu",
-        "script": "workflow/sda-vcn/scripts/analyze_vcn_inference_gaps.py",
+        "script": "applications/deft-vcn-aoi/scripts/analyze_vcn_inference_gaps.py",
         "image": "nvcr.io/nvidian/iva/smart_data_augmentation",
         "args": {
           "inference-results": "{storage_root}/init/inference",
@@ -90,7 +93,7 @@
         "name": "sft_threshold",
         "type": "cpu",
         "conditional": "after sft_inference",
-        "script": "workflow/sda-vcn/scripts/compute_vcn_optimal_threshold.py",
+        "script": "applications/deft-vcn-aoi/scripts/compute_vcn_optimal_threshold.py",
         "image": "nvcr.io/nvidian/iva/smart_data_augmentation",
         "args": {
           "inference-results": "{storage_root}/init/sft/inference",
@@ -108,7 +111,7 @@
         "name": "sft_eval",
         "type": "cpu",
         "conditional": "after sft_threshold",
-        "script": "workflow/sda-vcn/scripts/analyze_vcn_inference_gaps.py",
+        "script": "applications/deft-vcn-aoi/scripts/analyze_vcn_inference_gaps.py",
         "image": "nvcr.io/nvidian/iva/smart_data_augmentation",
         "args": {
           "inference-results": "{storage_root}/init/sft/inference",
@@ -132,7 +135,7 @@
       {
         "name": "gap_analysis",
         "type": "cpu",
-        "script": "workflow/sda-vcn/scripts/analyze_vcn_inference_gaps.py",
+        "script": "applications/deft-vcn-aoi/scripts/analyze_vcn_inference_gaps.py",
         "image": "nvcr.io/nvidian/iva/smart_data_augmentation",
         "args": {
           "inference-results": "{prev_storage_root}/inference",
@@ -155,7 +158,7 @@
       {
         "name": "source_pool_expansion",
         "type": "cpu",
-        "script": "workflow/sda-vcn/scripts/build_vcn_source_pool.py",
+        "script": "applications/deft-vcn-aoi/scripts/build_vcn_source_pool.py",
         "image": "nvcr.io/nvidian/iva/smart_data_augmentation",
         "args": {
           "gaps-parquet": "{storage_root}/gaps/gaps.parquet",
@@ -177,24 +180,37 @@
         "name": "embed_target",
         "type": "gpu",
         "action": "embed",
-        "skill": "siglip-embed"
+        "skill": "siglip-embed",
+        "extra_args": {
+          "input_parquet": "{storage_root}/embeddings/target_queries.parquet",
+          "output_parquet": "{storage_root}/embeddings/target_embeddings.parquet"
+        }
       },
       {
         "name": "embed_source",
         "type": "gpu",
         "action": "embed",
-        "skill": "siglip-embed"
+        "skill": "siglip-embed",
+        "extra_args": {
+          "input_parquet": "{storage_root}/embeddings/source_pool.parquet",
+          "output_parquet": "{storage_root}/embeddings/source_embeddings.parquet"
+        }
       },
       {
         "name": "knn_mining",
         "type": "gpu",
         "action": "mine",
-        "skill": "knn-mining"
+        "skill": "knn-mining",
+        "extra_args": {
+          "source_parquet": "{storage_root}/embeddings/source_embeddings.parquet",
+          "target_parquet": "{storage_root}/embeddings/target_embeddings.parquet",
+          "output_parquet": "{storage_root}/mining/mined_pairs.parquet"
+        }
       },
       {
         "name": "merge_training_csv",
         "type": "cpu",
-        "script": "workflow/sda-vcn/scripts/finalize_vcn_train_csv.py",
+        "script": "applications/deft-vcn-aoi/scripts/finalize_vcn_train_csv.py",
         "image": "nvcr.io/nvidian/iva/smart_data_augmentation",
         "args": {
           "mined-parquet": "{storage_root}/mining/mined_pairs.parquet",
@@ -225,7 +241,7 @@
       {
         "name": "threshold_optimization",
         "type": "cpu",
-        "script": "workflow/sda-vcn/scripts/compute_vcn_optimal_threshold.py",
+        "script": "applications/deft-vcn-aoi/scripts/compute_vcn_optimal_threshold.py",
         "image": "nvcr.io/nvidian/iva/smart_data_augmentation",
         "args": {
           "inference-results": "{storage_root}/inference",
@@ -242,7 +258,7 @@
       {
         "name": "evaluation",
         "type": "cpu",
-        "script": "workflow/sda-vcn/scripts/analyze_vcn_inference_gaps.py",
+        "script": "applications/deft-vcn-aoi/scripts/analyze_vcn_inference_gaps.py",
         "image": "nvcr.io/nvidian/iva/smart_data_augmentation",
         "args": {
           "inference-results": "{storage_root}/inference",
