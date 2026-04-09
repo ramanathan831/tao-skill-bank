@@ -8,35 +8,75 @@
       "command": "clip train -e {config_path}",
       "config_format": "yaml",
       "inputs": {
-        "dataset.train.datasets[0].image_dir": {"type": "folder"},
-        "dataset.train.datasets[0].caption_dir": {"type": "folder"},
-        "dataset.val.datasets[0].image_dir": {"type": "folder"},
-        "dataset.val.datasets[0].caption_dir": {"type": "folder"},
-        "train.pretrained_model_path": {"type": "file", "optional": true},
-        "train.resume_training_checkpoint_path": {"type": "file", "optional": true}
+        "dataset.train.datasets[0].image_dir": {
+          "type": "folder"
+        },
+        "dataset.train.datasets[0].caption_dir": {
+          "type": "folder"
+        },
+        "dataset.val.datasets[0].image_dir": {
+          "type": "folder"
+        },
+        "dataset.val.datasets[0].caption_dir": {
+          "type": "folder"
+        },
+        "train.pretrained_model_path": {
+          "type": "file",
+          "optional": true
+        },
+        "train.resume_training_checkpoint_path": {
+          "type": "file",
+          "optional": true
+        }
       },
-      "outputs": {"results_dir": {"type": "folder"}},
-      "upload_excludes": ["inputs/"]
+      "outputs": {
+        "results_dir": {
+          "type": "folder"
+        }
+      },
+      "upload_excludes": [
+        "inputs/"
+      ]
     },
     "evaluate": {
       "command": "clip evaluate -e {config_path}",
       "config_format": "yaml",
       "inputs": {
-        "dataset.val.datasets[0].image_dir": {"type": "folder"},
-        "dataset.val.datasets[0].caption_dir": {"type": "folder"},
-        "evaluate.checkpoint": {"type": "file"}
+        "dataset.val.datasets[0].image_dir": {
+          "type": "folder"
+        },
+        "dataset.val.datasets[0].caption_dir": {
+          "type": "folder"
+        },
+        "evaluate.checkpoint": {
+          "type": "file"
+        }
       },
-      "outputs": {"results_dir": {"type": "folder"}},
-      "upload_excludes": ["inputs/"]
+      "outputs": {
+        "results_dir": {
+          "type": "folder"
+        }
+      },
+      "upload_excludes": [
+        "inputs/"
+      ]
     },
     "export": {
       "command": "clip export -e {config_path}",
       "config_format": "yaml",
       "inputs": {
-        "export.checkpoint": {"type": "file"}
+        "export.checkpoint": {
+          "type": "file"
+        }
       },
-      "outputs": {"results_dir": {"type": "folder"}},
-      "upload_excludes": ["inputs/"]
+      "outputs": {
+        "results_dir": {
+          "type": "folder"
+        }
+      },
+      "upload_excludes": [
+        "inputs/"
+      ]
     }
   },
   "data_sources": {
@@ -45,20 +85,38 @@
         "source": "train_datasets",
         "multiple_sources": true,
         "mapping": {
-          "image_dir": {"path": "images.tar.gz"},
-          "image_list_file": {"path": "image_list.txt", "optional": true},
-          "caption_dir": {"path": "captions.tar.gz"},
-          "caption_file_suffix": {"optional": true}
+          "image_dir": {
+            "path": "images.tar.gz"
+          },
+          "image_list_file": {
+            "path": "image_list.txt",
+            "optional": true
+          },
+          "caption_dir": {
+            "path": "captions.tar.gz"
+          },
+          "caption_file_suffix": {
+            "optional": true
+          }
         }
       },
       "dataset.val.datasets": {
         "source": "eval_dataset",
         "multiple_sources": true,
         "mapping": {
-          "image_dir": {"path": "images.tar.gz"},
-          "image_list_file": {"path": "image_list.txt", "optional": true},
-          "caption_dir": {"path": "captions.tar.gz"},
-          "caption_file_suffix": {"optional": true}
+          "image_dir": {
+            "path": "images.tar.gz"
+          },
+          "image_list_file": {
+            "path": "image_list.txt",
+            "optional": true
+          },
+          "caption_dir": {
+            "path": "captions.tar.gz"
+          },
+          "caption_file_suffix": {
+            "optional": true
+          }
         }
       }
     },
@@ -67,10 +125,19 @@
         "source": "eval_dataset",
         "multiple_sources": true,
         "mapping": {
-          "image_dir": {"path": "images.tar.gz"},
-          "image_list_file": {"path": "image_list.txt", "optional": true},
-          "caption_dir": {"path": "captions.tar.gz"},
-          "caption_file_suffix": {"optional": true}
+          "image_dir": {
+            "path": "images.tar.gz"
+          },
+          "image_list_file": {
+            "path": "image_list.txt",
+            "optional": true
+          },
+          "caption_dir": {
+            "path": "captions.tar.gz"
+          },
+          "caption_file_suffix": {
+            "optional": true
+          }
         }
       }
     }
@@ -94,5 +161,12 @@
   "spec_shorthand_keys": {
     "num_epochs": "train.num_epochs",
     "num_gpus": "train.num_gpus"
-  }
+  },
+  "tags": [
+    "vision-language",
+    "classification",
+    "embedding",
+    "zero-shot"
+  ],
+  "description": "CLIP vision-language model for image classification, zero-shot recognition, and embeddings."
 }

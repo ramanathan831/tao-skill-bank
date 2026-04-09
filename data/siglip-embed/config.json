@@ -8,10 +8,14 @@
       "mode": "args",
       "num_gpus": "{num_gpus}",
       "inputs": {
-        "input-parquet": {"type": "file"}
+        "input-parquet": {
+          "type": "file"
+        }
       },
       "outputs": {
-        "output-parquet": {"type": "file"}
+        "output-parquet": {
+          "type": "file"
+        }
       },
       "args": {
         "input-parquet": "{input_parquet}",
@@ -22,5 +26,12 @@
         "num_gpus": 1
       }
     }
-  }
+  },
+  "tags": [
+    "embedding",
+    "similarity",
+    "siglip",
+    "image"
+  ],
+  "description": "SigLIP image embedding model for computing visual similarity in mining pipelines."
 }

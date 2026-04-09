@@ -11,8 +11,22 @@
         "output-parquet": "{output_parquet}",
         "nim-endpoint": "{nim_endpoint}"
       },
-      "inputs": {"input-parquet": {"type": "file"}},
-      "outputs": {"output-parquet": {"type": "file"}}
+      "inputs": {
+        "input-parquet": {
+          "type": "file"
+        }
+      },
+      "outputs": {
+        "output-parquet": {
+          "type": "file"
+        }
+      }
     }
-  }
+  },
+  "tags": [
+    "embedding",
+    "video",
+    "nim"
+  ],
+  "description": "Video embeddings via NVIDIA NIM endpoint for visualization and analysis."
 }

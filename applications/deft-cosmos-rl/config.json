@@ -4,18 +4,49 @@
   "description": "DEFT pipeline for Cosmos-RL video QA: gap analysis, Qwen captioning, Cosmos Predict 2.5 video generation, data merge, and fine-tuning",
   "prerequisites": {
     "required": [
-      {"name": "kpi_dataset_uri", "description": "S3 URI of the KPI/validation dataset (must contain annotations and media files)"},
-      {"name": "platform", "description": "Compute backend (lepton)"},
-      {"name": "qwen_endpoint", "description": "URL of the Qwen VLM inference endpoint for caption generation"},
-      {"name": "prompt_file", "description": "S3 path to the captioning prompt template"}
+      {
+        "name": "kpi_dataset_uri",
+        "description": "S3 URI of the KPI/validation dataset (must contain annotations and media files)"
+      },
+      {
+        "name": "platform",
+        "description": "Compute backend (lepton)"
+      },
+      {
+        "name": "qwen_endpoint",
+        "description": "URL of the Qwen VLM inference endpoint for caption generation"
+      },
+      {
+        "name": "prompt_file",
+        "description": "S3 path to the captioning prompt template"
+      }
     ],
     "optional": [
-      {"name": "kpi_ann_filename", "description": "Annotation filename within the KPI dataset", "default": "annotations.json"},
-      {"name": "train_dataset_uri", "description": "Initial training dataset URI (triggers SFT before the DEFT loop)"},
-      {"name": "init_checkpoint", "description": "Initial model checkpoint (defaults to Cosmos-RL PTM from HuggingFace)"},
-      {"name": "iteration_count", "description": "Number of DEFT iterations to run (default: 3)"},
-      {"name": "continual_model", "description": "Chain checkpoints across iterations (default: true)"},
-      {"name": "continual_dataset", "description": "Accumulate training data across iterations (default: true)"}
+      {
+        "name": "kpi_ann_filename",
+        "description": "Annotation filename within the KPI dataset",
+        "default": "annotations.json"
+      },
+      {
+        "name": "train_dataset_uri",
+        "description": "Initial training dataset URI (triggers SFT before the DEFT loop)"
+      },
+      {
+        "name": "init_checkpoint",
+        "description": "Initial model checkpoint (defaults to Cosmos-RL PTM from HuggingFace)"
+      },
+      {
+        "name": "iteration_count",
+        "description": "Number of DEFT iterations to run (default: 3)"
+      },
+      {
+        "name": "continual_model",
+        "description": "Chain checkpoints across iterations (default: true)"
+      },
+      {
+        "name": "continual_dataset",
+        "description": "Accumulate training data across iterations (default: true)"
+      }
     ]
   },
   "iteration_defaults": {
@@ -25,9 +56,38 @@
   },
   "stages": {
     "init": [
-      {"name": "zero_shot_eval", "action": "evaluate", "skill": "cosmos-rl", "type": "gpu", "spec_overrides": {"dataset.media_dir": "{kpi_dataset_uri}", "eval_dataset_annotation": "{kpi_ann_filename}"}},
-      {"name": "sft_training", "action": "train", "skill": "cosmos-rl", "type": "gpu", "conditional": "train_dataset_uri provided", "spec_overrides": {"custom.val_dataset.media_path": "{kpi_dataset_uri}", "eval_dataset_annotation": "{kpi_ann_filename}"}},
-      {"name": "sft_eval", "action": "evaluate", "skill": "cosmos-rl", "type": "gpu", "conditional": "after sft_training", "spec_overrides": {"dataset.media_dir": "{kpi_dataset_uri}", "eval_dataset_annotation": "{kpi_ann_filename}"}}
+      {
+        "name": "zero_shot_eval",
+        "action": "evaluate",
+        "skill": "cosmos-rl",
+        "type": "gpu",
+        "spec_overrides": {
+          "dataset.media_dir": "{kpi_dataset_uri}",
+          "eval_dataset_annotation": "{kpi_ann_filename}"
+        }
+      },
+      {
+        "name": "sft_training",
+        "action": "train",
+        "skill": "cosmos-rl",
+        "type": "gpu",
+        "conditional": "train_dataset_uri provided",
+        "spec_overrides": {
+          "custom.val_dataset.media_path": "{kpi_dataset_uri}",
+          "eval_dataset_annotation": "{kpi_ann_filename}"
+        }
+      },
+      {
+        "name": "sft_eval",
+        "action": "evaluate",
+        "skill": "cosmos-rl",
+        "type": "gpu",
+        "conditional": "after sft_training",
+        "spec_overrides": {
+          "dataset.media_dir": "{kpi_dataset_uri}",
+          "eval_dataset_annotation": "{kpi_ann_filename}"
+        }
+      }
     ],
     "iteration": [
       {
@@ -42,12 +102,20 @@
           "kpi-media-path": "{kpi_dataset_uri}"
         },
         "inputs": {
-          "results-dir": {"type": "folder"},
-          "kpi-ann-path": {"type": "file"},
-          "kpi-media-path": {"type": "folder"}
+          "results-dir": {
+            "type": "folder"
+          },
+          "kpi-ann-path": {
+            "type": "file"
+          },
+          "kpi-media-path": {
+            "type": "folder"
+          }
         },
         "outputs": {
-          "gaps-parquet": {"type": "file"}
+          "gaps-parquet": {
+            "type": "file"
+          }
         }
       },
       {
@@ -68,11 +136,17 @@
           "num-splits": 8
         },
         "inputs": {
-          "captions-jsonl": {"type": "file"},
-          "gaps-parquet": {"type": "file"}
+          "captions-jsonl": {
+            "type": "file"
+          },
+          "gaps-parquet": {
+            "type": "file"
+          }
         },
         "outputs": {
-          "output-dir": {"type": "folder"}
+          "output-dir": {
+            "type": "folder"
+          }
         }
       },
       {
@@ -93,11 +167,17 @@
           "num-splits": 8
         },
         "inputs": {
-          "output-dir": {"type": "folder"},
-          "splits-dir": {"type": "folder"}
+          "output-dir": {
+            "type": "folder"
+          },
+          "splits-dir": {
+            "type": "folder"
+          }
         },
         "outputs": {
-          "output-dir": {"type": "folder"}
+          "output-dir": {
+            "type": "folder"
+          }
         }
       },
       {
@@ -111,10 +191,14 @@
           "output-json-path": "{storage_root}/augmented/generated_annotations.json"
         },
         "inputs": {
-          "cosmos-data-parquet": {"type": "file"}
+          "cosmos-data-parquet": {
+            "type": "file"
+          }
         },
         "outputs": {
-          "output-json-path": {"type": "file"}
+          "output-json-path": {
+            "type": "file"
+          }
         }
       },
       {
@@ -129,10 +213,14 @@
           "result-path": "{storage_root}/training_data/annotations.json"
         },
         "inputs": {
-          "curr-annotations-path": {"type": "file"}
+          "curr-annotations-path": {
+            "type": "file"
+          }
         },
         "outputs": {
-          "result-path": {"type": "file"}
+          "result-path": {
+            "type": "file"
+          }
         }
       },
       {
@@ -141,15 +229,31 @@
         "action": "train",
         "skill": "cosmos-rl",
         "train_dataset_uri": "{storage_root}/training_data",
-        "spec_overrides": {"custom.val_dataset.media_path": "{kpi_dataset_uri}", "eval_dataset_annotation": "{kpi_ann_filename}", "train.train_batch_per_replica": 4}
+        "spec_overrides": {
+          "custom.val_dataset.media_path": "{kpi_dataset_uri}",
+          "eval_dataset_annotation": "{kpi_ann_filename}",
+          "train.train_batch_per_replica": 4
+        }
       },
       {
         "name": "evaluation",
         "type": "gpu",
         "action": "evaluate",
         "skill": "cosmos-rl",
-        "spec_overrides": {"dataset.media_dir": "{kpi_dataset_uri}", "eval_dataset_annotation": "{kpi_ann_filename}", "evaluation.batch_size": 1}
+        "spec_overrides": {
+          "dataset.media_dir": "{kpi_dataset_uri}",
+          "eval_dataset_annotation": "{kpi_ann_filename}",
+          "evaluation.batch_size": 1
+        }
       }
     ]
-  }
+  },
+  "tags": [
+    "video",
+    "qa",
+    "cosmos",
+    "deft",
+    "sda",
+    "iterative"
+  ]
 }
