@@ -1,0 +1,42 @@
+type: data
+container_image: nvcr.io/nvidia/tao/tao-toolkit:6.26.3-pyt
+required_credentials: []
+actions:
+  prepare:
+    command: python /workspace/scripts/generate_csv.py
+    mode: args
+    args:
+      defect-dir:
+        type: folder
+        required: true
+        description: Directory containing defect/input images
+      golden-dir:
+        type: folder
+        required: true
+        description: Directory containing golden/reference images
+      output:
+        type: file
+        default: dataset.csv
+        description: Output CSV path
+      root-folder:
+        type: string
+        default: data_mining_0402
+        description: Root folder prefix for CSV path columns
+      label:
+        type: string
+        description: Force single label for all rows (auto-detected if omitted)
+    inputs:
+      defect-dir:
+        type: folder
+      golden-dir:
+        type: folder
+    outputs:
+      output:
+        type: file
+    script_source: scripts/generate_csv.py
+tags:
+- pcb
+- aoi
+- csv
+- data-preparation
+- changenet

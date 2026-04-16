@@ -1,0 +1,131 @@
+# SDG Good Image Pipeline Config
+pipeline_type: good
+
+# --- Scene ---
+scene: omniverse://10.63.172.135/Projects/PEGATRON_AOI/dgx-spark-P4242-A04/temp_scene.usd
+output: /home/horde/pcb-aoi/sdg_test_output/good_image
+num_triggers: 1
+
+# --- Camera & Render ---
+camera_path: /World/camera_light/Camera
+camera_xform_path: /World/camera_light
+ring_light_root: /World/camera_light/aoi_ring_light
+resolution: [1920, 1080]
+horizontal_aperture: 200.0
+
+# --- PathTracing ---
+pathtracing:
+  spp: 1
+  total_spp: 64
+
+# --- Scan Grid ---
+scan_grid:
+  x_start: 21.6
+  x_end: -106
+  y_start: 23.2
+  y_end: -77
+  step: 10
+  z: 0
+
+# --- Lighting Randomization ---
+lighting:
+  ring_light: true                # true = per-layer RGB colors(soldering light), false = white light
+  exposure_range: [0.01, 1.0]
+  cone_angle_range: [90, 150]
+  cone_softness_range: [0.5, 1.0]
+
+  # ring_light: true — each layer has its own color
+  layers:
+    Inner_Red:
+      intensity: [5000, 8000]
+      color_r: [0.95, 1.0]
+      color_g: [0.0, 0.05]
+      color_b: [0.0, 0.05]
+    Middle_Green:
+      intensity: [2000, 4000]
+      color_r: [0.0, 0.05]
+      color_g: [0.95, 1.0]
+      color_b: [0.0, 0.05]
+    Outer_Blue:
+      intensity: [3000, 6000]
+      color_r: [0.0, 0.05]
+      color_g: [0.0, 0.05]
+      color_b: [0.95, 1.0]
+
+  # ring_light: false — all layers use white light with these ranges
+  white_light:
+    intensity: [3000, 8000]
+    color_r: [0.8, 1.0]
+    color_g: [0.8, 1.0]
+    color_b: [0.8, 1.0]
+
+# --- PCBA & Component Types ---
+pcba_root: /World/pcba_main_s_detail/PCBA/tn__60014242BASEA04_fM9E
+component_types:
+  - _0201_H030
+  - _0201_H040
+  - _0201_LARGE_H040
+  - _0402_H040
+  - _0402_H060
+  - _0402_LARGE_H070
+  - _0603_H060
+  - _0603_H070
+  - _0603_H100
+  - _0805U_H070
+  - _0805U_H150
+  - _0805U_H160
+  - _1206U_H080
+  - _1206U_H180
+  - _1210U_H280
+  - _2010_D_H110
+  - _2512_C_H090
+  - _2512_C_H220
+  - IND_SMD_0603_B_H100
+  - IND_SMD_0603_H100
+  - IND_SMD_0805_H110
+  - IND_SMD_2520_D_H120
+  - IND_SMD_2520_G_H120
+
+# --- Camera Randomization ---
+camera_rotation:
+  x_range: [0, 0]
+  y_range: [0, 0]
+  z_fixed: -90
+
+# --- Augmentation ---
+augmentation:
+  motion_blur:
+    probability: 0.8
+    alpha_range: [0.01, 0.3]
+    kernel_choices: [5, 7]
+
+# --- Writer ---
+# All annotator flags (set true to enable):
+writer:
+  # Image output
+  rgb: true
+  image_output_format: png        # png, jpg, etc.
+
+  # Bounding boxes
+  bounding_box_2d_tight: true
+  bounding_box_2d_loose: false
+  bounding_box_3d: false
+
+  # Segmentation
+  component_level_segmentation: false
+  semantic_segmentation: true
+  instance_id_segmentation: false
+  colorize_semantic_segmentation: true
+  colorize_instance_id_segmentation: false
+
+  # Depth
+  distance_to_camera: false       # depth from camera origin
+  distance_to_image_plane: false  # depth from image plane
+  colorize_depth: false           # extra PNG visualization for depth
+
+  # Semantic filter
+  semantic_types: [class]
+  # semantic_filter_predicate: null  # advanced: DNF filter string
+
+  # Output
+  frame_padding: 4
