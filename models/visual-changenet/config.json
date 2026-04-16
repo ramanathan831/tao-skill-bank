@@ -206,6 +206,7 @@
   "key_defaults": {},
   "spec_shorthand_keys": {
     "num_epochs": "train.num_epochs",
+    "num_gpus": "train.num_gpus",
     "batch_size": "dataset.classify.batch_size",
     "learning_rate": "train.optim.lr"
   },
