@@ -1,0 +1,46 @@
+# SegFormer
+
+SegFormer for semantic segmentation. Lightweight transformer-based architecture with hierarchical feature extraction. Efficient for real-time segmentation tasks.
+
+Set model.backbone.pretrained_backbone_path for backbone weights.
+
+## Eval Dataset
+
+Optional. Validation data is typically part of the root_dir structure.
+
+## Important Parameters
+
+- **dataset.segment.num_classes**: Number of segmentation classes. Default 2 (binary). Must match the number of classes in your mask annotations.
+- **model.backbone.type**: Default fan_small_12_p4_hybrid. Supported includes FAN variants, SegFormer MIT variants, and others.
+- **dataset.segment.root_dir**: Root directory of the segmentation dataset.
+- **dataset.segment.img_size**: Input image size. Default 256. Increase for finer segmentation at the cost of memory.
+- **train.optim.lr**: Learning rate. Default 6e-5.
+- **model.freeze_backbone**: Whether to freeze the backbone during training. Useful for fine-tuning with limited data.
+- **dataset.segment.batch_size**: Per-GPU batch size. Default 8.
+
+## Multi-GPU / Multi-Node
+
+**Launch method:** Lightning-managed (single `python` process, Lightning spawns workers).
+
+| Spec Key | Description | Default |
+|----------|-------------|---------|
+| `train.num_gpus` | Number of GPUs | 1 |
+| `train.gpu_ids` | GPU device indices | [0] |
+| `train.num_nodes` | Number of nodes | 1 |
+| `train.sync_batchnorm` | Sync BN across GPUs | configurable |
+| `train.use_distributed_sampler` | Use distributed sampler | configurable |
+
+- Multi-GPU strategy: `ddp_find_unused_parameters_true`
+- No fsdp support
+
+**Multi-node env vars** (set by orchestrator): `WORLD_SIZE`, `NODE_RANK`, `MASTER_ADDR`, `MASTER_PORT`, `NUM_GPU_PER_NODE`.
+
+## Hardware
+
+Minimum 1 GPU(s), recommended 2 GPU(s). 16GB+ (V100 or A100) VRAM per GPU. SegFormer is relatively lightweight. Default img_size=256 is memory-friendly. Increase img_size for higher resolution at the cost of memory and speed.
+
+## Error Patterns
+
+**CUDA out of memory**: Reduce batch_size or img_size. SegFormer memory scales quadratically with image size.
+
+**num_classes mismatch**: Ensure dataset.segment.num_classes matches the actual number of classes in your mask annotations.
