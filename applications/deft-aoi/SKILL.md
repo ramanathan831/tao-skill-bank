@@ -287,3 +287,4 @@ Six hooks in `hooks/`:
 | `changenet-data-prepare` | SDK | data | CSV + image prep |
 | `vcn-merge-csv` | SDK | data | Merge mined/augmented data |
 | `analyze-kpi` | Agent-native | data | KPI threshold analysis |
+

@@ -1,0 +1,12 @@
+include:
+  - project: 'astra/skill-eval-ci'
+    file: '/templates/skill-eval.yml'
+    ref: 'main'
+
+# Placeholder job so .post stage (used by NV-ACES) can run.
+# Replace with your own CI jobs as needed.
+nv_aces_placeholder:
+  stage: test
+  image: alpine:3.20
+  script:
+    - echo "NV-ACES skill evaluation enabled"
