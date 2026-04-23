@@ -1,6 +1,6 @@
 ---
-name: deft-aoi-brev
-description: Deploy the full DEFT Loop (Evaluate-RCA-SDG-Retrain) with OpenClaw on a Brev GPU instance. Use this skill whenever the user mentions DEFT loop, DEFT on Brev, PCB AOI defect detection, ChangeNet training on Brev, AnomalyGen setup, agentic defect loop, setting up the data-efficient fine-tuning pipeline on a GPU instance, or wants to deploy the full DEFT orchestration agent on a cloud GPU. Even if the user just says "set up deft loop" or "deploy deft on brev", use this skill.
+name: brev-setup-with-demo-data
+description: Reference procedure for deploying the full DEFT Loop (Evaluate-RCA-SDG-Retrain) on a Brev GPU instance. Bundled with the `workflow-deft-aoi-loop` skill — used when setting up the DEFT pipeline on a cloud GPU with the demo dataset.
 ---
 
 # DEFT Loop on Brev
@@ -175,17 +175,29 @@ brev exec <instance> "mkdir -p ~/workspace/.claude/skills ~/workspace/kpi/images
 
 ### 3C. Transfer setup script + skills first (small, fast)
 
-The DEFT skills are in a sibling `deft-loop/` directory (same parent as `deft-loop-brev/`). Skills go into `~/workspace/.claude/skills/` on the instance:
+The 5 DEFT skills live in the `tao-skills-external` repo:
+- `applications/workflow-deft-aoi-loop/` (orchestrator — also holds this reference doc and the shared scripts)
+- `data/deft-aoi-rca-changenet/`
+- `data/deft-aoi-anomalygen-inference/`
+- `data/deft-aoi-omniverse-sdg/`
+- `data/deft-aoi-data-mining/`
+
+Transfer them into `~/workspace/.claude/skills/` on the instance:
 
 ```bash
-# Setup script
-brev cp <SKILL_DIR>/scripts/setup-deft-loop.sh <instance>:/tmp/
+# Setup script (bundled with the orchestrator)
+brev cp <REPO>/applications/workflow-deft-aoi-loop/scripts/setup-deft-loop.sh <instance>:/tmp/
 
-# DEFT workflow skills (sibling directory)
-scp -r <PACKAGE_DIR>/deft-loop <instance>:~/workspace/.claude/skills/deft-loop
+# Orchestrator
+scp -r <REPO>/applications/workflow-deft-aoi-loop <instance>:~/workspace/.claude/skills/workflow-deft-aoi-loop
+
+# 4 sub-skills
+for s in deft-aoi-rca-changenet deft-aoi-anomalygen-inference deft-aoi-omniverse-sdg deft-aoi-data-mining; do
+  scp -r <REPO>/data/$s <instance>:~/workspace/.claude/skills/$s
+done
 ```
 
-Where `<PACKAGE_DIR>` is the parent directory containing both `deft-loop-brev/` and `deft-loop/`.
+Where `<REPO>` is the local path to your `tao-skills-external` clone.
 
 Note: Use `scp` instead of `brev cp` for directories to avoid escaping issues.
 
