@@ -1,5 +1,5 @@
 ---
-name: anomalygen-inference
+name: deft-aoi-anomalygen-inference
 description: >-
   Run the full Cosmos AnomalyGen SDG pipeline: (1) Automatic Mask Placement,
   (2) Prepare sdg_inference.jsonl, (3) SDG inference with torchrun. All steps

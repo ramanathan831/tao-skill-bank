@@ -1,5 +1,5 @@
 ---
-name: Data Mining for Training Pipeline
+name: deft-aoi-data-mining
 description: Mine similar images from source datasets to augment training data using k-NN embedding search, consuming gap analysis results from upstream RCA skill
 dependencies:
   - bash

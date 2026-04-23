@@ -1,17 +1,31 @@
 ---
-name: workflow-deft-loop
+name: workflow-deft-aoi-loop
 description: >-
   Top-level DEFT Loop orchestrator — runs the full Evaluate → RCCA → SDG →
   Retrain → Deploy loop end-to-end for NVIDIA PCB AOI ChangeNet models.
   Use when the user wants to iteratively improve a model to meet a KPI target.
 ---
 
-# Skill: workflow-deft-loop
+# Skill: workflow-deft-aoi-loop
 
 **Trigger:** Invoke this skill when the user wants to iteratively improve a model to meet a KPI target, run the DEFT loop, or says something like:
 - "I want my model to be performant at KPI: FAR < 0.1% at recall=100%"
 - "Run the DEFT loop on my model"
 - "Fine-tune until KPI is met"
+
+---
+
+## Sub-Skills Required
+
+This orchestrator calls the following sub-skills. All must be installed before running:
+
+- `deft-aoi-deft-aoi-rca-changenet` — root cause analysis on inference results
+- `deft-aoi-deft-aoi-anomalygen-inference` — diffusion-based defect inpainting (Arm A)
+- `deft-aoi-deft-aoi-omniverse-sdg` — physics-based ray-traced SDG (Arm B)
+- `deft-aoi-deft-aoi-data-mining` — k-NN retrieval from pre-generated AnomalyGen pool (Arm C)
+- `deft-aoi-brev` — workspace and dataset staging on Brev (optional)
+
+If any sub-skill is missing, stop and ask the user to install the `workflow-deft-aoi-loop` plugin (which bundles all of the above).
 
 ---
 
@@ -243,13 +257,13 @@ To run the DEFT loop, I need the following information:
    - Pretrained checkpoints directory (Cosmos, DINOv2, C-RADIO)
    - Number of seeds per image (default: 5)
 
-   **Arm B: Omniverse SDG** (physics-based ray tracing via `omniverse-sdg`)
+   **Arm B: Omniverse SDG** (physics-based ray tracing via `deft-aoi-omniverse-sdg`)
    - Enable? (default: yes if prerequisites available)
    - Output directory for raw SDG frames
    - Defect types to generate: shift / tombstone / sideflip (any combination; agent selects based on RCA)
    - **Desired crop count per defect type** (default: 200 crops — NOT frames, see calculation below)
    - USD scene path (auto-discover: search `augmentation/omniverse/scene/` for `*.usd` files; no Nucleus credentials needed)
-   - Crop extraction script path (default: `skills/deft-loop/scripts/crop_omni_sdg.py`, relative to workspace)
+   - Crop extraction script path (default: `scripts/crop_omni_sdg.py`, relative to workspace)
 
    **Arm C: Data Mining** (k-NN retrieval from pre-generated AnomalyGen source pool)
    - Enable? (default: yes if source parquet available)
@@ -273,7 +287,7 @@ To run the DEFT loop, I need the following information:
 
 8. **Max iterations** (default: 3)
 
-9. **Data prep script path** (default: tao-changenet-data-edited/scripts/changenet_data_pair_prepare.py)
+9. **Data prep script path** (default: `scripts/changenet_data_pair_prepare.py`, bundled in this skill)
 
 10. **Analysis script path** (default: `scripts/analyze_kpi.py` bundled with this plugin)
 ```
@@ -287,7 +301,7 @@ Fill in defaults for anything marked optional that the user doesn't provide.
 
 ### 2A. Verify and create workspace structure
 
-The workflow can run standalone (without `deft-loop-brev`). Ensure the workspace
+The workflow can run standalone (without `deft-aoi-brev`). Ensure the workspace
 skeleton exists before validating inputs. Create any missing directories:
 
 ```bash
@@ -326,18 +340,18 @@ test -f "$specs_file"           && echo "OK: spec YAML" || echo "MISSING: $specs
 test -d "$backbone_weight_dir"  && echo "OK: backbone weights" || echo "MISSING: $backbone_weight_dir"
 test -f "$baseline_checkpoint"  && echo "OK: baseline checkpoint" || echo "SKIP: will train baseline"
 # SDG prerequisites (check based on selected sub-skill)
-if [ "$sdg_subskill" = "anomalygen-inference" ]; then
+if [ "$sdg_subskill" = "deft-aoi-anomalygen-inference" ]; then
   test -d "$sdg_clean_image_dir"  && echo "OK: SDG clean images" || echo "MISSING: $sdg_clean_image_dir"
   test -d "$sdg_roi_dir"          && echo "OK: SDG ROI" || echo "MISSING: $sdg_roi_dir"
   test -d "$sdg_submask_dir"      && echo "OK: SDG submask" || echo "MISSING: $sdg_submask_dir"
   test -f "$sdg_defect_desc"      && echo "OK: defect description" || echo "MISSING: $sdg_defect_desc"
   test -d "$sdg_checkpoint_path"  && echo "OK: SDG checkpoint" || echo "MISSING: $sdg_checkpoint_path"
   test -d "$sdg_pretrained_dir"   && echo "OK: pretrained models" || echo "MISSING: $sdg_pretrained_dir"
-else  # omniverse-sdg
+else  # deft-aoi-omniverse-sdg
   # OptiX is bundled inside the pcb-aoi-ov-sdg container — no host check needed
   echo "OK: OptiX (bundled in container)"
   test -f "$crop_script_path"     && echo "OK: crop_from_sdg.py" || echo "MISSING: $crop_script_path"
-  docker image inspect nvcr.io/nvidian/iva/pcb-aoi-ov-sdg:computex_ver1 > /dev/null 2>&1 && echo "OK: omniverse-sdg image" || echo "MISSING: pcb-aoi-ov-sdg image"
+  docker image inspect nvcr.io/nvidian/iva/pcb-aoi-ov-sdg:computex_ver1 > /dev/null 2>&1 && echo "OK: deft-aoi-omniverse-sdg image" || echo "MISSING: pcb-aoi-ov-sdg image"
 fi
 test -f "$data_prep_script"     && echo "OK: data prep script" || echo "MISSING: $data_prep_script"
 test -f "$analyze_script"       && echo "OK: analysis script" || echo "MISSING: $analyze_script"
@@ -348,8 +362,8 @@ test -d "$source_images_host_dir"    && echo "OK: source images dir" || echo "MI
 
 # Verify Docker images
 docker image inspect "$train_container" > /dev/null 2>&1 && echo "OK: TAO image" || echo "MISSING: $train_container"
-# AnomalyGen image only needed if anomalygen-inference sub-skill selected
-[ "$sdg_subskill" = "anomalygen-inference" ] && \
+# AnomalyGen image only needed if deft-aoi-anomalygen-inference sub-skill selected
+[ "$sdg_subskill" = "deft-aoi-anomalygen-inference" ] && \
   { docker image inspect "$anomalygen_container" > /dev/null 2>&1 && echo "OK: AnomalyGen image" || echo "MISSING: $anomalygen_container"; }
 
 # Verify GPU access
@@ -514,7 +528,7 @@ If baseline checkpoint exists, skip to evaluation. Otherwise train from scratch.
 3. Run inference on the full validation set
 4. Analyze results — record FAR, Recall, threshold
 5. If KPI already met, print final report and stop
-6. **Run full RCA on baseline results** (call `rca-changenet` skill)
+6. **Run full RCA on baseline results** (call `deft-aoi-rca-changenet` skill)
 
 ```
 [Step 0] Training baseline... (200 epochs)
@@ -527,7 +541,7 @@ If baseline checkpoint exists, skip to evaluation. Otherwise train from scratch.
 
 #### Step 0 RCA (MANDATORY)
 
-After baseline evaluation, run the **`rca-changenet`** skill on the baseline
+After baseline evaluation, run the **`deft-aoi-rca-changenet`** skill on the baseline
 inference results. This is critical because the RCA:
 
 - Identifies which defect types are failing and why (data gap, golden quality, etc.)
@@ -540,12 +554,12 @@ inference results. This is critical because the RCA:
 cannot make an informed decision about which SDG defect types to target or which
 failure images to mine for.
 
-**Inputs to `rca-changenet`:**
+**Inputs to `deft-aoi-rca-changenet`:**
 - Experiment result directory: `${RESULTS_DIR}/baseline/`
 - Dataset directory: the images root + CSV paths
 - Target KPI: the user's KPI target
 
-**IMPORTANT:** Before launching RCA, read `deft_skills/rca-changenet/SKILL.md`
+**IMPORTANT:** Before launching RCA, read the `deft-aoi-rca-changenet` skill's SKILL.md
 and follow its instructions. Pass the relevant skill sections directly into
 each subagent's prompt — do not summarize.
 
@@ -570,16 +584,16 @@ mkdir -p ${RESULTS_DIR}/iter${ITER}/{sdg_output,mining_output,dataset,train,infe
 
 ---
 
-### Step 1 — Root Cause Analysis & Gap Analysis (call `rca-changenet` skill)
+### Step 1 — Root Cause Analysis & Gap Analysis (call `deft-aoi-rca-changenet` skill)
 
-Run the **`rca-changenet`** skill on the previous iteration's inference results to
+Run the **`deft-aoi-rca-changenet`** skill on the previous iteration's inference results to
 perform a deep, image-evidence-driven investigation of model failures.
 
-**IMPORTANT:** Before launching RCA, read `deft_skills/rca-changenet/SKILL.md`
+**IMPORTANT:** Before launching RCA, read the `deft-aoi-rca-changenet` skill's SKILL.md
 and follow its instructions. Pass the relevant skill sections directly into
 each subagent's prompt — do not summarize.
 
-**Inputs to `rca-changenet`:**
+**Inputs to `deft-aoi-rca-changenet`:**
 - Experiment result directory: `${RESULTS_DIR}/baseline/` (or `iter${N-1}/`)
 - Dataset directory: the images root + CSV paths
 - Target KPI: the user's KPI target (e.g., FAR < 0.1% at recall=100%)
@@ -658,7 +672,7 @@ that type. Do not attempt to run AnomalyGen for types with incomplete artifacts.
 
 **Arm 2B — Omniverse SDG: fixed schema lookup**
 
-Omniverse omniverse-sdg supports a fixed set of defect types defined by the pipeline schema.
+Omniverse deft-aoi-omniverse-sdg supports a fixed set of defect types defined by the pipeline schema.
 No filesystem check needed — the supported types are known statically:
 
 | Defect type | Omniverse support |
@@ -768,7 +782,7 @@ Step 1: RCA → gap defect types ranked by impact
 
 ---
 
-#### Step 2A — AnomalyGen (call `anomalygen-inference` skill)
+#### Step 2A — AnomalyGen (call `deft-aoi-anomalygen-inference` skill)
 
 > **Skip if prerequisites unavailable (see decision criteria above).**
 
@@ -789,15 +803,15 @@ Diffusion-based inpainting — generates defect images by inpainting onto real P
 
 ---
 
-#### Step 2B — Omniverse SDG (call `omniverse-sdg` skill)
+#### Step 2B — Omniverse SDG (call `deft-aoi-omniverse-sdg` skill)
 
 > **Skip if prerequisites unavailable (see decision criteria above).**
 
 Physics-based ray tracing — generates full-board AOI scans then extracts per-component crops.
 
-**Step 2B-i — Run omniverse-sdg pipelines (defect + good in parallel):**
+**Step 2B-i — Run deft-aoi-omniverse-sdg pipelines (defect + good in parallel):**
 
-Use the `omniverse-sdg` skill to generate configs for both pipelines, then launch them together:
+Use the `deft-aoi-omniverse-sdg` skill to generate configs for both pipelines, then launch them together:
 
 ```bash
 # Ensure host output dirs are writable by the container user before launch
@@ -874,10 +888,10 @@ Frame-index pairing: frame N in the defect run = same camera position as frame N
 > good-frame match is found** — do not fall back to defect coords.
 > Also discard zero-area crops (edge-clipped components).
 >
-> Script: `skills/deft-loop/scripts/crop_omni_sdg.py`
+> Script: `scripts/crop_omni_sdg.py`
 
 ```bash
-python3 skills/deft-loop/scripts/crop_omni_sdg.py \
+python3 scripts/crop_omni_sdg.py \
   --defect-dir <output_dir>/defect \
   --good-dir   <output_dir>/good \
   --defect-out <results_dir>/iter${ITER}/sdg_crops/defect \
@@ -931,7 +945,7 @@ fi
 
 ---
 
-#### Step 2C — Data Mining (call `data-mining` skill)
+#### Step 2C — Data Mining (call `deft-aoi-data-mining` skill)
 
 > **Skip if source parquet unavailable (see decision criteria above).**
 
@@ -986,7 +1000,7 @@ and copy into the dataset tree.
 
 **Step 3B — Process Omniverse SDG output (if arm 2B was enabled):**
 
-omniverse-sdg crops are already paired (`*_ng.jpg` / `*_ok.jpg`) from the crop extraction step.
+deft-aoi-omniverse-sdg crops are already paired (`*_ng.jpg` / `*_ok.jpg`) from the crop extraction step.
 Use `changenet_data_pair_prepare.py` pointing at `sdg_crops/defect/` as the NG directory and
 `sdg_crops/defect/` (OK counterparts) or `sdg_crops/good/` for PASS pairs.
 
@@ -1047,11 +1061,9 @@ Concatenate in order: base CSV + anomalygen CSV (if 2A) + sdg CSV (if 2B) + mine
 
 ---
 
-### Step 4 — Train (call `tao-changenet-train` skill)
+### Step 4 — Train (TAO ChangeNet)
 
-Use the **`tao-changenet-train`** skill (bundled at `.claude/skills/deft-loop/skills/tao-changenet-data-prepare/`).
-Read that skill and follow its instructions for Docker setup, spec generation, training,
-and inference. Pass key arguments:
+Run TAO ChangeNet training directly via the TAO container. Pass key arguments:
 
 ```
 train_csv=<merged training CSV from Step 3D>
@@ -1190,9 +1202,9 @@ document that captures the full loop history.
 
 Save to: `${RESULTS_DIR}/DEFT_Loop_Report.md`
 
-### 4B. Final RCA (call `rca-changenet` skill)
+### 4B. Final RCA (call `deft-aoi-rca-changenet` skill)
 
-Run the **`rca-changenet`** skill on the **best iteration's** inference results
+Run the **`deft-aoi-rca-changenet`** skill on the **best iteration's** inference results
 to produce a comprehensive final analysis. This gives the user actionable
 next steps regardless of whether the KPI was met.
 
@@ -1222,7 +1234,7 @@ Each sub-skill has a defined **input/output contract**. The specific implementat
 
 Three independent arms, all delivering paired NG/OK crops to the data-prep step:
 
-| | Arm A: `anomalygen-inference` | Arm B: `omniverse-sdg` (Omniverse) | Arm C: `data-mining` |
+| | Arm A: `deft-aoi-anomalygen-inference` | Arm B: `deft-aoi-omniverse-sdg` (Omniverse) | Arm C: `deft-aoi-data-mining` |
 |---|---|---|---|
 | **Approach** | Diffusion inpainting on real PCB photos | Physics-based ray tracing from USD scene | k-NN retrieval from pre-generated AnomalyGen output pool (NOT real factory images) |
 | **Input** | Clean images, ROI, submasks, descriptions, checkpoint | USD scene, defect config, output dir | Source parquet, target failure images |
@@ -1238,7 +1250,7 @@ Three independent arms, all delivering paired NG/OK crops to the data-prep step:
 |---|---|
 | **Input** | Paired image directories (NG + OK), target dataset layout info (images_dir, column format, naming convention) |
 | **Output** | Training CSV compatible with the dataloader, images placed in the expected directory structure |
-| **Default sub-skill** | `tao-changenet-data-prepare-edited` |
+| **Default script** | `scripts/changenet_data_pair_prepare.py` (bundled in this skill) |
 
 ### Train
 
@@ -1263,7 +1275,7 @@ Three independent arms, all delivering paired NG/OK crops to the data-prep step:
 | **Input** | Pre-computed source embeddings parquet (SigLIP 768-dim), target failure images from RCA, desired unique count |
 | **Output** | `mined_similar_files.csv` — filepaths to similar synthetic images from the pre-generated AnomalyGen source pool |
 | **Containers** | `nvcr.io/nvidian/iva/embed:latest` (target embeddings), `nvcr.io/nvidian/iva/mining:latest` (k-NN search) |
-| **Sub-skill** | `data-mining` |
+| **Sub-skill** | `deft-aoi-data-mining` |
 | **Runtime** | ~5 min (source embeddings pre-computed; only target embedding + k-NN needed) |
 
 ---
@@ -1271,7 +1283,7 @@ Three independent arms, all delivering paired NG/OK crops to the data-prep step:
 ## Workspace Layout
 
 The DEFT workspace separates concerns into 5 top-level directories. The setup
-skill (`deft-loop-brev`) creates this structure automatically from the workspace
+skill (`deft-aoi-brev`) creates this structure automatically from the workspace
 archive. All paths in this skill are relative to the workspace root (`~/workspace/`).
 
 ```
@@ -1378,11 +1390,11 @@ workspace/
 | Scores all cluster around 0.5 | Training failed silently or architecture mismatch | Check training logs for errors; use same container/model for train+inference |
 | FAR differs between eval sets | Filtered vs full validation set | Always evaluate on the same full validation set |
 | Docker output files owned by root | Container runs as root | `sudo chown -R $(whoami)` on results dir after docker run |
-| omniverse-sdg: `OMNI_USER`/`OMNI_PASS` not set | Container tries Nucleus authentication | Set env vars, OR use a local scene from `augmentation/omniverse/scene/` (`find ~/workspace/augmentation/omniverse/scene -name "*.usd"`) — no credentials needed |
-| omniverse-sdg: `PermissionError` creating `trigger_0000` | Host-mounted output dirs not writable by container user | `mkdir -p <out>` and `chmod -R a+rwx <out>` before `docker run` |
-| omniverse-sdg: wrapper starts but script exits with missing `--config` | Script and flags were split incorrectly across argv | Pass the full script invocation as one payload string to the image wrapper |
-| omniverse-sdg: no crops extracted after pipeline | Bbox npy files missing or wrong semantic_types | Ensure `bounding_box_2d_tight: true` and `semantic_types: [class, defect]` in defect config |
-| omniverse-sdg: crop count much lower than expected | High `occlusionRatio` filtering | Lower occlusion threshold in `crop_from_sdg.py` (default 0.5) or check scene framing |
+| deft-aoi-omniverse-sdg: `OMNI_USER`/`OMNI_PASS` not set | Container tries Nucleus authentication | Set env vars, OR use a local scene from `augmentation/omniverse/scene/` (`find ~/workspace/augmentation/omniverse/scene -name "*.usd"`) — no credentials needed |
+| deft-aoi-omniverse-sdg: `PermissionError` creating `trigger_0000` | Host-mounted output dirs not writable by container user | `mkdir -p <out>` and `chmod -R a+rwx <out>` before `docker run` |
+| deft-aoi-omniverse-sdg: wrapper starts but script exits with missing `--config` | Script and flags were split incorrectly across argv | Pass the full script invocation as one payload string to the image wrapper |
+| deft-aoi-omniverse-sdg: no crops extracted after pipeline | Bbox npy files missing or wrong semantic_types | Ensure `bounding_box_2d_tight: true` and `semantic_types: [class, defect]` in defect config |
+| deft-aoi-omniverse-sdg: crop count much lower than expected | High `occlusionRatio` filtering | Lower occlusion threshold in `crop_from_sdg.py` (default 0.5) or check scene framing |
 | `crop_from_sdg.py` fails on host but works in container | Host Python missing deps or helper path is host-specific | Run crop extraction inside TAO container: `docker cp` script in, then `docker exec python /tmp/crop_omni_sdg.py ...` |
 | Multi-GPU slower than single GPU | DDP sync overhead on small datasets | Use 1 GPU with larger batch size for datasets <1000 rows |
 ---

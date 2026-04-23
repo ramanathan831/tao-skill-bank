@@ -1,5 +1,5 @@
 ---
-name: rca-changenet
+name: deft-aoi-rca-changenet
 description: Performs deep Root Cause Analysis on NVIDIA TAO ChangeNet classification experiments with image-evidence-driven investigation. Use when analyzing model failures, investigating poor recall/FAR metrics, or auditing visual inspection pipeline quality for ChangeNet-based defect detection.
 ---
 

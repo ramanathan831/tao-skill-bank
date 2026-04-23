@@ -10,18 +10,17 @@
   },
   "plugins": [
     {
-      "name": "workflow-deft-loop",
+      "name": "workflow-deft-aoi-loop",
       "description": "Agent-driven DEFT loop orchestrator for AOI defect detection — runs the full Evaluate → RCCA → SDG → Retrain → Deploy loop end-to-end for NVIDIA PCB AOI ChangeNet models.",
       "source": "./",
       "strict": false,
       "skills": [
-        "./deft-loop/skills/workflow-deft-loop",
-        "./deft-loop/skills/anomalygen-inference",
-        "./deft-loop/skills/data-mining",
-        "./deft-loop/skills/omniverse-sdg",
-        "./deft-loop/skills/tao-changenet-data-prepare",
-        "./deft-loop/skills/rca-changenet",
-        "./deft-loop/skills/deft-loop-brev"
+        "./deft-loop/skills/workflow-deft-aoi-loop",
+        "./deft-loop/skills/deft-aoi-rca-changenet",
+        "./deft-loop/skills/deft-aoi-anomalygen-inference",
+        "./deft-loop/skills/deft-aoi-omniverse-sdg",
+        "./deft-loop/skills/deft-aoi-data-mining",
+        "./deft-loop/skills/deft-aoi-brev"
       ]
     }
   ]

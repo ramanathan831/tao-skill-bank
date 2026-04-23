@@ -1,5 +1,5 @@
 ---
-name: deft-loop-brev
+name: deft-aoi-brev
 description: Deploy the full DEFT Loop (Evaluate-RCA-SDG-Retrain) with OpenClaw on a Brev GPU instance. Use this skill whenever the user mentions DEFT loop, DEFT on Brev, PCB AOI defect detection, ChangeNet training on Brev, AnomalyGen setup, agentic defect loop, setting up the data-efficient fine-tuning pipeline on a GPU instance, or wants to deploy the full DEFT orchestration agent on a cloud GPU. Even if the user just says "set up deft loop" or "deploy deft on brev", use this skill.
 ---
 
