@@ -19,13 +19,14 @@ description: >-
 
 This orchestrator calls the following sub-skills. All must be installed before running:
 
-- `deft-aoi-deft-aoi-rca-changenet` — root cause analysis on inference results
-- `deft-aoi-deft-aoi-anomalygen-inference` — diffusion-based defect inpainting (Arm A)
-- `deft-aoi-deft-aoi-omniverse-sdg` — physics-based ray-traced SDG (Arm B)
-- `deft-aoi-deft-aoi-data-mining` — k-NN retrieval from pre-generated AnomalyGen pool (Arm C)
-- `deft-aoi-brev` — workspace and dataset staging on Brev (optional)
+- `deft-aoi-rca-changenet` — root cause analysis on inference results
+- `deft-aoi-anomalygen-inference` — diffusion-based defect inpainting (Arm A)
+- `deft-aoi-omniverse-sdg` — physics-based ray-traced SDG (Arm B)
+- `deft-aoi-data-mining` — k-NN retrieval from pre-generated AnomalyGen pool (Arm C)
 
 If any sub-skill is missing, stop and ask the user to install the `workflow-deft-aoi-loop` plugin (which bundles all of the above).
+
+For Brev workspace / dataset setup instructions, see `references/brev-setup-with-demo-data.md` bundled with this skill.
 
 ---
 
@@ -301,7 +302,7 @@ Fill in defaults for anything marked optional that the user doesn't provide.
 
 ### 2A. Verify and create workspace structure
 
-The workflow can run standalone (without `deft-aoi-brev`). Ensure the workspace
+The workflow can run standalone (without the Brev setup procedure in `references/brev-setup-with-demo-data.md`). Ensure the workspace
 skeleton exists before validating inputs. Create any missing directories:
 
 ```bash
@@ -1282,9 +1283,10 @@ Three independent arms, all delivering paired NG/OK crops to the data-prep step:
 
 ## Workspace Layout
 
-The DEFT workspace separates concerns into 5 top-level directories. The setup
-skill (`deft-aoi-brev`) creates this structure automatically from the workspace
-archive. All paths in this skill are relative to the workspace root (`~/workspace/`).
+The DEFT workspace separates concerns into 5 top-level directories. The Brev
+setup procedure in `references/brev-setup-with-demo-data.md` creates this
+structure automatically from the workspace archive. All paths in this skill
+are relative to the workspace root (`~/workspace/`).
 
 ```
 workspace/

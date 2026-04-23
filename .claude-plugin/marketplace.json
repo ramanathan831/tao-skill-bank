@@ -19,8 +19,7 @@
         "./deft-loop/skills/deft-aoi-rca-changenet",
         "./deft-loop/skills/deft-aoi-anomalygen-inference",
         "./deft-loop/skills/deft-aoi-omniverse-sdg",
-        "./deft-loop/skills/deft-aoi-data-mining",
-        "./deft-loop/skills/deft-aoi-brev"
+        "./deft-loop/skills/deft-aoi-data-mining"
       ]
     }
   ]
