@@ -15,11 +15,11 @@
       "source": "./",
       "strict": false,
       "skills": [
-        "./deft-loop/skills/workflow-deft-aoi-loop",
-        "./deft-loop/skills/deft-aoi-rca-changenet",
-        "./deft-loop/skills/deft-aoi-anomalygen-inference",
-        "./deft-loop/skills/deft-aoi-omniverse-sdg",
-        "./deft-loop/skills/deft-aoi-data-mining"
+        "./applications/workflow-deft-aoi-loop",
+        "./data/deft-aoi-rca-changenet",
+        "./data/deft-aoi-anomalygen-inference",
+        "./data/deft-aoi-omniverse-sdg",
+        "./data/deft-aoi-data-mining"
       ]
     }
   ]
