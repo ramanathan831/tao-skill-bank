@@ -13,7 +13,7 @@
       "name": "workflow-deft-aoi-loop",
       "description": "Agent-driven DEFT loop orchestrator for AOI defect detection — runs the full Evaluate → RCCA → SDG → Retrain → Deploy loop end-to-end for NVIDIA PCB AOI ChangeNet models.",
       "source": "./",
-      "strict": false,
+      "strict": true,
       "skills": [
         "./applications/workflow-deft-aoi-loop",
         "./data/deft-aoi-rca-changenet",
