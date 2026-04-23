@@ -10,7 +10,7 @@
   },
   "plugins": [
     {
-      "name": "workflow-deft-aoi-loop",
+      "name": "deft-aoi-loop-plugin",
       "description": "Agent-driven DEFT loop orchestrator for AOI defect detection — runs the full Evaluate → RCCA → SDG → Retrain → Deploy loop end-to-end for NVIDIA PCB AOI ChangeNet models.",
       "source": "./",
       "strict": true,

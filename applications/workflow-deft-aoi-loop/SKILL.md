@@ -24,7 +24,7 @@ This orchestrator calls the following sub-skills. All must be installed before r
 - `deft-aoi-omniverse-sdg` — physics-based ray-traced SDG (Arm B)
 - `deft-aoi-data-mining` — k-NN retrieval from pre-generated AnomalyGen pool (Arm C)
 
-If any sub-skill is missing, stop and ask the user to install the `workflow-deft-aoi-loop` plugin (which bundles all of the above).
+If any sub-skill is missing, stop and ask the user to install the `deft-aoi-loop-plugin` plugin (which bundles all of the above).
 
 For Brev workspace / dataset setup instructions, see `references/brev-setup-with-demo-data.md` bundled with this skill.
 
