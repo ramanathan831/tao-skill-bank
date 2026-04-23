@@ -352,7 +352,7 @@ else  # deft-aoi-omniverse-sdg
   # OptiX is bundled inside the pcb-aoi-ov-sdg container — no host check needed
   echo "OK: OptiX (bundled in container)"
   test -f "$crop_script_path"     && echo "OK: crop_from_sdg.py" || echo "MISSING: $crop_script_path"
-  docker image inspect nvcr.io/nvidian/iva/pcb-aoi-ov-sdg:computex_ver1 > /dev/null 2>&1 && echo "OK: deft-aoi-omniverse-sdg image" || echo "MISSING: pcb-aoi-ov-sdg image"
+  docker image inspect nvcr.io/nvidian/iva/pcb-aoi-ov-sdg:pair-feature > /dev/null 2>&1 && echo "OK: deft-aoi-omniverse-sdg image" || echo "MISSING: pcb-aoi-ov-sdg image"
 fi
 test -f "$data_prep_script"     && echo "OK: data prep script" || echo "MISSING: $data_prep_script"
 test -f "$analyze_script"       && echo "OK: analysis script" || echo "MISSING: $analyze_script"
@@ -827,7 +827,7 @@ docker run --gpus all --rm --network host \
   # -v /usr/share/nvidia/nvoptix.bin:/usr/share/nvidia/nvoptix.bin:ro \
   -v <output_dir>/defect:<output_dir>/defect \
   -v ~/.sdg_config:/config \
-  nvcr.io/nvidian/iva/pcb-aoi-ov-sdg:computex_ver1 \
+  nvcr.io/nvidian/iva/pcb-aoi-ov-sdg:pair-feature \
   "/home/ubuntu/pcb-aoi/scripts/sdg/standalone/sdg_pipeline.py --config /config/<defect_config>.yaml" &
 
 # Good pipeline (OK reference frames)
@@ -837,7 +837,7 @@ docker run --gpus all --rm --network host \
   # -v /usr/share/nvidia/nvoptix.bin:/usr/share/nvidia/nvoptix.bin:ro \
   -v <output_dir>/good:<output_dir>/good \
   -v ~/.sdg_config:/config \
-  nvcr.io/nvidian/iva/pcb-aoi-ov-sdg:computex_ver1 \
+  nvcr.io/nvidian/iva/pcb-aoi-ov-sdg:pair-feature \
   "/home/ubuntu/pcb-aoi/scripts/sdg/standalone/sdg_pipeline.py --config /config/<good_config>.yaml"
 ```
 
@@ -854,13 +854,28 @@ docker run --gpus all --rm --network host \
 > created root-owned directories, remove them with a container:
 > `docker run --rm -v <parent>:/mnt <image> bash -c "rm -rf /mnt/<dir> && mkdir -m 777 /mnt/<dir>"`
 
-> **Config from scratch:** Never write SDG configs from memory. Always copy an existing
-> working config and change only what's needed (e.g., `num_triggers`). The full config
-> has ~100 lines covering camera, lighting, scan grid, component types, defect params,
-> augmentation, and writer settings. A minimal config will fail with KeyError on the
-> first missing field.
+> **Config from scratch:** Never write SDG configs from memory. Always copy an
+> existing working config from the `deft-aoi-omniverse-sdg` skill's bundled
+> templates (`resources/config/{good_image,defect_image,missing_image}.yaml`)
+> and change only what's needed (e.g., `num_triggers`, `output`, `random_seed`).
+> The full config has ~100 lines covering camera, lighting, scan grid, component
+> types, defect params, augmentation, and writer settings. A minimal config will
+> fail with KeyError on the first missing field. Do NOT spawn exploratory
+> `docker run` containers to discover the templates — every cold start costs
+> ~1–2 min on Omniverse boot.
 
 **Monitor with `/loop 10m`** (~20–40 min per pipeline).
+
+> **Verify progress, not just status.** Omniverse Kit keeps the container's
+> parent process alive even when the inner Python script crashes at import time
+> (e.g., `PermissionError` on config.yaml). `docker ps` status alone is NOT
+> proof the pipeline is rendering. After the expected scene-load window
+> (~11 min), run `docker logs <name>` and check the output-file count under
+> `<output_dir>/{defect,good}/`. If the logs show a Python traceback or the
+> output dir is empty past the warmup window, kill the container and
+> investigate. Pipe logs to a file
+> (`docker logs -f <name> > <log>.txt &`) so evidence survives if the
+> container is later removed.
 
 **Step 2B-ii — Set num_triggers:**
 
@@ -1064,7 +1079,26 @@ Concatenate in order: base CSV + anomalygen CSV (if 2A) + sdg CSV (if 2B) + mine
 
 ### Step 4 — Train (TAO ChangeNet)
 
-Run TAO ChangeNet training directly via the TAO container. Pass key arguments:
+The merged training CSV was already produced by Step 3 using
+`scripts/changenet_data_pair_prepare.py`. Run TAO ChangeNet training
+directly via the TAO container:
+
+```bash
+docker run --gpus all --rm --ipc=host --ulimit memlock=-1 --ulimit stack=67108864 --shm-size=16g \
+  -v $WORKSPACE:/workspace \
+  -v $RESULTS_DIR:/results \
+  nvcr.io/nvidia/tao/tao-toolkit:6.26.3-pyt \
+  visual_changenet train -e /results/train_spec.yaml
+```
+
+Notes: the action is `visual_changenet train` (NOT `changenet classify train`
+or `visual_changenet classify train`). Do not pass `--gpus 1` (the TAO CLI
+doesn't recognize it — GPU count comes from Docker `--gpus all` plus the
+spec's `train.num_gpus`). Do not pass `-r /results` (the spec's
+`results_dir` field handles this; passing it again triggers a Hydra parse
+error).
+
+Pass key arguments via the spec YAML, not the CLI:
 
 ```
 train_csv=<merged training CSV from Step 3D>
@@ -1259,7 +1293,7 @@ Three independent arms, all delivering paired NG/OK crops to the data-prep step:
 |---|---|
 | **Input** | Training CSV, spec YAML, pretrained checkpoint to fine-tune from |
 | **Output** | New model checkpoint |
-| **Default sub-skill** | `tao-changenet` (classification mode) |
+| **Default sub-skill** | TAO toolkit container `nvcr.io/nvidia/tao/tao-toolkit:6.26.3-pyt` with action `visual_changenet train -e <spec>` (classification mode via `task: classify` in the spec) |
 
 ### Evaluate
 
@@ -1392,8 +1426,10 @@ workspace/
 | Scores all cluster around 0.5 | Training failed silently or architecture mismatch | Check training logs for errors; use same container/model for train+inference |
 | FAR differs between eval sets | Filtered vs full validation set | Always evaluate on the same full validation set |
 | Docker output files owned by root | Container runs as root | `sudo chown -R $(whoami)` on results dir after docker run |
+| TAO inference can't find `changenet_classify.pth` | TAO writes `changenet_model_classify_latest.pth`; inference specs commonly reference `changenet_classify.pth` | Either (a) override `inference.checkpoint=/results/train/changenet_model_classify_latest.pth` on the CLI, or (b) `ln -s changenet_model_classify_latest.pth changenet_classify.pth` inside the container before `visual_changenet inference -e ...` |
 | deft-aoi-omniverse-sdg: `OMNI_USER`/`OMNI_PASS` not set | Container tries Nucleus authentication | Set env vars, OR use a local scene from `augmentation/omniverse/scene/` (`find ~/workspace/augmentation/omniverse/scene -name "*.usd"`) — no credentials needed |
-| deft-aoi-omniverse-sdg: `PermissionError` creating `trigger_0000` | Host-mounted output dirs not writable by container user | `mkdir -p <out>` and `chmod -R a+rwx <out>` before `docker run` |
+| deft-aoi-omniverse-sdg: `PermissionError` creating `trigger_0000` | Host-mounted output dirs not writable by container user | `mkdir -p <out>` and `chmod -R 777 <out>` before `docker run`. **When delegating the SDG step to a background sub-agent, the orchestrator MUST run this pre-flight before spawning the sub-agent, not inside it** — a sub-agent working-directory change can mask the failure until the container crashes. |
+| deft-aoi-omniverse-sdg: container exits silently with no output | Inner script crashed but container parent process stayed alive (`docker ps` still shows running) | Do not trust `docker ps`; verify output-file counts and inspect `docker logs <name>` before declaring success. If the container exited cleanly without producing output, relaunch under a new container name after the chmod fix. |
 | deft-aoi-omniverse-sdg: wrapper starts but script exits with missing `--config` | Script and flags were split incorrectly across argv | Pass the full script invocation as one payload string to the image wrapper |
 | deft-aoi-omniverse-sdg: no crops extracted after pipeline | Bbox npy files missing or wrong semantic_types | Ensure `bounding_box_2d_tight: true` and `semantic_types: [class, defect]` in defect config |
 | deft-aoi-omniverse-sdg: crop count much lower than expected | High `occlusionRatio` filtering | Lower occlusion threshold in `crop_from_sdg.py` (default 0.5) or check scene framing |
