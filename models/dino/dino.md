@@ -2,11 +2,27 @@
 
 DINO (DETR with Improved DeNoising Anchor Boxes) for 2D object detection. Transformer-based detector with denoising training, multi-scale features, and optional distillation support.
 
-Uses pretrained backbone weights (e.g. ResNet-50 ImageNet). Set model.pretrained_backbone_path for backbone-only or train.pretrained_model_path for full model.
+Uses pretrained backbone weights (e.g. ResNet-50 ImageNet). Set `model.pretrained_backbone_path` for backbone-only or `train.pretrained_model_path` for full model.
 
 ## Eval Dataset
 
-Optional. Eval dataset is optional. If provided, validation mAP is computed each epoch. Uses the same COCO format as training data.
+Eval dataset is optional. If provided, validation mAP is computed each epoch. Uses the same COCO format as training data.
+
+## Dataset
+
+COCO JSON format. train_data_sources and val_data_sources are lists supporting multiple data source entries. Each entry has image_dir (tar.gz of images) and json_file (COCO annotations JSON).
+
+Supported formats: coco, coco_raw.
+
+### Train Data Sources
+
+- **image_dir**: `images.tar.gz`
+- **json_file**: `annotations.json`
+
+### Inference Data Sources
+
+- **image_dir**: `images.tar.gz`
+- **classmap**: `label_map.txt`
 
 ## Important Parameters
 
@@ -18,42 +34,30 @@ Optional. Eval dataset is optional. If provided, validation mAP is computed each
 - **model.num_queries**: Number of object queries. Default 300. Increase for dense scenes with many objects per image. num_select must be < num_queries * num_classes.
 - **dataset.batch_size**: Per-GPU batch size. Default 4. Reduce to 2 if OOM on 16GB GPUs. Total batch = batch_size * num_gpus.
 
-## Multi-GPU / Multi-Node
+## Default Values
 
-**Launch method:** Lightning-managed (single `python` process, Lightning spawns workers internally).
+- **num_epochs**: `10`
+- **batch_size**: `4`
+- **learning_rate**: `2e-4`
+- **lr_backbone**: `2e-5`
+- **num_classes**: `91`
+- **backbone**: `resnet_50`
 
-| Spec Key | Description | Default |
-|----------|-------------|---------|
-| `train.num_gpus` | Number of GPUs | 1 |
-| `train.gpu_ids` | GPU device indices | [0] |
-| `train.num_nodes` | Number of nodes | 1 |
-| `train.distributed_strategy` | `ddp` or `fsdp` | `ddp` |
+## Export Defaults
 
-- When `num_gpus > 1` with activation checkpointing: uses `ddp` (find_unused_parameters=False)
-- When `num_gpus > 1` without activation checkpointing: uses `ddp_find_unused_parameters_true`
-- `fsdp` forces precision to FP16
-- FAN backbones auto-enable `sync_batchnorm`
-
-**Multi-node env vars** (set by orchestrator, not user):
-
-| Variable | Purpose |
-|----------|---------|
-| `WORLD_SIZE` | Number of nodes (triggers multinode mode) |
-| `NODE_RANK` | This node's rank (0-indexed) |
-| `MASTER_ADDR` | Rank-0 node IP |
-| `MASTER_PORT` | Rank-0 port (default 29500) |
-| `NUM_GPU_PER_NODE` | GPUs per node (default: all visible) |
-
-## Export / TRT Defaults
-
-- Export input: 640x640, opset 17
-- TRT data types: FP32, FP16, INT8
-- TRT workspace: 1024 MB
-- TRT max_batch_size: 1
+- **input_width**: `640`
+- **input_height**: `640`
+- **opset_version**: `17`
+- **trt_data_types**: `[FP32, FP16, INT8]`
+- **trt_workspace_size_mb**: `1024`
 
 ## Hardware
 
-Minimum 1 GPU(s), recommended 4 GPU(s). 24GB+ (A100 recommended) VRAM per GPU. Transformer-based detection is memory-intensive. batch_size=4 fits on 24GB GPUs. For 16GB GPUs, reduce to batch_size=2. Multi-GPU with 4+ GPUs recommended for datasets > 10k images.
+- **Minimum**: 1 GPU
+- **Recommended**: 4 GPUs
+- **GPU Memory**: 24GB+ (A100 recommended)
+
+Transformer-based detection is memory-intensive. batch_size=4 fits on 24GB GPUs. For 16GB GPUs, reduce to batch_size=2. Multi-GPU with 4+ GPUs recommended for datasets > 10k images.
 
 ## Error Patterns
 
@@ -66,3 +70,58 @@ Minimum 1 GPU(s), recommended 4 GPU(s). 24GB+ (A100 recommended) VRAM per GPU. T
 **Dataset size smaller than total batch size**: Total batch = batch_size * num_gpus. If val dataset has fewer samples, reduce dataset.batch_size or num_gpus. The agent should proactively check this.
 
 **return_interm_indices length must match num_feature_levels**: Default is [1,2,3,4] with num_feature_levels=4. If changing one, update the other.
+
+## AutoML / HPO Notes
+
+### defaults-train.json
+
+DINO ships without `references/spec_template_train.yaml`. You must create `~/tao-skills-external/models/dino/defaults-train.json` from `tao-pytorch/nvidia_tao_pytorch/cv/dino/experiment_specs/train.yaml` (convert YAML to JSON, replace `"???"` placeholders with empty strings).
+
+### Data Sources Workaround
+
+DINO's `config.json` uses the `mapping` style for `data_sources`, which the runner's `_apply_data_sources` does NOT handle (it only handles `path` and `path_from_format`). You must set data paths explicitly via `spec_overrides`:
+
+```python
+S3_BASE = "s3://bucket/data/my_dataset"
+spec_overrides={
+    "dataset.train_data_sources": [
+        {
+            "image_dir": f"{S3_BASE}/images.tar.gz",
+            "json_file": f"{S3_BASE}/annotations.json",
+        }
+    ],
+    "dataset.val_data_sources": [
+        {
+            "image_dir": f"{S3_BASE}/images.tar.gz",
+            "json_file": f"{S3_BASE}/annotations.json",
+        }
+    ],
+    "dataset.num_classes": 91,
+}
+```
+
+### num_classes Pitfall
+
+DINO's default `num_classes=91` matches COCO. If your dataset has category IDs 1–N, you must set `num_classes` to at least `max(category_id) + 1`. Setting it too low causes `CUDA error: device-side assert triggered` (label index out of bounds). When in doubt, keep 91 — extra output neurons are harmless.
+
+### val_data_sources Required
+
+Even if you only have a train split, `val_data_sources` must be set to valid paths. DINO's dataloader unconditionally builds a val dataset. Reuse the train data for val if no separate eval split exists.
+
+### Recommended AutoML Configuration
+
+```python
+automl_hyperparameters=[
+    "train.optim.lr",
+    "train.optim.weight_decay",
+    "model.num_queries",
+]
+custom_param_ranges={
+    "train.optim.lr": {"valid_min": 1e-5, "valid_max": 5e-4},
+    "model.num_queries": {"valid_min": 100, "valid_max": 900},
+}
+```
+
+The `kpi` metric (mAP) is emitted during validation — use `metric="kpi"` with `direction="maximize"`.
+
+`train.optim.weight_decay` is not in the default DINO spec schema — the runner will accept it with a warning. It still works; the DINO training code picks it up from the config.
