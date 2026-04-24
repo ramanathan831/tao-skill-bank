@@ -7,6 +7,7 @@ dependencies:
   - python3
 ---
 
+
 # Data Mining for Training Pipeline
 
 Mine visually similar images from a pre-generated AnomalyGen source pool to augment the next model training iteration. The source pool contains synthetic defect/golden image pairs from prior AnomalyGen runs — NOT real factory data. This skill is the downstream step after the `rca-changenet` skill, which provides the gap analysis (target images representing model weaknesses).
