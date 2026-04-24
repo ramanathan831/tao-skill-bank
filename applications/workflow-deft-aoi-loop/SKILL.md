@@ -908,12 +908,22 @@ Frame-index pairing: frame N in the defect run = same camera position as frame N
 
 ```bash
 python3 scripts/crop_omni_sdg.py \
-  --defect-dir <output_dir>/defect \
-  --good-dir   <output_dir>/good \
+  --defect-dir <sdg_output_dir>/defect \
+  --good-dir   <sdg_output_dir>/good \
   --defect-out <results_dir>/iter${ITER}/sdg_crops/defect \
   --good-out   <results_dir>/iter${ITER}/sdg_crops/good \
   --padding 30
 ```
+
+> **CRITICAL — point at the raw SDG output, NOT the Pair-dataset:**
+> `--defect-dir` and `--good-dir` must be the raw SDG output directories
+> that contain `trigger_NNNN/` subdirectories (e.g., `sdg_output/defect/`
+> and `sdg_output/good/`). These subdirectories hold the bbox `.npy` files
+> the crop script needs.
+>
+> Do NOT point at `Pair-dataset/defect/` or `Pair-dataset/golden/` — those
+> are the post-processed frame crops from `build_pair_dataset.py`, which
+> lack bbox files. Pointing there produces **0 crops silently**.
 
 **Step 2B-iv — Mandatory subsampling to crop budget:**
 
@@ -1081,14 +1091,52 @@ Concatenate in order: base CSV + anomalygen CSV (if 2A) + sdg CSV (if 2B) + mine
 
 The merged training CSV was already produced by Step 3 using
 `scripts/changenet_data_pair_prepare.py`. Run TAO ChangeNet training
-directly via the TAO container:
+directly via the TAO container.
+
+#### Volume mount layout (critical — do not simplify)
+
+The TAO dataloader resolves paths as `/data/datasets/NV_PCB_Siamese/<csv_path>` and
+`/data/datasets/NV_PCB_Siamese/images/`. The backbone loads from `/data/pretrained_models/`.
+These three roots require **separate explicit volume mounts**:
 
 ```bash
+ITER_DIR=${RESULTS_DIR}/iter${ITER}
+
 docker run --gpus all --rm --ipc=host --ulimit memlock=-1 --ulimit stack=67108864 --shm-size=16g \
-  -v $WORKSPACE:/workspace \
-  -v $RESULTS_DIR:/results \
+  -v ${ITER_DIR}:/data/datasets/NV_PCB_Siamese \
+  -v ${WORKSPACE}/kpi/images:/data/datasets/NV_PCB_Siamese/images \
+  -v ${WORKSPACE}/augmentation/backbone:/data/pretrained_models \
+  -v ${RESULTS_DIR}:/results \
   nvcr.io/nvidia/tao/tao-toolkit:6.26.3-pyt \
-  visual_changenet train -e /results/train_spec.yaml
+  visual_changenet train -e /results/iter${ITER}/run_spec.yaml
+```
+
+The child mount (`/data/datasets/NV_PCB_Siamese/images`) overrides the parent at that path — Docker supports this and it is the correct pattern. Do NOT replace these with a single `-v $WORKSPACE:/workspace` mount; that will break all path resolution inside the container.
+
+#### CSV staging (required before training)
+
+The TAO dataloader expects CSVs under `/data/datasets/NV_PCB_Siamese/csv/`, which maps to
+`${ITER_DIR}/csv/` on the host. **Create this directory and copy all CSVs there** before
+running the container:
+
+```bash
+mkdir -p ${ITER_DIR}/csv
+chmod 777 ${ITER_DIR}/csv
+cp ${RESULTS_DIR}/iter${ITER}/dataset/train_combined_iter${ITER}.csv  ${ITER_DIR}/csv/
+cp ${WORKSPACE}/kpi/valid_combined_clean.csv                           ${ITER_DIR}/csv/
+cp ${WORKSPACE}/kpi/valid_combined_clean_keep_pass_1pct_*.csv         ${ITER_DIR}/csv/
+```
+
+The training spec must then reference CSVs as:
+```yaml
+train_dataset:
+  csv_path: /data/datasets/NV_PCB_Siamese/csv/train_combined_iter1.csv
+  images_dir: /data/datasets/NV_PCB_Siamese/images/
+validation_dataset:
+  csv_path: /data/datasets/NV_PCB_Siamese/csv/valid_combined_clean_keep_pass_1pct_keep_non_pass_100pct.csv
+model:
+  backbone:
+    pretrained_backbone_path: /data/pretrained_models/C-RADIOv2_B.pth
 ```
 
 Notes: the action is `visual_changenet train` (NOT `changenet classify train`
@@ -1097,18 +1145,6 @@ doesn't recognize it — GPU count comes from Docker `--gpus all` plus the
 spec's `train.num_gpus`). Do not pass `-r /results` (the spec's
 `results_dir` field handles this; passing it again triggers a Hydra parse
 error).
-
-Pass key arguments via the spec YAML, not the CLI:
-
-```
-train_csv=<merged training CSV from Step 3D>
-val_csv=<validation CSV>
-images_dir=<images root>
-results_dir=<results dir>
-backbone_weight=<backbone weights path>
-pretrained_model_path=<previous iteration's checkpoint>
-mode=toolkit
-```
 
 **Monitor training with `/loop 10m`** to report epoch progress and latest checkpoint.
 
@@ -1127,6 +1163,18 @@ mode=toolkit
 ---
 
 ### Step 5 — Evaluate and Decide
+
+Run inference using the **same mount pattern** as training (the dataloader paths are identical):
+
+```bash
+docker run --gpus all --rm --ipc=host --ulimit memlock=-1 --ulimit stack=67108864 --shm-size=16g \
+  -v ${ITER_DIR}:/data/datasets/NV_PCB_Siamese \
+  -v ${WORKSPACE}/kpi/images:/data/datasets/NV_PCB_Siamese/images \
+  -v ${WORKSPACE}/augmentation/backbone:/data/pretrained_models \
+  -v ${RESULTS_DIR}:/results \
+  nvcr.io/nvidia/tao/tao-toolkit:6.26.3-pyt \
+  visual_changenet inference -e /results/iter${ITER}/run_spec.yaml
+```
 
 Run inference and analyze metrics. Decide whether to loop or stop.
 
@@ -1427,6 +1475,9 @@ workspace/
 | FAR differs between eval sets | Filtered vs full validation set | Always evaluate on the same full validation set |
 | Docker output files owned by root | Container runs as root | `sudo chown -R $(whoami)` on results dir after docker run |
 | TAO inference can't find `changenet_classify.pth` | TAO writes `changenet_model_classify_latest.pth`; inference specs commonly reference `changenet_classify.pth` | Either (a) override `inference.checkpoint=/results/train/changenet_model_classify_latest.pth` on the CLI, or (b) `ln -s changenet_model_classify_latest.pth changenet_classify.pth` inside the container before `visual_changenet inference -e ...` |
+| TAO training/inference: `FileNotFoundError: /data/datasets/NV_PCB_Siamese/csv/<name>.csv` | CSV directory not pre-staged under `${ITER_DIR}/csv/` before container launch | Run the CSV staging step: `mkdir -p ${ITER_DIR}/csv && cp <csvs> ${ITER_DIR}/csv/`. Also verify the volume mount uses `${ITER_DIR}:/data/datasets/NV_PCB_Siamese` (not `$WORKSPACE:/workspace`) |
+| TAO training/inference: `FileNotFoundError: /data/datasets/NV_PCB_Siamese/images/…` | Images volume not mounted as child of dataset root | Add `-v ${WORKSPACE}/kpi/images:/data/datasets/NV_PCB_Siamese/images` as a **separate** `-v` flag; this child mount must be listed after the parent in the docker run command |
+| TAO training/inference: `FileNotFoundError: /data/pretrained_models/<backbone>.pth` | Backbone dir not mounted | Add `-v ${WORKSPACE}/augmentation/backbone:/data/pretrained_models` |
 | deft-aoi-omniverse-sdg: `OMNI_USER`/`OMNI_PASS` not set | Container tries Nucleus authentication | Set env vars, OR use a local scene from `augmentation/omniverse/scene/` (`find ~/workspace/augmentation/omniverse/scene -name "*.usd"`) — no credentials needed |
 | deft-aoi-omniverse-sdg: `PermissionError` creating `trigger_0000` | Host-mounted output dirs not writable by container user | `mkdir -p <out>` and `chmod -R 777 <out>` before `docker run`. **When delegating the SDG step to a background sub-agent, the orchestrator MUST run this pre-flight before spawning the sub-agent, not inside it** — a sub-agent working-directory change can mask the failure until the container crashes. |
 | deft-aoi-omniverse-sdg: container exits silently with no output | Inner script crashed but container parent process stayed alive (`docker ps` still shows running) | Do not trust `docker ps`; verify output-file counts and inspect `docker logs <name>` before declaring success. If the container exited cleanly without producing output, relaunch under a new container name after the chmod fix. |

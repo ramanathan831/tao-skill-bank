@@ -252,9 +252,23 @@ docker stop embed-worker && docker rm embed-worker
 
 **Output parquet schema:**
 - `filepath` — Image file path (container path)
-- `image_embed` — Embedding vector (list of floats)
+- Embedding vector column — name varies by container version (see below)
 
-> **IMPORTANT:** The embedding column name in the output is `image_embed` (not `embedding`). You must pass `--source-embed-column-name image_embed` and `--target-embed-column-name image_embed` to the mining step.
+> **IMPORTANT — Column name varies by container version:** The embed container may write
+> the embedding under the column name `embedding` or `image_embed` depending on version
+> and whether the 2D-array patch was applied. **Always inspect the actual output before
+> passing to mining:**
+> ```python
+> import pandas as pd
+> df = pd.read_parquet("<workspace>/target_embeddings/embeddings.parquet")
+> print("Target columns:", list(df.columns))   # check actual embedding column name
+> ```
+> Similarly check the source parquet schema (Step 0.5). Source and target may use
+> **different** column names — pass each explicitly:
+> ```
+> --source-embed-column-name <source_col>   # e.g. image_embed
+> --target-embed-column-name <target_col>   # e.g. embedding
+> ```
 
 ### Timeline
 
@@ -291,11 +305,11 @@ docker exec mining-worker sh -c "
     python nearest_neighbors.py \
         --source-parquet /data/workspace/source_embeddings/embeddings.parquet \
         --target-parquet /data/workspace/target_embeddings/embeddings.parquet \
-        --output-dir /data/workspace/mining_output \
+        --output-parquet /data/workspace/mining_output/final_unique_files.parquet \
         --desired-unique-count <count> \
         --knn-metric cosine \
-        --source-embed-column-name image_embed \
-        --target-embed-column-name image_embed
+        --source-embed-column-name <source_col> \
+        --target-embed-column-name <target_col>
 "
 
 docker stop mining-worker && docker rm mining-worker
@@ -309,7 +323,7 @@ docker stop mining-worker && docker rm mining-worker
 |-----------|-------------|
 | `--source-parquet` | Path to source embeddings parquet (or directory of parquets) |
 | `--target-parquet` | Path to target embeddings parquet (or directory of parquets) |
-| `--output-dir` | Output directory for results |
+| `--output-parquet` | Output parquet file path for results |
 | `--desired-unique-count` | Total number of unique source files to retrieve |
 
 **Core options:**
@@ -365,14 +379,27 @@ docker stop mining-worker && docker rm mining-worker
 > **NOTE:** `final_unique_files.parquet` is owned by `nobody` (written inside the container). Read it fine from the host, but write the CSV to a location the current user owns — use `/tmp` as intermediate if needed, then copy.
 
 ```python
+import os
 import pandas as pd
 
 df = pd.read_parquet("<workspace>/mining_output/final_unique_files.parquet")
 print(f"Mined {len(df)} unique similar images")
 print(df.head())
 
-# Translate container paths back to host paths
+# Step 1: translate container paths back to host paths
 df["filepath"] = df["filepath"].str.replace("/data/source", "<source_dir>")
+
+# Step 2: verify translated paths exist — parquet may encode special chars differently
+# than the actual filesystem (e.g., '+' stored as '_' in some parquet writers).
+# Check a sample before writing the CSV:
+missing = [p for p in df["filepath"] if not os.path.exists(p)]
+if missing:
+    print(f"WARNING: {len(missing)}/{len(df)} translated paths not found on disk")
+    print("Sample missing:", missing[:3])
+    # Common fix: parquet encodes '+' as '_' in filenames
+    # Add additional replacements as needed, e.g.:
+    # df["filepath"] = df["filepath"].str.replace("_PCB_solder_", "_PCB+solder_")
+    # Re-check after each replacement until all paths resolve.
 
 # Write to /tmp first if workspace output dir is owned by nobody
 df.to_csv("/tmp/mined_similar_files.csv", index=False)
@@ -385,6 +412,12 @@ cp /tmp/mined_similar_files.csv <workspace>/mining_output/mined_similar_files.cs
 
 **Output CSV schema:** single column `filepath` with paths to mined source images.
 
+> **Path encoding pitfall:** Parquet filepath strings may not match the literal filesystem
+> paths if the parquet was written with URL-encoding or a different character substitution
+> (e.g., `+` in a directory name stored as `_`). Always verify that translated paths
+> exist on disk before using them. If a large fraction are missing, inspect a few raw
+> values from the parquet and compare against `ls` output to find the encoding pattern.
+
 > **TIP:** Review mined images before adding to training. Use t-SNE visualization or manual spot-checking to verify match quality.
 
 ---
@@ -393,7 +426,8 @@ cp /tmp/mined_similar_files.csv <workspace>/mining_output/mined_similar_files.cs
 
 | Error | Cause | Fix |
 |-------|-------|-----|
-| `KeyError: 'image_embed'` | Wrong embedding column name | Use `--source-embed-column-name image_embed --target-embed-column-name image_embed` |
+| `unrecognized arguments: --output-dir` | Mining CLI uses `--output-parquet <file>`, not `--output-dir <dir>` | Replace `--output-dir /path/to/dir` with `--output-parquet /path/to/dir/results.parquet` |
+| `KeyError: 'image_embed'` or `KeyError: 'embedding'` | Embedding column name mismatch between source parquet and target parquet | Inspect both parquets (`print(df.columns)`) and pass the actual column names via `--source-embed-column-name` and `--target-embed-column-name` — they may differ from each other |
 | `OOM during k-NN` | Source too large for GPU memory | Reduce `--desired-unique-count` or use larger VRAM GPU |
 | `0 entries in parquet` | Empty dir or all images corrupted | Verify: `ls <dir> \| wc -l` |
 | `ModuleNotFoundError: cuml` | Not inside mining container | Use `nvcr.io/nvidian/iva/mining:latest` |
@@ -473,6 +507,13 @@ docker exec embed-worker sh -c "
     sed -i \"s/'image_embed': image_embeds/'image_embed': list(image_embeds)/\" /embed/image_embeddings.py
 "
 
+# After embed runs, check BOTH parquets for actual column names before mining:
+# SOURCE_EMBED_COL=$(python3 -c "import pandas as pd; df=pd.read_parquet('$WORKSPACE/source_embeddings/embeddings.parquet'); print([c for c in df.columns if c != 'filepath'][0])")
+# TARGET_EMBED_COL=$(python3 -c "import pandas as pd; df=pd.read_parquet('$WORKSPACE/target_embeddings/embeddings.parquet'); print([c for c in df.columns if c != 'filepath'][0])")
+# echo "Source col: $SOURCE_EMBED_COL  Target col: $TARGET_EMBED_COL"
+SOURCE_EMBED_COL=image_embed   # replace with actual value from inspection above
+TARGET_EMBED_COL=embedding     # replace with actual value from inspection above
+
 # Download model (only on first run — cached to $WORKSPACE/models/)
 docker exec embed-worker sh -c "
     if [ ! -d /data/workspace/models/siglip-base-patch16-224 ]; then
@@ -514,20 +555,27 @@ docker exec mining-worker sh -c "
     python nearest_neighbors.py \
         --source-parquet /data/workspace/source_embeddings/embeddings.parquet \
         --target-parquet /data/workspace/target_embeddings/embeddings.parquet \
-        --output-dir /data/workspace/mining_output \
+        --output-parquet /data/workspace/mining_output/final_unique_files.parquet \
         --desired-unique-count $DESIRED_COUNT \
         --knn-metric cosine \
-        --source-embed-column-name image_embed \
-        --target-embed-column-name image_embed
+        --source-embed-column-name $SOURCE_EMBED_COL \
+        --target-embed-column-name $TARGET_EMBED_COL
 "
 
 docker stop mining-worker && docker rm mining-worker
 
 # Step 4: Export to CSV (write to /tmp first, then copy)
+# Always verify translated paths exist on disk before writing CSV
 python3 -c "
-import pandas as pd
+import os, pandas as pd
 df = pd.read_parquet('$WORKSPACE/mining_output/final_unique_files.parquet')
 df['filepath'] = df['filepath'].str.replace('/data/source', '$SOURCE_DIR')
+missing = [p for p in df['filepath'] if not os.path.exists(p)]
+if missing:
+    print(f'WARNING: {len(missing)} paths not found — check for filename encoding mismatches')
+    print('Sample:', missing[:2])
+else:
+    print(f'All {len(df)} paths verified on disk')
 df.to_csv('/tmp/mined_similar_files.csv', index=False)
 print(f'Exported {len(df)} files')
 "
