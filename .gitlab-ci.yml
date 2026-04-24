@@ -11,13 +11,13 @@ include:
     ref: master
     file: '/ci/skill-execution-eval.yml'
 
-skill-execution-eval:
+skill-exec-eval:
   tags:
     - omnistation_with_L40S_GPU
   variables:
     SKILL_EVAL_REF: master
 
-"Slow Eval (Manual Trigger)":
+"[Manual] skill-exec-eval-slow":
   tags:
     - omnistation_with_L40S_GPU
   variables:
