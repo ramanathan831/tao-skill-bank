@@ -4,6 +4,21 @@ Consolidated skill bank for the TAO-Next agent-driven ML training platform. Skil
 
 Based on the TAO-Next Skills Taxonomy proposal.
 
+## Install — `deft-aoi-loop-plugin`
+
+Clone the repo, then in a Claude Code session add it as a marketplace and install the plugin:
+
+```bash
+git clone ssh://git@gitlab-master.nvidia.com:12051/nvidia-tao-toolkit/tao-skills-external.git ~/tao-skills-external
+```
+
+```
+/plugin marketplace add ~/tao-skills-external
+/plugin install deft-aoi-loop-plugin@tao-skill-bank
+```
+
+This bundles the `workflow-deft-aoi-loop` orchestrator and its four `deft-aoi-*` sub-skills. Trigger the workflow with something like *"Run the DEFT loop on my model, KPI: FAR < 0.1% at recall=100%"*. For Brev / cloud-GPU setup, see `applications/workflow-deft-aoi-loop/references/brev-setup-with-demo-data.md`.
+
 ## Taxonomy Overview
 
 The taxonomy is organized around the layers of the TAO-Next stack. Each layer has its own purpose while depending on the layers beneath it.
