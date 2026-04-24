@@ -19,6 +19,35 @@ git clone ssh://git@gitlab-master.nvidia.com:12051/nvidia-tao-toolkit/tao-skills
 
 This bundles the `workflow-deft-aoi-loop` orchestrator and its four `deft-aoi-*` sub-skills. Trigger the workflow with something like *"Run the DEFT loop on my model, KPI: FAR < 0.1% at recall=100%"*. For Brev / cloud-GPU setup, see `applications/workflow-deft-aoi-loop/references/brev-setup-with-demo-data.md`.
 
+### Updating
+
+Plugins don't auto-update. When a new version lands:
+
+```bash
+# 1. Pull the latest from the marketplace repo
+git -C ~/tao-skills-external pull
+```
+
+In Claude Code:
+
+```
+# 2. Refresh marketplace metadata (picks up added/removed/renamed plugins)
+/plugin marketplace update tao-skill-bank
+
+# 3. Reload skill contents
+/reload-plugins
+```
+
+If skills still look stale after that (cached contents), wipe the plugin cache and reinstall:
+
+```bash
+rm -rf ~/.claude/plugins/cache/tao-skill-bank/deft-aoi-loop-plugin
+```
+
+```
+/plugin install deft-aoi-loop-plugin@tao-skill-bank
+```
+
 ## Taxonomy Overview
 
 The taxonomy is organized around the layers of the TAO-Next stack. Each layer has its own purpose while depending on the layers beneath it.
