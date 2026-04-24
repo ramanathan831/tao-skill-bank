@@ -1,7 +1,27 @@
 include:
+  # NV-ACES Tier 1/2 skill quality evaluation
   - project: 'astra/skill-eval-ci'
     file: '/templates/skill-eval.yml'
     ref: 'main'
+
+  # End-to-end skill execution eval (runs each skill's eval.config on a real GPU runner).
+  # Supports plugin-workflow-eval type: any change inside a dir listed in
+  # eval.config's `skills_dir[]` triggers the workflow eval.
+  - project: 'nvidia-tao-toolkit/skill-eval'
+    ref: master
+    file: '/ci/skill-execution-eval.yml'
+
+skill-execution-eval:
+  tags:
+    - omnistation_with_L40S_GPU
+  variables:
+    SKILL_EVAL_REF: master
+
+"Slow Eval (Manual Trigger)":
+  tags:
+    - omnistation_with_L40S_GPU
+  variables:
+    SKILL_EVAL_REF: master
 
 # Placeholder job so .post stage (used by NV-ACES) can run.
 # Replace with your own CI jobs as needed.
