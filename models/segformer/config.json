@@ -7,7 +7,9 @@
     "train": {
       "command": "segformer train -e {config_path}",
       "config_format": "yaml",
-      "inputs": {},
+      "inputs": {
+        "dataset.segment.root_dir": {"type": "folder"}
+      },
       "outputs": {
         "results_dir": {
           "type": "folder"

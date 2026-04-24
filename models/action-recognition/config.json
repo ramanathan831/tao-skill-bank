@@ -7,7 +7,14 @@
     "train": {
       "command": "action_recognition train -e {config_path}",
       "config_format": "yaml",
-      "inputs": {},
+      "inputs": {
+        "dataset.train_dataset_dir": {
+          "type": "folder"
+        },
+        "dataset.val_dataset_dir": {
+          "type": "folder"
+        }
+      },
       "outputs": {
         "results_dir": {
           "type": "folder"

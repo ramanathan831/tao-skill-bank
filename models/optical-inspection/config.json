@@ -7,7 +7,26 @@
     "train": {
       "command": "optical_inspection train -e {config_path}",
       "config_format": "yaml",
-      "inputs": {},
+      "inputs": {
+        "dataset.train_dataset.images_dir": {
+          "type": "folder"
+        },
+        "dataset.train_dataset.csv_path": {
+          "type": "file"
+        },
+        "dataset.validation_dataset.images_dir": {
+          "type": "folder"
+        },
+        "dataset.validation_dataset.csv_path": {
+          "type": "file"
+        },
+        "dataset.test_dataset.images_dir": {
+          "type": "folder"
+        },
+        "dataset.test_dataset.csv_path": {
+          "type": "file"
+        }
+      },
       "outputs": {
         "results_dir": {
           "type": "folder"

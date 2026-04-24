@@ -7,7 +7,20 @@
     "train": {
       "command": "mal train -e {config_path}",
       "config_format": "yaml",
-      "inputs": {},
+      "inputs": {
+        "dataset.train_img_dir": {
+          "type": "folder"
+        },
+        "dataset.train_ann_path": {
+          "type": "file"
+        },
+        "dataset.val_img_dir": {
+          "type": "folder"
+        },
+        "dataset.val_ann_path": {
+          "type": "file"
+        }
+      },
       "outputs": {
         "results_dir": {
           "type": "folder"

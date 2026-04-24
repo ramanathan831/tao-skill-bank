@@ -7,7 +7,20 @@
     "train": {
       "command": "pose_classification train -e {config_path}",
       "config_format": "yaml",
-      "inputs": {},
+      "inputs": {
+        "dataset.train_dataset.data_path": {
+          "type": "file"
+        },
+        "dataset.train_dataset.label_path": {
+          "type": "file"
+        },
+        "dataset.val_dataset.data_path": {
+          "type": "file"
+        },
+        "dataset.val_dataset.label_path": {
+          "type": "file"
+        }
+      },
       "outputs": {
         "results_dir": {
           "type": "folder"

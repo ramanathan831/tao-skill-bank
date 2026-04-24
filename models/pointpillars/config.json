@@ -20,7 +20,14 @@
     "train": {
       "command": "pointpillars train -e {config_path}",
       "config_format": "yaml",
-      "inputs": {},
+      "inputs": {
+        "dataset.data_path": {
+          "type": "folder"
+        },
+        "dataset.data_info_path": {
+          "type": "folder"
+        }
+      },
       "outputs": {
         "results_dir": {
           "type": "folder"

@@ -77,12 +77,23 @@ Transformer-based detection is memory-intensive. batch_size=4 fits on 24GB GPUs.
 
 DINO ships without `references/spec_template_train.yaml`. You must create `~/tao-skills-external/models/dino/defaults-train.json` from `tao-pytorch/nvidia_tao_pytorch/cv/dino/experiment_specs/train.yaml` (convert YAML to JSON, replace `"???"` placeholders with empty strings).
 
-### Data Sources Workaround
+### Data Sources Setup
 
-DINO's `config.json` uses the `mapping` style for `data_sources`, which the runner's `_apply_data_sources` does NOT handle (it only handles `path` and `path_from_format`). You must set data paths explicitly via `spec_overrides`:
+DINO's `config.json` has empty `data_sources: {}`, so the runner's `_apply_data_sources` does nothing. Instead, the `config.json` declares explicit `inputs` in the train action:
+
+```json
+"inputs": {
+    "dataset.train_data_sources[0].image_dir": {"type": "folder"},
+    "dataset.train_data_sources[0].json_file": {"type": "file"},
+    "dataset.val_data_sources[0].image_dir": {"type": "folder"},
+    "dataset.val_data_sources[0].json_file": {"type": "file"}
+}
+```
+
+This tells the SDK's script_runner to download S3 data at those spec keys and rewrite them to container-local paths. You still MUST set the S3 paths via `spec_overrides`:
 
 ```python
-S3_BASE = "s3://bucket/data/my_dataset"
+S3_BASE = "aws://bucket/data/my_dataset"
 spec_overrides={
     "dataset.train_data_sources": [
         {
@@ -100,28 +111,37 @@ spec_overrides={
 }
 ```
 
+**If `config.json` still has `"inputs": {}`** (empty), every training job will fail with `FileNotFoundError` because the S3 URIs are passed directly to the container as filesystem paths without being downloaded. Verify `config.json` has the `inputs` declarations above.
+
 ### num_classes Pitfall
 
 DINO's default `num_classes=91` matches COCO. If your dataset has category IDs 1–N, you must set `num_classes` to at least `max(category_id) + 1`. Setting it too low causes `CUDA error: device-side assert triggered` (label index out of bounds). When in doubt, keep 91 — extra output neurons are harmless.
 
-### val_data_sources Required
+### val_data_sources ALWAYS Required
 
-Even if you only have a train split, `val_data_sources` must be set to valid paths. DINO's dataloader unconditionally builds a val dataset. Reuse the train data for val if no separate eval split exists.
+**CRITICAL**: Even if you only have a train split, `val_data_sources` MUST be set to valid paths with downloadable data. DINO's dataloader unconditionally builds a val dataset — omitting it causes `FileNotFoundError` at startup. This applies regardless of the metric being optimized (even `train_loss`). Reuse the train data for val if no separate eval split exists.
 
 ### Recommended AutoML Configuration
+
+Include model architecture parameters (`model.backbone`, `model.dropout_ratio`) alongside optimizer params for broader exploration:
 
 ```python
 automl_hyperparameters=[
     "train.optim.lr",
     "train.optim.weight_decay",
+    "model.backbone",
     "model.num_queries",
+    "model.dropout_ratio",
 ]
 custom_param_ranges={
     "train.optim.lr": {"valid_min": 1e-5, "valid_max": 5e-4},
     "model.num_queries": {"valid_min": 100, "valid_max": 900},
+    "model.dropout_ratio": {"valid_min": 0.0, "valid_max": 0.3},
 }
 ```
 
 The `kpi` metric (mAP) is emitted during validation — use `metric="kpi"` with `direction="maximize"`.
 
 `train.optim.weight_decay` is not in the default DINO spec schema — the runner will accept it with a warning. It still works; the DINO training code picks it up from the config.
+
+**Supported `model.backbone` values** (from the DINO codebase): `resnet_34`, `resnet_50`, `fan_small_12_p4_hybrid`, `fan_base_16_p4_hybrid`, `fan_large_16_p4_hybrid`, `gcvit_tiny`, `gcvit_small`, `gcvit_base`, `gcvit_large`, `nvdinov2_vit_large_legacy`, `swin_tiny_224_1k`, `swin_small_224_1k`, `swin_base_224_22k`, `swin_large_224_22k`, `efficientvit_l2_224`, `efficientvit_l2_384`. Note: the LLM brain may propose backbone names not in this list (e.g. `fan_small`, `fan_tiny`, `efficientvit_b2`) which will cause training to fail. The schema should constrain valid values to prevent this.

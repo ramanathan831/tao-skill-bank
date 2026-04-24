@@ -20,7 +20,17 @@
     "train": {
       "command": "ocrnet train -e {config_path}",
       "config_format": "yaml",
-      "inputs": {},
+      "inputs": {
+        "dataset.train_dataset_dir": {
+          "type": "folder"
+        },
+        "dataset.val_dataset_dir": {
+          "type": "folder"
+        },
+        "dataset.character_list_file": {
+          "type": "file"
+        }
+      },
       "outputs": {
         "results_dir": {
           "type": "folder"

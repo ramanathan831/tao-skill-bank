@@ -7,7 +7,11 @@
     "train": {
       "command": "classification_pyt train -e {config_path}",
       "config_format": "yaml",
-      "inputs": {},
+      "inputs": {
+        "dataset.train_dataset.images_dir": {"type": "folder"},
+        "dataset.classes_file": {"type": "file"},
+        "dataset.val_dataset.images_dir": {"type": "folder"}
+      },
       "outputs": {
         "results_dir": {
           "type": "folder"

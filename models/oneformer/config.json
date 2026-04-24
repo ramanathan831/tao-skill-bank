@@ -7,7 +7,32 @@
     "train": {
       "command": "oneformer train -e {config_path}",
       "config_format": "yaml",
-      "inputs": {},
+      "inputs": {
+        "dataset.train.images": {
+          "type": "folder"
+        },
+        "dataset.train.annotations": {
+          "type": "file"
+        },
+        "dataset.label_map": {
+          "type": "file"
+        },
+        "dataset.train.panoptic": {
+          "type": "folder"
+        },
+        "dataset.val.images": {
+          "type": "folder"
+        },
+        "dataset.val.annotations": {
+          "type": "file"
+        },
+        "dataset.val.panoptic": {
+          "type": "folder"
+        },
+        "dataset.test.images": {
+          "type": "folder"
+        }
+      },
       "outputs": {
         "results_dir": {
           "type": "folder"

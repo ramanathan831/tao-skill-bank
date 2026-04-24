@@ -7,7 +7,14 @@
     "train": {
       "command": "mae train -e {config_path}",
       "config_format": "yaml",
-      "inputs": {},
+      "inputs": {
+        "dataset.train_data_sources": {
+          "type": "folder"
+        },
+        "dataset.val_data_sources": {
+          "type": "folder"
+        }
+      },
       "outputs": {
         "results_dir": {
           "type": "folder"

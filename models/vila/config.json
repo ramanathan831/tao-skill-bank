@@ -7,7 +7,11 @@
     "train": {
       "command": "vila train -e {config_path}",
       "config_format": "yaml",
-      "inputs": {},
+      "inputs": {
+        "train.dataset.dataset_yaml_path": {
+          "type": "file"
+        }
+      },
       "outputs": {
         "results_dir": {
           "type": "folder"

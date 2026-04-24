@@ -7,7 +7,14 @@
     "train": {
       "command": "ocdnet train -e {config_path}",
       "config_format": "yaml",
-      "inputs": {},
+      "inputs": {
+        "dataset.train_dataset.data_path": {
+          "type": "folder"
+        },
+        "dataset.validate_dataset.data_path": {
+          "type": "folder"
+        }
+      },
       "outputs": {
         "results_dir": {
           "type": "folder"

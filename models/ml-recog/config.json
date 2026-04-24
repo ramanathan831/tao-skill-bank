@@ -7,7 +7,17 @@
     "train": {
       "command": "ml_recog train -e {config_path}",
       "config_format": "yaml",
-      "inputs": {},
+      "inputs": {
+        "dataset.train_dataset": {
+          "type": "folder"
+        },
+        "dataset.val_dataset.reference": {
+          "type": "folder"
+        },
+        "dataset.val_dataset.query": {
+          "type": "folder"
+        }
+      },
       "outputs": {
         "results_dir": {
           "type": "folder"
