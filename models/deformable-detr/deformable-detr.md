@@ -4,6 +4,95 @@ Deformable DETR for 2D object detection. Uses deformable attention for efficient
 
 Uses pretrained backbone weights. Set model.pretrained_backbone_path for backbone-only loading.
 
+## Training Requirements
+
+- **Dataset type:** object_detection
+- **Formats:** coco, coco_raw
+- **Monitoring metric:** val_mAP50
+
+### Per-Action Dataset Requirements
+
+| Action | Spec Key | Source | Files | List? |
+|---|---|---|---|---|
+| evaluate | dataset.test_data_sources.image_dir | eval_dataset | images.tar.gz | No |
+| evaluate | dataset.test_data_sources.json_file | eval_dataset | annotations.json | No |
+| export | dataset.train_data_sources | train_datasets | image_dir: images.tar.gz, json_file: annotations.json | Yes |
+| export | dataset.val_data_sources | train_datasets | image_dir: images.tar.gz, json_file: annotations.json | Yes |
+| gen_trt_engine | gen_trt_engine.tensorrt.calibration.cal_image_dir | calibration_dataset | images.tar.gz | Yes |
+| inference | dataset.infer_data_sources.image_dir | inference_dataset | images.tar.gz | Yes |
+| inference | dataset.infer_data_sources.classmap | inference_dataset | label_map.txt | No |
+| quantize | dataset.train_data_sources | train_datasets | image_dir: images.tar.gz, json_file: annotations.json | Yes |
+| quantize | dataset.val_data_sources | train_datasets | image_dir: images.tar.gz, json_file: annotations.json | Yes |
+| quantize | dataset.quant_calibration_data_sources | train_datasets | image_dir: images.tar.gz, json_file: annotations.json | No |
+| train | dataset.train_data_sources | train_datasets | image_dir: images.tar.gz, json_file: annotations.json | Yes |
+| train | dataset.val_data_sources | train_datasets | image_dir: images.tar.gz, json_file: annotations.json | Yes |
+
+### Typical Spec Overrides
+
+Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
+
+```python
+S3_TRAIN = "aws://bucket/data/train"
+S3_EVAL = "aws://bucket/data/eval"
+```
+
+**train (mandatory data sources):**
+```python
+{
+    "train.num_epochs": 10,
+    "train.checkpoint_interval": 10,
+    "train.validation_interval": 10,
+    "train.num_gpus": 1,
+    "dataset.num_classes": "<num_classes> + 1",
+    "dataset.train_data_sources": [{"image_dir": f"{S3_TRAIN}/images.tar.gz", "json_file": f"{S3_TRAIN}/annotations.json"}],
+    "dataset.val_data_sources": [{"image_dir": f"{S3_TRAIN}/images.tar.gz", "json_file": f"{S3_TRAIN}/annotations.json"}],
+}
+```
+
+**evaluate (mandatory data sources):**
+```python
+{
+    "dataset.num_classes": "<num_classes> + 1",
+    "dataset.test_data_sources.image_dir": f"{S3_EVAL}/images.tar.gz",
+    "dataset.test_data_sources.json_file": f"{S3_EVAL}/annotations.json",
+}
+```
+
+**export (mandatory data sources):**
+```python
+{
+    "dataset.num_classes": "<num_classes> + 1",
+    "dataset.train_data_sources": [{"image_dir": f"{S3_TRAIN}/images.tar.gz", "json_file": f"{S3_TRAIN}/annotations.json"}],
+    "dataset.val_data_sources": [{"image_dir": f"{S3_TRAIN}/images.tar.gz", "json_file": f"{S3_TRAIN}/annotations.json"}],
+}
+```
+
+**gen_trt_engine (mandatory data sources):**
+```python
+{
+    "gen_trt_engine.tensorrt.data_type": "FP16",
+    "dataset.num_classes": "<num_classes> + 1",
+    "gen_trt_engine.tensorrt.calibration.cal_image_dir": [f"{S3_TRAIN}/images.tar.gz"],
+}
+```
+
+**inference (mandatory data sources):**
+```python
+{
+    "dataset.num_classes": "<num_classes> + 1",
+    "dataset.infer_data_sources.image_dir": [f"{S3_EVAL}/images.tar.gz"],
+    "dataset.infer_data_sources.classmap": f"{S3_EVAL}/label_map.txt",
+}
+```
+
+**quantize (mandatory data sources):**
+```python
+{
+    "dataset.train_data_sources": [{"image_dir": f"{S3_TRAIN}/images.tar.gz", "json_file": f"{S3_TRAIN}/annotations.json"}],
+    "dataset.val_data_sources": [{"image_dir": f"{S3_TRAIN}/images.tar.gz", "json_file": f"{S3_TRAIN}/annotations.json"}],
+    "dataset.quant_calibration_data_sources": {"image_dir": f"{S3_TRAIN}/images.tar.gz", "json_file": f"{S3_TRAIN}/annotations.json"},
+}
+```
 ## Eval Dataset
 
 Optional. If provided, validation mAP is computed at each checkpoint interval.

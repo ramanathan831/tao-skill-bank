@@ -4,6 +4,79 @@ Monocular depth estimation using Metric Depth Anything v2 or Relative Depth Anyt
 
 Uses pretrained Depth Anything v2 encoder. Set model.mono_backbone.pretrained_path.
 
+## Training Requirements
+
+- **Dataset type:** depth_net_mono
+- **Formats:** ThreeDVLM, FSD, NvCLIP, IssacStereo, Crestereo, Middlebury, NYUDV2, NYUDV2Relative, BaseRelativeMonoDataset, BaseMetricMonoDataset
+- **Monitoring metric:** val/loss
+
+### Per-Action Dataset Requirements
+
+| Action | Spec Key | Source | Files | List? |
+|---|---|---|---|---|
+| evaluate | dataset.test_dataset.data_sources | eval_dataset | data_file: annotations.txt | Yes |
+| inference | dataset.infer_dataset.data_sources | inference_dataset | data_file: annotations.txt | Yes |
+| quantize | dataset.train_dataset.data_sources | train_datasets | data_file: annotations.txt | Yes |
+| quantize | dataset.val_dataset.data_sources | eval_dataset | data_file: annotations.txt | Yes |
+| quantize | dataset.quant_calibration_dataset.images_dir | train_datasets | images.tar.gz | No |
+| train | dataset.train_dataset.data_sources | train_datasets | data_file: annotations.txt | Yes |
+| train | dataset.val_dataset.data_sources | eval_dataset | data_file: annotations.txt | Yes |
+
+### Typical Spec Overrides
+
+Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
+
+```python
+S3_TRAIN = "aws://bucket/data/train"
+S3_EVAL = "aws://bucket/data/eval"
+```
+
+**train (mandatory data sources):**
+```python
+{
+    "train.num_epochs": 10,
+    "train.checkpoint_interval": 10,
+    "train.validation_interval": 10,
+    "train.num_gpus": 1,
+    "model.model_type": "RelativeDepthAnything",
+    "dataset.train_dataset.data_sources": [{"data_file": f"{S3_TRAIN}/annotations.txt"}],
+    "dataset.val_dataset.data_sources": [{"data_file": f"{S3_EVAL}/annotations.txt"}],
+}
+```
+
+**evaluate (mandatory data sources):**
+```python
+{
+    "model.model_type": "RelativeDepthAnything",
+    "dataset.test_dataset.data_sources": [{"data_file": f"{S3_EVAL}/annotations.txt"}],
+}
+```
+
+**export:**
+```python
+{
+    "model.model_type": "RelativeDepthAnything",
+    "export.input_height": 518,
+    "export.input_width": 518,
+}
+```
+
+**inference (mandatory data sources):**
+```python
+{
+    "model.model_type": "RelativeDepthAnything",
+    "dataset.infer_dataset.data_sources": [{"data_file": f"{S3_EVAL}/annotations.txt"}],
+}
+```
+
+**quantize (mandatory data sources):**
+```python
+{
+    "dataset.train_dataset.data_sources": [{"data_file": f"{S3_TRAIN}/annotations.txt"}],
+    "dataset.val_dataset.data_sources": [{"data_file": f"{S3_EVAL}/annotations.txt"}],
+    "dataset.quant_calibration_dataset.images_dir": f"{S3_TRAIN}/images.tar.gz",
+}
+```
 ## Eval Dataset
 
 Optional. Val dataset configured via dataset.val_dataset.data_sources.

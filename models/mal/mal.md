@@ -4,6 +4,66 @@ MAL (Minimal Annotation Learning) for weakly-supervised segmentation. Produces s
 
 Set train.pretrained_model_path for ViT-MAE pretrained weights.
 
+## Training Requirements
+
+- **Dataset type:** segmentation
+- **Formats:** default
+- **Monitoring metric:** mIoU
+
+### Per-Action Dataset Requirements
+
+| Action | Spec Key | Source | Files | List? |
+|---|---|---|---|---|
+| evaluate | dataset.val_img_dir | eval_dataset | images.tar.gz | No |
+| evaluate | dataset.val_ann_path | eval_dataset | annotations.json | No |
+| inference | inference.img_dir | inference_dataset | images.tar.gz | No |
+| inference | inference.ann_path | inference_dataset | annotations.json | No |
+| train | dataset.train_img_dir | train_datasets | images.tar.gz | No |
+| train | dataset.train_ann_path | train_datasets | annotations.json | No |
+| train | dataset.val_img_dir | eval_dataset | images.tar.gz | No |
+| train | dataset.val_ann_path | eval_dataset | annotations.json | No |
+
+### Typical Spec Overrides
+
+Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
+
+```python
+S3_TRAIN = "aws://bucket/data/train"
+S3_EVAL = "aws://bucket/data/eval"
+```
+
+**train (mandatory data sources):**
+```python
+{
+    "train.num_gpus": 1,
+    "train.gpu_ids": [
+        0
+    ],
+    "train.num_epochs": 5,
+    "train.checkpoint_interval": 5,
+    "train.validation_interval": 5,
+    "dataset.train_img_dir": f"{S3_TRAIN}/images.tar.gz",
+    "dataset.train_ann_path": f"{S3_TRAIN}/annotations.json",
+    "dataset.val_img_dir": f"{S3_EVAL}/images.tar.gz",
+    "dataset.val_ann_path": f"{S3_EVAL}/annotations.json",
+}
+```
+
+**evaluate (mandatory data sources):**
+```python
+{
+    "dataset.val_img_dir": f"{S3_EVAL}/images.tar.gz",
+    "dataset.val_ann_path": f"{S3_EVAL}/annotations.json",
+}
+```
+
+**inference (mandatory data sources):**
+```python
+{
+    "inference.img_dir": f"{S3_EVAL}/images.tar.gz",
+    "inference.ann_path": f"{S3_EVAL}/annotations.json",
+}
+```
 ## Eval Dataset
 
 Optional. Val images and annotations configured alongside train paths.

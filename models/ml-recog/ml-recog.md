@@ -4,6 +4,65 @@ Metric learning recognition for fine-grained visual recognition. Learns embeddin
 
 Set model.pretrained_model_path for pretrained backbone.
 
+## Training Requirements
+
+- **Dataset type:** ml_recog
+- **Formats:** default
+- **Monitoring metric:** val Precision at Rank 1
+
+### Per-Action Dataset Requirements
+
+| Action | Spec Key | Source | Files | List? |
+|---|---|---|---|---|
+| evaluate | dataset.val_dataset | train_datasets | reference: metric_learning_recognition/retail-product-checkout-dataset_classification_demo/unknown_classes/reference.tar.gz, query: metric_learning_recognition/retail-product-checkout-dataset_classification_demo/unknown_classes/test.tar.gz | No |
+| gen_trt_engine | gen_trt_engine.tensorrt.calibration.cal_image_dir | calibration_dataset | metric_learning_recognition/retail-product-checkout-dataset_classification_demo/known_classes/test.tar.gz | Yes |
+| inference | dataset.val_dataset | train_datasets | reference: metric_learning_recognition/retail-product-checkout-dataset_classification_demo/unknown_classes/reference.tar.gz, query:  | No |
+| inference | inference.input_path | train_datasets | metric_learning_recognition/retail-product-checkout-dataset_classification_demo/unknown_classes/test.tar.gz | No |
+| train | dataset.train_dataset | train_datasets | metric_learning_recognition/retail-product-checkout-dataset_classification_demo/known_classes/train.tar.gz | No |
+| train | dataset.val_dataset | train_datasets | reference: metric_learning_recognition/retail-product-checkout-dataset_classification_demo/known_classes/reference.tar.gz, query: metric_learning_recognition/retail-product-checkout-dataset_classification_demo/known_classes/val.tar.gz | No |
+
+### Typical Spec Overrides
+
+Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
+
+```python
+S3_TRAIN = "aws://bucket/data/train"
+```
+
+**train (mandatory data sources):**
+```python
+{
+    "train.num_epochs": 30,
+    "train.checkpoint_interval": 10,
+    "train.validation_interval": 10,
+    "train.num_gpus": 1,
+    "dataset.train_dataset": f"{S3_TRAIN}/metric_learning_recognition/retail-product-checkout-dataset_classification_demo/known_classes/train.tar.gz",
+    "dataset.val_dataset": {"reference": f"{S3_TRAIN}/metric_learning_recognition/retail-product-checkout-dataset_classification_demo/known_classes/reference.tar.gz", "query": f"{S3_TRAIN}/metric_learning_recognition/retail-product-checkout-dataset_classification_demo/known_classes/val.tar.gz"},
+}
+```
+
+**gen_trt_engine (mandatory data sources):**
+```python
+{
+    "gen_trt_engine.tensorrt.data_type": "INT8",
+    "gen_trt_engine.tensorrt.calibration.cal_image_dir": [f"{S3_TRAIN}/metric_learning_recognition/retail-product-checkout-dataset_classification_demo/known_classes/test.tar.gz"],
+}
+```
+
+**evaluate (mandatory data sources):**
+```python
+{
+    "dataset.val_dataset": {"reference": f"{S3_TRAIN}/metric_learning_recognition/retail-product-checkout-dataset_classification_demo/unknown_classes/reference.tar.gz", "query": f"{S3_TRAIN}/metric_learning_recognition/retail-product-checkout-dataset_classification_demo/unknown_classes/test.tar.gz"},
+}
+```
+
+**inference (mandatory data sources):**
+```python
+{
+    "dataset.val_dataset": {"reference": f"{S3_TRAIN}/metric_learning_recognition/retail-product-checkout-dataset_classification_demo/unknown_classes/reference.tar.gz"},
+    "inference.input_path": f"{S3_TRAIN}/metric_learning_recognition/retail-product-checkout-dataset_classification_demo/unknown_classes/test.tar.gz",
+}
+```
 ## Eval Dataset
 
 Required. Evaluation requires reference and query datasets for retrieval metrics.

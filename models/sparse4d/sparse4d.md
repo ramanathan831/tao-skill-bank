@@ -4,6 +4,106 @@ Sparse4D for multi-camera temporal 3D object detection and tracking. Uses sparse
 
 Requires pretrained ResNet-101 backbone. Set train.pretrained_model_path.
 
+## Training Requirements
+
+- **Dataset type:** sparse4d
+- **Formats:** ovpkl
+- **Monitoring metric:** val_mAP
+
+### Per-Action Dataset Requirements
+
+| Action | Spec Key | Source | Files | List? |
+|---|---|---|---|---|
+| dataset_convert | aicity.root | id |  | No |
+| evaluate | dataset.data_root | eval_dataset | (from convert job, spec: aicity.split) | No |
+| evaluate | model.head.instance_bank.anchor | train_datasets | /results/{dataset_convert_job_id}/anchor_init.npy | No |
+| evaluate | dataset.train_dataset.ann_file | train_datasets | (from convert job, spec: aicity.split) | No |
+| evaluate | dataset.val_dataset.ann_file | eval_dataset | (from convert job, spec: aicity.split) | No |
+| evaluate | dataset.test_dataset.ann_file | inference_dataset | (from convert job, spec: aicity.split) | No |
+| export | model.head.instance_bank.anchor | train_datasets | /results/{dataset_convert_job_id}/anchor_init.npy | No |
+| inference | dataset.data_root | inference_dataset | (from convert job, spec: aicity.split) | No |
+| inference | model.head.instance_bank.anchor | train_datasets | /results/{dataset_convert_job_id}/anchor_init.npy | No |
+| inference | dataset.train_dataset.ann_file | train_datasets | (from convert job, spec: aicity.split) | No |
+| inference | dataset.val_dataset.ann_file | eval_dataset | (from convert job, spec: aicity.split) | No |
+| inference | dataset.test_dataset.ann_file | inference_dataset | (from convert job, spec: aicity.split) | No |
+| quantize | dataset.data_root | train_datasets | (from convert job, spec: aicity.split) | No |
+| quantize | model.head.instance_bank.anchor | train_datasets | /results/{dataset_convert_job_id}/anchor_init.npy | No |
+| quantize | dataset.train_dataset.ann_file | train_datasets | (from convert job, spec: aicity.split) | No |
+| quantize | dataset.val_dataset.ann_file | eval_dataset | (from convert job, spec: aicity.split) | No |
+| quantize | dataset.test_dataset.ann_file | inference_dataset | (from convert job, spec: aicity.split) | No |
+| quantize | dataset.quant_calibration_dataset.images_dir | train_datasets |  | No |
+| train | dataset.data_root | train_datasets | (from convert job, spec: aicity.split) | No |
+| train | model.head.instance_bank.anchor | train_datasets | /results/{dataset_convert_job_id}/anchor_init.npy | No |
+| train | dataset.train_dataset.ann_file | train_datasets | (from convert job, spec: aicity.split) | No |
+| train | dataset.val_dataset.ann_file | eval_dataset | (from convert job, spec: aicity.split) | No |
+| train | dataset.test_dataset.ann_file | inference_dataset | (from convert job, spec: aicity.split) | No |
+
+### Typical Spec Overrides
+
+Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
+
+```python
+S3_TRAIN = "aws://bucket/data/train"
+S3_EVAL = "aws://bucket/data/eval"
+```
+
+**train (mandatory data sources):**
+```python
+{
+    "train.num_epochs": 30,
+    "train.checkpoint_interval": 10,
+    "train.validation_interval": 10,
+    "train.num_gpus": 1,
+    "dataset.sequences.split_num": 90,
+    "train_dataset.sequences_split_num": 90,
+    "dataset.data_root": {"spec": f"{S3_TRAIN}/aicity.split)"},
+    "model.head.instance_bank.anchor": f"{S3_TRAIN}//results/{dataset_convert_job_id}/anchor_init.npy",
+    "dataset.train_dataset.ann_file": {"spec": f"{S3_TRAIN}/aicity.split)"},
+    "dataset.val_dataset.ann_file": {"spec": f"{S3_EVAL}/aicity.split)"},
+    "dataset.test_dataset.ann_file": {"spec": f"{S3_EVAL}/aicity.split)"},
+}
+```
+
+**evaluate (mandatory data sources):**
+```python
+{
+    "dataset.data_root": {"spec": f"{S3_EVAL}/aicity.split)"},
+    "model.head.instance_bank.anchor": f"{S3_TRAIN}//results/{dataset_convert_job_id}/anchor_init.npy",
+    "dataset.train_dataset.ann_file": {"spec": f"{S3_TRAIN}/aicity.split)"},
+    "dataset.val_dataset.ann_file": {"spec": f"{S3_EVAL}/aicity.split)"},
+    "dataset.test_dataset.ann_file": {"spec": f"{S3_EVAL}/aicity.split)"},
+}
+```
+
+**export (mandatory data sources):**
+```python
+{
+    "model.head.instance_bank.anchor": f"{S3_TRAIN}//results/{dataset_convert_job_id}/anchor_init.npy",
+}
+```
+
+**inference (mandatory data sources):**
+```python
+{
+    "dataset.data_root": {"spec": f"{S3_EVAL}/aicity.split)"},
+    "model.head.instance_bank.anchor": f"{S3_TRAIN}//results/{dataset_convert_job_id}/anchor_init.npy",
+    "dataset.train_dataset.ann_file": {"spec": f"{S3_TRAIN}/aicity.split)"},
+    "dataset.val_dataset.ann_file": {"spec": f"{S3_EVAL}/aicity.split)"},
+    "dataset.test_dataset.ann_file": {"spec": f"{S3_EVAL}/aicity.split)"},
+}
+```
+
+**quantize (mandatory data sources):**
+```python
+{
+    "dataset.data_root": {"spec": f"{S3_TRAIN}/aicity.split)"},
+    "model.head.instance_bank.anchor": f"{S3_TRAIN}//results/{dataset_convert_job_id}/anchor_init.npy",
+    "dataset.train_dataset.ann_file": {"spec": f"{S3_TRAIN}/aicity.split)"},
+    "dataset.val_dataset.ann_file": {"spec": f"{S3_EVAL}/aicity.split)"},
+    "dataset.test_dataset.ann_file": {"spec": f"{S3_EVAL}/aicity.split)"},
+    "dataset.quant_calibration_dataset.images_dir": f"{S3_TRAIN}",
+}
+```
 ## Eval Dataset
 
 Optional. Val/test splits configured via dataset ann_file paths.

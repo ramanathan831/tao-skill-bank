@@ -4,6 +4,89 @@ PointPillars for 3D object detection from LiDAR point clouds. Encodes point clou
 
 Typically trained from scratch. Provide train.resume_training_checkpoint_path to resume.
 
+## Training Requirements
+
+- **Dataset type:** pointpillars
+- **Formats:** default
+- **Monitoring metric:** loss
+
+### Per-Action Dataset Requirements
+
+| Action | Spec Key | Source | Files | List? |
+|---|---|---|---|---|
+| dataset_convert | dataset.data_path | id |  | No |
+| evaluate | dataset.data_path | train_datasets |  | No |
+| evaluate | dataset.data_info_path | train_datasets | /results/{dataset_convert_job_id}/data_info/ | No |
+| export | dataset.data_path | train_datasets |  | No |
+| export | dataset.data_info_path | train_datasets | /results/{dataset_convert_job_id}/data_info/ | No |
+| inference | dataset.data_path | train_datasets |  | No |
+| inference | dataset.data_info_path | train_datasets | /results/{dataset_convert_job_id}/data_info/ | No |
+| prune | dataset.data_path | train_datasets |  | No |
+| prune | dataset.data_info_path | train_datasets | /results/{dataset_convert_job_id}/data_info/ | No |
+| retrain | dataset.data_path | train_datasets |  | No |
+| retrain | dataset.data_info_path | train_datasets | /results/{dataset_convert_job_id}/data_info/ | No |
+| train | dataset.data_path | train_datasets |  | No |
+| train | dataset.data_info_path | train_datasets | /results/{dataset_convert_job_id}/data_info/ | No |
+
+### Typical Spec Overrides
+
+Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
+
+```python
+S3_TRAIN = "aws://bucket/data/train"
+```
+
+**train (mandatory data sources):**
+```python
+{
+    "train.num_epochs": 30,
+    "train.checkpoint_interval": 10,
+    "train.validation_interval": 10,
+    "train.num_gpus": 1,
+    "dataset.data_path": f"{S3_TRAIN}",
+    "dataset.data_info_path": f"{S3_TRAIN}//results/{dataset_convert_job_id}/data_info/",
+}
+```
+
+**evaluate (mandatory data sources):**
+```python
+{
+    "dataset.data_path": f"{S3_TRAIN}",
+    "dataset.data_info_path": f"{S3_TRAIN}//results/{dataset_convert_job_id}/data_info/",
+}
+```
+
+**export (mandatory data sources):**
+```python
+{
+    "dataset.data_path": f"{S3_TRAIN}",
+    "dataset.data_info_path": f"{S3_TRAIN}//results/{dataset_convert_job_id}/data_info/",
+}
+```
+
+**inference (mandatory data sources):**
+```python
+{
+    "dataset.data_path": f"{S3_TRAIN}",
+    "dataset.data_info_path": f"{S3_TRAIN}//results/{dataset_convert_job_id}/data_info/",
+}
+```
+
+**prune (mandatory data sources):**
+```python
+{
+    "dataset.data_path": f"{S3_TRAIN}",
+    "dataset.data_info_path": f"{S3_TRAIN}//results/{dataset_convert_job_id}/data_info/",
+}
+```
+
+**retrain (mandatory data sources):**
+```python
+{
+    "dataset.data_path": f"{S3_TRAIN}",
+    "dataset.data_info_path": f"{S3_TRAIN}//results/{dataset_convert_job_id}/data_info/",
+}
+```
 ## Eval Dataset
 
 Optional. Validation data (val.tar.gz) is separate from training. Used for mAP evaluation.

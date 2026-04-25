@@ -4,6 +4,136 @@ OneFormer for universal image segmentation. Unifies panoptic, instance, and sema
 
 Set train.pretrained_backbone and/or train.pretrained_model.
 
+## Training Requirements
+
+- **Dataset type:** segmentation
+- **Formats:** coco_panoptic, coco
+- **Monitoring metric:** mIoU
+
+### Per-Action Dataset Requirements
+
+| Action | Spec Key | Source | Files | List? |
+|---|---|---|---|---|
+| evaluate | dataset.train.images | train_datasets | images.tar.gz | No |
+| evaluate | dataset.label_map | train_datasets | label_map.json | No |
+| evaluate | dataset.train.annotations | train_datasets | annotations.json | No |
+| evaluate | dataset.train.panoptic | train_datasets | images_panoptic.tar.gz | No |
+| evaluate | dataset.val.images | eval_dataset | images.tar.gz | No |
+| evaluate | dataset.val.annotations | eval_dataset | annotations.json | No |
+| evaluate | dataset.val.panoptic | eval_dataset | images_panoptic.tar.gz | No |
+| evaluate | dataset.test.images | eval_dataset | images.tar.gz | No |
+| evaluate | dataset.test.annotations | eval_dataset | annotations.json | No |
+| evaluate | dataset.test.panoptic | eval_dataset | images_panoptic.tar.gz | No |
+| inference | dataset.train.images | train_datasets | images.tar.gz | No |
+| inference | dataset.label_map | train_datasets | coco_panoptic: label_map_panoptic.json; *: label_map.json | No |
+| inference | dataset.train.annotations | train_datasets | annotations.json | No |
+| inference | dataset.train.panoptic | train_datasets | images_panoptic.tar.gz | No |
+| inference | dataset.val.images | eval_dataset | images.tar.gz | No |
+| inference | dataset.val.annotations | eval_dataset | annotations.json | No |
+| inference | dataset.val.panoptic | eval_dataset | images_panoptic.tar.gz | No |
+| inference | dataset.test.images | eval_dataset | images.tar.gz | No |
+| quantize | dataset.train.images | train_datasets | images.tar.gz | No |
+| quantize | dataset.train.annotations | train_datasets | annotations.json | No |
+| quantize | dataset.label_map | train_datasets | label_map.json | No |
+| quantize | dataset.train.panoptic | train_datasets | images_panoptic.tar.gz | No |
+| quantize | dataset.val.images | eval_dataset | images.tar.gz | No |
+| quantize | dataset.val.annotations | eval_dataset | annotations.json | No |
+| quantize | dataset.val.panoptic | eval_dataset | images_panoptic.tar.gz | No |
+| quantize | dataset.test.images | eval_dataset | images.tar.gz | No |
+| quantize | dataset.quant_calibration_dataset.images_dir | train_datasets | images.tar.gz | No |
+| train | dataset.train.images | train_datasets | images.tar.gz | No |
+| train | dataset.train.annotations | train_datasets | annotations.json | No |
+| train | dataset.label_map | train_datasets | label_map.json | No |
+| train | dataset.train.panoptic | train_datasets | images_panoptic.tar.gz | No |
+| train | dataset.val.images | eval_dataset | images.tar.gz | No |
+| train | dataset.val.annotations | eval_dataset | annotations.json | No |
+| train | dataset.val.panoptic | eval_dataset | images_panoptic.tar.gz | No |
+| train | dataset.test.images | eval_dataset | images.tar.gz | No |
+
+### Typical Spec Overrides
+
+Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
+
+```python
+S3_TRAIN = "aws://bucket/data/train"
+S3_EVAL = "aws://bucket/data/eval"
+```
+
+**train (mandatory data sources):**
+```python
+{
+    "train.num_gpus": 1,
+    "train.num_epochs": 10,
+    "train.checkpoint_interval": 10,
+    "train.validation_interval": 10,
+    "model.sem_seg_head.num_classes": 133,
+    "dataset.contiguous_id": True,
+    "train.precision": "32",
+    "dataset.train.images": f"{S3_TRAIN}/images.tar.gz",
+    "dataset.train.annotations": f"{S3_TRAIN}/annotations.json",
+    "dataset.label_map": f"{S3_TRAIN}/label_map.json",
+    "dataset.train.panoptic": f"{S3_TRAIN}/images_panoptic.tar.gz",
+    "dataset.val.images": f"{S3_EVAL}/images.tar.gz",
+    "dataset.val.annotations": f"{S3_EVAL}/annotations.json",
+    "dataset.val.panoptic": f"{S3_EVAL}/images_panoptic.tar.gz",
+    "dataset.test.images": f"{S3_EVAL}/images.tar.gz",
+}
+```
+
+**evaluate (mandatory data sources):**
+```python
+{
+    "model.sem_seg_head.num_classes": 133,
+    "dataset.contiguous_id": True,
+    "dataset.train.images": f"{S3_TRAIN}/images.tar.gz",
+    "dataset.label_map": f"{S3_TRAIN}/label_map.json",
+    "dataset.train.annotations": f"{S3_TRAIN}/annotations.json",
+    "dataset.train.panoptic": f"{S3_TRAIN}/images_panoptic.tar.gz",
+    "dataset.val.images": f"{S3_EVAL}/images.tar.gz",
+    "dataset.val.annotations": f"{S3_EVAL}/annotations.json",
+    "dataset.val.panoptic": f"{S3_EVAL}/images_panoptic.tar.gz",
+    "dataset.test.images": f"{S3_EVAL}/images.tar.gz",
+    "dataset.test.annotations": f"{S3_EVAL}/annotations.json",
+    "dataset.test.panoptic": f"{S3_EVAL}/images_panoptic.tar.gz",
+}
+```
+
+**export:**
+```python
+{
+    "model.sem_seg_head.num_classes": 133,
+    "model.export": True,
+}
+```
+
+**inference (mandatory data sources):**
+```python
+{
+    "dataset.train.images": f"{S3_TRAIN}/images.tar.gz",
+    "dataset.label_map": {"coco_panoptic": f"{S3_TRAIN}/label_map_panoptic.json; *: label_map.json"},
+    "dataset.train.annotations": f"{S3_TRAIN}/annotations.json",
+    "dataset.train.panoptic": f"{S3_TRAIN}/images_panoptic.tar.gz",
+    "dataset.val.images": f"{S3_EVAL}/images.tar.gz",
+    "dataset.val.annotations": f"{S3_EVAL}/annotations.json",
+    "dataset.val.panoptic": f"{S3_EVAL}/images_panoptic.tar.gz",
+    "dataset.test.images": f"{S3_EVAL}/images.tar.gz",
+}
+```
+
+**quantize (mandatory data sources):**
+```python
+{
+    "dataset.train.images": f"{S3_TRAIN}/images.tar.gz",
+    "dataset.train.annotations": f"{S3_TRAIN}/annotations.json",
+    "dataset.label_map": f"{S3_TRAIN}/label_map.json",
+    "dataset.train.panoptic": f"{S3_TRAIN}/images_panoptic.tar.gz",
+    "dataset.val.images": f"{S3_EVAL}/images.tar.gz",
+    "dataset.val.annotations": f"{S3_EVAL}/annotations.json",
+    "dataset.val.panoptic": f"{S3_EVAL}/images_panoptic.tar.gz",
+    "dataset.test.images": f"{S3_EVAL}/images.tar.gz",
+    "dataset.quant_calibration_dataset.images_dir": f"{S3_TRAIN}/images.tar.gz",
+}
+```
 ## Eval Dataset
 
 Optional. Val data configured alongside train in the dataset config.

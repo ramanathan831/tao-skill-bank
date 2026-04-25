@@ -4,6 +4,63 @@ Person re-identification. Learns discriminative embeddings to match the same per
 
 Set model.pretrained_model_path for pretrained weights.
 
+## Training Requirements
+
+- **Dataset type:** re_identification
+- **Formats:** default
+- **Monitoring metric:** cmc_rank_1
+
+### Per-Action Dataset Requirements
+
+| Action | Spec Key | Source | Files | List? |
+|---|---|---|---|---|
+| evaluate | evaluate.test_dataset | train_datasets | sample_test.tar.gz | No |
+| evaluate | evaluate.query_dataset | train_datasets | sample_query.tar.gz | No |
+| inference | inference.test_dataset | train_datasets | sample_test.tar.gz | No |
+| inference | inference.query_dataset | train_datasets | sample_query.tar.gz | No |
+| train | dataset.train_dataset_dir | train_datasets | sample_train.tar.gz | No |
+| train | dataset.test_dataset_dir | train_datasets | sample_test.tar.gz | No |
+| train | dataset.query_dataset_dir | train_datasets | sample_query.tar.gz | No |
+
+### Typical Spec Overrides
+
+Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
+
+```python
+S3_TRAIN = "aws://bucket/data/train"
+```
+
+**train (mandatory data sources):**
+```python
+{
+    "train.num_epochs": 30,
+    "train.checkpoint_interval": 10,
+    "train.validation_interval": 10,
+    "train.num_gpus": 1,
+    "num_classes": 100,
+    "num_workers": 4,
+    "batch_size": 16,
+    "dataset.train_dataset_dir": f"{S3_TRAIN}/sample_train.tar.gz",
+    "dataset.test_dataset_dir": f"{S3_TRAIN}/sample_test.tar.gz",
+    "dataset.query_dataset_dir": f"{S3_TRAIN}/sample_query.tar.gz",
+}
+```
+
+**evaluate (mandatory data sources):**
+```python
+{
+    "evaluate.test_dataset": f"{S3_TRAIN}/sample_test.tar.gz",
+    "evaluate.query_dataset": f"{S3_TRAIN}/sample_query.tar.gz",
+}
+```
+
+**inference (mandatory data sources):**
+```python
+{
+    "inference.test_dataset": f"{S3_TRAIN}/sample_test.tar.gz",
+    "inference.query_dataset": f"{S3_TRAIN}/sample_query.tar.gz",
+}
+```
 ## Eval Dataset
 
 Required. Evaluation requires test and query datasets for retrieval-based metrics (CMC, mAP).

@@ -4,6 +4,59 @@ BEVFusion for multi-sensor 3D object detection. Fuses LiDAR point clouds and cam
 
 Set pretrained backbone paths for Swin image backbone.
 
+## Training Requirements
+
+- **Dataset type:** bevfusion
+- **Formats:** default
+- **Monitoring metric:** AP11
+
+### Per-Action Dataset Requirements
+
+| Action | Spec Key | Source | Files | List? |
+|---|---|---|---|---|
+| dataset_convert | root_dir | id |  | No |
+| evaluate | dataset.test_dataset | train_datasets | ann_file: results/{dataset_convert_job_id}/kitti_person_infos_val.pkl | No |
+| inference | dataset.root_dir | train_datasets |  | No |
+| inference | dataset.test_dataset | train_datasets | ann_file: results/{dataset_convert_job_id}/kitti_person_infos_val.pkl | No |
+| train | dataset.train_dataset | train_datasets | ann_file: results/{dataset_convert_job_id}/kitti_person_infos_train.pkl | No |
+| train | dataset.val_dataset | train_datasets | ann_file: results/{dataset_convert_job_id}/kitti_person_infos_val.pkl | No |
+| train | dataset.test_dataset | train_datasets | ann_file: results/{dataset_convert_job_id}/kitti_person_infos_val.pkl | No |
+
+### Typical Spec Overrides
+
+Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
+
+```python
+S3_TRAIN = "aws://bucket/data/train"
+```
+
+**train (mandatory data sources):**
+```python
+{
+    "train.num_epochs": 30,
+    "train.checkpoint_interval": 10,
+    "train.validation_interval": 10,
+    "train.num_gpus": 1,
+    "dataset.train_dataset": {"ann_file": f"{S3_TRAIN}/results/{dataset_convert_job_id}/kitti_person_infos_train.pkl"},
+    "dataset.val_dataset": {"ann_file": f"{S3_TRAIN}/results/{dataset_convert_job_id}/kitti_person_infos_val.pkl"},
+    "dataset.test_dataset": {"ann_file": f"{S3_TRAIN}/results/{dataset_convert_job_id}/kitti_person_infos_val.pkl"},
+}
+```
+
+**evaluate (mandatory data sources):**
+```python
+{
+    "dataset.test_dataset": {"ann_file": f"{S3_TRAIN}/results/{dataset_convert_job_id}/kitti_person_infos_val.pkl"},
+}
+```
+
+**inference (mandatory data sources):**
+```python
+{
+    "dataset.root_dir": f"{S3_TRAIN}",
+    "dataset.test_dataset": {"ann_file": f"{S3_TRAIN}/results/{dataset_convert_job_id}/kitti_person_infos_val.pkl"},
+}
+```
 ## Eval Dataset
 
 Optional. Val dataset split is configured via ann_file in dataset config.

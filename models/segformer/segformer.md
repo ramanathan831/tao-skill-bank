@@ -4,6 +4,81 @@ SegFormer for semantic segmentation. Lightweight transformer-based architecture 
 
 Set model.backbone.pretrained_backbone_path for backbone weights.
 
+## Training Requirements
+
+- **Dataset type:** segmentation
+- **Formats:** unet
+- **Monitoring metric:** val_miou
+
+### Per-Action Dataset Requirements
+
+| Action | Spec Key | Source | Files | List? |
+|---|---|---|---|---|
+| evaluate | dataset.segment.root_dir | eval_dataset |  | No |
+| export | dataset.segment.root_dir | train_datasets |  | No |
+| inference | dataset.segment.root_dir | eval_dataset |  | No |
+| quantize | dataset.segment.root_dir | train_datasets |  | No |
+| quantize | dataset.segment.quant_calibration_dataset.images_dir | train_datasets |  | No |
+| train | dataset.segment.root_dir | train_datasets |  | No |
+
+### Typical Spec Overrides
+
+Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
+
+```python
+S3_TRAIN = "aws://bucket/data/train"
+S3_EVAL = "aws://bucket/data/eval"
+```
+
+**train (mandatory data sources):**
+```python
+{
+    "train.num_gpus": 1,
+    "train.num_epochs": 10,
+    "train.checkpoint_interval": 10,
+    "train.validation_interval": 10,
+    "dataset.segment.batch_size": 4,
+    "dataset.segment.root_dir": f"{S3_TRAIN}",
+}
+```
+
+**evaluate (mandatory data sources):**
+```python
+{
+    "evaluate.batch_size": 4,
+    "dataset.segment.root_dir": f"{S3_EVAL}",
+}
+```
+
+**gen_trt_engine:**
+```python
+{
+    "gen_trt_engine.tensorrt.data_type": "fp16",
+}
+```
+
+**inference (mandatory data sources):**
+```python
+{
+    "dataset.segment.batch_size": 1,
+    "dataset.segment.root_dir": f"{S3_EVAL}",
+}
+```
+
+**export (mandatory data sources):**
+```python
+{
+    "dataset.segment.root_dir": f"{S3_TRAIN}",
+}
+```
+
+**quantize (mandatory data sources):**
+```python
+{
+    "dataset.segment.root_dir": f"{S3_TRAIN}",
+    "dataset.segment.quant_calibration_dataset.images_dir": f"{S3_TRAIN}",
+}
+```
 ## Eval Dataset
 
 Optional. Validation data is typically part of the root_dir structure.

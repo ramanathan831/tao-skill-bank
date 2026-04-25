@@ -4,6 +4,57 @@ VILA vision-language model for multimodal understanding tasks. Supports video an
 
 Set model_path to the base VILA model checkpoint.
 
+## Training Requirements
+
+- **Dataset type:** vlm
+- **Formats:** default, raw
+- **Accepted dataset intents:** training, evaluation, testing
+- **Monitoring metric:** val_acc
+
+### Per-Action Dataset Requirements
+
+| Action | Spec Key | Source | Files | List? |
+|---|---|---|---|---|
+| train | train.dataset.dataset_yaml_path | train_datasets | dataset.yaml | No |
+| evaluate | eval.dataset_yaml_path | eval_dataset | dataset.yaml | No |
+| inference | inference.media | inference_dataset | (dataset root) | No |
+
+### Typical Spec Overrides
+
+Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
+
+```python
+S3_TRAIN = "aws://bucket/data/train"
+S3_EVAL = "aws://bucket/data/eval"
+```
+
+**train (mandatory data sources):**
+```python
+{
+    "train.dataset.dataset_yaml_path": f"{S3_TRAIN}/dataset.yaml",
+    "train.num_epochs": 1,
+    "train.batch_size": 8,
+    "train.learning_rate": 1e-4,
+    "train.vision_learning_rate": 1e-5,
+    "train.lora_r": 16,
+    "train.llm_mode": "lora",
+}
+```
+
+**evaluate (mandatory data sources):**
+```python
+{
+    "eval.dataset_yaml_path": f"{S3_EVAL}/dataset.yaml",
+}
+```
+
+**inference (mandatory data sources):**
+```python
+{
+    "inference.media": f"{S3_EVAL}/",
+}
+```
+
 ## Eval Dataset
 
 Optional. Evaluation dataset configured via evaluate.dataset_yaml_path.

@@ -4,6 +4,54 @@ Contrastive Language-Image Pre-training model for zero-shot and fine-tuned image
 
 No default NGC pretrained checkpoint — uses HuggingFace CLIP weights built into the container.
 
+## Training Requirements
+
+- **Dataset type:** image_text
+- **Formats:** default
+- **Monitoring metric:** val/t2i_mAP
+
+### Per-Action Dataset Requirements
+
+| Action | Spec Key | Source | Files | List? |
+|---|---|---|---|---|
+| evaluate | dataset.val.datasets | eval_dataset | image_dir: images.tar.gz, image_list_file: image_list.txt, caption_dir: captions.tar.gz | Yes |
+| inference | inference.datasets | inference_dataset | image_dir: images.tar.gz | Yes |
+| inference | inference.text_file | inference_dataset | prompts.txt | No |
+| train | dataset.train.datasets | train_datasets | image_dir: images.tar.gz, image_list_file: image_list.txt, caption_dir: captions.tar.gz | Yes |
+| train | dataset.val.datasets | eval_dataset | image_dir: images.tar.gz, image_list_file: image_list.txt, caption_dir: captions.tar.gz | Yes |
+
+### Typical Spec Overrides
+
+Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
+
+```python
+S3_TRAIN = "aws://bucket/data/train"
+S3_EVAL = "aws://bucket/data/eval"
+```
+
+**train (mandatory data sources):**
+```python
+{
+    "train.num_epochs": 1,
+    "dataset.train.datasets": [{"image_dir": f"{S3_TRAIN}/images.tar.gz", "image_list_file": f"{S3_TRAIN}/image_list.txt", "caption_dir": f"{S3_TRAIN}/captions.tar.gz"}],
+    "dataset.val.datasets": [{"image_dir": f"{S3_EVAL}/images.tar.gz", "image_list_file": f"{S3_EVAL}/image_list.txt", "caption_dir": f"{S3_EVAL}/captions.tar.gz"}],
+}
+```
+
+**evaluate (mandatory data sources):**
+```python
+{
+    "dataset.val.datasets": [{"image_dir": f"{S3_EVAL}/images.tar.gz", "image_list_file": f"{S3_EVAL}/image_list.txt", "caption_dir": f"{S3_EVAL}/captions.tar.gz"}],
+}
+```
+
+**inference (mandatory data sources):**
+```python
+{
+    "inference.datasets": [{"image_dir": f"{S3_EVAL}/images.tar.gz"}],
+    "inference.text_file": f"{S3_EVAL}/prompts.txt",
+}
+```
 ## Eval Dataset
 
 Optional. CLIP training does not require a separate eval dataset. If provided, validation metrics are computed at each checkpoint interval.

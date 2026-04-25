@@ -4,6 +4,59 @@ Action recognition from video sequences. Supports RGB, optical flow, and joint (
 
 Set model.pretrained_model_path for pretrained backbone weights.
 
+## Training Requirements
+
+- **Dataset type:** action_recognition
+- **Formats:** default
+- **Monitoring metric:** val_acc
+
+### Per-Action Dataset Requirements
+
+| Action | Spec Key | Source | Files | List? |
+|---|---|---|---|---|
+| evaluate | evaluate.test_dataset_dir | train_datasets | test.tar.gz | No |
+| inference | inference.inference_dataset_dir | train_datasets | test/smile.tar.gz | No |
+| train | dataset.train_dataset_dir | train_datasets | train.tar.gz | No |
+| train | dataset.val_dataset_dir | train_datasets | test.tar.gz | No |
+
+### Typical Spec Overrides
+
+Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
+
+```python
+S3_TRAIN = "aws://bucket/data/train"
+```
+
+**train (mandatory data sources):**
+```python
+{
+    "train.num_epochs": 30,
+    "train.checkpoint_interval": 10,
+    "train.validation_interval": 10,
+    "train.num_gpus": 1,
+    "dataset.label_map": {
+        "catch": 0,
+        "smile": 1
+    },
+    "dataset.batch_size": 2,
+    "dataset.train_dataset_dir": f"{S3_TRAIN}/train.tar.gz",
+    "dataset.val_dataset_dir": f"{S3_TRAIN}/test.tar.gz",
+}
+```
+
+**evaluate (mandatory data sources):**
+```python
+{
+    "evaluate.test_dataset_dir": f"{S3_TRAIN}/test.tar.gz",
+}
+```
+
+**inference (mandatory data sources):**
+```python
+{
+    "inference.inference_dataset_dir": f"{S3_TRAIN}/test/smile.tar.gz",
+}
+```
 ## Eval Dataset
 
 Optional. Test dataset is provided as test.tar.gz separate from training.

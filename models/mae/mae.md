@@ -4,6 +4,55 @@ MAE (Masked Autoencoder) for self-supervised pretraining and fine-tuning. Masks 
 
 Set train.pretrained_model_path for pretrained MAE weights when fine-tuning.
 
+## Training Requirements
+
+- **Dataset type:** image_classification
+- **Formats:** ssl
+- **Accepted dataset intents:** training, evaluation, testing
+- **Monitoring metric:** train_loss
+
+### Per-Action Dataset Requirements
+
+| Action | Spec Key | Source | Files | List? |
+|---|---|---|---|---|
+| train | dataset.train_data_sources | train_datasets | images_train.tar.gz | No |
+| train | dataset.val_data_sources | eval_dataset | images_val.tar.gz | No |
+| evaluate | dataset.val_data_sources | eval_dataset | images_val.tar.gz | No |
+| inference | dataset.test_data_sources | inference_dataset | images_test.tar.gz | No |
+
+### Typical Spec Overrides
+
+Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
+
+```python
+S3_TRAIN = "aws://bucket/data/train"
+S3_EVAL = "aws://bucket/data/eval"
+```
+
+**train (mandatory data sources):**
+```python
+{
+    "dataset.train_data_sources": f"{S3_TRAIN}/images_train.tar.gz",
+    "dataset.val_data_sources": f"{S3_EVAL}/images_val.tar.gz",
+    "train.num_epochs": 10,
+    "train.optim.lr": 2e-4,
+}
+```
+
+**evaluate (mandatory data sources):**
+```python
+{
+    "dataset.val_data_sources": f"{S3_EVAL}/images_val.tar.gz",
+}
+```
+
+**inference (mandatory data sources):**
+```python
+{
+    "dataset.test_data_sources": f"{S3_EVAL}/images_test.tar.gz",
+}
+```
+
 ## Eval Dataset
 
 Optional. Pretraining does not need eval data. Fine-tuning optionally uses val set.

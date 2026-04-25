@@ -4,6 +4,52 @@ NVDINOv2 for self-supervised visual representation learning. Trains vision trans
 
 Set train.pretrained_model_path for pretrained ViT weights.
 
+## Training Requirements
+
+- **Dataset type:** image_classification
+- **Formats:** ssl
+- **Monitoring metric:** train_loss
+
+### Per-Action Dataset Requirements
+
+| Action | Spec Key | Source | Files | List? |
+|---|---|---|---|---|
+| distill | dataset.train_dataset.images_dir | train_datasets | images_train.tar.gz | No |
+| inference | dataset.test_dataset.images_dir | inference_dataset | images_test.tar.gz | No |
+| train | dataset.train_dataset.images_dir | train_datasets | images_train.tar.gz | No |
+
+### Typical Spec Overrides
+
+Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
+
+```python
+S3_TRAIN = "aws://bucket/data/train"
+S3_EVAL = "aws://bucket/data/eval"
+```
+
+**train (mandatory data sources):**
+```python
+{
+    "train.num_gpus": 1,
+    "train.num_epochs": 10,
+    "train.checkpoint_interval": 10,
+    "dataset.train_dataset.images_dir": f"{S3_TRAIN}/images_train.tar.gz",
+}
+```
+
+**distill (mandatory data sources):**
+```python
+{
+    "dataset.train_dataset.images_dir": f"{S3_TRAIN}/images_train.tar.gz",
+}
+```
+
+**inference (mandatory data sources):**
+```python
+{
+    "dataset.test_dataset.images_dir": f"{S3_EVAL}/images_test.tar.gz",
+}
+```
 ## Eval Dataset
 
 Optional. SSL training does not use labels. Evaluation is downstream task-specific.

@@ -4,6 +4,62 @@ Pose classification using ST-GCN (Spatial Temporal Graph Convolutional Network).
 
 Typically trained from scratch on skeleton data.
 
+## Training Requirements
+
+- **Dataset type:** pose_classification
+- **Formats:** default
+- **Monitoring metric:** val_acc
+
+### Per-Action Dataset Requirements
+
+| Action | Spec Key | Source | Files | List? |
+|---|---|---|---|---|
+| evaluate | evaluate.test_dataset.data_path | train_datasets |  | No |
+| evaluate | evaluate.test_dataset.label_path | train_datasets |  | No |
+| inference | inference.test_dataset.data_path | train_datasets |  | No |
+| train | dataset.train_dataset.data_path | train_datasets |  | No |
+| train | dataset.train_dataset.label_path | train_datasets |  | No |
+| train | dataset.val_dataset.data_path | train_datasets |  | No |
+| train | dataset.val_dataset.label_path | train_datasets |  | No |
+
+### Typical Spec Overrides
+
+Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
+
+```python
+S3_TRAIN = "aws://bucket/data/train"
+```
+
+**train (mandatory data sources):**
+```python
+{
+    "train.num_epochs": 30,
+    "train.checkpoint_interval": 10,
+    "train.validation_interval": 10,
+    "train.num_gpus": 1,
+    "num_classes": 6,
+    "graph_layout": "nvidia",
+    "dataset.train_dataset.data_path": f"{S3_TRAIN}",
+    "dataset.train_dataset.label_path": f"{S3_TRAIN}",
+    "dataset.val_dataset.data_path": f"{S3_TRAIN}",
+    "dataset.val_dataset.label_path": f"{S3_TRAIN}",
+}
+```
+
+**evaluate (mandatory data sources):**
+```python
+{
+    "evaluate.test_dataset.data_path": f"{S3_TRAIN}",
+    "evaluate.test_dataset.label_path": f"{S3_TRAIN}",
+}
+```
+
+**inference (mandatory data sources):**
+```python
+{
+    "inference.test_dataset.data_path": f"{S3_TRAIN}",
+}
+```
 ## Eval Dataset
 
 Optional. Validation data is provided alongside training as val_data.npy / val_label.pkl.

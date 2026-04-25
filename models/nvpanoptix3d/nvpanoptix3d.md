@@ -4,6 +4,85 @@ NVPanoptix3D for panoptic 3D scene reconstruction from posed RGB images. Produce
 
 Uses 2D and 3D stage checkpoints. Set train.checkpoint_2d and train.checkpoint_3d for staged initialization.
 
+## Training Requirements
+
+- **Dataset type:** nvpanoptix3d
+- **Formats:** front3d, matterport
+- **Monitoring metric:** kpi
+
+### Per-Action Dataset Requirements
+
+| Action | Spec Key | Source | Files | List? |
+|---|---|---|---|---|
+| evaluate | dataset.frustum_mask_path | eval_dataset | meta/frustum_mask.npz | No |
+| evaluate | dataset.label_map | eval_dataset | meta/colormap.json | No |
+| evaluate | dataset.val.json_path | eval_dataset | meta/val.json | No |
+| evaluate | dataset.val.base_dir | eval_dataset |  | No |
+| evaluate | dataset.test.json_path | inference_dataset | meta/test.json | No |
+| evaluate | dataset.test.base_dir | inference_dataset |  | No |
+| inference | dataset.frustum_mask_path | inference_dataset | meta/frustum_mask.npz | No |
+| inference | dataset.label_map | inference_dataset | meta/colormap.json | No |
+| inference | inference.images_dir | inference_dataset | images.tar.gz | No |
+| train | dataset.frustum_mask_path | train_datasets | meta/frustum_mask.npz | No |
+| train | dataset.label_map | train_datasets | meta/colormap.json | No |
+| train | dataset.train.json_path | train_datasets | meta/train.json | No |
+| train | dataset.train.base_dir | train_datasets |  | No |
+| train | dataset.val.json_path | eval_dataset | meta/val.json | No |
+| train | dataset.val.base_dir | eval_dataset |  | No |
+| train | dataset.test.json_path | inference_dataset | meta/test.json | No |
+| train | dataset.test.base_dir | inference_dataset |  | No |
+
+### Typical Spec Overrides
+
+Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
+
+```python
+S3_TRAIN = "aws://bucket/data/train"
+S3_EVAL = "aws://bucket/data/eval"
+```
+
+**train (mandatory data sources):**
+```python
+{
+    "train.num_epochs": 10,
+    "train.checkpoint_interval": 10,
+    "train.validation_interval": 10,
+    "train.num_gpus": 1,
+    "dataset.enable_3d": True,
+    "model.sem_seg_head.num_classes": 13,
+    "dataset.frustum_mask_path": f"{S3_TRAIN}/meta/frustum_mask.npz",
+    "dataset.label_map": f"{S3_TRAIN}/meta/colormap.json",
+    "dataset.train.json_path": f"{S3_TRAIN}/meta/train.json",
+    "dataset.train.base_dir": f"{S3_TRAIN}",
+    "dataset.val.json_path": f"{S3_EVAL}/meta/val.json",
+    "dataset.val.base_dir": f"{S3_EVAL}",
+    "dataset.test.json_path": f"{S3_EVAL}/meta/test.json",
+    "dataset.test.base_dir": f"{S3_EVAL}",
+}
+```
+
+**evaluate (mandatory data sources):**
+```python
+{
+    "dataset.enable_3d": True,
+    "dataset.frustum_mask_path": f"{S3_EVAL}/meta/frustum_mask.npz",
+    "dataset.label_map": f"{S3_EVAL}/meta/colormap.json",
+    "dataset.val.json_path": f"{S3_EVAL}/meta/val.json",
+    "dataset.val.base_dir": f"{S3_EVAL}",
+    "dataset.test.json_path": f"{S3_EVAL}/meta/test.json",
+    "dataset.test.base_dir": f"{S3_EVAL}",
+}
+```
+
+**inference (mandatory data sources):**
+```python
+{
+    "dataset.enable_3d": True,
+    "dataset.frustum_mask_path": f"{S3_EVAL}/meta/frustum_mask.npz",
+    "dataset.label_map": f"{S3_EVAL}/meta/colormap.json",
+    "inference.images_dir": f"{S3_EVAL}/images.tar.gz",
+}
+```
 ## Eval Dataset
 
 Optional. Val/test splits configured via dataset.val and dataset.test paths.

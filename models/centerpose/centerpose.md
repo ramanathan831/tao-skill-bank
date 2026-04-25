@@ -4,6 +4,67 @@ CenterPose for keypoint / pose estimation. Detects object centers and regresses 
 
 Set model.backbone.pretrained_backbone_path.
 
+## Training Requirements
+
+- **Dataset type:** centerpose
+- **Formats:** default
+- **Monitoring metric:** val_3DIoU
+
+### Per-Action Dataset Requirements
+
+| Action | Spec Key | Source | Files | List? |
+|---|---|---|---|---|
+| evaluate | dataset.test_data | eval_dataset | test.tar.gz | No |
+| gen_trt_engine | gen_trt_engine.tensorrt.calibration.cal_image_dir | calibration_dataset | train.tar.gz | Yes |
+| inference | dataset.inference_data | inference_dataset | val.tar.gz | No |
+| train | dataset.train_data | train_datasets | train.tar.gz | No |
+| train | dataset.val_data | eval_dataset | val.tar.gz | No |
+
+### Typical Spec Overrides
+
+Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
+
+```python
+S3_TRAIN = "aws://bucket/data/train"
+S3_EVAL = "aws://bucket/data/eval"
+```
+
+**train (mandatory data sources):**
+```python
+{
+    "train.num_epochs": 30,
+    "train.checkpoint_interval": 10,
+    "train.validation_interval": 10,
+    "train.num_gpus": 1,
+    "dataset.category": "bike",
+    "dataset.batch_size": 4,
+    "dataset.train_data": f"{S3_TRAIN}/train.tar.gz",
+    "dataset.val_data": f"{S3_EVAL}/val.tar.gz",
+}
+```
+
+**evaluate (mandatory data sources):**
+```python
+{
+    "dataset.category": "bike",
+    "dataset.test_data": f"{S3_EVAL}/test.tar.gz",
+}
+```
+
+**inference (mandatory data sources):**
+```python
+{
+    "dataset.category": "bike",
+    "dataset.inference_data": f"{S3_EVAL}/val.tar.gz",
+}
+```
+
+**gen_trt_engine (mandatory data sources):**
+```python
+{
+    "gen_trt_engine.tensorrt.calibration.cal_image_dir": [f"{S3_TRAIN}/train.tar.gz"],
+}
+```
 ## Eval Dataset
 
 Optional. Val and test datasets are provided as separate tarballs.
