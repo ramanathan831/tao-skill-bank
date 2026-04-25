@@ -24,8 +24,14 @@ The agent MUST read this section before generating any training or AutoML script
 
 1. **Train dataset URI** — S3 path to COCO-format training data
 2. **Validation dataset URI** — S3 path to COCO-format val data (can be same as train)
-3. **`image_dir` format** — Is the image data a folder of individual files (`images/`) or a tar.gz archive (`images.tar.gz`)? Using the wrong format causes `FileNotFoundError` with misleading paths like `/mnt/lustre/.../images/001762.jpg`. Check the dataset layout if unsure.
-4. **`num_classes`** — How many object classes? Default 91 (COCO). Must be >= `max(category_id) + 1`. Too low causes `CUDA error: device-side assert triggered`.
+3. **`num_classes`** — How many object classes? Default 91 (COCO). Must be >= `max(category_id) + 1`. Too low causes `CUDA error: device-side assert triggered`.
+
+**Do not prompt for image layout for the standard DINO dataset.** The standard
+TAO DINO dataset artifact is `images.tar.gz` plus `annotations.json`. Use
+`images.tar.gz` in the remote `image_dir` spec override. The SDK downloads the
+archive and rewrites the runtime spec to the extracted folder named after the
+archive stem (`images.tar.gz` -> `images`). Only deviate if the user explicitly
+provides a different image artifact name.
 
 ### Per-Action Dataset Requirements
 
@@ -49,21 +55,23 @@ The agent MUST read this section before generating any training or AutoML script
 Data source overrides are **mandatory for every action** — DINO's `config.json` has empty `data_sources` because the runner cannot auto-resolve array-of-objects spec keys (see Internal Details). The agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
 
 ```python
-S3_TRAIN = "aws://bucket/data/train"
-S3_VAL = "aws://bucket/data/val"    # can be same as S3_TRAIN
-S3_EVAL = "aws://bucket/data/eval"  # for evaluate/inference
-# CRITICAL: use "images" (folder) or "images.tar.gz" (archive) — ASK the user
-IMG = "images"  # or "images.tar.gz"
+S3_TRAIN = "s3://bucket/data/train"
+S3_VAL = "s3://bucket/data/val"    # can be same as S3_TRAIN
+S3_EVAL = "s3://bucket/data/eval"  # for evaluate/inference
+
+# Standard DINO dataset artifact. Pass the archive path as the remote input.
+# At runtime the SDK extracts it and points DINO at the extracted "images" folder.
+IMAGE_ARCHIVE = "images.tar.gz"
 ```
 
 **train (mandatory):**
 ```python
 {
     "dataset.train_data_sources": [
-        {"image_dir": f"{S3_TRAIN}/{IMG}", "json_file": f"{S3_TRAIN}/annotations.json"}
+        {"image_dir": f"{S3_TRAIN}/{IMAGE_ARCHIVE}", "json_file": f"{S3_TRAIN}/annotations.json"}
     ],
     "dataset.val_data_sources": [
-        {"image_dir": f"{S3_VAL}/{IMG}", "json_file": f"{S3_VAL}/annotations.json"}
+        {"image_dir": f"{S3_VAL}/{IMAGE_ARCHIVE}", "json_file": f"{S3_VAL}/annotations.json"}
     ],
     "dataset.num_classes": "<num_classes> + 1",
     "train.num_epochs": 10,
@@ -76,7 +84,7 @@ IMG = "images"  # or "images.tar.gz"
 **evaluate (mandatory data sources):**
 ```python
 {
-    "dataset.test_data_sources.image_dir": f"{S3_EVAL}/{IMG}",
+    "dataset.test_data_sources.image_dir": f"{S3_EVAL}/{IMAGE_ARCHIVE}",
     "dataset.test_data_sources.json_file": f"{S3_EVAL}/annotations.json",
     "dataset.num_classes": "<num_classes> + 1",
 }
@@ -92,7 +100,7 @@ IMG = "images"  # or "images.tar.gz"
 **gen_trt_engine (mandatory data sources):**
 ```python
 {
-    "gen_trt_engine.tensorrt.calibration.cal_image_dir": [f"{S3_TRAIN}/{IMG}"],
+    "gen_trt_engine.tensorrt.calibration.cal_image_dir": [f"{S3_TRAIN}/{IMAGE_ARCHIVE}"],
     "gen_trt_engine.tensorrt.data_type": "FP16",
     "dataset.num_classes": "<num_classes> + 1",
 }
@@ -101,7 +109,7 @@ IMG = "images"  # or "images.tar.gz"
 **inference (mandatory data sources):**
 ```python
 {
-    "dataset.infer_data_sources.image_dir": [f"{S3_EVAL}/{IMG}"],
+    "dataset.infer_data_sources.image_dir": [f"{S3_EVAL}/{IMAGE_ARCHIVE}"],
     "dataset.infer_data_sources.classmap": f"{S3_EVAL}/label_map.txt",
     "dataset.num_classes": "<num_classes> + 1",
 }
@@ -111,13 +119,13 @@ IMG = "images"  # or "images.tar.gz"
 ```python
 {
     "dataset.train_data_sources": [
-        {"image_dir": f"{S3_TRAIN}/{IMG}", "json_file": f"{S3_TRAIN}/annotations.json"}
+        {"image_dir": f"{S3_TRAIN}/{IMAGE_ARCHIVE}", "json_file": f"{S3_TRAIN}/annotations.json"}
     ],
     "dataset.val_data_sources": [
-        {"image_dir": f"{S3_VAL}/{IMG}", "json_file": f"{S3_VAL}/annotations.json"}
+        {"image_dir": f"{S3_VAL}/{IMAGE_ARCHIVE}", "json_file": f"{S3_VAL}/annotations.json"}
     ],
     "dataset.quant_calibration_data_sources": {
-        "image_dir": f"{S3_TRAIN}/{IMG}", "json_file": f"{S3_TRAIN}/annotations.json"
+        "image_dir": f"{S3_TRAIN}/{IMAGE_ARCHIVE}", "json_file": f"{S3_TRAIN}/annotations.json"
     },
     "dataset.num_classes": "<num_classes> + 1",
 }
@@ -127,10 +135,10 @@ IMG = "images"  # or "images.tar.gz"
 ```python
 {
     "dataset.train_data_sources": [
-        {"image_dir": f"{S3_TRAIN}/{IMG}", "json_file": f"{S3_TRAIN}/annotations.json"}
+        {"image_dir": f"{S3_TRAIN}/{IMAGE_ARCHIVE}", "json_file": f"{S3_TRAIN}/annotations.json"}
     ],
     "dataset.val_data_sources": [
-        {"image_dir": f"{S3_VAL}/{IMG}", "json_file": f"{S3_VAL}/annotations.json"}
+        {"image_dir": f"{S3_VAL}/{IMAGE_ARCHIVE}", "json_file": f"{S3_VAL}/annotations.json"}
     ],
     "dataset.num_classes": "<num_classes> + 1",
 }
@@ -140,27 +148,31 @@ IMG = "images"  # or "images.tar.gz"
 
 COCO JSON format. train_data_sources and val_data_sources are lists supporting multiple data source entries. Each entry has image_dir and json_file (COCO annotations JSON).
 
-**`image_dir` format**: `image_dir` can be either:
-- A **folder** containing individual images (e.g. `aws://bucket/data/images`) — the SDK mounts/downloads the folder as-is.
-- A **tar.gz archive** of images (e.g. `aws://bucket/data/images.tar.gz`) — the SDK extracts the archive into a folder.
+**`image_dir` remote path**: For the standard TAO DINO dataset, set
+`image_dir` to the archive path, e.g. `s3://bucket/data/images.tar.gz`.
+The SDK downloads and extracts it, then rewrites the runtime training spec to
+the extracted folder path, e.g. `/mnt/lustre/.../images`.
 
-Check your dataset layout before setting `image_dir`. If the S3 path contains individual `.jpg`/`.png` files, use the folder path. If it's a single `.tar.gz` file, use the tar.gz path. Using the wrong format causes `FileNotFoundError` at training time.
+Do not ask the user whether to use `images` or `images.tar.gz` for standard
+DINO datasets. Use `images.tar.gz`. If the user explicitly supplies a different
+archive filename, derive the runtime folder from the archive stem:
+`<name>.tar.gz` -> `<name>`, `<name>.tgz` -> `<name>`, `<name>.tar` -> `<name>`.
 
 Supported formats: coco, coco_raw.
 
 ### Train Data Sources
 
-- **image_dir**: `images/` (folder) or `images.tar.gz` (archive) — depends on dataset layout
+- **image_dir**: `images.tar.gz` remote archive; runtime folder is `images`
 - **json_file**: `annotations.json`
 
 ### Val Data Sources (ALWAYS required)
 
-- **image_dir**: `images/` (folder) or `images.tar.gz` (archive)
+- **image_dir**: `images.tar.gz` remote archive; runtime folder is `images`
 - **json_file**: `annotations.json`
 
 ### Inference Data Sources
 
-- **image_dir**: `images/` (folder) or `images.tar.gz` (archive)
+- **image_dir**: `images.tar.gz` remote archive; runtime folder is `images`
 - **classmap**: `label_map.txt`
 
 ## Important Parameters
@@ -210,19 +222,40 @@ Transformer-based detection is memory-intensive. batch_size=4 fits on 24GB GPUs.
 
 **return_interm_indices length must match num_feature_levels**: Default is [1,2,3,4] with num_feature_levels=4. If changing one, update the other.
 
-**`FileNotFoundError` on images**: Wrong `image_dir` format. The dataset has a folder of individual images but the spec says `images.tar.gz`, or vice versa. Always confirm the format with the user (see Training Requirements).
+**`FileNotFoundError` on images**: The archive extraction/cache and annotation paths are out of sync. For standard DINO datasets, pass remote `images.tar.gz`; the SDK should rewrite the runtime spec to `images`. If DINO looks under `/mnt/lustre/.../images/<file>.jpg` and files are missing, clear the stale `<images.tar.gz>.extracted` marker and re-extract/download the archive, or inspect the archive top-level layout.
 
 **`FileNotFoundError` at startup (val)**: `val_data_sources` missing or pointing to non-existent data. DINO unconditionally builds a val dataloader — this is required even when only optimizing `train_loss`.
 
 **`CUDA device-side assert`**: `num_classes` too low. Set `num_classes >= max(category_id) + 1`.
 
-**`config.json` has empty `"inputs": {}`**: The SDK's script_runner won't download S3 data — the container sees raw `aws://...` URIs as filesystem paths. Verify `config.json` declares `inputs` with `[0]`-indexed spec keys (see Internal Details).
+**`config.json` has empty `"inputs": {}`**: The SDK's script_runner won't download S3 data — the container sees raw remote URIs as filesystem paths. Verify `config.json` declares `inputs` with `[0]`-indexed spec keys (see Internal Details). Use `s3://...` for S3-compatible datasets; do not generate `aws://...` URIs.
 
 ## AutoML / HPO Notes
 
 AutoML runs training — all requirements from **Training Requirements** above apply. The agent must read that section first.
 
-**Recommended metric:** `metric="kpi"` with `direction="maximize"` — mAP is emitted during validation.
+**Recommended AutoML metric:** use explicit `metric="mAP50"` with
+`direction="maximize"` and pass a custom `metric_extractor` that reads
+`Validation mAP50`. Do not rely on `metric="kpi"` for generated DINO runners
+unless you have verified the local resolver maps it to mAP50; loose fallback
+parsing can otherwise optimize `val_loss`.
+
+```python
+import re
+
+def extract_dino_map50(logs, metric_name):
+    matches = re.findall(
+        r"Validation mAP50\s*:\s*([0-9]*\.?[0-9]+(?:[eE][-+]?\d+)?)",
+        logs,
+    )
+    return float(matches[-1]) if matches else None
+
+runner.run(
+    ...,
+    automl_settings={"metric": "mAP50", "direction": "maximize", ...},
+    metric_extractor=extract_dino_map50,
+)
+```
 
 **Recommended hyperparameters:**
 
@@ -259,9 +292,9 @@ DINO's `config.json` has `"data_sources": {}` (empty). The runner's `_apply_data
 
 ```json
 "inputs": {
-    "dataset.train_data_sources[0].image_dir": {"type": "folder"},
+    "dataset.train_data_sources[0].image_dir": {"type": "file"},
     "dataset.train_data_sources[0].json_file": {"type": "file"},
-    "dataset.val_data_sources[0].image_dir": {"type": "folder"},
+    "dataset.val_data_sources[0].image_dir": {"type": "file"},
     "dataset.val_data_sources[0].json_file": {"type": "file"}
 }
 ```

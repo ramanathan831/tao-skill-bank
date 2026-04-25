@@ -8,9 +8,9 @@
       "command": "dino train -e {config_path}",
       "config_format": "yaml",
       "inputs": {
-        "dataset.train_data_sources[0].image_dir": {"type": "folder"},
+        "dataset.train_data_sources[0].image_dir": {"type": "file"},
         "dataset.train_data_sources[0].json_file": {"type": "file"},
-        "dataset.val_data_sources[0].image_dir": {"type": "folder"},
+        "dataset.val_data_sources[0].image_dir": {"type": "file"},
         "dataset.val_data_sources[0].json_file": {"type": "file"}
       },
       "outputs": {
