@@ -1,0 +1,5 @@
+{
+  "name": "tao-skill-bank",
+  "description": "NVIDIA TAO skill bank for agentic fine-tuning — model training, data processing, workflow orchestration, and platform execution skills.",
+  "version": "0.1.0"
+}
