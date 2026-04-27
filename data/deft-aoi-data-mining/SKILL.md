@@ -594,3 +594,4 @@ docker rm embed-worker mining-worker 2>/dev/null
 # Optional: remove intermediate indexes (keep embeddings for future iterations)
 rm -f <workspace>/source_index.parquet <workspace>/target_index.parquet
 ```
+
