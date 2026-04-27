@@ -1,0 +1,23 @@
+{
+  "name": "tao-skill-bank",
+  "version": "0.1.0",
+  "description": "NVIDIA TAO skill bank for agentic fine-tuning, data processing, workflow orchestration, and platform execution.",
+  "skills": "./",
+  "interface": {
+    "displayName": "TAO Skill Bank",
+    "shortDescription": "TAO training and workflow skills",
+    "longDescription": "A local Codex plugin that exposes NVIDIA TAO model, data, workflow, and platform skills from this repository.",
+    "developerName": "NVIDIA",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Train a TAO model using the skills in this repo.",
+      "Choose the right TAO workflow for my dataset.",
+      "Explain which TAO skill fits this task."
+    ],
+    "brandColor": "#76B900"
+  }
+}

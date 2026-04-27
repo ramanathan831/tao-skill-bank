@@ -330,3 +330,18 @@ Set `dataset.classify.num_input` to match the number of lighting conditions. The
 **PYTHONPATH / ModuleNotFoundError: nvidia_tao_pytorch**: The TAO entrypoint spawns subprocesses that don't source `.bashrc`. Pass `PYTHONPATH` explicitly via environment variables, not shell init files. For the toolkit image (`tao-toolkit:6.26.3-pyt`), PYTHONPATH is pre-configured.
 
 **Epoch defaults**: Classify training typically uses 100-2000 epochs depending on dataset size. Segmentation uses 200 epochs by default. For small datasets (<1k images), 100 epochs may suffice. For large production datasets, 2000 epochs with early stopping is common. Monitor validation metrics to determine convergence.
+
+## Spec Param / Parent Model Inference
+
+Model-specific inference mappings belong in this MD file, not in `config.json`. Generated runners should read this section and apply the mappings with SDK helpers before `create_job()`. This mirrors the old microservices `infer_params.py` flow.
+
+Inference mappings from this model skill:
+
+| Action | Spec Field | Inference Function | Meaning |
+|---|---|---|---|
+| evaluate | `results_dir` | `output_dir` | current job results directory |
+| inference | `results_dir` | `output_dir` | current job results directory |
+| train | `results_dir` | `output_dir` | current job results directory |
+| train | `train.resume_training_checkpoint_path` | `resume_model` | model file inferred from the current job results folder |
+
+For `parent_model` or `parent_model_folder`, pass the upstream train/export/AutoML child job id as `parent_job_id`. The SDK lists the parent result folder, filters checkpoint artifacts, and returns the selected model file or folder. Do not add these mappings back to `config.json` and do not patch generated runner scripts to guess checkpoint paths.

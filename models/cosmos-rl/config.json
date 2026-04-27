@@ -8,21 +8,7 @@
     "gpu_spec_key": "policy.parallelism.dp_shard_size",
     "node_spec_key": "policy.parallelism.dp_replicate_size",
     "data_sources": {},
-    "spec_params": {
-        "train": {
-            "results_dir": "output_dir",
-            "train.output_dir": "output_dir",
-            "train.resume": "resume_model_bool"
-        },
-        "inference": {
-            "results_dir": "output_dir",
-            "model_path": "parent_model_folder"
-        },
-        "evaluate": {
-            "results_dir": "output_dir",
-            "model.model_name": "parent_model_folder"
-        }
-    },
+    "spec_params": {},
     "actions": {
         "evaluate": {
             "command": "cosmos-rl-evaluate --config {config_path}",

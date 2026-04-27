@@ -51,7 +51,11 @@
     "evaluate": {
       "command": "dino evaluate -e {config_path}",
       "config_format": "yaml",
-      "inputs": {},
+      "inputs": {
+        "evaluate.checkpoint": {"type": "file"},
+        "dataset.test_data_sources.image_dir": {"type": "file"},
+        "dataset.test_data_sources.json_file": {"type": "file"}
+      },
       "outputs": {
         "results_dir": {
           "type": "folder"

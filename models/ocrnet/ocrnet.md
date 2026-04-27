@@ -148,3 +148,48 @@ Minimum 1 GPU(s), recommended 1 GPU(s). 8GB+ VRAM per GPU. OCR text recognition 
 **dataset_convert required**: If using raw images + gt files, run dataset_convert first to produce LMDB format.
 
 **Character list mismatch**: All characters in training data must be present in the character_list file.
+
+## Spec Param / Parent Model Inference
+
+Model-specific inference mappings belong in this MD file, not in `config.json`. Generated runners should read this section and apply the mappings with SDK helpers before `create_job()`. This mirrors the old microservices `infer_params.py` flow.
+
+Inference mappings from TAO Core `ocrnet.config.json`:
+
+| Action | Spec Field | Inference Function | Meaning |
+|---|---|---|---|
+| dataset_convert | `results_dir` | `output_dir` | current job results directory |
+| evaluate | `encryption_key` | `key` | encryption key |
+| evaluate | `evaluate.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
+| evaluate | `evaluate.trt_engine` | `parent_model` | model file inferred from the parent job results folder |
+| evaluate | `model.pruned_graph_path` | `pruned_model` | parent pruned model |
+| evaluate | `results_dir` | `output_dir` | current job results directory |
+| export | `encryption_key` | `key` | encryption key |
+| export | `export.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
+| export | `export.onnx_file` | `create_onnx_file` | output ONNX path |
+| export | `results_dir` | `output_dir` | current job results directory |
+| gen_trt_engine | `encryption_key` | `key` | encryption key |
+| gen_trt_engine | `gen_trt_engine.onnx_file` | `parent_model` | model file inferred from the parent job results folder |
+| gen_trt_engine | `gen_trt_engine.tensorrt.calibration.cal_cache_file` | `create_cal_cache` | calibration cache path |
+| gen_trt_engine | `gen_trt_engine.trt_engine` | `create_engine_file` | output TensorRT engine path |
+| gen_trt_engine | `results_dir` | `output_dir` | current job results directory |
+| inference | `encryption_key` | `key` | encryption key |
+| inference | `inference.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
+| inference | `inference.trt_engine` | `parent_model` | model file inferred from the parent job results folder |
+| inference | `model.pruned_graph_path` | `pruned_model` | parent pruned model |
+| inference | `results_dir` | `output_dir` | current job results directory |
+| prune | `encryption_key` | `key` | encryption key |
+| prune | `prune.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
+| prune | `prune.pruned_file` | `create_pth_file` | output PTH path |
+| prune | `results_dir` | `output_dir` | current job results directory |
+| quantize | `encryption_key` | `key` | encryption key |
+| quantize | `quantize.model_path` | `parent_model` | model file inferred from the parent job results folder |
+| quantize | `results_dir` | `output_dir` | current job results directory |
+| retrain | `encryption_key` | `key` | encryption key |
+| retrain | `model.pruned_graph_path` | `parent_model` | model file inferred from the parent job results folder |
+| retrain | `results_dir` | `output_dir` | current job results directory |
+| train | `encryption_key` | `key` | encryption key |
+| train | `results_dir` | `output_dir` | current job results directory |
+| train | `train.pretrained_model_path` | `ptm_if_no_resume_model` | PTM when no resume checkpoint exists |
+| train | `train.resume_training_checkpoint_path` | `resume_model` | model file inferred from the current job results folder |
+
+For `parent_model` or `parent_model_folder`, pass the upstream train/export/AutoML child job id as `parent_job_id`. The SDK lists the parent result folder, filters checkpoint artifacts, and returns the selected model file or folder. Do not add these mappings back to `config.json` and do not patch generated runner scripts to guess checkpoint paths.

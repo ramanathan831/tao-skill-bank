@@ -147,3 +147,30 @@ Minimum 2 GPU(s), recommended 4 GPU(s). 40GB+ (A100 recommended) VRAM per GPU. 3
 **Downsample factor mismatch**: Use downsample_factor=2 for Matterport3D, 1 for Front3D / synthetic datasets.
 
 **3D occupancy OOM**: Reduce frustum_dims or grid_dimensions if running out of GPU memory during 3D reconstruction.
+
+## Spec Param / Parent Model Inference
+
+Model-specific inference mappings belong in this MD file, not in `config.json`. Generated runners should read this section and apply the mappings with SDK helpers before `create_job()`. This mirrors the old microservices `infer_params.py` flow.
+
+Inference mappings from TAO Core `nvpanoptix3d.config.json`:
+
+| Action | Spec Field | Inference Function | Meaning |
+|---|---|---|---|
+| evaluate | `encryption_key` | `key` | encryption key |
+| evaluate | `evaluate.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
+| evaluate | `results_dir` | `output_dir` | current job results directory |
+| export | `encryption_key` | `key` | encryption key |
+| export | `export.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
+| export | `export.onnx_file_2d` | `create_onnx_file_2d` | create_onnx_file_2d |
+| export | `export.onnx_file_3d` | `create_onnx_file_3d` | create_onnx_file_3d |
+| export | `results_dir` | `output_dir` | current job results directory |
+| inference | `encryption_key` | `key` | encryption key |
+| inference | `inference.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
+| inference | `results_dir` | `output_dir` | current job results directory |
+| train | `encryption_key` | `key` | encryption key |
+| train | `results_dir` | `output_dir` | current job results directory |
+| train | `train.checkpoint_2d` | `parent_model_or_ptm` | parent model if available, otherwise PTM |
+| train | `train.checkpoint_3d` | `ptm` | pretrained model |
+| train | `train.resume_training_checkpoint_path` | `resume_model` | model file inferred from the current job results folder |
+
+For `parent_model` or `parent_model_folder`, pass the upstream train/export/AutoML child job id as `parent_job_id`. The SDK lists the parent result folder, filters checkpoint artifacts, and returns the selected model file or folder. Do not add these mappings back to `config.json` and do not patch generated runner scripts to guess checkpoint paths.

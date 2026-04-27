@@ -39,6 +39,7 @@ provides a different image artifact name.
 |---|---|---|---|---|
 | distill | dataset.train_data_sources | train_datasets | image_dir: images.tar.gz, json_file: annotations.json | Yes |
 | distill | dataset.val_data_sources | train_datasets | image_dir: images.tar.gz, json_file: annotations.json | Yes |
+| evaluate | evaluate.checkpoint | trained_model | DINO .pth/.tlt checkpoint | No |
 | evaluate | dataset.test_data_sources.image_dir | eval_dataset | images.tar.gz | No |
 | evaluate | dataset.test_data_sources.json_file | eval_dataset | annotations.json | No |
 | gen_trt_engine | gen_trt_engine.tensorrt.calibration.cal_image_dir | calibration_dataset | images.tar.gz | Yes |
@@ -81,14 +82,70 @@ IMAGE_ARCHIVE = "images.tar.gz"
 }
 ```
 
-**evaluate (mandatory data sources):**
+**evaluate (mandatory checkpoint + data sources):**
 ```python
 {
+    "evaluate.checkpoint": "<checkpoint_uri>",
     "dataset.test_data_sources.image_dir": f"{S3_EVAL}/{IMAGE_ARCHIVE}",
     "dataset.test_data_sources.json_file": f"{S3_EVAL}/annotations.json",
     "dataset.num_classes": "<num_classes> + 1",
+    "model.backbone": "<backbone used for training>",
+    "model.num_queries": "<num_queries used for training>",
+    "model.dropout_ratio": "<dropout_ratio used for training>",
 }
 ```
+
+For standard DINO eval datasets, do not search S3 to discover filenames. Build
+the eval image and annotation URIs directly from the eval dataset base URI using
+`images.tar.gz` and `annotations.json`, unless the user explicitly provides a
+different layout.
+
+For a DINO model trained by this SDK or by an AutoML child train job, prefer
+microservices-style parent model inference instead of hardcoding the checkpoint
+URI. Use this model-MD inference mapping:
+
+```json
+"spec_params": {
+  "evaluate": {
+    "evaluate.checkpoint": "parent_model"
+  }
+}
+```
+
+Use the train job id, or the AutoML best child train job id, as
+`parent_job_id`. The SDK will list the parent result folder, filter `.pth`
+checkpoints, and select the model file:
+
+```python
+checkpoint_uri = sdk.resolve_spec_param(
+    eval_job_id,
+    "parent_model",
+    network_arch="dino",
+    parent_job_id=train_job_id,
+)
+```
+
+Equivalently, when resolving the checkpoint outside a spec-param loop:
+
+```python
+checkpoint_uri = sdk.get_model_results_path(train_job_id, network_arch="dino")
+```
+
+If cloud listing is unavailable but only the training job id is known, the
+expected DINO fallback location is:
+
+```python
+checkpoint_uri = f"s3://{S3_BUCKET_NAME}/results/{train_job_id}/results_dir/train/dino_model_latest.pth"
+```
+
+Do not use `s3://<bucket>/results/<train_job_id>/dino_model_latest.pth`; DINO
+training uploads checkpoints under `results_dir/train/`.
+
+When evaluating an AutoML-trained model, carry forward the winning rec's
+structural model settings into the eval spec. At minimum copy
+`model.backbone`, `model.num_queries`, `model.dropout_ratio`, and
+`dataset.num_classes`. If future HPO runs tune additional structural model
+fields, copy those too so the checkpoint shape matches the evaluation model.
 
 **export:**
 ```python
@@ -175,6 +232,17 @@ Supported formats: coco, coco_raw.
 - **image_dir**: `images.tar.gz` remote archive; runtime folder is `images`
 - **classmap**: `label_map.txt`
 
+### Evaluate Data Sources
+
+- **checkpoint**: `evaluate.checkpoint`, a `.pth` or `.tlt` model file. For SDK
+  train jobs and AutoML child train jobs, resolve it with `parent_model`
+  inference so the SDK lists the result folder and selects an actual checkpoint
+  file. If listing is unavailable, fall back to
+  `results_dir/train/dino_model_latest.pth` under the training job's uploaded
+  result directory.
+- **image_dir**: `images.tar.gz` remote archive; runtime folder is `images`
+- **json_file**: `annotations.json`
+
 ## Important Parameters
 
 - **dataset.num_classes**: Number of object classes. Default is 91 (COCO). Must be >= `max(category_id) + 1`. Too low causes `CUDA error: device-side assert triggered`.
@@ -193,6 +261,24 @@ Supported formats: coco, coco_raw.
 - **lr_backbone**: `2e-5`
 - **num_classes**: `91`
 - **backbone**: `resnet_50`
+
+## Evaluate Defaults
+
+`defaults-evaluate.json` is present in this skill package. Use it as the base
+spec for `action="evaluate"`, then apply the mandatory checkpoint and
+data-source overrides above. The DINO `config.json` declares these required
+evaluate inputs so the SDK script runner downloads and rewrites them before
+running the container. This model MD also documents
+`evaluate.checkpoint = parent_model`, so generated runners should infer the
+checkpoint from the parent job result files before submission:
+
+```json
+{
+  "evaluate.checkpoint": {"type": "file"},
+  "dataset.test_data_sources.image_dir": {"type": "file"},
+  "dataset.test_data_sources.json_file": {"type": "file"}
+}
+```
 
 ## Export Defaults
 
@@ -229,6 +315,12 @@ Transformer-based detection is memory-intensive. batch_size=4 fits on 24GB GPUs.
 **`CUDA device-side assert`**: `num_classes` too low. Set `num_classes >= max(category_id) + 1`.
 
 **`config.json` has empty `"inputs": {}`**: The SDK's script_runner won't download S3 data — the container sees raw remote URIs as filesystem paths. Verify `config.json` declares `inputs` with `[0]`-indexed spec keys (see Internal Details). Use `s3://...` for S3-compatible datasets; do not generate `aws://...` URIs.
+
+**Evaluate checkpoint not found at result root**: DINO train jobs upload
+checkpoints under `results_dir/train/`. If eval fails with `FileNotFoundError`
+for `s3://<bucket>/results/<train_job_id>/dino_model_latest.pth`, set
+`evaluate.checkpoint` to
+`s3://<bucket>/results/<train_job_id>/results_dir/train/dino_model_latest.pth`.
 
 ## AutoML / HPO Notes
 
@@ -280,9 +372,14 @@ custom_param_ranges={
 
 ### Internal Details
 
-#### defaults-train.json
+#### defaults-train.json and defaults-evaluate.json
 
 DINO ships without `references/spec_template_train.yaml`. You must create `~/tao-skills-external/models/dino/defaults-train.json` from `tao-pytorch/nvidia_tao_pytorch/cv/dino/experiment_specs/train.yaml` (convert YAML to JSON, replace `"???"` placeholders with empty strings).
+
+`defaults-evaluate.json` is created from
+`tao-pytorch/nvidia_tao_pytorch/cv/dino/experiment_specs/evaluate.yaml` plus
+the shared `evaluate.checkpoint` field expected by
+`initialize_evaluation_experiment()`.
 
 #### Data Sources Gap
 
@@ -299,6 +396,63 @@ DINO's `config.json` has `"data_sources": {}` (empty). The runner's `_apply_data
 }
 ```
 
+The skill also declares evaluate inputs so generated eval runners do not need
+to patch `script_runner` by hand:
+
+```json
+"inputs": {
+    "evaluate.checkpoint": {"type": "file"},
+    "dataset.test_data_sources.image_dir": {"type": "file"},
+    "dataset.test_data_sources.json_file": {"type": "file"}
+}
+```
+
+This model MD is the source of truth for DINO checkpoint inference:
+
+```text
+checkpoint format: pth
+evaluate.checkpoint: parent_model
+```
+
 All model-specific metadata (dataset type, formats, metrics, required datasets) is documented in the **Training Requirements** section above.
 
 **TODO:** Extend the runner's `_apply_data_sources()` to handle the `mapping` sub-structure from tao-core so DINO can use auto-resolved data sources like cosmos-rl does.
+
+## Spec Param / Parent Model Inference
+
+Model-specific inference mappings belong in this MD file, not in `config.json`. Generated runners should read this section and apply the mappings with SDK helpers before `create_job()`. This mirrors the old microservices `infer_params.py` flow.
+
+Inference mappings from TAO Core `dino.config.json`:
+
+| Action | Spec Field | Inference Function | Meaning |
+|---|---|---|---|
+| distill | `distill.pretrained_teacher_model_path` | `parent_model` | model file inferred from the parent job results folder |
+| distill | `encryption_key` | `key` | encryption key |
+| distill | `results_dir` | `output_dir` | current job results directory |
+| evaluate | `encryption_key` | `key` | encryption key |
+| evaluate | `evaluate.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
+| evaluate | `evaluate.trt_engine` | `parent_model` | model file inferred from the parent job results folder |
+| evaluate | `results_dir` | `output_dir` | current job results directory |
+| export | `encryption_key` | `key` | encryption key |
+| export | `export.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
+| export | `export.onnx_file` | `create_onnx_file` | output ONNX path |
+| export | `results_dir` | `output_dir` | current job results directory |
+| gen_trt_engine | `encryption_key` | `key` | encryption key |
+| gen_trt_engine | `gen_trt_engine.onnx_file` | `parent_model` | model file inferred from the parent job results folder |
+| gen_trt_engine | `gen_trt_engine.tensorrt.calibration.cal_cache_file` | `create_cal_cache` | calibration cache path |
+| gen_trt_engine | `gen_trt_engine.trt_engine` | `create_engine_file` | output TensorRT engine path |
+| gen_trt_engine | `results_dir` | `output_dir` | current job results directory |
+| inference | `encryption_key` | `key` | encryption key |
+| inference | `inference.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
+| inference | `inference.trt_engine` | `parent_model` | model file inferred from the parent job results folder |
+| inference | `results_dir` | `output_dir` | current job results directory |
+| quantize | `encryption_key` | `key` | encryption key |
+| quantize | `quantize.model_path` | `parent_model` | model file inferred from the parent job results folder |
+| quantize | `results_dir` | `output_dir` | current job results directory |
+| train | `encryption_key` | `key` | encryption key |
+| train | `model.pretrained_backbone_path` | `ptm_if_no_resume_model` | PTM when no resume checkpoint exists |
+| train | `results_dir` | `output_dir` | current job results directory |
+| train | `train.pretrained_model_path` | `ptm_if_no_resume_model` | PTM when no resume checkpoint exists |
+| train | `train.resume_training_checkpoint_path` | `resume_model` | model file inferred from the current job results folder |
+
+For `parent_model` or `parent_model_folder`, pass the upstream train/export/AutoML child job id as `parent_job_id`. The SDK lists the parent result folder, filters checkpoint artifacts, and returns the selected model file or folder. Do not add these mappings back to `config.json` and do not patch generated runner scripts to guess checkpoint paths.

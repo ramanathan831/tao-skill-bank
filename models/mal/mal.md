@@ -99,3 +99,20 @@ Minimum 1 GPU(s), recommended 2 GPU(s). 24GB+ (A100 recommended) VRAM per GPU. V
 ## Error Patterns
 
 **CUDA out of memory**: Reduce model.crop_size (512 -> 384 -> 256) or use a smaller ViT-MAE variant (base vs large).
+
+## Spec Param / Parent Model Inference
+
+Model-specific inference mappings belong in this MD file, not in `config.json`. Generated runners should read this section and apply the mappings with SDK helpers before `create_job()`. This mirrors the old microservices `infer_params.py` flow.
+
+Inference mappings from TAO Core `mal.config.json`:
+
+| Action | Spec Field | Inference Function | Meaning |
+|---|---|---|---|
+| evaluate | `evaluate.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
+| evaluate | `results_dir` | `output_dir` | current job results directory |
+| inference | `inference.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
+| inference | `inference.label_dump_path` | `create_inference_result_file_mal` | MAL inference JSON path |
+| inference | `results_dir` | `output_dir` | current job results directory |
+| train | `results_dir` | `output_dir` | current job results directory |
+
+For `parent_model` or `parent_model_folder`, pass the upstream train/export/AutoML child job id as `parent_job_id`. The SDK lists the parent result folder, filters checkpoint artifacts, and returns the selected model file or folder. Do not add these mappings back to `config.json` and do not patch generated runner scripts to guess checkpoint paths.
