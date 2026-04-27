@@ -142,6 +142,82 @@ Extract from the user's request:
 
 If any required field is missing, ask the user. Do NOT guess dataset paths, skill bank paths, or LLM endpoints.
 
+**MANDATORY: Determine user experience level.**
+
+Before diving into configuration, ask the user (or infer from context) whether they want:
+
+**Quick start (first-time / "just run it"):**
+- Algorithm: `hybrid` (LLM + bayesian) — intelligent search with no manual tuning
+- Experiments: 10 recommendations
+- Hyperparameters: `None` (use schema defaults — params with `automl_enabled=True` in the network's dataclass)
+- Ranges: schema defaults (no `custom_param_ranges`)
+- The agent only needs: `network_arch`, `train_dataset_uri`, and LLM credentials (for hybrid)
+
+When `automl_hyperparameters=None`, the runner automatically discovers all params marked `automl_enabled=True` in the network's JSON schema. Each network has its own set; the dataclass definitions in `tao-automl/src/tao_automl/config/<network>/` and the model skill's **AutoML / HPO Notes** are the source of truth.
+
+```python
+# Quick start — all defaults
+result = runner.run(
+    network_arch=network_arch,
+    train_dataset_uri=S3_TRAIN,
+    automl_settings={
+        "algorithm": "hybrid",
+        "metric": metric,
+        "automl_max_recommendations": 10,
+        "llm_endpoint": "https://inference-api.nvidia.com",
+        "llm_model": "gcp/google/gemini-3.1-pro-preview",
+        "llm_api_key": llm_api_key,
+    },
+    # automl_hyperparameters=None → uses schema defaults
+    # custom_param_ranges=None → uses schema defaults
+    spec_overrides={...},  # from model MD Typical Spec Overrides
+    workspace_path=f"./automl/{TIMESTAMP}",
+)
+```
+
+**Advanced (customize everything):**
+- User can see which params are available and their default ranges
+- User picks which params to enable/disable
+- User sets custom bounds, option weights, and algorithm-specific settings
+- User picks the algorithm
+
+The agent should present the available AutoML parameters from the model's schema. Each param record includes: `parameter` (dotted name), `value_type` (int, float, categorical, list_2, subset_list, etc.), `default_value`, `valid_min`, `valid_max`, `valid_options`, `option_weights`, `math_cond`, `depends_on`, and `automl_enabled`.
+
+To show available params programmatically:
+
+```python
+from tao_automl.search_space.params import generate_hyperparams_to_search
+from tao_automl.schema.dataclass2json_converter import generate_schema
+
+schema = generate_schema(network_arch, "train")
+param_records, param_names = generate_hyperparams_to_search(
+    network=network_arch,
+    action="train",
+    train_specs=schema.get("default", {}),
+    automl_hyperparameters=None,  # None = show all automl_enabled params
+    override_automl_disabled_params=True,  # True = show ALL params, even disabled ones
+)
+for rec in param_records:
+    if rec:
+        print(f"{rec['parameter']:40s} type={rec['value_type']:15s} "
+              f"enabled={rec.get('automl_enabled', False)}")
+```
+
+Then the user picks from this list and optionally customizes ranges:
+
+```python
+result = runner.run(
+    ...,
+    automl_hyperparameters=selected_param_names,
+    custom_param_ranges={
+        "<param_name>": {"valid_min": min_value, "valid_max": max_value},
+        "<categorical_param>": {"valid_options": ["option_a", "option_b"], "option_weights": [0.7, 0.3]},
+    },
+)
+```
+
+**How to decide:** If the user says "run AutoML", "optimize hyperparameters", or "tune for me" without specifying details, use the **quick start** path. If they say "I want to choose the parameters", "show me what's available", "customize the search space", or mention specific params/ranges, use the **advanced** path.
+
 **MANDATORY prompting for LLM-based algorithms (`llm`, `hybrid`, `autoresearch`):**
 
 When the user requests an LLM-powered algorithm, you MUST explicitly ask for ALL THREE of the following before generating the script. Do not assume defaults — the code defaults are broken (endpoint 404s) and API keys are never pre-configured:
@@ -389,6 +465,53 @@ print("Best:", automl.get_best().specs)
 | `llm_model` | str | `meta/llama-3.1-70b-instruct` | LLM model name (llm, hybrid, autoresearch) |
 | `llm_api_key` | str | from env | API key for the LLM endpoint |
 | `research_program` | str | None | Free-text research directives for the autoresearch agent |
+| `automl_delete_intermediate_ckpt` | bool | False | Delete non-best checkpoints to save storage. Hyperband-family algorithms defer deletion until bracket completion for safety. |
+| `override_automl_disabled_params` | bool | False | Include params whose schema `automl_enabled` is False. For advanced users who want to search over params the network author didn't flag for AutoML. |
+
+### `kpi` metric resolution
+
+When `metric="kpi"`, the controller resolves the actual metric key from the network config's `metrics.monitoring_metric` field. Whether `kpi` is appropriate, and whether a custom `metric_extractor` is needed, is model-specific. Follow the model skill's **AutoML / HPO Notes**.
+
+### `custom_param_ranges` format
+
+Each entry can include:
+
+| Field | Type | Description |
+|---|---|---|
+| `valid_min` | float/int/list | Min value. For list-valued parameters, pass the list shape required by the schema. |
+| `valid_max` | float/int/list | Max value. Same list rules as min. |
+| `valid_options` | list[str] | For categorical/ordered params: restrict to these values |
+| `option_weights` | list[float] | Sampling weights for `valid_options`. Must match length. Higher weight = more likely to be sampled. |
+| `disable_list` | bool | For params that can be float OR list: `True` keeps it as a single float for optimization, bypassing network list helpers. Use only when supported by the schema/model skill. |
+
+Example with all features:
+
+```python
+custom_param_ranges={
+    "<float_param>": {"valid_min": min_value, "valid_max": max_value, "disable_list": True},
+    "<categorical_param>": {
+        "valid_options": ["option_a", "option_b"],
+        "option_weights": [0.7, 0.3],
+    },
+    "<list_param>": {"valid_min": [min_a, min_b], "valid_max": [max_a, max_b]},
+}
+```
+
+### Model-specific search-space rules
+
+Some networks have built-in search-space exclusions or algorithm restrictions. Do not document them here; read the model skill's **AutoML / HPO Notes** and let schema validation report unsupported combinations.
+
+### LLM Analyzer (server-side range narrowing)
+
+The controller supports automatic range narrowing via the LLM analyzer. Enable via environment variables before launching:
+
+```python
+os.environ["AUTOML_LLM_ANALYZER_ENABLED"] = "true"
+os.environ["AUTOML_LLM_ANALYZER_INTERVAL"] = "5"        # analyze every 5 completed recs
+os.environ["AUTOML_LLM_ANALYZER_NARROW_RANGES"] = "true" # auto-tighten custom_param_ranges
+```
+
+When enabled, after every N completed experiments the analyzer reviews patterns, assesses convergence, and optionally narrows search ranges to focus on promising regions. This happens server-side and persists the narrowed ranges.
 
 ### `spec_overrides`
 
