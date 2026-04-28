@@ -18,7 +18,7 @@ Standard supervised fine-tuning: train a model on a labeled dataset, optionally 
 ### Required
 - **model**: A compatible TAO model (e.g., clip, nvdinov2, grounding_dino)
 - **train_dataset_uri**: URI of the training dataset (e.g., `s3://bucket/train/`)
-- **platform**: Compute backend: lepton, slurm, kubernetes, or docker
+- **platform**: Compute backend: lepton, brev, slurm, local-docker, or kubernetes
 
 ### Optional
 - **eval_dataset_uri**: Some model skills mark this as required — check the resolved model skill before treating it as optional.

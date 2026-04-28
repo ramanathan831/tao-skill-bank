@@ -86,6 +86,9 @@ tao-skill-external/
     changenet-data-prepare/  #   CSV generation for VCN training
   platform/                  # Compute backends
     lepton/                  #   DGX Cloud Lepton managed GPU compute
+    brev/                    #   Brev managed GPU instances
+    slurm/                   #   Remote SLURM clusters with Lustre + Pyxis/Enroot
+    local-docker/            #   Local Docker daemon with NVIDIA GPU runtime
 ```
 
 ## Skill Layers
@@ -184,6 +187,10 @@ The taxonomy supports distinct execution patterns depending on whether the user 
 | Normal training or inference on a known network | Model skill + Platform skill | Agent generates sandbox code using the network's container, schemas, configs, command line, env vars, and platform requirements |
 | High-level application workflow (e.g., AutoML) | Application skill + referenced skills + Platform skill | Agent generates sandbox code from high-level workflow knowledge while grounding execution in the platform layer |
 | Application use case (e.g., DEFT AOI) | Application skill + referenced Model/Data skills + Platform skill | Agent decomposes the use case, selects required sub-skills, and orchestrates the closed-loop workflow |
+
+Current platform skills include Lepton, Brev, SLURM, and local Docker. Use the
+platform layer to choose the execution backend before generating a model or
+workflow runner.
 
 ## Skill Discovery
 

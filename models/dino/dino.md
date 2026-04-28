@@ -13,18 +13,49 @@ The agent MUST read this section before generating any training or AutoML script
 - **Accepted dataset intents:** training, evaluation, testing, calibration
 - **Monitoring metric:** val_mAP50
 
-**Required datasets — MUST prompt the user for both:**
+**Required datasets — MUST resolve both:**
 
 | Dataset | Required | Why |
 |---|---|---|
 | Train dataset URI | Yes | Training data (COCO format) |
 | Validation dataset URI | **Yes — ALWAYS** | DINO unconditionally builds a val dataloader. Omitting `val_data_sources` causes `FileNotFoundError` at startup regardless of the metric or workflow. If the user has no separate eval split, reuse the train URI. |
 
-**Required user prompts before generating any training spec:**
+**Required inputs before generating any training spec:**
 
 1. **Train dataset URI** — S3 path to COCO-format training data
 2. **Validation dataset URI** — S3 path to COCO-format val data (can be same as train)
 3. **`num_classes`** — How many object classes? Default 91 (COCO). Must be >= `max(category_id) + 1`. Too low causes `CUDA error: device-side assert triggered`.
+
+Resolve these from the user request or the default profile below. Prompt only
+for values that are still missing after applying the profile rules.
+
+**Bankable local default profile for DINO AutoML smoke runs:**
+
+Use this profile only when the user asks to run DINO AutoML and does not provide
+dataset or class-count inputs. This profile is intentionally small and local to
+this skill bank; it is for smoke/iteration runs, not a production benchmark.
+Do not search previous runners, logs, session state, shell history, or the home
+directory to recover these values.
+
+```python
+DINO_AUTOML_PROFILE = {
+    "train_dataset_uri": "s3://nvcf-storage-handling/data/tao_od_synthetic_subset_train_no_convert",
+    "validation_dataset_uri": "s3://nvcf-storage-handling/data/tao_od_synthetic_subset_val_no_convert",
+    "object_classes": 4,
+    "dataset_num_classes": 5,
+    "image_archive": "images.tar.gz",
+    "annotation_file": "annotations.json",
+    "max_recommendations": 10,
+    "train_num_epochs": 10,
+    "train_checkpoint_interval": 10,
+    "train_validation_interval": 1,
+    "train_num_gpus": 1,
+}
+```
+
+If the user supplies any dataset URI or class-count value, prefer the user value
+and ask for any remaining required DINO value. Do not partially mix a user's
+custom dataset with this profile's class count unless the user confirms it.
 
 **Do not prompt for image layout for the standard DINO dataset.** The standard
 TAO DINO dataset artifact is `images.tar.gz` plus `annotations.json`. Use
@@ -326,6 +357,10 @@ for `s3://<bucket>/results/<train_job_id>/dino_model_latest.pth`, set
 
 AutoML runs training — all requirements from **Training Requirements** above apply. The agent must read that section first.
 
+For no-input local DINO AutoML smoke runs, use `DINO_AUTOML_PROFILE` from
+**Training Requirements**. Do not inspect previous AutoML runs to infer dataset
+URIs, `num_classes`, recommendation count, or interval settings.
+
 **Recommended AutoML metric:** use explicit `metric="mAP50"` with
 `direction="maximize"` and pass a custom `metric_extractor` that reads
 `Validation mAP50`. Do not rely on `metric="kpi"` for generated DINO runners
@@ -361,6 +396,10 @@ automl_hyperparameters=[
 ]
 custom_param_ranges={
     "train.optim.lr": {"valid_min": 1e-5, "valid_max": 5e-4},
+    "model.backbone": {
+        "valid_options": ["resnet_50", "resnet_34"],
+        "option_weights": [0.75, 0.25],
+    },
     "model.num_queries": {"valid_min": 100, "valid_max": 900},
     "model.dropout_ratio": {"valid_min": 0.0, "valid_max": 0.3},
 }
