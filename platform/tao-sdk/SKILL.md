@@ -1,11 +1,14 @@
 ---
 name: tao-sdk
-description: TAO Execution SDK for submitting and monitoring GPU training jobs on cloud platforms (Lepton, Brev). Use when the user wants to train, evaluate, or run inference on a model via cloud GPU.
+description: TAO Execution SDK for submitting and monitoring GPU training jobs on supported platforms (Lepton, Brev, SLURM, local Docker). Use when the user wants to train, evaluate, or run inference on a model via GPU compute.
 ---
 
 # TAO Execution SDK
 
-The SDK provides job submission and monitoring for GPU training on cloud platforms. The agent does all the thinking (reading skills, resolving specs, mapping data). The SDK handles infrastructure (entrypoint building, mount detection, job submission).
+The SDK provides job submission and monitoring for GPU training on supported
+platforms. The agent does all the thinking (reading skills, resolving specs,
+mapping data). The SDK handles infrastructure (entrypoint building, mount
+detection, job submission).
 
 ## Setup
 
@@ -20,6 +23,11 @@ Credentials in `secrets.json`:
   "LEPTON_WORKSPACE_ID": "...",
   "LEPTON_AUTH_TOKEN": "...",
   "BREV_API_TOKEN": "...",
+  "SLURM_USER": "...",
+  "SLURM_HOSTNAME": "login-1,login-2",
+  "SLURM_BASE_RESULTS_DIR": "/lustre/fsw/portfolios/edgeai/users/<user>",
+  "DOCKER_HOST": "unix:///var/run/docker.sock",
+  "DOCKER_NETWORK": "tao_default",
   "NGC_KEY": "...",
   "ACCESS_KEY": "...",
   "SECRET_KEY": "...",
@@ -417,6 +425,31 @@ known filenames. For example, DINO standard datasets use `images.tar.gz` and
 - Pass `instance_id` in backend_details to reuse an instance
 - `backend_details.gpu_type` for instance type selection
 
+### SLURM
+- Jobs submit over SSH to a login node with `sbatch` and run containers through
+  Pyxis/Enroot `srun --container-image`
+- Use `backend_details.backend_type = "slurm"` and pass `partition` when the
+  user requests a specific queue
+- Dataset paths must be cluster-visible, usually `lustre:///absolute/path`; do
+  not pass local or `file://` paths to SLURM jobs
+- Results default to
+  `/lustre/fsw/portfolios/edgeai/users/<slurm_user>/results/<job_id>`
+- Status uses both scheduler state (`squeue`/`sacct`) and `status.json` from the
+  shared results directory
+
+### Local Docker
+- Jobs run as named Docker containers on the configured `DOCKER_HOST`
+- Requires Docker daemon access and NVIDIA Container Toolkit on GPU hosts
+- Follows the Lepton/Brev SDK principle: run the baked SDK entrypoint directly
+  and keep platform metadata in SDK state/Docker labels, not in TAO Core
+  control-plane env vars
+- Do not inject `BACKEND`, `HOST_PLATFORM`, `MONGOSECRET`, `DOCKER_HOST`, or
+  `DOCKER_NETWORK` into the training container
+- Use explicit `num_gpu` values for shared machines; `-1` requests all visible
+  GPUs
+- Local and `file://` paths are valid only when reachable inside the container
+- Logs are read with the Docker client from the job container
+
 ## Error Patterns
 
 **No image provided**: `create_job()` requires `image`. Read it from `model_info['container_image']`.
@@ -426,3 +459,9 @@ known filenames. For example, DINO standard datasets use `images.tar.gz` and
 **Credential missing**: The SDK validates credentials lazily when the handler is first used. Check `secrets.json` has the required keys for your platform.
 
 **Job stuck in Pending**: Check `sdk.get_job_replicas(job_id)` for `readiness_issue` — usually image pull or resource scheduling.
+
+**SLURM local path rejected**: Remote backends reject local dataset paths. Copy
+the data to the cluster filesystem and use `lustre:///...`.
+
+**Local Docker client unavailable**: Set `DOCKER_HOST` and verify the process can
+access the Docker socket.
