@@ -9,6 +9,54 @@ Contrastive Language-Image Pre-training model for zero-shot and fine-tuned image
 
 No default NGC pretrained checkpoint — uses HuggingFace CLIP weights built into the container.
 
+## Training Requirements
+
+- **Dataset type:** image_text
+- **Formats:** default
+- **Monitoring metric:** val/t2i_mAP
+
+### Per-Action Dataset Requirements
+
+| Action | Spec Key | Source | Files | List? |
+|---|---|---|---|---|
+| evaluate | dataset.val.datasets | eval_dataset | image_dir: images.tar.gz, image_list_file: image_list.txt, caption_dir: captions.tar.gz | Yes |
+| inference | inference.datasets | inference_dataset | image_dir: images.tar.gz | Yes |
+| inference | inference.text_file | inference_dataset | prompts.txt | No |
+| train | dataset.train.datasets | train_datasets | image_dir: images.tar.gz, image_list_file: image_list.txt, caption_dir: captions.tar.gz | Yes |
+| train | dataset.val.datasets | eval_dataset | image_dir: images.tar.gz, image_list_file: image_list.txt, caption_dir: captions.tar.gz | Yes |
+
+### Typical Spec Overrides
+
+Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
+
+```python
+S3_TRAIN = "aws://bucket/data/train"
+S3_EVAL = "aws://bucket/data/eval"
+```
+
+**train (mandatory data sources):**
+```python
+{
+    "train.num_epochs": 1,
+    "dataset.train.datasets": [{"image_dir": f"{S3_TRAIN}/images.tar.gz", "image_list_file": f"{S3_TRAIN}/image_list.txt", "caption_dir": f"{S3_TRAIN}/captions.tar.gz"}],
+    "dataset.val.datasets": [{"image_dir": f"{S3_EVAL}/images.tar.gz", "image_list_file": f"{S3_EVAL}/image_list.txt", "caption_dir": f"{S3_EVAL}/captions.tar.gz"}],
+}
+```
+
+**evaluate (mandatory data sources):**
+```python
+{
+    "dataset.val.datasets": [{"image_dir": f"{S3_EVAL}/images.tar.gz", "image_list_file": f"{S3_EVAL}/image_list.txt", "caption_dir": f"{S3_EVAL}/captions.tar.gz"}],
+}
+```
+
+**inference (mandatory data sources):**
+```python
+{
+    "inference.datasets": [{"image_dir": f"{S3_EVAL}/images.tar.gz"}],
+    "inference.text_file": f"{S3_EVAL}/prompts.txt",
+}
+```
 ## Eval Dataset
 
 Optional. CLIP training does not require a separate eval dataset. If provided, validation metrics are computed at each checkpoint interval.
@@ -34,3 +82,34 @@ CLIP is relatively lightweight compared to detection models. Single GPU training
 **Dataset size smaller than total batch size**: The total batch size is `batch_size × num_gpus`. For example, batch_size=16 with num_gpus=8 gives a total batch size of 128. If the dataset (especially val) has fewer samples than this, training fails with ValueError. Fix: reduce `dataset.val.batch_size` or `dataset.train.batch_size` so that `batch_size × num_gpus <= dataset_size`. The agent should proactively check this when num_gpus > 1 and the dataset is known to be small.
 
 **Error merging spec.yaml with schema**: A Hydra/OmegaConf config validation error. Usually caused by spec keys placed at the wrong nesting level. Common cause: `num_epochs` and `num_gpus` must be under `train.*`, not at the spec root. Use the SDK's spec_shorthand_keys mapping to ensure correct placement.
+
+## Spec Param / Parent Model Inference
+
+Model-specific inference mappings belong in this MD file, not in `config.json`. Generated runners should read this section and apply the mappings with SDK helpers before `create_job()`. This mirrors the old microservices `infer_params.py` flow.
+
+Inference mappings from TAO Core `clip.config.json`:
+
+| Action | Spec Field | Inference Function | Meaning |
+|---|---|---|---|
+| evaluate | `encryption_key` | `key` | encryption key |
+| evaluate | `evaluate.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
+| evaluate | `evaluate.trt_engine` | `parent_model` | model file inferred from the parent job results folder |
+| evaluate | `results_dir` | `output_dir` | current job results directory |
+| export | `encryption_key` | `key` | encryption key |
+| export | `export.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
+| export | `export.onnx_file` | `create_onnx_file` | output ONNX path |
+| export | `results_dir` | `output_dir` | current job results directory |
+| gen_trt_engine | `encryption_key` | `key` | encryption key |
+| gen_trt_engine | `gen_trt_engine.onnx_file` | `parent_model` | model file inferred from the parent job results folder |
+| gen_trt_engine | `gen_trt_engine.trt_engine` | `create_engine_file` | output TensorRT engine path |
+| gen_trt_engine | `results_dir` | `output_dir` | current job results directory |
+| inference | `encryption_key` | `key` | encryption key |
+| inference | `inference.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
+| inference | `inference.trt_engine` | `parent_model` | model file inferred from the parent job results folder |
+| inference | `results_dir` | `output_dir` | current job results directory |
+| train | `encryption_key` | `key` | encryption key |
+| train | `results_dir` | `output_dir` | current job results directory |
+| train | `train.pretrained_model_path` | `ptm_if_no_resume_model` | PTM when no resume checkpoint exists |
+| train | `train.resume_training_checkpoint_path` | `resume_model` | model file inferred from the current job results folder |
+
+For `parent_model` or `parent_model_folder`, pass the upstream train/export/AutoML child job id as `parent_job_id`. The SDK lists the parent result folder, filters checkpoint artifacts, and returns the selected model file or folder. Do not add these mappings back to `config.json` and do not patch generated runner scripts to guess checkpoint paths.

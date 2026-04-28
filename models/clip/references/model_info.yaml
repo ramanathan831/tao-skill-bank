@@ -94,17 +94,7 @@ data_sources:
           path: captions.tar.gz
         caption_file_suffix:
           optional: true
-spec_params:
-  train:
-    results_dir: output_dir
-    train.pretrained_model_path: ptm_if_no_resume_model
-    train.resume_training_checkpoint_path: resume_model
-  evaluate:
-    results_dir: output_dir
-    evaluate.checkpoint: parent_model
-  export:
-    results_dir: output_dir
-    export.checkpoint: parent_model
+spec_params: {}
 key_defaults: {}
 spec_shorthand_keys:
   num_epochs: train.num_epochs

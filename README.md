@@ -71,6 +71,7 @@ tao-skill-external/
     deft-cosmos-rl/          #   DEFT iterative data improvement for video QA
     deft-vcn-aoi/                 #   Mining-based SDA for visual change detection
     normal-train/            #   Standard single-step train/eval/export
+    tao-automl/              #   AutoML/HPO workflow for TAO training
   models/                    # Network-centric skills
     cosmos-rl/               #   Cosmos-Reason2-8B video QA SFT
     visual-changenet/        #   Binary classification + segmentation for AOI
@@ -98,6 +99,7 @@ Application skills define `init` and `iteration` stages in their `config.json`, 
 Examples:
 - **deft-cosmos-rl**: DEFT pipeline for video QA — 10-stage iterative loop (gap analysis, captioning, video generation, data merge, training, evaluation)
 - **deft-vcn-aoi**: Mining-based SDA for AOI — embedding, k-NN search, merge, retrain loop
+- **tao-automl**: Model-agnostic HPO workflow using AutoMLRunner, model skills, and platform execution
 
 The DEFT AOI use case shows how an application skill decomposes into domain-specific stages: data mining for retrieval, anomaly generation using AnomalyGen/Cosmos Predict 2.5, gap analysis, data enhancement, fine-tuning, and loop-back evaluation.
 

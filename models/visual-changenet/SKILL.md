@@ -12,6 +12,180 @@ Visual ChangeNet is a TAO Toolkit model for visual inspection and defect detecti
 
 The backbone weight (`c_radio_v2_vit_base_patch16_224`) is downloaded from NGC at runtime. Ensure `NGC_KEY` is set in `secrets.json`. The default spec path `model.backbone.pretrained_backbone_path: /workspace/weights/backbone.pth` is resolved by the container infrastructure.
 
+## Training Requirements
+
+Visual ChangeNet has two separate task modes with different dataset types and data source structures.
+
+### Classify
+
+- **Dataset type:** visual_changenet_classify
+- **Formats:** default
+- **Accepted dataset intents:** training, evaluation, testing, calibration
+- **Monitoring metric:** val_acc
+
+#### Per-Action Dataset Requirements (Classify)
+
+| Action | Spec Key | Source | Files | List? |
+|---|---|---|---|---|
+| train | dataset.classify.train_dataset.images_dir | train_datasets | images.tar.gz | No |
+| train | dataset.classify.train_dataset.csv_path | train_datasets | dataset.csv | No |
+| train | dataset.classify.validation_dataset.images_dir | eval_dataset | images.tar.gz | No |
+| train | dataset.classify.validation_dataset.csv_path | eval_dataset | dataset.csv | No |
+| quantize | dataset.classify.train_dataset.images_dir | train_datasets | images.tar.gz | No |
+| quantize | dataset.classify.train_dataset.csv_path | train_datasets | dataset.csv | No |
+| quantize | dataset.classify.validation_dataset.images_dir | eval_dataset | images.tar.gz | No |
+| quantize | dataset.classify.validation_dataset.csv_path | eval_dataset | dataset.csv | No |
+| quantize | dataset.classify.quant_calibration_dataset.images_dir | train_datasets | images.tar.gz | No |
+| evaluate | dataset.classify.validation_dataset.images_dir | eval_dataset | images.tar.gz | No |
+| evaluate | dataset.classify.validation_dataset.csv_path | eval_dataset | dataset.csv | No |
+| evaluate | dataset.classify.test_dataset.images_dir | eval_dataset | images.tar.gz | No |
+| evaluate | dataset.classify.test_dataset.csv_path | eval_dataset | dataset.csv | No |
+| inference | dataset.classify.infer_dataset.images_dir | inference_dataset | images.tar.gz | No |
+| inference | dataset.classify.infer_dataset.csv_path | inference_dataset | dataset.csv | No |
+| gen_trt_engine | gen_trt_engine.tensorrt.calibration.cal_image_dir | calibration_dataset | images.tar.gz | Yes |
+
+### Segment
+
+- **Dataset type:** visual_changenet_segment
+- **Formats:** default
+- **Accepted dataset intents:** training, calibration
+- **Monitoring metric:** val_acc
+
+Segment uses a paired directory structure (`A/`, `B/`, `list/`, `label/`) instead of CSV + images. The `root_dir` spec key points to the top-level directory containing all four subdirectories.
+
+**Required files per dataset:** `A.tar.gz`, `B.tar.gz`, `list.tar.gz`, `label.tar.gz`
+
+#### Per-Action Dataset Requirements (Segment)
+
+| Action | Spec Key | Source | Files | List? |
+|---|---|---|---|---|
+| train | dataset.segment.root_dir | train_datasets | (root directory) | No |
+| quantize | dataset.segment.root_dir | train_datasets | (root directory) | No |
+| quantize | dataset.segment.quant_calibration_dataset.images_dir | train_datasets | (root directory) | No |
+| evaluate | dataset.segment.root_dir | train_datasets | (root directory) | No |
+| inference | dataset.segment.root_dir | train_datasets | (root directory) | No |
+| gen_trt_engine | dataset.segment.root_dir | train_datasets | (root directory) | No |
+| gen_trt_engine | gen_trt_engine.tensorrt.calibration.cal_image_dir | calibration_dataset | images.tar.gz | Yes |
+
+### Typical Spec Overrides
+
+Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
+
+```python
+S3_TRAIN = "aws://bucket/data/train"
+S3_EVAL = "aws://bucket/data/eval"
+```
+
+**train (classify, mandatory data sources):**
+```python
+{
+    "train.num_epochs": 30,
+    "train.checkpoint_interval": 10,
+    "train.validation_interval": 10,
+    "train.num_gpus": 1,
+    "train.use_distributed_sampler": False,
+    "train.sync_batchnorm": False,
+    "dataset.classify.train_dataset.images_dir": f"{S3_TRAIN}/images.tar.gz",
+    "dataset.classify.train_dataset.csv_path": f"{S3_TRAIN}/dataset.csv",
+    "dataset.classify.validation_dataset.images_dir": f"{S3_EVAL}/images.tar.gz",
+    "dataset.classify.validation_dataset.csv_path": f"{S3_EVAL}/dataset.csv",
+}
+```
+
+**train (segment, mandatory data sources):**
+```python
+{
+    "train.num_epochs": 30,
+    "train.checkpoint_interval": 10,
+    "train.validation_interval": 10,
+    "train.num_gpus": 1,
+    "train.use_distributed_sampler": False,
+    "train.sync_batchnorm": False,
+    "dataset.segment.root_dir": f"{S3_TRAIN}",
+}
+```
+
+**export (classify):**
+```python
+{
+    "export.input_height": 896,
+    "export.input_width": 224,
+}
+```
+
+**export (segment):**
+```python
+{
+    "export.input_height": 224,
+    "export.input_width": 224,
+}
+```
+
+**quantize (classify, mandatory data sources):**
+```python
+{
+    "dataset.classify.train_dataset.images_dir": f"{S3_TRAIN}/images.tar.gz",
+    "dataset.classify.train_dataset.csv_path": f"{S3_TRAIN}/dataset.csv",
+    "dataset.classify.validation_dataset.images_dir": f"{S3_EVAL}/images.tar.gz",
+    "dataset.classify.validation_dataset.csv_path": f"{S3_EVAL}/dataset.csv",
+    "dataset.classify.quant_calibration_dataset.images_dir": f"{S3_TRAIN}/images.tar.gz",
+}
+```
+
+**evaluate (classify, mandatory data sources):**
+```python
+{
+    "dataset.classify.validation_dataset.images_dir": f"{S3_EVAL}/images.tar.gz",
+    "dataset.classify.validation_dataset.csv_path": f"{S3_EVAL}/dataset.csv",
+    "dataset.classify.test_dataset.images_dir": f"{S3_EVAL}/images.tar.gz",
+    "dataset.classify.test_dataset.csv_path": f"{S3_EVAL}/dataset.csv",
+}
+```
+
+**inference (classify, mandatory data sources):**
+```python
+{
+    "dataset.classify.infer_dataset.images_dir": f"{S3_EVAL}/images.tar.gz",
+    "dataset.classify.infer_dataset.csv_path": f"{S3_EVAL}/dataset.csv",
+}
+```
+
+**gen_trt_engine (classify, mandatory data sources):**
+```python
+{
+    "gen_trt_engine.tensorrt.calibration.cal_image_dir": [f"{S3_TRAIN}/images.tar.gz"],
+}
+```
+
+**quantize (segment, mandatory data sources):**
+```python
+{
+    "dataset.segment.root_dir": f"{S3_TRAIN}",
+    "dataset.segment.quant_calibration_dataset.images_dir": f"{S3_TRAIN}",
+}
+```
+
+**evaluate (segment, mandatory data sources):**
+```python
+{
+    "dataset.segment.root_dir": f"{S3_TRAIN}",
+}
+```
+
+**inference (segment, mandatory data sources):**
+```python
+{
+    "dataset.segment.root_dir": f"{S3_TRAIN}",
+}
+```
+
+**gen_trt_engine (segment, mandatory data sources):**
+```python
+{
+    "dataset.segment.root_dir": f"{S3_TRAIN}",
+    "gen_trt_engine.tensorrt.calibration.cal_image_dir": [f"{S3_TRAIN}/images.tar.gz"],
+}
+```
 ## Tasks
 
 ### Classify (default)
@@ -156,3 +330,18 @@ Set `dataset.classify.num_input` to match the number of lighting conditions. The
 **PYTHONPATH / ModuleNotFoundError: nvidia_tao_pytorch**: The TAO entrypoint spawns subprocesses that don't source `.bashrc`. Pass `PYTHONPATH` explicitly via environment variables, not shell init files. For the toolkit image (`tao-toolkit:6.26.3-pyt`), PYTHONPATH is pre-configured.
 
 **Epoch defaults**: Classify training typically uses 100-2000 epochs depending on dataset size. Segmentation uses 200 epochs by default. For small datasets (<1k images), 100 epochs may suffice. For large production datasets, 2000 epochs with early stopping is common. Monitor validation metrics to determine convergence.
+
+## Spec Param / Parent Model Inference
+
+Model-specific inference mappings belong in this MD file, not in `config.json`. Generated runners should read this section and apply the mappings with SDK helpers before `create_job()`. This mirrors the old microservices `infer_params.py` flow.
+
+Inference mappings from this model skill:
+
+| Action | Spec Field | Inference Function | Meaning |
+|---|---|---|---|
+| evaluate | `results_dir` | `output_dir` | current job results directory |
+| inference | `results_dir` | `output_dir` | current job results directory |
+| train | `results_dir` | `output_dir` | current job results directory |
+| train | `train.resume_training_checkpoint_path` | `resume_model` | model file inferred from the current job results folder |
+
+For `parent_model` or `parent_model_folder`, pass the upstream train/export/AutoML child job id as `parent_job_id`. The SDK lists the parent result folder, filters checkpoint artifacts, and returns the selected model file or folder. Do not add these mappings back to `config.json` and do not patch generated runner scripts to guess checkpoint paths.
