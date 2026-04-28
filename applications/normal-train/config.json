@@ -13,7 +13,7 @@
       },
       {
         "name": "platform",
-        "description": "Compute backend: lepton, slurm, kubernetes, or docker"
+        "description": "Compute backend: lepton, brev, slurm, local-docker, or kubernetes"
       }
     ],
     "optional": [

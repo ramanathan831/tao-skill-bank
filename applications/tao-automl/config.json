@@ -13,7 +13,7 @@
       },
       {
         "name": "platform",
-        "description": "Compute backend available through the TAO SDK, usually lepton, slurm, kubernetes, docker, or brev."
+        "description": "Compute backend available through the TAO SDK, usually lepton, brev, slurm, local-docker, or kubernetes."
       },
       {
         "name": "skill_bank_path",
@@ -60,7 +60,10 @@
     ],
     "platform": [
       "tao-sdk",
-      "lepton"
+      "lepton",
+      "brev",
+      "slurm",
+      "local-docker"
     ]
   },
   "tags": [
