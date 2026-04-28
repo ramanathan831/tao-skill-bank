@@ -37,32 +37,129 @@ catalog = sdk.list_skills()
 ```
 
 Each skill is at the returned `path`. Read:
-- `SKILL.md` — full instructions, error patterns, data format docs
-- `references/model_info.yaml` — container image, commands, inputs/outputs, data_sources
-- `references/spec_template.yaml` — default training spec
+- `<model>.md` or `SKILL.md` — full instructions, error patterns, data format docs
+- `config.json` — container image, commands, inputs/outputs, data_sources
+- `defaults-<action>.json` — default spec for the requested action
 
 ## Reading a Model Skill
 
+Prefer the `SkillBank` API when generating action runners. It is the same
+loader used by the plugin and avoids file searching:
+
 ```python
-import yaml
-skill_path = catalog[0]['path']  # from sdk.list_skills()
+from tao_sdk.planner import SkillBank
 
-# Execution metadata
-with open(f'{skill_path}/references/model_info.yaml') as f:
-    model_info = yaml.safe_load(f)
-# model_info has: container_image, actions, spec_shorthand_keys, tags, pretrained_models
-
-# Default spec
-with open(f'{skill_path}/references/spec_template_train.yaml') as f:
-    specs = yaml.safe_load(f)
+bank = SkillBank()
+model_info = bank.get_model_config(network_arch)
+specs = bank.get_default_specs(network_arch, action=action)
 ```
+
+If you already have a catalog entry from `sdk.list_skills()`, direct reads are
+also valid:
+
+```python
+import json
+
+skill_path = catalog[0]["path"]  # from sdk.list_skills()
+action = "evaluate"
+
+with open(f"{skill_path}/config.json", encoding="utf-8") as f:
+    model_info = json.load(f)
+
+with open(f"{skill_path}/defaults-{action}.json", encoding="utf-8") as f:
+    specs = json.load(f)
+```
+
+`model_info["actions"][action]` is the source of truth for the command,
+config format, script-runner inputs, outputs, and upload excludes. Do not
+debug generated runner scripts to rediscover these fields; fix the skill bank
+metadata instead.
+
+## Generated Action Runner Contract
+
+Generated runners for normal actions (`train`, `evaluate`, `export`,
+`inference`, etc.) should be thin wrappers over the skill bank and SDK:
+
+1. Load `model_info = SkillBank().get_model_config(network_arch)`.
+2. Load `specs = SkillBank().get_default_specs(network_arch, action)`.
+3. Apply the model MD's "Spec Param / Parent Model Inference" guidance through SDK inference helpers.
+4. Apply user overrides and model-skill documented path conventions.
+5. Build `script_runner` directly from `model_info["actions"][action]`.
+6. Submit with `TaoExecutionSDK.create_job(...)`.
+7. Write and sync an `ActionWorkflow` folder.
+
+Do not inspect or patch the generated runner script to fix missing inputs,
+checkpoint paths, config format, commands, or upload excludes. Those are skill
+bank metadata bugs. Update the model skill's `config.json`,
+`defaults-<action>.json`, or instructions, then regenerate and rerun.
+
+## Spec Param Inference
+
+Model-specific inference mappings belong in the model Markdown file, not
+`config.json`. The MD may document microservices-style `spec_params`, for
+example:
+
+```json
+{
+  "spec_params": {
+    "evaluate": {
+      "evaluate.checkpoint": "parent_model"
+    }
+  }
+}
+```
+
+Generated runners should read that model MD section and apply the documented
+mappings before submission. For `parent_model`, pass the upstream train job id
+as `parent_job_id`; the SDK mirrors the old microservices path by listing the
+parent job's results folder, filtering model checkpoint files, and returning
+the selected `.pth`/`.tlt`/`.hdf5` path.
+
+```python
+import uuid
+
+def set_nested(specs, dotted_key, value):
+    target = specs
+    parts = dotted_key.split(".")
+    for part in parts[:-1]:
+        target = target.setdefault(part, {})
+    target[parts[-1]] = value
+
+job_id = str(uuid.uuid4())
+parent_job_id = train_job_id  # train job, AutoML best child job, export job, etc.
+
+# Derived from the current model MD, not from config.json.
+spec_param_map = {
+    "evaluate.checkpoint": "parent_model",
+}
+
+for field_name, inference_fn in spec_param_map.items():
+    value = sdk.resolve_spec_param(
+        job_id,
+        inference_fn,
+        network_arch=network_arch,
+        parent_job_id=parent_job_id,
+    )
+    if value:
+        set_nested(specs, field_name, value)
+```
+
+When submitting the action, preserve the relationship:
+
+```python
+job = sdk.create_job(..., job_id=job_id, parent_job_id=parent_job_id)
+```
+
+Do not hardcode a checkpoint path when `parent_model` is documented. If the SDK
+cannot list the parent result folder, fix the result-folder metadata or the
+model MD checkpoint guidance instead of patching the runner script.
 
 ## Applying Overrides
 
-The `spec_shorthand_keys` in model_info.yaml maps flat keys to nested spec paths:
+The `spec_shorthand_keys` in model_info/config maps flat keys to nested spec paths:
 
 ```yaml
-# model_info.yaml
+# model_info/config
 spec_shorthand_keys:
   num_epochs: train.num_epochs
   num_gpus: train.num_gpus
@@ -84,29 +181,31 @@ target[parts[-1]] = 10
 
 Each model SKILL.md documents which spec fields need dataset paths. The general pattern:
 
-1. **List the dataset** — `sdk.list_path(dataset_uri)` to see actual contents
-2. **Read the model SKILL.md** — find the spec field mapping table (which fields expect which data)
-3. **Set spec fields** to the actual S3 paths found in the dataset
+1. **Read the model SKILL.md** — find the spec field mapping table and any exact artifact-name conventions.
+2. **Set spec fields** from those conventions when the skill documents exact filenames.
+3. **List the dataset** with `sdk.list_path(dataset_uri)` only when the model skill does not provide exact filenames or the user says their layout is nonstandard.
 
 ```python
 base_uri = dataset_uri.rstrip('/')  # IMPORTANT: strip trailing slash to avoid double slashes
 
-# Agent reads model SKILL.md, finds which spec fields need data,
-# lists the dataset, matches files to fields, sets them in specs:
+# Agent reads model SKILL.md, finds which spec fields need data.
+# If the skill gives exact filenames, construct them directly:
 specs[...] = f"{base_uri}/path/to/actual/file"
 ```
 
-**Do NOT assume file names or directory structure.** Always list the dataset and match against what the model SKILL.md says it expects.
+Do not invent filenames. Use the model skill's declared filenames when present.
+If the skill only describes a format or the user provides a custom layout, list
+the remote path and match actual files to the documented spec fields.
 
 ## How inputs and specs work together
 
 The `inputs` dict in `script_runner` tells the container WHICH spec keys have remote data to download. The actual URIs are in the specs dict.
 
 ```python
-# 1. Agent sets URIs in specs (from dataset listing + model SKILL.md)
+# 1. Agent sets URIs in specs (from model SKILL.md conventions, or dataset listing when needed)
 specs['some.input.path'] = "s3://bucket/data/actual_file.csv"
 
-# 2. inputs declares which keys to download — from model_info.yaml, NOT URIs
+# 2. inputs declares which keys to download — from model_info/config, NOT URIs
 inputs = model_info['actions'][action]['inputs']
 # e.g. {"some.input.path": {"type": "file"}, "some.folder.path": {"type": "folder"}}
 ```
@@ -147,6 +246,59 @@ print(f"Job submitted: {job.id}")
 print(f"Results will be at: {job.results_dir}")
 ```
 
+## Non-AutoML Action Workflow Folders
+
+For direct plugin-launched actions (`train`, `evaluate`, `export`,
+`inference`, etc.), create a timestamped workflow folder and sync status
+through the SDK. Do **not** start a long-lived per-job local process just to
+monitor status. AutoML needs a long-lived brain process because it proposes
+and launches multiple child train jobs; ordinary actions are single backend
+jobs and should refresh status on demand.
+
+```python
+from datetime import datetime
+from tao_sdk.action_workflow import ActionWorkflow
+from tao_sdk.sdk import TaoExecutionSDK
+
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+workflow = ActionWorkflow(
+    root_dir="./eval_runs",
+    run_name=f"{network_arch}_{action}",
+    timestamp=timestamp,
+)
+
+sdk = TaoExecutionSDK(
+    creds_file="~/tao-sdk/secrets.json",
+    state_file=str(workflow.workspace / "tao_session_state.json"),
+)
+
+workflow.write_metadata(
+    network_arch=network_arch,
+    action=action,
+    state_file=str(workflow.workspace / "tao_session_state.json"),
+)
+
+job = sdk.create_job(...)
+workflow.write_submission(job=job, specs=specs, script_runner=script_runner)
+workflow.sync_from_sdk(sdk, job.id)  # one immediate refresh, then exit
+```
+
+When the user asks for status later, re-open the same workflow folder and do a
+single refresh:
+
+```python
+workflow = ActionWorkflow.from_workspace(workspace_path)
+sdk = TaoExecutionSDK(
+    creds_file="~/tao-sdk/secrets.json",
+    state_file=f"{workspace_path}/tao_session_state.db",
+)
+status = workflow.sync_from_sdk(sdk, job_id)
+```
+
+This keeps `metadata.json`, `status.json`, `status_events.jsonl`,
+`active_jobs.json`, `latest_logs.txt`, and `failure_analysis.json` aligned with
+Lepton status without requiring a separate PID for every non-AutoML job.
+
 ## Monitoring
 
 ```python
@@ -165,6 +317,10 @@ if analysis:
 
 ## Polling Pattern
 
+Only use a local polling loop when the user explicitly asks to watch a job in
+the foreground. For normal plugin operation, prefer the workflow-folder
+`sync_from_sdk()` refresh shown above.
+
 ```python
 import time
 while True:
@@ -182,7 +338,7 @@ if status.status == 'Error':
 
 ## Multi-Step Workflows
 
-Chain jobs using `job.results_dir`:
+Chain jobs using the upstream job id and skill `spec_params`:
 
 ```python
 # Step 1: Train
@@ -190,9 +346,21 @@ train_job = sdk.create_job(network_arch='<model>', action='train', ...)
 # Wait for completion...
 
 # Step 2: Evaluate (uses training results)
-# Read the model SKILL.md to find the checkpoint path convention
-eval_job = sdk.create_job(network_arch='<model>', action='evaluate',
-    specs={..., 'checkpoint': f"{train_job.results_dir}/train/model_latest.pth"}, ...)
+checkpoint = sdk.resolve_spec_param(
+    eval_job_id,
+    "parent_model",
+    network_arch="<model>",
+    parent_job_id=train_job.id,
+)
+set_nested(specs, "evaluate.checkpoint", checkpoint)
+eval_job = sdk.create_job(
+    network_arch="<model>",
+    action="evaluate",
+    job_id=eval_job_id,
+    parent_job_id=train_job.id,
+    specs=specs,
+    ...
+)
 ```
 
 ## Parallel Execution
@@ -209,27 +377,32 @@ for j in jobs:
         time.sleep(30)
 ```
 
-## Dataset Validation (MUST DO BEFORE SUBMITTING)
+## Dataset Validation
 
-**Always validate datasets BEFORE calling create_job().** Cross-reference the actual dataset contents against the model's `data_sources` mapping. Mismatches cause silent failures inside the container.
+Validate datasets before calling `create_job()` when the model skill does not
+declare deterministic filenames, when the user provided a custom layout, or
+when a previous run failed due to missing data. Cross-reference actual contents
+against the model's documented data mapping. Mismatches cause failures inside
+the container.
 
 ```python
 # 1. Check dataset exists
 assert sdk.check_path(dataset_uri), f"Dataset not found: {dataset_uri}"
 
-# 2. List actual contents
+# 2. List actual contents only if needed
 files = sdk.list_path(dataset_uri)
-print(files)  # See what's actually in the dataset
+print(files)
 
 # 3. Read the model SKILL.md to see what spec fields need data
 # The SKILL.md has a table mapping spec fields to expected data types
 
-# 4. Match actual files to spec fields
+# 4. Match actual files to spec fields when no exact convention exists
 # Set each spec field to the actual S3 path where the data lives
-# Do NOT assume default filenames — always check what exists
 ```
 
-**Always list before setting.** Datasets have different structures — files may be in subdirectories, have different names, or use different formats than the spec template defaults. The model SKILL.md describes what format the model expects; the agent finds matching files in the actual dataset.
+For standard layouts documented by a model skill, do not list just to rediscover
+known filenames. For example, DINO standard datasets use `images.tar.gz` and
+`annotations.json`; construct those URIs from the dataset base URI.
 
 ## Platform-Specific Notes
 
@@ -246,7 +419,7 @@ print(files)  # See what's actually in the dataset
 
 ## Error Patterns
 
-**No image provided**: `create_job()` requires `image`. Read it from `model_info.yaml['container_image']`.
+**No image provided**: `create_job()` requires `image`. Read it from `model_info['container_image']`.
 
 **Double slash in S3 path**: Strip trailing slashes from URIs before concatenating: `base_uri.rstrip('/')`.
 

@@ -47,3 +47,15 @@ Cosmos Predict 2.5 includes safety guardrails that block generation of certain c
 | HF auth failure | Missing or invalid HF_TOKEN | Ensure HF_TOKEN is set in secrets.json with a valid HuggingFace token that has access to the model |
 | Low quality / artifacts | Guidance scale too low or too high | Adjust guidance parameter (typical range: 5-10) |
 | Slow generation | Insufficient GPU count | Increase num_gpus or use faster GPU hardware (H100 preferred) |
+
+## Spec Param / Parent Model Inference
+
+Model-specific inference mappings belong in this MD file, not in `config.json`. Generated runners should read this section and apply the mappings with SDK helpers before `create_job()`. This mirrors the old microservices `infer_params.py` flow.
+
+No TAO Core `spec_params` mapping is available for this model. If an action consumes a model produced by an upstream job, resolve that model from the parent job id instead of hardcoding a result path:
+
+```python
+checkpoint_uri = sdk.get_model_results_path(parent_job_id, network_arch="cosmos-predict-2-5")
+```
+
+For `parent_model` or `parent_model_folder`, pass the upstream train/export/AutoML child job id as `parent_job_id`. The SDK lists the parent result folder, filters checkpoint artifacts, and returns the selected model file or folder. Do not add these mappings back to `config.json` and do not patch generated runner scripts to guess checkpoint paths.

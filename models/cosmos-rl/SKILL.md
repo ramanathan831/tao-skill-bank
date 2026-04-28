@@ -13,6 +13,102 @@ Uses FSDP-based parallelism with `dp_shard_size` for GPU count and `dp_replicate
 
 - **HF_TOKEN** (required): HuggingFace access token. The user must accept the model agreement at <https://huggingface.co/nvidia/Cosmos-Reason2-8B> and provide a token with read access. Passed to the container as a `docker_env_var`.
 
+## Training Requirements
+
+- **Dataset type:** vlm
+- **Formats:** llava
+- **Accepted dataset intents:** training, evaluation, testing
+- **Monitoring metric:** val/avg_loss, val/reward_avg, val/loss
+
+### Per-Action Dataset Requirements
+
+| Action | Spec Key | Source | Files | List? |
+|---|---|---|---|---|
+| train | custom.train_dataset.annotation_path | train_datasets | annotations.json | No |
+| train | custom.train_dataset.media_path | train_datasets | videos.tar.gz (or images.tar.gz) | No |
+| train | custom.val_dataset.annotation_path | eval_dataset | annotations.json | No |
+| train | custom.val_dataset.media_path | eval_dataset | videos.tar.gz (or images.tar.gz) | No |
+| evaluate | dataset.annotation_path | eval_dataset | annotations.json | No |
+| evaluate | dataset.media_dir | eval_dataset | videos.tar.gz (or images.tar.gz) | No |
+| quantize | calibration_dataset.annotation_path | calibration_dataset | annotations.json | No |
+| quantize | calibration_dataset.media_dir | calibration_dataset | videos.tar.gz (or images.tar.gz) | No |
+
+### Typical Spec Overrides
+
+Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
+
+```python
+S3_TRAIN = "aws://bucket/data/train"
+S3_EVAL = "aws://bucket/data/eval"
+# Media is typically videos.tar.gz for video QA tasks, images.tar.gz for image QA
+MEDIA = "videos.tar.gz"  # or "images.tar.gz" — ASK the user
+```
+
+**train (mandatory data sources):**
+```python
+{
+    "custom.train_dataset.annotation_path": f"{S3_TRAIN}/annotations.json",
+    "custom.train_dataset.media_path": f"{S3_TRAIN}/{MEDIA}",
+    "custom.val_dataset.annotation_path": f"{S3_EVAL}/annotations.json",
+    "custom.val_dataset.media_path": f"{S3_EVAL}/{MEDIA}",
+    "policy.model_name_or_path": "hf_model://nvidia/Cosmos-Reason2-8B",
+    "policy.model_max_length": 81920,
+    "policy.parallelism.dp_shard_size": 4,
+    "policy.parallelism.dp_replicate_size": 1,
+    "policy.lora.lora_alpha": 256,
+    "policy.lora.r": 16,
+    "policy.lora.lora_dropout": 0.05,
+    "train.epoch": 1,
+    "train.train_batch_per_replica": 32,
+    "train.optm_lr": 2e-5,
+    "train.optm_impl": "fused",
+    "train.deterministic": True,
+    "train.ckpt.save_freq_in_epoch": 1,
+    "train.ckpt.max_keep": 1,
+    "train.train_policy.mini_batch": 1,
+    "train.train_policy.dataset.test_size": 0,
+    "train.train_policy.dataloader_num_workers": 4,
+    "train.train_policy.dataloader_prefetch_factor": 4,
+    "validation.freq_in_epoch": 1,
+    "validation.batch_size": 1,
+    "validation.enable_dataset_cache": False,
+    "custom.vision.nframes": 8,
+    "custom.system_prompt": "You are a helpful assistant.",
+    "logging.logger": ["console", "tao"],
+}
+```
+
+**evaluate (mandatory data sources):**
+```python
+{
+    "dataset.annotation_path": f"{S3_EVAL}/annotations.json",
+    "dataset.media_dir": f"{S3_EVAL}/{MEDIA}",
+    "vision.nframes": 8,
+    "model.enable_lora": True,
+    "model.base_model_path": "hf_model://nvidia/Cosmos-Reason2-8B",
+}
+```
+
+**quantize (mandatory data sources):**
+```python
+{
+    "calibration_dataset.annotation_path": f"{S3_TRAIN}/annotations.json",
+    "calibration_dataset.media_dir": f"{S3_TRAIN}/{MEDIA}",
+    "model.enable_lora": True,
+    "model.base_model_path": "hf_model://nvidia/Cosmos-Reason2-8B",
+}
+```
+
+**inference (mandatory data sources):**
+```python
+{
+    "media": "aws://bucket/data/videos/test_video.mp4",
+    "prompt": "When does something happen in the video?",
+    "enable_lora": True,
+    "base_model_path": "hf_model://nvidia/Cosmos-Reason2-8B",
+}
+```
+
 ## Critical Overrides (Train)
 
 The TAO Core schema has broken defaults for cosmos-rl training. These are applied automatically via `key_defaults` in config.json:
@@ -156,3 +252,25 @@ Model-specific script that identifies failure cases from cosmos-rl evaluation ou
 - **Output:** parquet with `video_id` (full path), `question`, `ground_truth`
 
 **Limitation:** Brittle exact match. If the model responds with full sentences instead of constrained answers, mismatches will be over-reported. The eval prompt design must account for this.
+
+## Spec Param / Parent Model Inference
+
+Model-specific inference mappings belong in this MD file, not in `config.json`. Generated runners should read this section and apply the mappings with SDK helpers before `create_job()`. This mirrors the old microservices `infer_params.py` flow.
+
+- **Checkpoint metadata:** format: safetensors, folder: true
+
+Inference mappings from TAO Core `cosmos-rl.config.json`:
+
+| Action | Spec Field | Inference Function | Meaning |
+|---|---|---|---|
+| evaluate | `model.model_name` | `parent_model_folder` | model folder inferred from the parent job results folder |
+| evaluate | `results_dir` | `output_dir` | current job results directory |
+| inference | `model_path` | `parent_model_folder` | model folder inferred from the parent job results folder |
+| inference | `results_dir` | `output_dir` | current job results directory |
+| quantize | `model.model_path` | `parent_model_folder` | model folder inferred from the parent job results folder |
+| quantize | `results_dir` | `output_dir` | current job results directory |
+| train | `results_dir` | `output_dir` | current job results directory |
+| train | `train.output_dir` | `output_dir` | current job results directory |
+| train | `train.resume` | `resume_model_bool` | true when a resume checkpoint exists |
+
+For `parent_model` or `parent_model_folder`, pass the upstream train/export/AutoML child job id as `parent_job_id`. The SDK lists the parent result folder, filters checkpoint artifacts, and returns the selected model file or folder. Do not add these mappings back to `config.json` and do not patch generated runner scripts to guess checkpoint paths.
