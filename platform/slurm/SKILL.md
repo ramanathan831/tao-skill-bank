@@ -1,6 +1,16 @@
 ---
 name: slurm
-description: "Remote SLURM GPU cluster execution over SSH with sbatch/srun, Pyxis/Enroot containers, and Lustre-backed results. Use when running TAO jobs on an on-prem or DGX SLURM cluster."
+description: Remote SLURM GPU cluster execution over SSH with sbatch/srun, Pyxis/Enroot containers, and Lustre-backed results.
+  Use when running TAO jobs on an on-prem or DGX SLURM cluster.
+license: Apache-2.0
+compatibility: Standalone — no external runtime requirements.
+metadata:
+  author: Ramanathan Arunachalam
+  version: '0.1'
+allowed-tools: Read Bash
+tags:
+- platform
+- slurm
 ---
 
 # SLURM

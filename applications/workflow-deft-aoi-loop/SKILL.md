@@ -1,9 +1,19 @@
 ---
 name: workflow-deft-aoi-loop
-description: >-
-  Top-level DEFT Loop orchestrator — runs the full Evaluate → RCCA → SDG →
-  Retrain → Deploy loop end-to-end for NVIDIA PCB AOI ChangeNet models.
-  Use when the user wants to iteratively improve a model to meet a KPI target.
+description: Top-level DEFT Loop orchestrator — runs the full Evaluate → RCCA → SDG → Retrain → Deploy loop end-to-end for
+  NVIDIA PCB AOI ChangeNet models. Use when the user wants to iteratively improve a model to meet a KPI target.
+license: Apache-2.0
+compatibility: Requires docker + nvidia-container-toolkit. Sub-skills declare additional requirements.
+metadata:
+  author: Sherry Jiang
+  version: '0.1'
+allowed-tools: Read Bash Write
+tags:
+- application
+- workflow
+- deft
+- aoi
+- loop
 ---
 
 # Skill: workflow-deft-aoi-loop

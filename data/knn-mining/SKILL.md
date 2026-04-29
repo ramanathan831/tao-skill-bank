@@ -1,6 +1,19 @@
 ---
 name: knn-mining
-description: "GPU-accelerated k-NN nearest neighbor mining using cuML for similarity-based data retrieval. Use when mining similar images from a source pool or performing nearest-neighbor search on embeddings."
+description: GPU-accelerated k-NN nearest neighbor mining using cuML for similarity-based data retrieval. Use when mining
+  similar images from a source pool or performing nearest-neighbor search on embeddings.
+license: Apache-2.0
+compatibility: Requires docker + nvidia-container-toolkit.
+metadata:
+  author: Arif Ahmed
+  version: '0.1'
+allowed-tools: Read Bash
+tags:
+- mining
+- similarity
+- knn
+- nearest-neighbor
+- cuml
 ---
 
 # k-NN Mining

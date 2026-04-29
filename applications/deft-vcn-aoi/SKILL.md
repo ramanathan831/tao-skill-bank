@@ -1,6 +1,22 @@
 ---
 name: deft-vcn-aoi
-description: "VCN AOI SDA pipeline: mining-based iterative data improvement for visual change detection. Use when running mining-based DEFT for ChangeNet defect detection."
+description: 'VCN AOI SDA pipeline: mining-based iterative data improvement for visual change detection. Use when running
+  mining-based DEFT for ChangeNet defect detection.'
+license: Apache-2.0
+compatibility: Requires docker + nvidia-container-toolkit. Sub-skills declare additional requirements.
+metadata:
+  author: Arif Ahmed
+  version: '0.1'
+allowed-tools: Read Bash Write
+tags:
+- pcb
+- aoi
+- defect
+- changenet
+- mining
+- deft
+- sda
+- visual-inspection
 ---
 
 # DEFT VCN AOI Workflow

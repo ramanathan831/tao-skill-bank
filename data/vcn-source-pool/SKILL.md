@@ -1,6 +1,19 @@
 ---
 name: vcn-source-pool
-description: "Prepare gap queries and source pool parquets for SigLIP embedding and k-NN mining. Use when setting up inputs for the mining pipeline in a DEFT iteration."
+description: Prepare gap queries and source pool parquets for SigLIP embedding and k-NN mining. Use when setting up inputs
+  for the mining pipeline in a DEFT iteration.
+license: Apache-2.0
+compatibility: Requires docker + nvidia-container-toolkit.
+metadata:
+  author: Arif Ahmed
+  version: '0.1'
+allowed-tools: Read Bash
+tags:
+- source-pool
+- vcn
+- aoi
+- mining
+- data-preparation
 ---
 
 # VCN Source Pool

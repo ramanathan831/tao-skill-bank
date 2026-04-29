@@ -1,9 +1,22 @@
 ---
 name: deft-aoi-omniverse-sdg
-description: Generate ChangeNet-style paired SDG data (golden + defect + mask) for PCB AOI training. Use this skill whenever the user mentions paired images, ChangeNet data, golden/defect pairs, SDG pair generation, PCB defect data, pose defects (shift/tombstone/sideflip), missing components, or runs /ov-generate-sdg. Also trigger when user asks about generating synthetic defect data, building pair datasets, or creating training data for anomaly detection on PCBs.
+description: Generate ChangeNet-style paired SDG data (golden + defect + mask) for PCB AOI training. Use this skill whenever
+  the user mentions paired images, ChangeNet data, golden/defect pairs, SDG pair generation, PCB defect data, pose defects
+  (shift/tombstone/sideflip), missing components, or runs /ov-generate-sdg. Also trigger when user asks about generating synthetic
+  defect data, building pair datasets, or creating training data for anomaly detection on PCBs.
+license: Apache-2.0
+compatibility: Standalone — no external runtime requirements.
+metadata:
+  author: Sherry Jiang
+  version: '0.1'
+allowed-tools: Read Bash
+tags:
+- data
+- omniverse
+- sdg
 dependencies:
-  - bash
-  - docker
+- bash
+- docker
 ---
 
 # SDG Pair Data Generator

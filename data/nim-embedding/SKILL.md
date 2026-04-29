@@ -1,6 +1,17 @@
 ---
 name: nim-embedding
-description: "Video embeddings via NVIDIA NIM endpoint for visualization and analysis. Use when computing video embeddings for t-SNE visualization or distribution analysis."
+description: Video embeddings via NVIDIA NIM endpoint for visualization and analysis. Use when computing video embeddings
+  for t-SNE visualization or distribution analysis.
+license: Apache-2.0
+compatibility: Requires docker + nvidia-container-toolkit.
+metadata:
+  author: Arif Ahmed
+  version: '0.1'
+allowed-tools: Read Bash
+tags:
+- embedding
+- video
+- nim
 ---
 
 # NIM Embedding

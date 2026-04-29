@@ -1,6 +1,21 @@
 ---
 name: visual-changenet
-description: "Visual ChangeNet for binary image classification and segmentation in AOI defect detection. Use when training, evaluating, or running inference for PCB defect detection or visual inspection."
+description: Visual ChangeNet for binary image classification and segmentation in AOI defect detection. Use when training,
+  evaluating, or running inference for PCB defect detection or visual inspection.
+license: Apache-2.0
+compatibility: Requires docker + nvidia-container-toolkit.
+metadata:
+  author: Ramanathan Arunachalam, Arif Ahmed
+  version: '0.1'
+allowed-tools: Read Bash
+tags:
+- pcb
+- aoi
+- defect
+- classification
+- segmentation
+- siamese
+- visual-inspection
 ---
 
 # Visual ChangeNet
@@ -190,11 +205,11 @@ S3_EVAL = "aws://bucket/data/eval"
 
 ### Classify (default)
 
-Uses actions: `train`, `evaluate`, `inference`. Defaults file: `defaults-train.json`.
+Uses actions: `train`, `evaluate`, `inference`. Defaults template: `references/spec_template_train.yaml`.
 
 ### Segment
 
-Uses actions: `segment_train`, `segment_evaluate`, `segment_inference`. Defaults file: `defaults-segment.json`.
+Uses actions: `segment_train`, `segment_evaluate`, `segment_inference`. Defaults template: `references/spec_template_segment.yaml`.
 
 Segmentation requires compiling custom CUDA ops (`MultiScaleDeformableAttention`) on first run, which takes ~5 minutes. The ViT adapter backbone uses these for multi-scale feature extraction.
 
@@ -213,7 +228,7 @@ The model needs two things from the dataset: a CSV file and an images directory.
 | `dataset.classify.validation_dataset.csv_path` | S3 path to the validation CSV (optional) | Same 4-column format |
 | `dataset.classify.validation_dataset.images_dir` | S3 path to the images directory (optional) | Can be same as training images_dir |
 
-**How to find the right files:** List the dataset URI with `sdk.list_path()`. Look for:
+**How to find the right files:** List the dataset URI with `aws s3 ls <uri>` (or your storage CLI equivalent). Look for:
 - A CSV with 4 columns (`input_path`, `golden_path`, `label`, `object_name`) — may be in a subdirectory, may have a descriptive name
 - An `images/` directory (or similar) containing the image subdirectories referenced by the CSV
 

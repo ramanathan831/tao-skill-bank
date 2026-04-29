@@ -1,0 +1,20 @@
+network_arch: vcn-gap-analysis
+container_image: iva.smart_data_augmentation
+actions:
+  analyze:
+    command: python /tmp/user_script.py
+    mode: args
+    inputs:
+      inference-results:
+        type: folder
+      threshold-json:
+        type: file
+      kpi-csv:
+        type: file
+    outputs:
+      output-metrics:
+        type: file
+      output-gaps:
+        type: file
+    defaults:
+      mode: gap-analysis

@@ -1,6 +1,18 @@
 ---
 name: siglip-embed
-description: "SigLIP image embedding model for computing visual similarity in mining pipelines. Use when computing image embeddings for similarity search, k-NN mining, or data retrieval."
+description: SigLIP image embedding model for computing visual similarity in mining pipelines. Use when computing image embeddings
+  for similarity search, k-NN mining, or data retrieval.
+license: Apache-2.0
+compatibility: Requires docker + nvidia-container-toolkit.
+metadata:
+  author: Arif Ahmed
+  version: '0.1'
+allowed-tools: Read Bash
+tags:
+- embedding
+- similarity
+- siglip
+- image
 ---
 
 # SigLIP Embed

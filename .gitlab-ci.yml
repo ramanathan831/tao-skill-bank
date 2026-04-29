@@ -41,3 +41,17 @@ nv_aces_placeholder:
   image: alpine:3.20
   script:
     - echo "NV-ACES skill evaluation enabled"
+
+# Custom validator: marketplace paths, frontmatter, body has runnable info,
+# SDK leaks, hook references, optional skill_info.yaml structure.
+# Implements the standalone-mode guarantee and minimum-viable-skill contract.
+validate-skills:
+  stage: test
+  image: python:3.12-slim
+  before_script:
+    - pip install --quiet pyyaml
+  script:
+    - bash scripts/validate-skills.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "main"'

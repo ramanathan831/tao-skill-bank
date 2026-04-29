@@ -1,0 +1,14 @@
+network_arch: vcn-merge-csv
+container_image: iva.smart_data_augmentation
+actions:
+  merge:
+    command: python /tmp/user_script.py
+    mode: args
+    inputs:
+      mined-parquet:
+        type: file
+      source-pool-parquet:
+        type: file
+    outputs:
+      output-csv:
+        type: file

@@ -1,6 +1,19 @@
 ---
 name: vcn-merge-csv
-description: "Merge mined samples with previous training CSV for Visual ChangeNet retraining. Use when combining augmented data with existing training data in a DEFT iteration."
+description: Merge mined samples with previous training CSV for Visual ChangeNet retraining. Use when combining augmented
+  data with existing training data in a DEFT iteration.
+license: Apache-2.0
+compatibility: Requires docker + nvidia-container-toolkit.
+metadata:
+  author: Arif Ahmed
+  version: '0.1'
+allowed-tools: Read Bash
+tags:
+- merge
+- csv
+- vcn
+- aoi
+- training-data
 ---
 
 # VCN Merge CSV

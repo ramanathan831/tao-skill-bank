@@ -1,6 +1,19 @@
 ---
 name: vcn-gap-analysis
-description: "Analyze VCN inference results — identify FP/FN gaps and compute evaluation metrics. Use when evaluating VCN performance or identifying failure cases for data augmentation."
+description: Analyze VCN inference results — identify FP/FN gaps and compute evaluation metrics. Use when evaluating VCN performance
+  or identifying failure cases for data augmentation.
+license: Apache-2.0
+compatibility: Requires docker + nvidia-container-toolkit.
+metadata:
+  author: Arif Ahmed
+  version: '0.1'
+allowed-tools: Read Bash
+tags:
+- gap-analysis
+- vcn
+- aoi
+- evaluation
+- metrics
 ---
 
 # VCN Gap Analysis
