@@ -94,7 +94,15 @@ Generated runners for normal actions (`train`, `evaluate`, `export`,
 4. Apply user overrides and model-skill documented path conventions.
 5. Build `script_runner` directly from `model_info["actions"][action]`.
 6. Submit with `TaoExecutionSDK.create_job(...)`.
-7. Write and sync an `ActionWorkflow` folder.
+7. Write an `ActionWorkflow` folder and watch the job to completion with periodic status updates.
+
+Before launching any normal action, ask the user:
+
+```text
+How many minutes between status updates? Default is 10 minutes.
+```
+
+If the user accepts the default, use `status_interval_minutes = 10`.
 
 Do not inspect or patch the generated runner script to fix missing inputs,
 checkpoint paths, config format, commands, or upload excludes. Those are skill
@@ -257,11 +265,11 @@ print(f"Results will be at: {job.results_dir}")
 ## Non-AutoML Action Workflow Folders
 
 For direct plugin-launched actions (`train`, `evaluate`, `export`,
-`inference`, etc.), create a timestamped workflow folder and sync status
-through the SDK. Do **not** start a long-lived per-job local process just to
-monitor status. AutoML needs a long-lived brain process because it proposes
-and launches multiple child train jobs; ordinary actions are single backend
-jobs and should refresh status on demand.
+`inference`, etc.), create a timestamped workflow folder, submit the job, and
+watch it until terminal status. Report status at the user-selected interval
+(default: 10 minutes) and persist every refresh through the workflow folder.
+Only detach/background the watcher when the user explicitly asks for
+background execution.
 
 ```python
 from datetime import datetime
@@ -269,6 +277,7 @@ from tao_sdk.action_workflow import ActionWorkflow
 from tao_sdk.sdk import TaoExecutionSDK
 
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+status_interval_minutes = status_interval_minutes or 10
 workflow = ActionWorkflow(
     root_dir="./eval_runs",
     run_name=f"{network_arch}_{action}",
@@ -288,11 +297,23 @@ workflow.write_metadata(
 
 job = sdk.create_job(...)
 workflow.write_submission(job=job, specs=specs, script_runner=script_runner)
-workflow.sync_from_sdk(sdk, job.id)  # one immediate refresh, then exit
+
+def print_status(status, workflow):
+    print(
+        f"[{network_arch} {action}] job={status.job_id} "
+        f"status={status.status} message={getattr(status, 'message', '')}"
+    )
+
+status = workflow.watch_until_complete(
+    sdk,
+    job.id,
+    interval_seconds=status_interval_minutes * 60,
+    on_status=print_status,
+)
 ```
 
-When the user asks for status later, re-open the same workflow folder and do a
-single refresh:
+If the user asks for status later or the prior watcher died, re-open the same
+workflow folder and do a single refresh:
 
 ```python
 workflow = ActionWorkflow.from_workspace(workspace_path)
@@ -305,7 +326,8 @@ status = workflow.sync_from_sdk(sdk, job_id)
 
 This keeps `metadata.json`, `status.json`, `status_events.jsonl`,
 `active_jobs.json`, `latest_logs.txt`, and `failure_analysis.json` aligned with
-Lepton status without requiring a separate PID for every non-AutoML job.
+backend status. `status_events.jsonl` is the durable history of the periodic
+updates shown to the user.
 
 ## Monitoring
 
@@ -325,22 +347,20 @@ if analysis:
 
 ## Polling Pattern
 
-Only use a local polling loop when the user explicitly asks to watch a job in
-the foreground. For normal plugin operation, prefer the workflow-folder
-`sync_from_sdk()` refresh shown above.
+Use the workflow helper for foreground monitoring. It syncs status, logs,
+failure analysis, active jobs, and event history on every poll.
 
 ```python
-import time
-while True:
-    status = sdk.get_job_status(job.id)
-    if status.status in ('Complete', 'Error', 'Canceled'):
-        break
-    print(f"Status: {status.status}")
-    time.sleep(30)
+status = workflow.watch_until_complete(
+    sdk,
+    job.id,
+    interval_seconds=status_interval_minutes * 60,
+    on_status=print_status,
+)
 
 if status.status == 'Error':
-    logs = sdk.get_job_logs(job.id)
-    analysis = sdk.get_failure_analysis(job.id)
+    logs = workflow.logs_path.read_text(encoding="utf-8")
+    analysis = workflow.failure_analysis_path.read_text(encoding="utf-8")
     # Diagnose and fix
 ```
 

@@ -135,10 +135,17 @@ Extract from the user's request:
 | `direction` | No | `"minimize"` or `"maximize"` | **Only needed if your metric name doesn't contain `"loss"` AND you want to minimize, or contains `"loss"` AND you want to maximize.** Otherwise the implicit "contains 'loss' → minimize, else maximize" rule applies. |
 | `algorithm` | No | `"bayesian"` (default) | See algorithm guide below |
 | `max_recommendations` | No | 5–20 | Ask budget — each rec is one full training run |
+| `status_interval_minutes` | No | 10 | Ask how many minutes between AutoML status updates. Default to 10 minutes if the user accepts the default. |
 | `skill_bank_path` | Yes (if not set) | `"~/tao-skills-external"` | Check if `TAO_SKILL_BANK_PATH` env var is set. If not, ask the user for the path. Default: `~/tao-skills-external`. The runner raises `ValueError: No skill config found` without it. |
 | `llm_endpoint` | **Yes** (for `llm`/`hybrid`/`autoresearch`) | `"https://inference-api.nvidia.com"` | **MUST prompt.** The code default `https://integrate.api.nvidia.com/v1` returns 404. Always ask for and pass explicitly. |
 | `llm_model` | **Yes** (for `llm`/`hybrid`/`autoresearch`) | `"gcp/google/gemini-3.1-pro-preview"` | **MUST prompt.** Ask which model to use. Default: `meta/llama-3.1-70b-instruct` via NIM. |
 | `llm_api_key` | **Yes** (for `llm`/`hybrid`/`autoresearch`) | `"nvapi-..."` or `"sk-..."` | **MUST prompt** if `NVIDIA_API_KEY` / `AUTOML_LLM_API_KEY` env vars are not set. |
+
+Ask for the status interval during normal input collection:
+
+```text
+How many minutes between AutoML status updates? Default is 10 minutes.
+```
 
 If any required field is missing, ask the user. Do NOT guess dataset paths, skill bank paths, or LLM endpoints.
 
@@ -338,6 +345,20 @@ from tao_sdk.sdk import TaoExecutionSDK
 from tao_automl.runner import AutoMLRunner
 
 TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
+STATUS_INTERVAL_MINUTES = status_interval_minutes or 10
+
+def print_status(snapshot):
+    progress = snapshot.get("progress", {})
+    best = snapshot.get("best", {})
+    current = snapshot.get("current", {})
+    rec = current.get("rec", {})
+    job_status = current.get("job_status", {})
+    print(
+        "[automl-status] "
+        f"{progress.get('completed', 0)}/{progress.get('total', '?')} complete; "
+        f"best_rec={best.get('rec_id')} best_metric={best.get('metric_value')}; "
+        f"active_rec={rec.get('rec_id')} job_status={job_status.get('status')}"
+    )
 
 sdk = TaoExecutionSDK(creds_file=os.path.expanduser("~/tao-sdk/secrets.json"))
 runner = AutoMLRunner(sdk)
@@ -350,6 +371,8 @@ result = runner.run(
         "automl_max_recommendations": max_recommendations,
     },
     workspace_path=f"./automl_workspace/{TIMESTAMP}",  # timestamped to avoid collisions
+    on_status=print_status,
+    status_interval_seconds=STATUS_INTERVAL_MINUTES * 60,
 )
 ```
 
@@ -404,6 +427,8 @@ result = runner.run(
     # --- Hooks (all optional, opt-in) ---
     metric_extractor=None,                           # custom log→metric parser
     eval_fn=my_eval,                                 # post-training real-metric eval
+    on_status=print_status,                          # periodic brain + rec status
+    status_interval_seconds=STATUS_INTERVAL_MINUTES * 60,
     on_recommendation=lambda r: print(f"launching rec {r.id}: {r.specs}"),
     on_result=lambda r, metric, status: print(f"rec {r.id} {status} → {metric}"),
 )
@@ -728,16 +753,48 @@ Exceptions from `eval_fn` are caught and logged — the runner falls back to the
 
 ## Step 4: Monitor Progress
 
-`runner.run()` blocks until all recommendations complete. Use callbacks to report progress to the user:
+`runner.run()` blocks until all recommendations complete. Do not detach the
+runner unless the user explicitly asks for background execution. Use
+`PYTHONUNBUFFERED=1` and the direct Python binary so status updates stream in
+real time.
+
+Ask the user how many minutes between status updates; default to 10 minutes.
+Pass that value as `status_interval_seconds=status_interval_minutes * 60`.
+The runner writes durable status files in the AutoML workspace:
+
+- `automl_status.json` — latest snapshot
+- `automl_status_events.jsonl` — append-only history
+- `active_jobs.json` — in-flight recommendation jobs
+
+Use callbacks to report recommendation creation, periodic brain/rec status,
+and results:
 
 ```python
 def on_rec(rec):
     print(f"Rec {rec.id}: trying {rec.specs}")
 
+def on_status(snapshot):
+    progress = snapshot.get("progress", {})
+    brain = snapshot.get("brain", {})
+    current = snapshot.get("current", {})
+    print(
+        f"AutoML {progress.get('completed')}/{progress.get('total')} "
+        f"best={progress.get('best_metric')} "
+        f"brain={brain.get('algorithm')} "
+        f"rec={current.get('rec', {}).get('rec_id')} "
+        f"job={current.get('job_status', {}).get('status')}"
+    )
+
 def on_result(rec, metric, status):
     print(f"Rec {rec.id}: {status}, metric={metric}")
 
-result = runner.run(..., on_recommendation=on_rec, on_result=on_result)
+result = runner.run(
+    ...,
+    on_recommendation=on_rec,
+    on_status=on_status,
+    status_interval_seconds=status_interval_minutes * 60,
+    on_result=on_result,
+)
 ```
 
 Each rec takes 10–90 minutes depending on model size, dataset, epochs, and checkpoint save cost. Don't assume failure during long uploads.
