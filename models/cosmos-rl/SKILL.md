@@ -9,6 +9,10 @@ Supervised fine-tuning (SFT) of **nvidia/Cosmos-Reason2-8B** on video reasoning 
 
 Uses FSDP-based parallelism with `dp_shard_size` for GPU count and `dp_replicate_size` for node count (not the standard `num_gpus`/`num_nodes`).
 
+## Dataclass Schemas
+
+Generated TAO Core schemas are packaged in `schemas/<action>.schema.json`, with `schemas/manifest.json` listing available actions. Each generated schema also emits `references/spec_template_<action>.yaml` from the schema top-level `default` field. For AutoML, `schemas/train.schema.json` and `references/spec_template_train.yaml` must exist and parse; otherwise AutoML is unsupported for this model in the plugin workflow. Use the packaged train schema for `automl_default_parameters`, `automl_disabled_parameters`, defaults, min/max bounds, enums, option weights, math conditions, dependencies, and popular parameters. Do not expect `~/tao-core` at runtime; maintainers regenerate schemas/templates before packaging the skill bank.
+
 ## Credentials
 
 - **HF_TOKEN** (required): HuggingFace access token. The user must accept the model agreement at <https://huggingface.co/nvidia/Cosmos-Reason2-8B> and provide a token with read access. Passed to the container as a `docker_env_var`.
@@ -19,38 +23,41 @@ Uses FSDP-based parallelism with `dp_shard_size` for GPU count and `dp_replicate
 - **Formats:** llava
 - **Accepted dataset intents:** training, evaluation, testing
 - **Monitoring metric:** val/avg_loss, val/reward_avg, val/loss
+- **Dataset URI examples:** `s3://bucket/cosmos/train`, `s3://bucket/cosmos/eval`, `/lustre/fsw/tao_datasets/cosmos_rl/train`, `/lustre/fsw/tao_datasets/cosmos_rl/eval`
+- **Media handling:** do not ask the user to choose `videos.tar.gz` vs `images.tar.gz`. The dataset root is expected to contain the annotation file and its media payload; pass the dataset root as the media path unless the user explicitly provides a more specific path.
 
 ### Per-Action Dataset Requirements
 
 | Action | Spec Key | Source | Files | List? |
 |---|---|---|---|---|
 | train | custom.train_dataset.annotation_path | train_datasets | annotations.json | No |
-| train | custom.train_dataset.media_path | train_datasets | videos.tar.gz (or images.tar.gz) | No |
+| train | custom.train_dataset.media_path | train_datasets | dataset root containing media payload | No |
 | train | custom.val_dataset.annotation_path | eval_dataset | annotations.json | No |
-| train | custom.val_dataset.media_path | eval_dataset | videos.tar.gz (or images.tar.gz) | No |
+| train | custom.val_dataset.media_path | eval_dataset | dataset root containing media payload | No |
 | evaluate | dataset.annotation_path | eval_dataset | annotations.json | No |
-| evaluate | dataset.media_dir | eval_dataset | videos.tar.gz (or images.tar.gz) | No |
+| evaluate | dataset.media_dir | eval_dataset | dataset root containing media payload | No |
 | quantize | calibration_dataset.annotation_path | calibration_dataset | annotations.json | No |
-| quantize | calibration_dataset.media_dir | calibration_dataset | videos.tar.gz (or images.tar.gz) | No |
+| quantize | calibration_dataset.media_dir | calibration_dataset | dataset root containing media payload | No |
 
 ### Typical Spec Overrides
 
 Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
 
 ```python
-S3_TRAIN = "aws://bucket/data/train"
-S3_EVAL = "aws://bucket/data/eval"
-# Media is typically videos.tar.gz for video QA tasks, images.tar.gz for image QA
-MEDIA = "videos.tar.gz"  # or "images.tar.gz" — ASK the user
+TRAIN_DATASET_URI = "s3://bucket/data/train"
+EVAL_DATASET_URI = "s3://bucket/data/eval"
+# Slurm/internal example:
+# TRAIN_DATASET_URI = "/lustre/fsw/tao_datasets/cosmos_rl/train"
+# EVAL_DATASET_URI = "/lustre/fsw/tao_datasets/cosmos_rl/eval"
 ```
 
 **train (mandatory data sources):**
 ```python
 {
-    "custom.train_dataset.annotation_path": f"{S3_TRAIN}/annotations.json",
-    "custom.train_dataset.media_path": f"{S3_TRAIN}/{MEDIA}",
-    "custom.val_dataset.annotation_path": f"{S3_EVAL}/annotations.json",
-    "custom.val_dataset.media_path": f"{S3_EVAL}/{MEDIA}",
+    "custom.train_dataset.annotation_path": f"{TRAIN_DATASET_URI}/annotations.json",
+    "custom.train_dataset.media_path": TRAIN_DATASET_URI,
+    "custom.val_dataset.annotation_path": f"{EVAL_DATASET_URI}/annotations.json",
+    "custom.val_dataset.media_path": EVAL_DATASET_URI,
     "policy.model_name_or_path": "hf_model://nvidia/Cosmos-Reason2-8B",
     "policy.model_max_length": 81920,
     "policy.parallelism.dp_shard_size": 4,
@@ -81,8 +88,8 @@ MEDIA = "videos.tar.gz"  # or "images.tar.gz" — ASK the user
 **evaluate (mandatory data sources):**
 ```python
 {
-    "dataset.annotation_path": f"{S3_EVAL}/annotations.json",
-    "dataset.media_dir": f"{S3_EVAL}/{MEDIA}",
+    "dataset.annotation_path": f"{EVAL_DATASET_URI}/annotations.json",
+    "dataset.media_dir": EVAL_DATASET_URI,
     "vision.nframes": 8,
     "model.enable_lora": True,
     "model.base_model_path": "hf_model://nvidia/Cosmos-Reason2-8B",
@@ -92,8 +99,8 @@ MEDIA = "videos.tar.gz"  # or "images.tar.gz" — ASK the user
 **quantize (mandatory data sources):**
 ```python
 {
-    "calibration_dataset.annotation_path": f"{S3_TRAIN}/annotations.json",
-    "calibration_dataset.media_dir": f"{S3_TRAIN}/{MEDIA}",
+    "calibration_dataset.annotation_path": f"{TRAIN_DATASET_URI}/annotations.json",
+    "calibration_dataset.media_dir": TRAIN_DATASET_URI,
     "model.enable_lora": True,
     "model.base_model_path": "hf_model://nvidia/Cosmos-Reason2-8B",
 }
@@ -102,7 +109,7 @@ MEDIA = "videos.tar.gz"  # or "images.tar.gz" — ASK the user
 **inference (mandatory data sources):**
 ```python
 {
-    "media": "aws://bucket/data/videos/test_video.mp4",
+    "media": "s3://bucket/data/videos/test_video.mp4",
     "prompt": "When does something happen in the video?",
     "enable_lora": True,
     "base_model_path": "hf_model://nvidia/Cosmos-Reason2-8B",

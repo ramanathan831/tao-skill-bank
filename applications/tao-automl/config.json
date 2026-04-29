@@ -15,20 +15,36 @@
         "name": "platform",
         "description": "Compute backend available through the TAO SDK, usually lepton, brev, slurm, local-docker, or kubernetes."
       },
-      {
-        "name": "skill_bank_path",
-        "description": "Path to this skill bank so AutoMLRunner can load model skills and train specs."
-      }
-    ],
-    "optional": [
-      {
-        "name": "eval_dataset_uri",
-        "description": "Validation or evaluation dataset URI when required by the selected model skill."
-      },
-      {
-        "name": "algorithm",
-        "description": "AutoML search algorithm such as bayesian, hyperband, asha, bohb, llm, hybrid, or autoresearch."
-      },
+            {
+                "name": "skill_bank_path",
+                "description": "Path to this skill bank so AutoMLRunner can load model skills and train specs."
+            },
+            {
+                "name": "train_dataclass_schema",
+                "description": "models/<network>/schemas/train.schema.json must exist and parse successfully. AutoML is not supported for a model without this generated TAO Core train schema."
+            }
+        ],
+        "optional": [
+            {
+                "name": "eval_dataset_uri",
+                "description": "Validation or evaluation dataset URI when required by the selected model skill."
+            },
+            {
+                "name": "algorithm",
+                "description": "Customization-only AutoML search algorithm such as bayesian, hyperband, asha, bohb, llm, hybrid, or autoresearch. Default quick-start runs do not prompt for this."
+            },
+            {
+                "name": "max_recommendations",
+                "description": "Customization-only recommendation budget. Default quick-start runs use the workflow/model default without prompting."
+            },
+            {
+                "name": "automl_hyperparameters",
+                "description": "Customization-only list of schema parameter paths to search. Default quick-start runs use params marked automl_enabled in the generated schema."
+            },
+            {
+                "name": "custom_param_ranges",
+                "description": "Customization-only range/option overrides validated against the generated dataclass schema."
+            },
       {
         "name": "llm_endpoint",
         "description": "Required for LLM-powered AutoML algorithms."
@@ -50,10 +66,13 @@
     "status": {
       "description": "Inspect an existing AutoML workflow folder, runner log, PID, or SDK state for progress."
     },
-    "resume": {
-      "description": "Resume or recover an explicitly requested existing AutoML experiment."
-    }
-  },
+        "resume": {
+            "description": "Resume or recover an explicitly requested existing AutoML experiment."
+        },
+        "support": {
+            "description": "List packaged AutoML-supported and unsupported models by reading models/automl_support.json through scripts/list_automl_support.py without scanning model folders."
+        }
+    },
   "depends_on": {
     "models": [
       "<network>"

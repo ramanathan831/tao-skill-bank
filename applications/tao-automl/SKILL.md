@@ -40,6 +40,7 @@ Before running AutoML:
    Pass it via `TaoExecutionSDK(creds_file="~/tao-sdk/secrets.json")`.
 2. **Dataset**: Training data accessible from the compute backend. URI format depends on the SDK's platform:
    - Lepton / DGX Cloud: `s3://bucket/path` (S3-compatible; do not generate `aws://...`)
+   - Slurm / internal shared storage: an absolute shared filesystem path visible to the Slurm job, e.g. `/lustre/fsw/tao_datasets/<model>/train` and `/lustre/fsw/tao_datasets/<model>/eval`
    - Azure: `azure://container/path`
    - Local / Docker: local filesystem path
 3. **Skill bank available**: lives at `~/tao-skills-external`. **CRITICAL**: The runner raises `ValueError: No skill config found for '<network>'` if the skill bank is not set. You MUST set it before importing the runner:
@@ -59,13 +60,18 @@ Before running AutoML:
    │   ├── <network>/
    │   │   ├── config.json           # actions, data_sources, container image
    │   │   ├── defaults-train.json   # default training spec (REQUIRED by AutoML)
+   │   │   ├── schemas/train.schema.json  # REQUIRED AutoML gate: generated TAO Core train dataclass schema
+   │   │   ├── references/spec_template_train.yaml  # generated from schemas/train.schema.json.default
    │   │   └── <network>.md
    │   ├── <another-network>/
    │   └── ...
    ├── data/
+   ├── scripts/generate_dataclass_schemas.py
    └── platform/
    ```
-   **CRITICAL**: The `SkillBank.get_default_specs(network, "train")` call requires either `references/spec_template_train.yaml` or `defaults-train.json` in the model directory. If missing, the runner raises `ValueError: No default train specs found`. Create `defaults-train.json` from the network's experiment spec (found at `tao-pytorch/nvidia_tao_pytorch/cv/<network>/experiment_specs/train.yaml`).
+   **CRITICAL**: AutoML requires both a default train spec and a packaged generated train dataclass schema:
+   - `SkillBank.get_default_specs(network, "train")` requires either `references/spec_template_train.yaml` or `defaults-train.json`. `references/spec_template_<action>.yaml` is generated from the matching schema JSON's top-level `default` field. If missing, the runner raises `ValueError: No default train specs found`.
+   - `models/<network>/schemas/train.schema.json` must exist and parse as JSON. This is the gate for AutoML support because it defines `automl_enabled` parameters, defaults, ranges, options, weights, and popular metadata. The plugin workflow must not expect `~/tao-core` to exist at runtime; schemas are generated during skill-bank maintenance and shipped with the plugin. If the packaged train schema is missing, do not run AutoML for that model.
 4. **Conda environment**: Use the `tao_sdk` conda environment which has `tao-sdk` pre-installed:
    ```bash
    conda activate tao_sdk
@@ -123,94 +129,106 @@ Each "trial" is called a **recommendation** (rec). One rec = one full training r
 
 ---
 
+## Quick Support Queries
+
+When the user asks what models/networks are supported for AutoML, do not scan `models/` directories or inspect every model folder. Run the packaged support helper, which reads `models/automl_support.json`:
+
+```bash
+${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/list_automl_support.py \
+  --skill-bank ${TAO_SKILL_BANK_PATH:-~/tao-skills-external} --format text
+```
+
+Return both sections from that output: supported models and unsupported models with reasons. The support rule is: AutoML is supported only when `models/<network>/schemas/train.schema.json` is packaged and valid.
+
+---
+
 ## Step 1: Parse User Intent
 
-Extract from the user's request:
+Default to a quick-start run unless the user explicitly asks to customize AutoML or agrees to a customization offer. Do not present algorithm, budget, or search-space choices as required inputs for a normal "run AutoML" request.
+
+Extract these fields for a default run:
 
 | Field | Required | Example | How to get it |
 |---|---|---|---|
 | `network_arch` | Yes | `"<network_arch>"` | User states the model |
-| `train_dataset_uri` | Yes | `"s3://bucket/data/subset"` | User provides the URI |
+| `train_dataset_uri` | Yes | `"s3://bucket/data/subset"` or `"/lustre/fsw/tao_datasets/<model>/train"` | User provides the URI/path, or the model skill declares a default profile for this exact network/use case. |
+| `eval_dataset_uri` | Model-dependent | `"s3://bucket/data/eval"` or `"/lustre/fsw/tao_datasets/<model>/eval"` | Ask only if the model skill's Per-Action Dataset Requirements require an eval/validation source and no default profile supplies it. |
 | `metric` | No | `"<metric_name>"` | Use the model skill recommendation or ask if unclear. Do not choose model-specific metrics from this AutoML skill. |
 | `direction` | No | `"minimize"` or `"maximize"` | **Only needed if your metric name doesn't contain `"loss"` AND you want to minimize, or contains `"loss"` AND you want to maximize.** Otherwise the implicit "contains 'loss' → minimize, else maximize" rule applies. |
-| `algorithm` | No | `"bayesian"` (default) | See algorithm guide below |
-| `max_recommendations` | No | 5–20 | Ask budget — each rec is one full training run |
-| `status_interval_minutes` | No | 10 | Ask how many minutes between AutoML status updates. Default to 10 minutes if the user accepts the default. |
 | `skill_bank_path` | Yes (if not set) | `"~/tao-skills-external"` | Check if `TAO_SKILL_BANK_PATH` env var is set. If not, ask the user for the path. Default: `~/tao-skills-external`. The runner raises `ValueError: No skill config found` without it. |
-| `llm_endpoint` | **Yes** (for `llm`/`hybrid`/`autoresearch`) | `"https://inference-api.nvidia.com"` | **MUST prompt.** The code default `https://integrate.api.nvidia.com/v1` returns 404. Always ask for and pass explicitly. |
-| `llm_model` | **Yes** (for `llm`/`hybrid`/`autoresearch`) | `"gcp/google/gemini-3.1-pro-preview"` | **MUST prompt.** Ask which model to use. Default: `meta/llama-3.1-70b-instruct` via NIM. |
-| `llm_api_key` | **Yes** (for `llm`/`hybrid`/`autoresearch`) | `"nvapi-..."` or `"sk-..."` | **MUST prompt** if `NVIDIA_API_KEY` / `AUTOML_LLM_API_KEY` env vars are not set. |
+| required model credentials | Model-dependent | `HF_TOKEN` for `cosmos-rl` | Read the selected model skill's **Credentials** and `config.json.required_credentials`. Check declared secret files/environment only when the skill permits it; prompt for missing values. |
+| compute shape | Model-dependent | `num_gpus=4`, `dp_shard_size=4`, `dp_replicate_size=1` | Ask only for model-required hardware fields that are not provided by the platform/default profile. |
 
-Ask for the status interval during normal input collection:
+Use these quick-start AutoML defaults without asking:
 
-```text
-How many minutes between AutoML status updates? Default is 10 minutes.
+| Field | Default |
+|---|---|
+| `algorithm` | `bayesian`, unless the user/model default profile explicitly selects another algorithm |
+| `automl_max_recommendations` | model/workflow default if declared, otherwise `10` |
+| `automl_hyperparameters` | `None` so AutoML uses dataclass-schema params with `automl_enabled=true` |
+| `custom_param_ranges` | `None` so ranges/options/defaults come from the generated dataclass schema |
+| `status_interval_minutes` | `10` |
+
+If any required field is missing, ask the user. Do NOT guess dataset paths, skill bank paths, credentials, or hardware that the model skill marks as required.
+
+**Customization gate:** After the required quick-start fields are resolved, you may briefly offer customization. If the user declines or does not ask for it, proceed with the defaults above. If the user chooses customization, then present the additional options below.
+
+Customization-only fields:
+
+| Field | Example | Notes |
+|---|---|---|
+| `algorithm` | `bayesian`, `asha`, `hyperband`, `bohb`, `llm`, `hybrid`, `autoresearch` | Present the algorithm guide only in customization mode or when the user names an algorithm. |
+| `max_recommendations` | `5`, `10`, `20` | Explain that each recommendation is a real training job. |
+| `status_interval_minutes` | `10` | Only ask if the user wants status cadence customization. |
+| `automl_hyperparameters` | `["train.optm_lr", "train.epoch"]` | List choices from the generated schema JSON, not from hand-written guesses. |
+| `custom_param_ranges` | `{"train.optm_lr": {"valid_min": 1e-6, "valid_max": 1e-4}}` | Validate against schema type/range/options before using. |
+| `llm_endpoint`, `llm_model`, `llm_api_key` | `https://inference-api.nvidia.com`, `gcp/google/gemini-3.1-pro-preview`, `nvapi-...` | Required only when the selected algorithm is `llm`, `hybrid`, or `autoresearch`. Resolve from env/secret files first where allowed, then prompt. |
+
+**MANDATORY: Read the generated dataclass schema before configuring AutoML.**
+
+For the selected model/action, read:
+
+- `${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/models/<network>/schemas/train.schema.json`
+- `${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/models/<network>/schemas/manifest.json`
+
+AutoML can run only when `schemas/train.schema.json` is packaged with the plugin and valid for the selected model. Do not fall back to hand-written model notes, `defaults-train.json`, old runner scripts, or a local `~/tao-core` checkout for AutoML parameter metadata. If the train schema is missing, stop and report that AutoML is not currently supported for that model until the schema is generated and shipped in the skill bank.
+
+Use the schema JSON as the source of truth for:
+
+- `automl_default_parameters`
+- `automl_disabled_parameters`
+- per-parameter `default`, `minimum`, `maximum`, `enum`, `option_weights`, `math_cond`, `depends_on`, `parent_param`, and `popular`
+
+For skill-bank maintainers only, regenerate schemas before packaging the plugin:
+
+```bash
+PYTHONPATH=~/tao-core ~/tao-skills-external/scripts/generate_dataclass_schemas.py \
+  --skill-bank ~/tao-skills-external --tao-core ~/tao-core --model <network>
 ```
 
-If any required field is missing, ask the user. Do NOT guess dataset paths, skill bank paths, or LLM endpoints.
+When `automl_hyperparameters=None`, the runner automatically discovers all params marked `automl_enabled=True` in the network's generated schema. Each network has its own set; never hardcode them in this workflow skill.
 
-**MANDATORY: Determine user experience level.**
+To display customization choices, traverse the generated schema's `properties` by dotted parameter path and show: `parameter`, `type`, `default`, `minimum`, `maximum`, `enum`, `option_weights`, `math_cond`, `depends_on`, `popular`, and whether the path is listed in `automl_default_parameters`.
 
-Before diving into configuration, ask the user (or infer from context) whether they want:
-
-**Quick start (first-time / "just run it"):**
-- Algorithm: `hybrid` (LLM + bayesian) — intelligent search with no manual tuning
-- Experiments: 10 recommendations
-- Hyperparameters: `None` (use schema defaults — params with `automl_enabled=True` in the network's dataclass)
-- Ranges: schema defaults (no `custom_param_ranges`)
-- The agent only needs: `network_arch`, `train_dataset_uri`, and LLM credentials (for hybrid)
-
-When `automl_hyperparameters=None`, the runner automatically discovers all params marked `automl_enabled=True` in the network's JSON schema. Each network has its own set; the dataclass definitions in `tao-automl/src/tao_automl/config/<network>/` and the model skill's **AutoML / HPO Notes** are the source of truth.
+Quick-start runner shape:
 
 ```python
-# Quick start — all defaults
 result = runner.run(
     network_arch=network_arch,
-    train_dataset_uri=S3_TRAIN,
+    train_dataset_uri=TRAIN_DATASET_URI,
     automl_settings={
-        "algorithm": "hybrid",
+        "algorithm": "bayesian",
         "metric": metric,
         "automl_max_recommendations": 10,
-        "llm_endpoint": "https://inference-api.nvidia.com",
-        "llm_model": "gcp/google/gemini-3.1-pro-preview",
-        "llm_api_key": llm_api_key,
     },
-    # automl_hyperparameters=None → uses schema defaults
-    # custom_param_ranges=None → uses schema defaults
-    spec_overrides={...},  # from model MD Typical Spec Overrides
+    automl_hyperparameters=None,  # use schema params marked automl_enabled=true
+    custom_param_ranges=None,     # use schema ranges/options/defaults
+    spec_overrides={...},         # from model skill + dataset requirements
     workspace_path=f"./automl/{TIMESTAMP}",
 )
 ```
 
-**Advanced (customize everything):**
-- User can see which params are available and their default ranges
-- User picks which params to enable/disable
-- User sets custom bounds, option weights, and algorithm-specific settings
-- User picks the algorithm
-
-The agent should present the available AutoML parameters from the model's schema. Each param record includes: `parameter` (dotted name), `value_type` (int, float, categorical, list_2, subset_list, etc.), `default_value`, `valid_min`, `valid_max`, `valid_options`, `option_weights`, `math_cond`, `depends_on`, and `automl_enabled`.
-
-To show available params programmatically:
-
-```python
-from tao_automl.search_space.params import generate_hyperparams_to_search
-from tao_automl.schema.dataclass2json_converter import generate_schema
-
-schema = generate_schema(network_arch, "train")
-param_records, param_names = generate_hyperparams_to_search(
-    network=network_arch,
-    action="train",
-    train_specs=schema.get("default", {}),
-    automl_hyperparameters=None,  # None = show all automl_enabled params
-    override_automl_disabled_params=True,  # True = show ALL params, even disabled ones
-)
-for rec in param_records:
-    if rec:
-        print(f"{rec['parameter']:40s} type={rec['value_type']:15s} "
-              f"enabled={rec.get('automl_enabled', False)}")
-```
-
-Then the user picks from this list and optionally customizes ranges:
+Customization runner additions:
 
 ```python
 result = runner.run(
@@ -218,38 +236,39 @@ result = runner.run(
     automl_hyperparameters=selected_param_names,
     custom_param_ranges={
         "<param_name>": {"valid_min": min_value, "valid_max": max_value},
-        "<categorical_param>": {"valid_options": ["option_a", "option_b"], "option_weights": [0.7, 0.3]},
+        "<categorical_param>": {
+            "valid_options": ["option_a", "option_b"],
+            "option_weights": [0.7, 0.3],
+        },
     },
 )
 ```
 
-**How to decide:** If the user says "run AutoML", "optimize hyperparameters", or "tune for me" without specifying details, use the **quick start** path. If they say "I want to choose the parameters", "show me what's available", "customize the search space", or mention specific params/ranges, use the **advanced** path.
-
 **MANDATORY prompting for LLM-based algorithms (`llm`, `hybrid`, `autoresearch`):**
 
-When the user requests an LLM-powered algorithm, you MUST explicitly ask for ALL THREE of the following before generating the script. Do not assume defaults — the code defaults are broken (endpoint 404s) and API keys are never pre-configured:
+When the user requests or customizes into an LLM-powered algorithm, resolve ALL THREE of the following before generating the script. Do not ask for these on default `bayesian` quick-start runs.
 
-1. **`llm_endpoint`** — "What is your LLM endpoint?" (default: `https://inference-api.nvidia.com`)
-2. **`llm_model`** — "Which LLM model?" (default: `meta/llama-3.1-70b-instruct`, or e.g. `gcp/google/gemini-3.1-pro-preview`)
-3. **`llm_api_key`** — "What is your API key?" (check env vars first: `NVIDIA_API_KEY` / `AUTOML_LLM_API_KEY`)
+1. **`llm_endpoint`** — user input → `AUTOML_LLM_ENDPOINT` → `https://inference-api.nvidia.com`
+2. **`llm_model`** — user input → `AUTOML_LLM_MODEL` → `gcp/google/gemini-3.1-pro-preview`
+3. **`llm_api_key`** — `AUTOML_LLM_API_KEY` → `NVIDIA_API_KEY` → declared local secret file when allowed → prompt the user
 
-If the user doesn't provide these, the LLM brain silently falls back to random sampling — wasting GPU budget on random configs instead of intelligent ones. There is no error message; the only clue is "LLM call failed... Falling back to random" in the logs.
+If the runner does not receive valid LLM settings, the LLM brain may silently fall back to random sampling — wasting GPU budget on random configs instead of intelligent ones. There is no error message; the only clue is "LLM call failed... Falling back to random" in the logs.
 
 **MANDATORY: Read the model skill before generating the script.**
 
-AutoML runs training. Before generating any AutoML script, read `~/tao-skills-external/models/<network>/<network>.md`. The model skill `.md` contains all model-specific knowledge:
+AutoML runs training. Before generating any AutoML script, read the selected model skill at `~/tao-skills-external/models/<network>/SKILL.md` when present, otherwise `~/tao-skills-external/models/<network>/<network>.md`. The model skill contains all model-specific knowledge:
 
 - **Training Requirements** — dataset type, formats, monitoring metric, required dataset URIs to prompt for, required user prompts (data format, num_classes, etc.), and mandatory `spec_overrides`. Prompt the user for every required field. Apply mandatory spec_overrides exactly.
 - **Per-Action Dataset Requirements** — table mapping each action to its spec keys, data source, expected files, and whether the field is a list. Use this table to construct the correct data source `spec_overrides` for the requested action. If the model's Typical Spec Overrides mark data sources as "mandatory", construct them from this table and the user's dataset URIs.
 - **Typical Spec Overrides** — per-action override suggestions (train, evaluate, export, inference, etc.) extracted from SDK notebooks. Use these as the starting point for `spec_overrides` and suggest them to the user. When overrides are marked "mandatory data sources", they MUST be included — the runner cannot auto-resolve them. Merge with any other mandatory overrides from Training Requirements.
-- **AutoML / HPO Notes** — recommended hyperparameters, metric, direction, and AutoML-specific constraints.
+- **AutoML / HPO Notes** — metric, direction, model-specific constraints, and any guidance that narrows or overrides the generated schema. Hyperparameter names/ranges/defaults come first from `schemas/train.schema.json`.
 - **Error Patterns** — common training failure modes that apply to AutoML recs too.
 
 Do NOT hardcode model-specific knowledge in the AutoML script without reading the model skill first. Each network has different requirements.
 
 **MANDATORY: No model-specific constants in this AutoML skill.**
 
-The AutoML skill must not define model-specific hyperparameter names, metric names, dataset layouts, archive names, class-count rules, spec override keys, container images, checkpoint quirks, or custom metric regexes. Those belong in `~/tao-skills-external/models/<network>/<network>.md`, especially the **Training Requirements**, **Typical Spec Overrides**, **AutoML / HPO Notes**, and **Error Patterns** sections. This skill may describe how to read and apply those sections, but not the concrete per-model values.
+The AutoML skill must not define model-specific hyperparameter names, ranges, defaults, metric names, dataset layouts, archive names, class-count rules, spec override keys, container images, checkpoint quirks, or custom metric regexes. Hyperparameter metadata belongs in `~/tao-skills-external/models/<network>/schemas/<action>.schema.json`; model-specific runtime guidance belongs in the model skill's **Training Requirements**, **Typical Spec Overrides**, **AutoML / HPO Notes**, and **Error Patterns** sections. This skill may describe how to read and apply those sources, but not the concrete per-model values.
 
 **MANDATORY: Timestamped workspace folders.**
 
@@ -892,7 +911,7 @@ Model-specific notes do not belong in this AutoML skill. For every requested `ne
 11. **LLM brain returning random configs.** If every LLM recommendation looks random, the LLM endpoint is probably failing silently. Check the logs for "LLM call failed" warnings. Verify your API key and endpoint are correct. Common cause: using the wrong endpoint URL (see pitfall #2).
 12. **`openai` package not installed.** The `llm`, `hybrid`, and `autoresearch` algorithms require the `openai` Python package. Install with `pip install openai` or `pip install nvidia-tao-automl[llm]`.
 13. **WandB not logging.** Ensure `wandb_config={"enabled": True}` is passed and either `api_key` is in the config or `WANDB_API_KEY` is set in the environment. Check logs for "WandB initialized" confirmation.
-14. **`No default train specs found` for a network.** The skill bank model directory is missing `defaults-train.json` or `references/spec_template_train.yaml`. Create one from the network's experiment spec in `tao-pytorch/nvidia_tao_pytorch/cv/<network>/experiment_specs/train.yaml`.
+14. **`No default train specs found` for a network.** The skill bank model directory is missing `defaults-train.json` or `references/spec_template_train.yaml`. For packaged plugin workflows, `references/spec_template_train.yaml` should be generated from `schemas/train.schema.json`'s top-level `default` field before packaging.
 15. **`conda run` buffers output.** When running AutoML via `conda run -n tao_sdk python script.py`, all output is buffered until completion. Use `PYTHONUNBUFFERED=1 ~/miniconda3/envs/tao_sdk/bin/python script.py` for real-time output.
 
 ---
