@@ -1,6 +1,19 @@
 ---
 name: lepton
-description: "DGX Cloud Lepton managed GPU compute platform with run/status/cancel interface. Use when submitting jobs to DGX Cloud or managing Lepton GPU resources."
+description: DGX Cloud Lepton managed GPU compute platform with run/status/cancel interface. Use when submitting jobs to DGX
+  Cloud or managing Lepton GPU resources.
+license: Apache-2.0
+compatibility: Requires the tao-sdk Python package with the lepton extra (pip install 'tao-sdk[lepton]') plus LEPTON_WORKSPACE_ID
+  and LEPTON_AUTH_TOKEN.
+metadata:
+  author: Arif Ahmed
+  version: '0.1'
+allowed-tools: Read Bash
+tags:
+- dgx-cloud
+- gpu
+- compute
+- lepton
 ---
 
 # Lepton
@@ -8,6 +21,25 @@ description: "DGX Cloud Lepton managed GPU compute platform with run/status/canc
 Managed GPU compute platform on DGX Cloud. Jobs are submitted as container workloads that run on dedicated or shared GPU node groups. Lepton handles scheduling, image pulling, log collection, and job lifecycle.
 
 Use Lepton when you need cloud-based GPU compute without managing Kubernetes or SLURM infrastructure directly.
+
+## Preflight
+
+Lepton is API-first — no docker-run alternative. This skill needs the TAO SDK with the Lepton extra:
+
+```bash
+python -c "import tao_sdk" 2>/dev/null || {
+  echo "MISSING: nvidia-tao-sdk not installed. Run:"
+  echo "  pip install nvidia-tao-sdk[lepton]"
+  exit 1
+}
+python -c "import leptonai" 2>/dev/null || {
+  echo "MISSING: lepton extra not installed. Run:"
+  echo "  pip install nvidia-tao-sdk[lepton]"
+  exit 1
+}
+```
+
+If missing, the agent prompts the user to authorize the install via Bash, then re-runs the preflight before continuing.
 
 ## Credentials
 

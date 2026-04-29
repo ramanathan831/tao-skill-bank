@@ -1,10 +1,20 @@
 ---
 name: deft-aoi-data-mining
-description: Mine similar images from source datasets to augment training data using k-NN embedding search, consuming gap analysis results from upstream RCA skill
+description: Mine similar images from source datasets to augment training data using k-NN embedding search, consuming gap
+  analysis results from upstream RCA skill
+license: Apache-2.0
+compatibility: Standalone — no external runtime requirements.
+metadata:
+  author: Christina Wang, Sherry Jiang
+  version: '0.1'
+allowed-tools: Read Bash
+tags:
+- data
+- mining
 dependencies:
-  - bash
-  - docker
-  - python3
+- bash
+- docker
+- python3
 ---
 
 

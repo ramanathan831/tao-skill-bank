@@ -1,6 +1,19 @@
 ---
 name: cosmos-predict-2-5
-description: "Cosmos Predict 2.5 text-to-video generation for synthetic data augmentation. Use when generating synthetic training videos from text captions or augmenting video datasets."
+description: Cosmos Predict 2.5 text-to-video generation for synthetic data augmentation. Use when generating synthetic training
+  videos from text captions or augmenting video datasets.
+license: Apache-2.0
+compatibility: Requires docker + nvidia-container-toolkit.
+metadata:
+  author: Ramanathan Arunachalam, Arif Ahmed
+  version: '0.1'
+allowed-tools: Read Bash
+tags:
+- video
+- generation
+- text-to-video
+- cosmos
+- sdg
 ---
 
 # Cosmos Predict 2.5

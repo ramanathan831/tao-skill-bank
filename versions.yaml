@@ -1,0 +1,36 @@
+# versions.yaml — single source of truth for TAO container images and SDK wheels.
+#
+# Skills reference these by dotted key in their `references/skill_info.yaml`
+# `container_image` field. CI bumps RC versions by editing this file; downstream
+# skills resolve their image at runtime via `tao_sdk.versions.resolve_image()`.
+#
+# Both forms are valid in skill_info.yaml:
+#   container_image: tao_toolkit.pyt                                 # key reference (preferred)
+#   container_image: nvcr.io/nvidia/tao/tao-toolkit:6.26.3-pyt       # absolute path (also valid)
+#
+# Use absolute paths for experimental images, third-party registries, or one-off
+# skills not worth adding here. Add to this file when the image will be used by
+# more than one skill OR will be bumped on a release cadence.
+
+images:
+  tao_toolkit:
+    pyt:        nvcr.io/nvidia/tao/tao-toolkit:6.26.3-pyt
+    cosmos_rl:  nvcr.io/nvidia/tao/tao-toolkit:6.26.3-cosmos-rl
+    vila:       nvcr.io/nvidia/tao/tao-toolkit:6.26.3-vila
+
+  iva:
+    smart_data_augmentation: nvcr.io/nvidian/iva/smart_data_augmentation
+    embed:                   nvcr.io/nvidian/iva/embed:latest
+    mining:                  nvcr.io/nvidian/iva/mining:latest
+    sda_cosmos_predict_2:    nvcr.io/nvidian/iva/sda-cosmos-predict-2
+    its_cosmos_sda:          nvcr.io/nvidian/iva/its-cosmos-sda
+    pcb_aoi_ov_sdg:          nvcr.io/nvidian/iva/pcb-aoi-ov-sdg:computex_ver1
+    anomalygen_light:        nvcr.io/nvidian/iva/anomalygen_light:computex20260325
+
+wheels:
+  # Single SDK wheel with extras. The `nvidia-tao-sdk` package consolidates
+  # what used to be three wheels (tao-sdk, tao-sdk-lepton, tao-sdk-brev).
+  tao_sdk:        nvidia-tao-sdk==0.2.0
+  tao_sdk_lepton: nvidia-tao-sdk[lepton]==0.2.0
+  tao_sdk_brev:   nvidia-tao-sdk[brev]==0.2.0
+  tao_sdk_all:    nvidia-tao-sdk[all]==0.2.0

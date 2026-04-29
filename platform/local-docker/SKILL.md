@@ -1,6 +1,17 @@
 ---
 name: local-docker
-description: "Local Docker execution for TAO SDK job containers using the host Docker daemon and NVIDIA GPU runtime. Use when running jobs on the current machine or a directly attached Docker host."
+description: Local Docker execution for TAO SDK job containers using the host Docker daemon and NVIDIA GPU runtime. Use when
+  running jobs on the current machine or a directly attached Docker host.
+license: Apache-2.0
+compatibility: Standalone — no external runtime requirements.
+metadata:
+  author: Ramanathan Arunachalam
+  version: '0.1'
+allowed-tools: Read Bash
+tags:
+- platform
+- local
+- docker
 ---
 
 # Local Docker

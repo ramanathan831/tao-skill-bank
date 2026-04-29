@@ -1,6 +1,17 @@
 ---
 name: analyze-kpi
-description: "KPI threshold optimization — sweep thresholds on inference scores to find optimal FAR/recall/F1 operating point. Use when evaluating model performance, computing optimal thresholds, or deciding whether to continue a DEFT loop."
+description: KPI threshold optimization — sweep thresholds on inference scores to find optimal FAR/recall/F1 operating point.
+  Use when evaluating model performance, computing optimal thresholds, or deciding whether to continue a DEFT loop.
+license: Apache-2.0
+compatibility: Standalone — no external runtime requirements.
+metadata:
+  author: Arif Ahmed
+  version: '0.1'
+allowed-tools: Read Bash
+tags:
+- data
+- analyze
+- kpi
 ---
 
 # Analyze KPI

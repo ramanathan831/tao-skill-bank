@@ -1,6 +1,19 @@
 ---
 name: vcn-threshold-optimize
-description: "Sweep siamese score thresholds to find optimal FAR/recall operating point for Visual ChangeNet. Use when optimizing classification thresholds after VCN inference."
+description: Sweep siamese score thresholds to find optimal FAR/recall operating point for Visual ChangeNet. Use when optimizing
+  classification thresholds after VCN inference.
+license: Apache-2.0
+compatibility: Requires docker + nvidia-container-toolkit.
+metadata:
+  author: Arif Ahmed
+  version: '0.1'
+allowed-tools: Read Bash
+tags:
+- threshold
+- optimization
+- vcn
+- aoi
+- metrics
 ---
 
 # VCN Threshold Optimize

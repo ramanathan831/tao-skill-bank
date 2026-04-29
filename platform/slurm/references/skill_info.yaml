@@ -1,0 +1,40 @@
+type: platform
+required_credentials:
+- name: SLURM_USER
+  source: env_var
+- name: SLURM_HOSTNAME
+  source: env_var
+optional_credentials:
+- name: SSH_KEY_PATH
+  source: env_var
+- name: SSH_AUTH_SOCK
+  source: env_var
+- name: SLURM_BASE_RESULTS_DIR
+  source: env_var
+- name: SLURM_ACCOUNT
+  source: env_var
+- name: SLURM_PARTITION
+  source: env_var
+- name: SLURM_CONTAINER_MOUNTS
+  source: env_var
+- name: NGC_KEY
+  source: env_var
+- name: HF_TOKEN
+  source: env_var
+resource_defaults:
+  num_nodes: 1
+  num_gpus: 4
+  max_num_gpus_per_node: 8
+  cpus_per_task: 16
+  time_hours: 4
+  timeout_hours: 3.8
+  partition: polar,polar3,polar4,grizzly
+  container_mounts: /lustre
+  use_sqsh: true
+  sqsh_conversion_partition: cpu
+  sqsh_conversion_timeout_minutes: 30
+  sqsh_conversion_memory_gb: 32
+cloud_storage:
+  protocol: lustre
+  uri_format: lustre:///{absolute_path}
+  metadata_key: slurm

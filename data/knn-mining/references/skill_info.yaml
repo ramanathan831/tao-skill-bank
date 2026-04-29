@@ -1,0 +1,27 @@
+network_arch: knn-mining
+container_image: iva.mining
+required_credentials: []
+actions:
+  mine:
+    command: python nearest_neighbors.py
+    mode: args
+    num_gpus: 1
+    inputs:
+      source-parquet:
+        type: file
+      target-parquet:
+        type: file
+    outputs:
+      output-parquet:
+        type: file
+    args:
+      source-parquet: '{source_parquet}'
+      target-parquet: '{target_parquet}'
+      output-parquet: '{output_parquet}'
+      topn: '{topn}'
+      knn-metric: '{knn_metric}'
+      source-embed-column-name: embedding
+      target-embed-column-name: embedding
+    defaults:
+      topn: 5
+      knn_metric: cosine

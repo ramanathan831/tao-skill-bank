@@ -1,14 +1,21 @@
 ---
 name: deft-aoi-anomalygen-inference
-description: >-
-  Run the full Cosmos AnomalyGen SDG pipeline: (1) Automatic Mask Placement,
-  (2) Prepare sdg_inference.jsonl, (3) SDG inference with torchrun. All steps
-  execute inside a Docker container. Trigger when the user asks to generate
-  anomaly images, run SDG, create synthetic defect images, or mentions
-  AnomalyGen inference.
+description: 'Run the full Cosmos AnomalyGen SDG pipeline: (1) Automatic Mask Placement, (2) Prepare sdg_inference.jsonl,
+  (3) SDG inference with torchrun. All steps execute inside a Docker container. Trigger when the user asks to generate anomaly
+  images, run SDG, create synthetic defect images, or mentions AnomalyGen inference.'
+license: Apache-2.0
+compatibility: Standalone — no external runtime requirements.
+metadata:
+  author: Sherry Jiang
+  version: '0.1'
+allowed-tools: Read Bash
+tags:
+- data
+- anomalygen
+- inference
 dependencies:
-  - bash
-  - docker
+- bash
+- docker
 ---
 
 # Cosmos AnomalyGen SDG Pipeline
