@@ -18,18 +18,22 @@
   },
   "model": {
     "type": "siglip2-so400m-patch16-256",
+    "adaptor_name": null,
     "freeze_vision_encoder": false,
     "freeze_text_encoder": false,
     "image_size": 256,
     "canonicalize_text": false
   },
   "dataset": {
+    "seed": 42,
     "train": {
       "datasets": [],
       "batch_size": 16,
       "num_workers": 8,
       "type": "custom",
       "wds": {
+        "root_dir": null,
+        "shard_list_file": null,
         "samples_per_shard": 10000
       }
     },
@@ -52,8 +56,7 @@
       ],
       "grayscale": 0.2
     },
-    "pin_memory": true,
-    "seed": 42
+    "pin_memory": true
   },
   "train": {
     "num_gpus": 1,
@@ -70,7 +73,9 @@
     "checkpoint_interval": 1,
     "checkpoint_interval_unit": "epoch",
     "validation_interval": 1,
-    "resume_training_checkpoint_path": "",
+    "val_check_interval": null,
+    "pretrained_model_path": null,
+    "resume_training_checkpoint_path": null,
     "results_dir": "",
     "optim": {
       "optimizer_type": "adamw",
@@ -88,6 +93,40 @@
     "loss_type": "siglip",
     "precision": "fp16",
     "grad_checkpointing": false,
+    "grad_clip_norm": null,
     "distributed_strategy": "ddp"
+  },
+  "evaluate": {
+    "checkpoint": null,
+    "trt_engine": null,
+    "batch_size": 16
+  },
+  "inference": {
+    "checkpoint": null,
+    "trt_engine": null,
+    "datasets": [],
+    "text_file": null,
+    "batch_size": 16
+  },
+  "export": {
+    "checkpoint": null,
+    "onnx_file": "${results_dir}/export/clip_model.onnx",
+    "encoder_type": "combined",
+    "input_height": 256,
+    "input_width": 256,
+    "batch_size": -1,
+    "opset_version": 17
+  },
+  "gen_trt_engine": {
+    "onnx_file": "${results_dir}/export/clip_model.onnx",
+    "trt_engine": "${results_dir}/deploy/clip_model.engine",
+    "batch_size": -1,
+    "tensorrt": {
+      "workspace_size": 4096,
+      "data_type": "fp16",
+      "min_batch_size": 1,
+      "opt_batch_size": 1,
+      "max_batch_size": 16
+    }
   }
 }
