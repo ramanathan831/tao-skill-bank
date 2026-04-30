@@ -5,7 +5,7 @@ description: Docker conventions for running NVIDIA GPU container workloads — N
   another skill requires running an nvcr.io container or any docker run command on a GPU host. Trigger keywords — docker,
   docker run, nvcr.io, NGC, --gpus, nvidia-container-toolkit, container image, docker login, docker pull.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit.
+compatibility: Requires NVIDIA driver branch 580, CUDA Toolkit 13.0, Docker, and NVIDIA Container Toolkit 1.19.0.
 metadata:
   version: '0.1'
   author: Arif Ahmed
@@ -23,13 +23,24 @@ Sources: official Docker CLI reference (<https://docs.docker.com/reference/cli/d
 
 ## Prerequisites
 
-1. **Docker** — `docker --version` must return ≥ 20.10. Install: <https://docs.docker.com/engine/install/>.
-2. **NVIDIA Container Toolkit** — required for `--gpus`. Smoke test: `docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-smi`. Install: <https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html>.
+1. **Host GPU runtime** — NVIDIA driver branch 580, CUDA Toolkit 13.0, and NVIDIA Container Toolkit 1.19.0. Check with the `nvidia-gpu-setup` skill before any GPU workflow starts.
+2. **Docker** — `docker --version` must return ≥ 20.10. Install: <https://docs.docker.com/engine/install/>.
 3. **NGC API key** for `nvcr.io/*` pulls. Get from <https://ngc.nvidia.com/>.
 
 ```bash
+TAO_SKILL_BANK_ROOT="${TAO_SKILL_BANK_ROOT:-$PWD}"
+SETUP_SCRIPT="${TAO_SKILL_BANK_ROOT}/skills/nvidia-gpu-setup/scripts/setup-nvidia-gpu-host.sh"
+[ -x "$SETUP_SCRIPT" ] || SETUP_SCRIPT="${TAO_SKILL_BANK_ROOT}/platform/nvidia-gpu-setup/scripts/setup-nvidia-gpu-host.sh"
+
+bash "$SETUP_SCRIPT" --backend docker --check-only || {
+  echo "MISSING: TAO GPU host runtime is not ready."
+  echo "After user approval, run:"
+  echo "  bash \"$SETUP_SCRIPT\" --backend docker --install --yes"
+  exit 1
+}
+
 docker --version
-docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-smi
+docker run --rm --runtime=nvidia --gpus all ubuntu nvidia-smi
 [ -n "$NGC_KEY" ] || echo "NGC_KEY unset — cannot pull nvcr.io images"
 ```
 
@@ -189,7 +200,7 @@ Most TAO training workloads don't need this — single container per job.
 
 ## Common error modes
 
-**`could not select device driver "" with capabilities: [[gpu]]`** — NVIDIA Container Toolkit missing. Install + `sudo systemctl restart docker`.
+**`could not select device driver "" with capabilities: [[gpu]]`** — NVIDIA Container Toolkit missing or Docker is not configured for the NVIDIA runtime. Run `nvidia-gpu-setup` with `--backend docker --install --yes` after user approval, then restart Docker.
 
 **`unauthorized: authentication required`** on `docker pull` — NGC key invalid/missing. Re-run `docker login nvcr.io`.
 

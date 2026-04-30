@@ -3,8 +3,7 @@ name: local-docker
 description: Local Docker execution for TAO SDK job containers using the host Docker daemon and NVIDIA GPU runtime. Use when
   running jobs on the current machine or a directly attached Docker host.
 license: Apache-2.0
-compatibility: Requires Docker + nvidia-container-toolkit. The TAO SDK with the docker extra (pip install 'nvidia-tao-sdk[docker]')
-  is needed only if you want Job handles, S3 I/O wrapping, or run-folder durability via ActionWorkflow.
+compatibility: Requires NVIDIA driver branch 580, CUDA Toolkit 13.0, Docker, and NVIDIA Container Toolkit 1.19.0. The TAO SDK with the docker extra (pip install 'nvidia-tao-sdk[docker]') is needed only if you want Job handles, S3 I/O wrapping, or run-folder durability via ActionWorkflow.
 metadata:
   author: Ramanathan Arunachalam
   version: '0.2'
@@ -28,14 +27,28 @@ multi-node training, or jobs that need SLURM queueing.
 
 ## Preflight
 
-The skill works in two modes — pick the one matching your need:
+The workflow must verify the host GPU runtime before starting Docker jobs. If
+the check fails, prompt the user to approve the install, run the printed install
+command, and rerun the preflight.
 
 ```bash
+# Host GPU runtime: NVIDIA driver 580, CUDA 13.0, NVIDIA Container Toolkit 1.19.0.
+TAO_SKILL_BANK_ROOT="${TAO_SKILL_BANK_ROOT:-$PWD}"
+SETUP_SCRIPT="${TAO_SKILL_BANK_ROOT}/skills/nvidia-gpu-setup/scripts/setup-nvidia-gpu-host.sh"
+[ -x "$SETUP_SCRIPT" ] || SETUP_SCRIPT="${TAO_SKILL_BANK_ROOT}/platform/nvidia-gpu-setup/scripts/setup-nvidia-gpu-host.sh"
+
+bash "$SETUP_SCRIPT" --backend docker --check-only || {
+  echo "MISSING: TAO GPU host runtime is not ready."
+  echo "After user approval, run:"
+  echo "  bash \"$SETUP_SCRIPT\" --backend docker --install --yes"
+  exit 1
+}
+
 # Mode 1 — direct docker (no Python). All you need is docker + the GPU runtime.
 docker info >/dev/null 2>&1 || { echo "MISSING: docker daemon not reachable. Start Docker."; exit 1; }
-docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-smi >/dev/null 2>&1 || {
+docker run --rm --runtime=nvidia --gpus all ubuntu nvidia-smi >/dev/null 2>&1 || {
   echo "MISSING: NVIDIA Container Toolkit not installed/configured. See:"
-  echo "  https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html"
+  echo "  bash \"$SETUP_SCRIPT\" --backend docker --install --yes"
   exit 1
 }
 
