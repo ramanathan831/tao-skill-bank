@@ -2,7 +2,7 @@
 name: kubernetes
 description: Kubernetes execution platform — submits TAO container jobs as single-pod k8s Jobs with NVIDIA GPU scheduling. Use when running on EKS / GKE / AKS / on-prem clusters with the NVIDIA GPU Operator installed, or when integrating TAO into an existing k8s-native ML platform.
 license: Apache-2.0
-compatibility: Requires the nvidia-tao-sdk Python package with the kubernetes extra (pip install 'nvidia-tao-sdk[kubernetes]'), an authenticated cluster (kubeconfig or in-cluster service account), and the NVIDIA GPU Operator on the cluster.
+compatibility: Requires GPU worker nodes with NVIDIA driver branch 580, CUDA Toolkit 13.0, and NVIDIA Container Toolkit 1.19.0; the nvidia-tao-sdk Python package with the kubernetes extra (pip install 'nvidia-tao-sdk[kubernetes]'); an authenticated cluster; and the NVIDIA GPU Operator or device plugin.
 metadata:
   author: Arif Ahmed
   version: '0.1'
@@ -23,9 +23,28 @@ Single-pod by default; opt into multi-node distributed training via `num_nodes >
 
 ## Preflight
 
-Three checks: SDK installed, cluster reachable, GPU Operator present.
+Four checks: GPU host runtime ready, SDK installed, cluster reachable, GPU
+Operator/device plugin present.
 
 ```bash
+# 0. GPU node host runtime.
+# Run this on each self-managed GPU worker node or in the node image build.
+# Set TAO_K8S_SKIP_NODE_RUNTIME_CHECK=1 only when using managed GPU nodes whose
+# driver/toolkit lifecycle is owned by the cloud provider or GPU Operator policy.
+if [ "${TAO_K8S_SKIP_NODE_RUNTIME_CHECK:-0}" != "1" ]; then
+  TAO_SKILL_BANK_ROOT="${TAO_SKILL_BANK_ROOT:-$PWD}"
+  SETUP_SCRIPT="${TAO_SKILL_BANK_ROOT}/skills/nvidia-gpu-setup/scripts/setup-nvidia-gpu-host.sh"
+  [ -x "$SETUP_SCRIPT" ] || SETUP_SCRIPT="${TAO_SKILL_BANK_ROOT}/platform/nvidia-gpu-setup/scripts/setup-nvidia-gpu-host.sh"
+
+  bash "$SETUP_SCRIPT" --backend kubernetes --check-only || {
+    echo "MISSING: TAO Kubernetes GPU node runtime is not ready."
+    echo "For self-managed GPU nodes, run after user approval:"
+    echo "  bash \"$SETUP_SCRIPT\" --backend kubernetes --install --yes"
+    echo "For managed clusters, verify the node image/GPU Operator policy installs driver 580 and toolkit 1.19.0, then set TAO_K8S_SKIP_NODE_RUNTIME_CHECK=1."
+    exit 1
+  }
+fi
+
 # 1. SDK + kubernetes extra installed
 python -c "import tao_sdk" 2>/dev/null || {
   echo "MISSING: nvidia-tao-sdk not installed. Run:"
@@ -57,7 +76,14 @@ if command -v kubectl >/dev/null 2>&1; then
 fi
 ```
 
-The third check is a warning rather than a hard fail — `kubectl` isn't always installed. The SDK does a hard guard inside `KubernetesSDK.create_job()` that uses the kubernetes Python client to verify GPU capacity before submitting.
+The GPU node runtime check is mandatory for self-managed nodes. For managed
+clusters where the client is not running on a GPU worker, verify the provider
+node image or GPU Operator policy and set `TAO_K8S_SKIP_NODE_RUNTIME_CHECK=1`
+instead of running the installer on the client. The final GPU capacity check is
+a warning rather than a hard fail — `kubectl` isn't always installed. The SDK
+does a hard guard inside
+`KubernetesSDK.create_job()` that uses the kubernetes Python client to verify
+GPU capacity before submitting.
 
 ## Credentials & configuration
 
@@ -129,7 +155,13 @@ sdk.cancel_job(job.id)  # delete_namespaced_job with propagation_policy="Foregro
 
 ## GPU Operator dependency
 
-The SDK refuses to submit GPU jobs to a cluster with no `nvidia.com/gpu` allocatable. To install the NVIDIA GPU Operator:
+The SDK refuses to submit GPU jobs to a cluster with no `nvidia.com/gpu` allocatable. For self-managed clusters, first run the `nvidia-gpu-setup` install action on every GPU worker node or bake the same package set into the node image:
+
+```bash
+bash platform/nvidia-gpu-setup/scripts/setup-nvidia-gpu-host.sh --backend kubernetes --install --yes
+```
+
+Then install the NVIDIA GPU Operator or device plugin:
 
 ```bash
 helm repo add nvidia https://helm.ngc.nvidia.com/nvidia

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # End-to-end verification: skill bank works standalone (no tao_sdk import required).
 #
-# Requires: docker + nvidia-container-toolkit + NGC login + 24GB+ VRAM GPU.
+# Requires: NVIDIA driver 580 + CUDA 13.0 + docker + nvidia-container-toolkit 1.19.0 + NGC login + 24GB+ VRAM GPU.
 # Does NOT require: pip install tao-sdk.
 #
 # Pass = every step returns 0. Fail = any step returns non-zero.
@@ -21,9 +21,10 @@ else
 fi
 
 echo
-echo "=== 2. Docker + nvidia-container-toolkit + NGC login"
+echo "=== 2. NVIDIA GPU runtime + Docker + NGC login"
+bash platform/nvidia-gpu-setup/scripts/setup-nvidia-gpu-host.sh --backend docker --check-only
 docker --version
-docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-smi >/dev/null && echo "  OK: GPU + toolkit"
+docker run --rm --runtime=nvidia --gpus all ubuntu nvidia-smi >/dev/null && echo "  OK: GPU + toolkit"
 grep -q 'nvcr.io' ~/.docker/config.json 2>/dev/null && echo "  OK: NGC login present" || {
   echo "  FAIL: not logged into nvcr.io. Run: echo \$NGC_KEY | docker login nvcr.io -u '\$oauthtoken' --password-stdin"
   exit 1

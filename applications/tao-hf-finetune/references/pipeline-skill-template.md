@@ -1,3 +1,19 @@
+<!--
+Copyright (c) 2026, NVIDIA CORPORATION.  All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
 # Pipeline Rerun Skill Template
 
 Step 6 of `tao-hf-finetune` emits a self-contained "rerun this run" skill so the
@@ -24,6 +40,13 @@ Write the file below. Every `<placeholder>` must be replaced with a real value
 from `config.yaml`, `reports/*.json`, or the host environment (run `nvidia-smi`,
 read `meta/recipe.md`, etc.). Literal placeholders left in the output are a bug.
 
+The emitted `SKILL.md` must start with YAML front matter (`---` … `---`), then the
+NVIDIA Apache 2.0 copyright notice in an HTML comment (`<!--` … `-->`), exactly as
+below, then the body. Markdown renders this as invisible metadata; do not use `#`
+lines for the notice (they show up as visible headings).
+Keep `license: Apache-2.0`, `metadata.author`, and `metadata.version` aligned with
+the parent `tao-hf-finetune` skill unless product policy says otherwise.
+
 ---
 
 ## Template
@@ -35,7 +58,31 @@ description: >
   Rerun the fine-tune pipeline in this directory: <model_id> on <dataset_id>
   (<task>). Expected <primary>: baseline <baseline_value> → fine-tuned <ft_value>.
   Wall time ~<train_seconds>s on <gpu_name>.
+license: Apache-2.0
+compatibility: >
+  Requires docker + nvidia-container-toolkit, NVIDIA GPU (driver ≥ <driver_major>,
+  VRAM ≥ <vram_gb> GB), ~40 GB free disk, and HF_TOKEN. WANDB_API_KEY/WANDB_PROJECT optional.
+metadata:
+  author: NVIDIA CORPORATION
+  version: '0.1'
+allowed-tools: Read Bash
 ---
+
+<!--
+Copyright (c) 2026, NVIDIA CORPORATION.  All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
 
 # Run: <model_short_name>
 
@@ -162,6 +209,9 @@ This pipeline was generated from:
 ## Sanity checks before returning
 
 - The skill file exists and has no literal `<placeholder>` strings left.
+- YAML includes `license`, `compatibility`, `metadata` (`author`, `version`), and
+  `allowed-tools`; body begins with the NVIDIA copyright notice in an HTML comment
+  immediately after the closing `---`.
 - Numbers in "Expected results" match `reports/*.json`.
 - `--checkpoint <model_id>` is the real model ID string.
 - Docker commands consistently reference `run-<model_short_name>:latest`.

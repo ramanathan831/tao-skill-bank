@@ -6,7 +6,29 @@ description: >
   exact_match 0% → 55%, substring_match 40% → 57%. Wall time ~14 min on A100-SXM4-80GB.
   (1-epoch variant: exact 8%, substr 52%, 3 min. Most of the exact-match jump
    from 1→5 epochs is the model learning to emit VQA-style short answers.)
+license: Apache-2.0
+compatibility: Requires docker + nvidia-container-toolkit, NVIDIA GPU (driver ≥ 545, ≥ 16 GB VRAM), ~40 GB free disk, and HF_TOKEN. WANDB_API_KEY/WANDB_PROJECT optional.
+metadata:
+  author: NVIDIA CORPORATION
+  version: '0.1'
+allowed-tools: Read Bash
 ---
+<!--
+Copyright (c) 2026, NVIDIA CORPORATION.  All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
 
 # Run: smolvlm-256m-vqav2
 

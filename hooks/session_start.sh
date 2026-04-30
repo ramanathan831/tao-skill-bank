@@ -90,8 +90,12 @@ fi
 if ! command -v docker >/dev/null 2>&1; then
   echo "## ⚠ Docker missing"
   echo
-  echo "Most TAO skills need docker + nvidia-container-toolkit. Install:"
+  echo "Most TAO skills need Docker plus the pinned TAO GPU host runtime:"
+  echo "- NVIDIA driver branch 580"
+  echo "- CUDA Toolkit 13.0"
+  echo "- NVIDIA Container Toolkit 1.19.0"
+  echo
+  echo "Use the \`nvidia-gpu-setup\` skill to check or install the NVIDIA pieces, and install Docker separately:"
   echo "- Docker: https://docs.docker.com/engine/install/"
-  echo "- NVIDIA Container Toolkit: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html"
   echo
 fi

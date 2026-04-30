@@ -15,7 +15,29 @@ description: >
   semantic-segmentation, instance-segmentation, depth-estimation,
   image-text-to-text (VLM SFT / LoRA), LLM SFT / DPO / GRPO.
   Rejects models whose AutoConfig fails to load.
+license: Apache-2.0
+compatibility: Requires docker + nvidia-container-toolkit, NVIDIA GPU (driver ≥ 545, ≥ 24 GB VRAM for ≤3B models), ~40 GB free disk, HF_TOKEN, and WANDB_API_KEY/WANDB_PROJECT.
+metadata:
+  author: NVIDIA CORPORATION
+  version: '0.1'
+allowed-tools: Read Bash Write WebFetch
 ---
+<!--
+Copyright (c) 2026, NVIDIA CORPORATION.  All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
 
 # tao-hf-finetune
 
@@ -505,12 +527,16 @@ Skip iff `push_to_hub: false` is explicit in `config.yaml`.
 **6b. Emit rerun skill** at `<output_dir>/skills/run-<short>/SKILL.md` per the
 template in `references/pipeline-skill-template.md`. Every `<placeholder>` must
 be substituted with a real value. Literal placeholders in the output are a bug.
+Include full YAML (`license`, `compatibility`, `metadata`, `allowed-tools`) and
+the NVIDIA copyright notice in an HTML comment (`<!--` … `-->`) immediately after
+the closing `---`, as in that template.
 
 **Gate (Done criteria):** all of:
 - Step 5 gate met
 - HF Hub repo exists at the resolved URL with weights + card + `results/`
   (unless `push_to_hub: false`)
-- `<output_dir>/skills/run-<short>/SKILL.md` exists, no `<placeholder>` left
+- `<output_dir>/skills/run-<short>/SKILL.md` exists, no `<placeholder>` left,
+  with metadata + copyright HTML comment per `pipeline-skill-template.md`
 
 **Final message to user** — terse, with direct URLs:
 - wandb URL
