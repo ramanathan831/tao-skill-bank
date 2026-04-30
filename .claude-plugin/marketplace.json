@@ -67,6 +67,7 @@
         "./models/visual-changenet",
         "./platform/brev",
         "./platform/docker",
+        "./platform/kubernetes",
         "./platform/lepton",
         "./platform/local-docker",
         "./platform/slurm",

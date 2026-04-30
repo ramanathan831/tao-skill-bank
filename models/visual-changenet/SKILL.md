@@ -25,7 +25,7 @@ Visual ChangeNet is a TAO Toolkit model for visual inspection and defect detecti
 - **Classify** — Binary image classification using a siamese-style architecture with a shared backbone (C-RADIO ViT) and a learnable difference module. Compares image pairs to classify defects as PASS/NO_PASS.
 - **Segment** — Pixel-level change segmentation using a ViT-Large NVDINOv2 backbone. Compares before/after image pairs to produce a binary change mask.
 
-The backbone weight (`c_radio_v2_vit_base_patch16_224`) is downloaded from NGC at runtime. Ensure `NGC_KEY` is set in `secrets.json`. The default spec path `model.backbone.pretrained_backbone_path: /workspace/weights/backbone.pth` is resolved by the container infrastructure.
+The backbone weight (`c_radio_v2_vit_base_patch16_224`) is downloaded from NGC at runtime. Ensure `NGC_KEY` is set in your environment (e.g., in `~/.config/tao/.env`). The default spec path `model.backbone.pretrained_backbone_path: /workspace/weights/backbone.pth` is resolved by the container infrastructure.
 
 ## Training Requirements
 

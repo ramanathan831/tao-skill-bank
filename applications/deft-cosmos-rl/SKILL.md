@@ -112,11 +112,12 @@ Merges current iteration's augmented data with previous training annotations.
 
 Fine-tunes Cosmos-RL on the merged training dataset.
 
-- **Skill:** `cosmos-rl` (train action; see `cosmos-rl.md` for spec params like dp_shard_size, dp_replicate_size)
+- **Skill:** `cosmos-rl` (train action; see `models/cosmos-rl/SKILL.md` for spec params like `dp_shard_size`, `dp_replicate_size`).
 - **Input:**
   - `{storage_root}/training_data/annotations.json`
   - Checkpoint: resolved via continual_model rules (see Section 5)
 - **Output:** `{storage_root}/model/` -- trained checkpoint
+- **Multi-node:** set `dp_replicate_size = num_nodes` in the spec and submit with `num_nodes>1` on a multi-node-capable platform (`platform/lepton`, `platform/slurm`, `platform/kubernetes`). Cosmos-RL drives FSDP from those spec keys; see `models/cosmos-rl/SKILL.md` "Parallelism" section. Brev and local Docker are single-host only.
 
 ### Stage 8: evaluation (GPU)
 

@@ -3,10 +3,11 @@ name: local-docker
 description: Local Docker execution for TAO SDK job containers using the host Docker daemon and NVIDIA GPU runtime. Use when
   running jobs on the current machine or a directly attached Docker host.
 license: Apache-2.0
-compatibility: Standalone — no external runtime requirements.
+compatibility: Requires Docker + nvidia-container-toolkit. The TAO SDK with the docker extra (pip install 'nvidia-tao-sdk[docker]')
+  is needed only if you want Job handles, S3 I/O wrapping, or run-folder durability via ActionWorkflow.
 metadata:
   author: Ramanathan Arunachalam
-  version: '0.1'
+  version: '0.2'
 allowed-tools: Read Bash
 tags:
 - platform
@@ -25,6 +26,35 @@ Use local Docker when the data is local to the Docker host or accessible through
 mounted volumes/cloud credentials. Do not use it for remote cluster scheduling,
 multi-node training, or jobs that need SLURM queueing.
 
+## Preflight
+
+The skill works in two modes — pick the one matching your need:
+
+```bash
+# Mode 1 — direct docker (no Python). All you need is docker + the GPU runtime.
+docker info >/dev/null 2>&1 || { echo "MISSING: docker daemon not reachable. Start Docker."; exit 1; }
+docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-smi >/dev/null 2>&1 || {
+  echo "MISSING: NVIDIA Container Toolkit not installed/configured. See:"
+  echo "  https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html"
+  exit 1
+}
+
+# Mode 2 — TAO SDK wrapper. Adds Job handles, S3 I/O wrapping, ActionWorkflow.
+# Skip this block if Mode 1 is sufficient for the user's request.
+python -c "import tao_sdk" 2>/dev/null || {
+  echo "MISSING: nvidia-tao-sdk not installed. Run:"
+  echo "  pip install nvidia-tao-sdk[docker]"
+  exit 1
+}
+python -c "import docker" 2>/dev/null || {
+  echo "MISSING: docker Python client not installed. Run:"
+  echo "  pip install nvidia-tao-sdk[docker]"
+  exit 1
+}
+```
+
+If a check fails, the agent prompts the user to authorize the install/fix via Bash before proceeding.
+
 ## Credentials
 
 There are no platform credentials required beyond access to the Docker daemon.
@@ -42,6 +72,12 @@ Optional environment:
 - **ACCESS_KEY**, **SECRET_KEY**, **S3_ENDPOINT_URL**, **S3_BUCKET_NAME**:
   Optional S3-compatible storage settings for jobs that still read/write cloud
   storage from a local container.
+
+## Multi-GPU and multi-node
+
+**Multi-node is not supported on local Docker.** One job runs on the local Docker daemon's host with no cross-host coordination.
+
+Multi-GPU **on the local host** is supported via the NVIDIA Container Toolkit's `--gpus` flag (`--gpus all` or `--gpus '"device=0,1,2,3"'`). `DockerSDK.create_job(gpu_count=N)` plumbs through to `--gpus`. Single-host distributed init uses `localhost`; `torchrun --nproc-per-node=N` or PyTorch DDP work as usual.
 
 ## Backend Details
 
@@ -111,6 +147,32 @@ reconciliation treats the backend process as terminated.
 
 Cancellation stops the named container. GPU ownership is managed by Docker /
 the NVIDIA runtime, not by TAO Core's local GPU manager.
+
+## Optional: via the TAO SDK
+
+If you want Job handles, S3 I/O wrapping via the SDK's `script_runner`, or
+durability across sessions:
+
+```python
+from tao_sdk.platforms.docker import DockerSDK
+
+sdk = DockerSDK()  # reads DOCKER_HOST, NGC_KEY, S3 creds from env
+job = sdk.create_job(
+    image='nvcr.io/nvidia/tao/tao-toolkit:6.26.3-pyt',
+    command='dino train -e /tmp/spec.yaml',
+    gpu_count=1,
+    inputs={'/data/train.json': 's3://bucket/coco/train.json'},
+    outputs=['/results/'],
+)
+
+status = sdk.get_job_status(job.id)
+logs = sdk.get_job_logs(job.id, tail=200)
+```
+
+This wraps the same `docker run` invocation under a `Job` handle and routes
+the entrypoint through `script_runner` so `inputs`/`outputs` get downloaded
+from / uploaded to S3 automatically. If you don't need those, just use
+`docker run` directly — no SDK install required.
 
 ## Failure Modes
 
