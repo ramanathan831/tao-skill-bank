@@ -1,0 +1,11 @@
+# Idefics3 regression — pin transformers 4.49 per tao-hf-finetune error playbook
+transformers==4.49.0
+tokenizers==0.21.0
+datasets>=2.18
+accelerate>=0.30
+peft>=0.11,<0.15
+evaluate>=0.4
+wandb>=0.17
+pillow
+sentencepiece
+numpy<2
