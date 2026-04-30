@@ -13,6 +13,18 @@ description: >-
 - "Run the DEFT loop on my model"
 - "Fine-tune until KPI is met"
 
+## Launch Intake
+
+After the user confirms they want to run this workflow, ask which supported
+platform they intend to run on. Generate the platform choices with
+`${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/list_tao_platforms.py --format text`;
+do not scan platform docs or folders.
+
+After platform selection, run
+`${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/list_tao_platforms.py --platform <platform> --format text`
+and ask only for credentials relevant to that platform, plus model-specific
+credentials.
+
 ---
 
 ## Sub-Skills Required

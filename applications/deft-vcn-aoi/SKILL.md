@@ -11,6 +11,18 @@ Mining-based iterative data augmentation for binary image classification. Unlike
 
 PCB defect detection (Area of Interest / AOI). Visual ChangeNet compares image pairs (baseline vs. test) to classify defects as PASS or NO_PASS. The SDA loop identifies failure cases and augments the training set with similar images from an unlabeled source pool.
 
+## Launch Intake
+
+After the user confirms they want this DEFT workflow, ask which supported
+platform they intend to run on. Generate the platform choices with
+`${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/list_tao_platforms.py --format text`;
+do not scan platform docs or folders.
+
+After platform selection, run
+`${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/list_tao_platforms.py --platform <platform> --format text`
+and ask only for credentials relevant to that platform, plus model-specific
+credentials.
+
 ## Pipeline Stages
 
 ### Init Phase

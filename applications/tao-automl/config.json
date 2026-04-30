@@ -13,7 +13,7 @@
       },
       {
         "name": "platform",
-        "description": "Compute backend available through the TAO SDK, usually lepton, brev, slurm, local-docker, or kubernetes."
+        "description": "Compute backend selected from scripts/list_tao_platforms.py output; do not derive choices by scanning platform docs or folders."
       },
             {
                 "name": "skill_bank_path",
@@ -45,6 +45,14 @@
                 "name": "custom_param_ranges",
                 "description": "Customization-only range/option overrides validated against the generated dataclass schema."
             },
+            {
+                "name": "long_running_enabled",
+                "description": "Whether the agent should stay attached and emit periodic AutoML status until completion. Prompt during launch intake; default true."
+            },
+            {
+                "name": "status_interval_minutes",
+                "description": "Minutes between long-running AutoML status updates. Prompt during launch intake; default 5."
+            },
       {
         "name": "llm_endpoint",
         "description": "Required for LLM-powered AutoML algorithms."
@@ -70,7 +78,7 @@
             "description": "Resume or recover an explicitly requested existing AutoML experiment."
         },
         "support": {
-            "description": "List packaged AutoML-supported and unsupported models by reading models/automl_support.json through scripts/list_automl_support.py without scanning model folders."
+            "description": "List AutoML-supported and unsupported models through scripts/list_tao_models.py --scope automl or scripts/list_automl_support.py. The helper reads packaged manifests without scanning model folders and requires a valid models/<network>/schemas/train.schema.json for AutoML support."
         }
     },
   "depends_on": {
@@ -82,7 +90,8 @@
       "lepton",
       "brev",
       "slurm",
-      "local-docker"
+      "local-docker",
+      "kubernetes"
     ]
   },
   "tags": [

@@ -10,7 +10,7 @@
       },
       {
         "name": "platform",
-        "description": "Compute backend (lepton)"
+        "description": "Compute backend selected from scripts/list_tao_platforms.py output; do not derive choices by scanning platform docs or folders."
       },
       {
         "name": "mining_source_csv",

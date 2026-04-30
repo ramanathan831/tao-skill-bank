@@ -13,7 +13,7 @@
       },
       {
         "name": "platform",
-        "description": "Compute backend: lepton, brev, slurm, local-docker, or kubernetes"
+        "description": "Compute backend selected from scripts/list_tao_platforms.py output; do not derive choices by scanning platform docs or folders."
       }
     ],
     "optional": [
@@ -28,6 +28,14 @@
       {
         "name": "image",
         "description": "Docker image override"
+      },
+      {
+        "name": "long_running_enabled",
+        "description": "Whether the agent should stay attached and emit periodic status until completion. Prompt during launch intake; default true."
+      },
+      {
+        "name": "status_interval_minutes",
+        "description": "Minutes between long-running status updates. Prompt during launch intake; default 5."
       }
     ]
   },

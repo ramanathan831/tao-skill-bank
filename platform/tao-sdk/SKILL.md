@@ -1,6 +1,6 @@
 ---
 name: tao-sdk
-description: TAO Execution SDK for submitting and monitoring GPU training jobs on supported platforms (Lepton, Brev, SLURM, local Docker). Use when the user wants to train, evaluate, or run inference on a model via GPU compute.
+description: TAO Execution SDK for submitting and monitoring GPU training jobs on supported platforms (Lepton, Brev, SLURM, local Docker, Kubernetes). Use when the user wants to train, evaluate, run inference, export, or generate TensorRT engines on GPU compute.
 ---
 
 # TAO Execution SDK
@@ -17,7 +17,11 @@ from tao_sdk import TaoExecutionSDK
 sdk = TaoExecutionSDK(creds_file='secrets.json')
 ```
 
-Credentials in `secrets.json`:
+Credentials in `secrets.json` are platform-filtered. Before asking for any
+credentials, resolve the user's platform with
+`scripts/list_tao_platforms.py --platform <platform>` and ask only for that
+platform's required credentials, plus model-specific credentials. Example keys
+that may appear across all platforms:
 ```json
 {
   "LEPTON_WORKSPACE_ID": "...",
@@ -36,6 +40,39 @@ Credentials in `secrets.json`:
   "HF_TOKEN": "..."
 }
 ```
+
+## Workflow Launch Intake
+
+For any TAO workflow or action launch, first confirm the user goal. Then ask
+for platform and monitoring preferences before credentials or launch details.
+
+Generate the supported platform choices from the packaged helper, not by
+scanning platform docs or folders:
+
+```bash
+${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/list_tao_platforms.py \
+  --skill-bank ${TAO_SKILL_BANK_PATH:-~/tao-skills-external} --format text
+```
+
+Ask:
+
+1. Which supported platform should run this workflow?
+2. Should long-running monitoring stay enabled? Default: enabled.
+3. How many minutes between status updates? Default: 5 minutes.
+
+After the platform is selected, get the credential filter:
+
+```bash
+${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/list_tao_platforms.py \
+  --skill-bank ${TAO_SKILL_BANK_PATH:-~/tao-skills-external} \
+  --platform <platform> --format text
+```
+
+Ask only for credentials returned for the selected platform. For example, SLURM
+needs `SLURM_USER` and `SLURM_HOSTNAME`; it does not need Lepton credentials.
+Kubernetes and local Docker do not need Lepton or SLURM credentials. Ask storage
+credentials such as S3 keys only when the selected platform and the data/result
+URIs require them.
 
 ## Skill Discovery
 
@@ -99,10 +136,14 @@ Generated runners for normal actions (`train`, `evaluate`, `export`,
 Before launching any normal action, ask the user:
 
 ```text
-How many minutes between status updates? Default is 10 minutes.
+Should I keep long-running monitoring enabled and stream status here until the job finishes?
+Default is yes.
+
+How many minutes between status updates? Default is 5 minutes.
 ```
 
-If the user accepts the default, use `status_interval_minutes = 10`.
+If the user accepts the default, use `long_running_enabled = True` and
+`status_interval_minutes = 5`.
 
 Do not inspect or patch the generated runner script to fix missing inputs,
 checkpoint paths, config format, commands, or upload excludes. Those are skill
@@ -267,9 +308,10 @@ print(f"Results will be at: {job.results_dir}")
 For direct plugin-launched actions (`train`, `evaluate`, `export`,
 `inference`, etc.), create a timestamped workflow folder, submit the job, and
 watch it until terminal status. Report status at the user-selected interval
-(default: 10 minutes) and persist every refresh through the workflow folder.
-Only detach/background the watcher when the user explicitly asks for
-background execution.
+(default: 5 minutes) and persist every refresh through the workflow folder when
+`long_running_enabled` is true. If `long_running_enabled` is false, submit the
+job, write the workflow folder, report the job id/workspace path, and tell the
+user status can be refreshed later from that workspace.
 
 ```python
 from datetime import datetime
@@ -277,7 +319,8 @@ from tao_sdk.action_workflow import ActionWorkflow
 from tao_sdk.sdk import TaoExecutionSDK
 
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-status_interval_minutes = status_interval_minutes or 10
+long_running_enabled = True if long_running_enabled is None else long_running_enabled
+status_interval_minutes = status_interval_minutes or 5
 workflow = ActionWorkflow(
     root_dir="./eval_runs",
     run_name=f"{network_arch}_{action}",
@@ -304,12 +347,16 @@ def print_status(status, workflow):
         f"status={status.status} message={getattr(status, 'message', '')}"
     )
 
-status = workflow.watch_until_complete(
-    sdk,
-    job.id,
-    interval_seconds=status_interval_minutes * 60,
-    on_status=print_status,
-)
+if long_running_enabled:
+    status = workflow.watch_until_complete(
+        sdk,
+        job.id,
+        interval_seconds=status_interval_minutes * 60,
+        on_status=print_status,
+    )
+else:
+    print(f"Job submitted: {job.id}")
+    print(f"Workflow workspace: {workflow.workspace}")
 ```
 
 If the user asks for status later or the prior watcher died, re-open the same
@@ -469,6 +516,14 @@ known filenames. For example, DINO standard datasets use `images.tar.gz` and
   GPUs
 - Local and `file://` paths are valid only when reachable inside the container
 - Logs are read with the Docker client from the job container
+
+### Kubernetes
+- Jobs run as Kubernetes Jobs on a configured GPU cluster
+- Auth uses kubeconfig (`KUBECONFIG` or `~/.kube/config`) or in-cluster service
+  account credentials
+- Use `backend_details.backend_type = "kubernetes"`
+- Requires NVIDIA GPU Operator or equivalent `nvidia.com/gpu` device plugin
+- Do not ask for Lepton, Brev, or SLURM credentials for Kubernetes runs
 
 ## Error Patterns
 

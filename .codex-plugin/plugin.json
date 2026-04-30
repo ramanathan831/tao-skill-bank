@@ -1,19 +1,24 @@
 {
   "name": "tao-skill-bank",
   "version": "0.1.0",
-  "description": "NVIDIA TAO skill bank for agentic fine-tuning, data processing, workflow orchestration, and platform execution.",
-  "skills": "./",
+  "description": "NVIDIA TAO skill bank for application workflows, model fine-tuning, AutoML, data processing, and platform execution.",
+  "skills": "./skills/",
   "interface": {
     "displayName": "TAO Skill Bank",
-    "shortDescription": "TAO training and workflow skills",
-    "longDescription": "A local Codex plugin that exposes NVIDIA TAO model, data, workflow, and platform skills from this repository.",
+    "shortDescription": "TAO app workflows, model actions, and AutoML",
+    "longDescription": "A local Codex plugin that exposes NVIDIA TAO application workflows, model fine-tuning actions, AutoML, data utilities, and platform skills from this repository. Capability answers should enumerate the application workflows under applications/, describe model train/evaluate/inference/export/TensorRT engine generation support from the packaged schema manifest, list supported execution platforms through scripts/list_tao_platforms.py, and list AutoML-capable models only through bundled scripts that validate models/<network>/schemas/train.schema.json.",
     "developerName": "NVIDIA",
     "category": "Developer Tools",
     "capabilities": [
       "Read",
-      "Write"
+      "Write",
+      "Interactive"
     ],
     "defaultPrompt": [
+      "What can the TAO Skill Bank do?",
+      "List TAO application workflows and model actions.",
+      "List supported TAO execution platforms.",
+      "List AutoML-capable TAO models.",
       "Train a TAO model using the skills in this repo.",
       "Choose the right TAO workflow for my dataset.",
       "Explain which TAO skill fits this task."

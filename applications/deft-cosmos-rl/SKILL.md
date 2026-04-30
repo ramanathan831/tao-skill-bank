@@ -14,6 +14,21 @@ The pipeline uses three concrete skills:
 - **qwen-caption** -- caption generation for gap-analysis videos (see `qwen-caption.md`)
 - **cosmos-predict-2-5** -- synthetic video generation from captions (see `cosmos-predict-2-5.md`)
 
+## Launch Intake
+
+After the user confirms they want this DEFT workflow, ask which supported
+platform they intend to run on. Generate the platform choices with
+`${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/list_tao_platforms.py --format text`;
+do not scan platform docs or folders.
+
+Also ask whether long-running monitoring should stay enabled and how many
+minutes between status updates. Defaults: enabled, 5 minutes.
+
+After platform selection, run
+`${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/list_tao_platforms.py --platform <platform> --format text`
+and ask only for credentials relevant to that platform, plus model-specific
+credentials such as HuggingFace tokens when required.
+
 ## 2. Init Phase
 
 Before the DEFT loop begins, the workflow runs optional initialization stages:

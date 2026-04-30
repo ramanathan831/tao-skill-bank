@@ -1,0 +1,305 @@
+{
+  "schema_version": 1,
+  "default_long_running_enabled": true,
+  "default_status_interval_minutes": 5,
+  "platforms": [
+    {
+      "name": "lepton",
+      "display_name": "Lepton / DGX Cloud",
+      "aliases": [
+        "dgx-cloud"
+      ],
+      "backend_type": "lepton",
+      "description": "Managed GPU compute on DGX Cloud through Lepton jobs.",
+      "required_credentials": [
+        {
+          "name": "LEPTON_WORKSPACE_ID",
+          "source": "env_var"
+        },
+        {
+          "name": "LEPTON_AUTH_TOKEN",
+          "source": "env_var"
+        }
+      ],
+      "optional_credentials": [
+        {
+          "name": "NGC_KEY",
+          "source": "env_var"
+        },
+        {
+          "name": "ACCESS_KEY",
+          "source": "env_var",
+          "only_when": "dataset or result URIs use s3://"
+        },
+        {
+          "name": "SECRET_KEY",
+          "source": "env_var",
+          "only_when": "dataset or result URIs use s3://"
+        },
+        {
+          "name": "S3_ENDPOINT_URL",
+          "source": "env_var",
+          "only_when": "using a custom S3-compatible endpoint"
+        },
+        {
+          "name": "S3_BUCKET_NAME",
+          "source": "env_var",
+          "only_when": "workflow needs a default output bucket"
+        },
+        {
+          "name": "CLOUD_REGION",
+          "source": "env_var",
+          "only_when": "S3-compatible storage requires a region"
+        }
+      ],
+      "storage": {
+        "protocol": "aws",
+        "uri_format": "s3://{bucket_name}/{path}",
+        "metadata_key": "aws"
+      }
+    },
+    {
+      "name": "brev",
+      "display_name": "Brev",
+      "aliases": [],
+      "backend_type": "brev",
+      "description": "Managed GPU instances with Docker support through the Brev CLI.",
+      "required_credentials": [
+        {
+          "name": "BREV_API_TOKEN",
+          "source": "env_var"
+        }
+      ],
+      "optional_credentials": [
+        {
+          "name": "NGC_KEY",
+          "source": "env_var"
+        },
+        {
+          "name": "ACCESS_KEY",
+          "source": "env_var",
+          "only_when": "dataset or result URIs use s3://"
+        },
+        {
+          "name": "SECRET_KEY",
+          "source": "env_var",
+          "only_when": "dataset or result URIs use s3://"
+        },
+        {
+          "name": "S3_ENDPOINT_URL",
+          "source": "env_var",
+          "only_when": "using a custom S3-compatible endpoint"
+        },
+        {
+          "name": "S3_BUCKET_NAME",
+          "source": "env_var",
+          "only_when": "workflow needs a default output bucket"
+        },
+        {
+          "name": "HF_TOKEN",
+          "source": "env_var",
+          "only_when": "selected model requires HuggingFace access"
+        }
+      ],
+      "storage": {
+        "protocol": "aws",
+        "uri_format": "s3://{bucket_name}/{path}",
+        "metadata_key": "aws"
+      }
+    },
+    {
+      "name": "slurm",
+      "display_name": "SLURM",
+      "aliases": [
+        "cluster"
+      ],
+      "backend_type": "slurm",
+      "description": "Remote SLURM GPU cluster execution over SSH with Pyxis/Enroot containers.",
+      "required_credentials": [
+        {
+          "name": "SLURM_USER",
+          "source": "env_var"
+        },
+        {
+          "name": "SLURM_HOSTNAME",
+          "source": "env_var"
+        }
+      ],
+      "optional_credentials": [
+        {
+          "name": "SSH_KEY_PATH",
+          "source": "env_var"
+        },
+        {
+          "name": "SSH_AUTH_SOCK",
+          "source": "env_var"
+        },
+        {
+          "name": "SLURM_BASE_RESULTS_DIR",
+          "source": "env_var"
+        },
+        {
+          "name": "SLURM_ACCOUNT",
+          "source": "env_var"
+        },
+        {
+          "name": "SLURM_PARTITION",
+          "source": "env_var"
+        },
+        {
+          "name": "SLURM_CONTAINER_MOUNTS",
+          "source": "env_var"
+        },
+        {
+          "name": "NGC_KEY",
+          "source": "env_var"
+        },
+        {
+          "name": "HF_TOKEN",
+          "source": "env_var",
+          "only_when": "selected model requires HuggingFace access"
+        }
+      ],
+      "storage": {
+        "protocol": "lustre",
+        "uri_format": "lustre:///{absolute_path}",
+        "metadata_key": "slurm"
+      }
+    },
+    {
+      "name": "local-docker",
+      "display_name": "Local Docker",
+      "aliases": [
+        "docker"
+      ],
+      "backend_type": "local-docker",
+      "description": "Local Docker execution using the host Docker daemon and NVIDIA GPU runtime.",
+      "required_credentials": [],
+      "optional_credentials": [
+        {
+          "name": "DOCKER_HOST",
+          "source": "env_var"
+        },
+        {
+          "name": "DOCKER_NETWORK",
+          "source": "env_var"
+        },
+        {
+          "name": "DOCKER_USERNAME",
+          "source": "env_var"
+        },
+        {
+          "name": "DOCKER_PULL_POLICY",
+          "source": "env_var"
+        },
+        {
+          "name": "DOCKER_AUTO_REMOVE",
+          "source": "env_var"
+        },
+        {
+          "name": "NGC_KEY",
+          "source": "env_var"
+        },
+        {
+          "name": "HOST_SSH_PATH",
+          "source": "env_var"
+        },
+        {
+          "name": "ACCESS_KEY",
+          "source": "env_var",
+          "only_when": "dataset or result URIs use s3://"
+        },
+        {
+          "name": "SECRET_KEY",
+          "source": "env_var",
+          "only_when": "dataset or result URIs use s3://"
+        },
+        {
+          "name": "S3_ENDPOINT_URL",
+          "source": "env_var",
+          "only_when": "using a custom S3-compatible endpoint"
+        },
+        {
+          "name": "S3_BUCKET_NAME",
+          "source": "env_var",
+          "only_when": "workflow needs a default output bucket"
+        },
+        {
+          "name": "HF_TOKEN",
+          "source": "env_var",
+          "only_when": "selected model requires HuggingFace access"
+        }
+      ],
+      "storage": {
+        "protocol": "local",
+        "uri_format": "file://{absolute_path}",
+        "metadata_key": "local"
+      }
+    },
+    {
+      "name": "kubernetes",
+      "display_name": "Kubernetes",
+      "aliases": [
+        "k8s",
+        "local-k8s"
+      ],
+      "backend_type": "kubernetes",
+      "description": "Kubernetes Jobs on a configured GPU cluster using kubeconfig or in-cluster service account auth.",
+      "required_credentials": [],
+      "optional_credentials": [
+        {
+          "name": "KUBECONFIG",
+          "source": "env_var",
+          "only_when": "using a non-default kubeconfig path"
+        },
+        {
+          "name": "TAO_K8S_NAMESPACE",
+          "source": "env_var"
+        },
+        {
+          "name": "TAO_K8S_CONTEXT",
+          "source": "env_var"
+        },
+        {
+          "name": "NGC_KEY",
+          "source": "env_var"
+        },
+        {
+          "name": "ACCESS_KEY",
+          "source": "env_var",
+          "only_when": "dataset or result URIs use s3://"
+        },
+        {
+          "name": "SECRET_KEY",
+          "source": "env_var",
+          "only_when": "dataset or result URIs use s3://"
+        },
+        {
+          "name": "S3_ENDPOINT_URL",
+          "source": "env_var",
+          "only_when": "using a custom S3-compatible endpoint"
+        },
+        {
+          "name": "S3_BUCKET_NAME",
+          "source": "env_var",
+          "only_when": "workflow needs a default output bucket"
+        },
+        {
+          "name": "CLOUD_REGION",
+          "source": "env_var",
+          "only_when": "S3-compatible storage requires a region"
+        },
+        {
+          "name": "HF_TOKEN",
+          "source": "env_var",
+          "only_when": "selected model requires HuggingFace access"
+        }
+      ],
+      "storage": {
+        "protocol": "aws",
+        "uri_format": "s3://{bucket_name}/{path}",
+        "metadata_key": "aws"
+      }
+    }
+  ]
+}

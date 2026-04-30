@@ -25,19 +25,19 @@ The runner is platform-agnostic: platform selection (Lepton, Slurm, K8s) and GPU
 
 Before running AutoML:
 
-1. **SDK credentials**: `secrets.json` must exist with Lepton/DGX credentials. The existing file lives at `~/tao-sdk/secrets.json`:
-   ```json
-   {
-     "LEPTON_WORKSPACE_ID": "...",
-     "LEPTON_AUTH_TOKEN": "nvapi-...",
-     "NGC_KEY": "nvapi-...",
-     "ACCESS_KEY": "...",
-     "SECRET_KEY": "...",
-     "S3_BUCKET_NAME": "nvcf-storage-handling",
-     "CLOUD_REGION": "us-west-1"
-   }
+1. **SDK credentials**: `secrets.json` must contain only the credentials needed
+   for the selected platform plus model-specific credentials. Before asking for
+   credentials, run:
+   ```bash
+   ${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/list_tao_platforms.py \
+     --skill-bank ${TAO_SKILL_BANK_PATH:-~/tao-skills-external} \
+     --platform <platform> --format text
    ```
-   Pass it via `TaoExecutionSDK(creds_file="~/tao-sdk/secrets.json")`.
+   Ask only for credentials from that output. For example, SLURM needs SLURM
+   credentials and not Lepton or S3 credentials; Kubernetes and local Docker do
+   not need SLURM or Lepton credentials. Ask S3 credentials only when the
+   selected platform and dataset/result URIs use `s3://`. Pass the final file
+   via `TaoExecutionSDK(creds_file="~/tao-sdk/secrets.json")`.
 2. **Dataset**: Training data accessible from the compute backend. URI format depends on the SDK's platform:
    - Lepton / DGX Cloud: `s3://bucket/path` (S3-compatible; do not generate `aws://...`)
    - Slurm / internal shared storage: an absolute shared filesystem path visible to the Slurm job, e.g. `/lustre/fsw/tao_datasets/<model>/train` and `/lustre/fsw/tao_datasets/<model>/eval`
@@ -131,14 +131,26 @@ Each "trial" is called a **recommendation** (rec). One rec = one full training r
 
 ## Quick Support Queries
 
-When the user asks what models/networks are supported for AutoML, do not scan `models/` directories or inspect every model folder. Run the packaged support helper, which reads `models/automl_support.json`:
+When the user asks what models/networks are supported for AutoML, do not scan
+`models/` directories or inspect every model folder. Run the packaged model-list
+helper in AutoML mode. It reads packaged manifests and validates that each
+supported model has a packaged, parseable train dataclass schema:
+
+```bash
+${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/list_tao_models.py \
+  --skill-bank ${TAO_SKILL_BANK_PATH:-~/tao-skills-external} --scope automl --format text
+```
+
+The compatibility wrapper below is also valid and delegates to the same logic:
 
 ```bash
 ${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/list_automl_support.py \
   --skill-bank ${TAO_SKILL_BANK_PATH:-~/tao-skills-external} --format text
 ```
 
-Return both sections from that output: supported models and unsupported models with reasons. The support rule is: AutoML is supported only when `models/<network>/schemas/train.schema.json` is packaged and valid.
+Return both sections from that output: supported models and unsupported models
+with reasons. The support rule is: AutoML is supported only when
+`models/<network>/schemas/train.schema.json` is packaged and valid.
 
 ---
 
@@ -151,12 +163,15 @@ Extract these fields for a default run:
 | Field | Required | Example | How to get it |
 |---|---|---|---|
 | `network_arch` | Yes | `"<network_arch>"` | User states the model |
+| `platform` | Yes | `"lepton"`, `"slurm"`, `"local-docker"`, `"kubernetes"` | After the user confirms they want AutoML, run `scripts/list_tao_platforms.py --format text` and ask them to choose from that output. |
 | `train_dataset_uri` | Yes | `"s3://bucket/data/subset"` or `"/lustre/fsw/tao_datasets/<model>/train"` | User provides the URI/path, or the model skill declares a default profile for this exact network/use case. |
 | `eval_dataset_uri` | Model-dependent | `"s3://bucket/data/eval"` or `"/lustre/fsw/tao_datasets/<model>/eval"` | Ask only if the model skill's Per-Action Dataset Requirements require an eval/validation source and no default profile supplies it. |
 | `metric` | No | `"<metric_name>"` | Use the model skill recommendation or ask if unclear. Do not choose model-specific metrics from this AutoML skill. |
 | `direction` | No | `"minimize"` or `"maximize"` | **Only needed if your metric name doesn't contain `"loss"` AND you want to minimize, or contains `"loss"` AND you want to maximize.** Otherwise the implicit "contains 'loss' → minimize, else maximize" rule applies. |
 | `skill_bank_path` | Yes (if not set) | `"~/tao-skills-external"` | Check if `TAO_SKILL_BANK_PATH` env var is set. If not, ask the user for the path. Default: `~/tao-skills-external`. The runner raises `ValueError: No skill config found` without it. |
-| required model credentials | Model-dependent | `HF_TOKEN` for `cosmos-rl` | Read the selected model skill's **Credentials** and `config.json.required_credentials`. Check declared secret files/environment only when the skill permits it; prompt for missing values. |
+| `long_running_enabled` | Yes | `true` | Ask during launch intake. If enabled, keep the agent attached and emit status until completion. Default: enabled. |
+| `status_interval_minutes` | Yes | `5` | Ask during launch intake. Default: 5 minutes. |
+| required credentials | Platform/model-dependent | `SLURM_USER`, `SLURM_HOSTNAME`, `HF_TOKEN` | First filter platform credentials with `scripts/list_tao_platforms.py --platform <platform>`, then add selected-model credentials. Do not ask for unrelated platform credentials. |
 | compute shape | Model-dependent | `num_gpus=4`, `dp_shard_size=4`, `dp_replicate_size=1` | Ask only for model-required hardware fields that are not provided by the platform/default profile. |
 
 Use these quick-start AutoML defaults without asking:
@@ -167,7 +182,8 @@ Use these quick-start AutoML defaults without asking:
 | `automl_max_recommendations` | model/workflow default if declared, otherwise `10` |
 | `automl_hyperparameters` | `None` so AutoML uses dataclass-schema params with `automl_enabled=true` |
 | `custom_param_ranges` | `None` so ranges/options/defaults come from the generated dataclass schema |
-| `status_interval_minutes` | `10` |
+| `long_running_enabled` | `true` |
+| `status_interval_minutes` | `5` |
 
 If any required field is missing, ask the user. Do NOT guess dataset paths, skill bank paths, credentials, or hardware that the model skill marks as required.
 
@@ -179,7 +195,8 @@ Customization-only fields:
 |---|---|---|
 | `algorithm` | `bayesian`, `asha`, `hyperband`, `bohb`, `llm`, `hybrid`, `autoresearch` | Present the algorithm guide only in customization mode or when the user names an algorithm. |
 | `max_recommendations` | `5`, `10`, `20` | Explain that each recommendation is a real training job. |
-| `status_interval_minutes` | `10` | Only ask if the user wants status cadence customization. |
+| `long_running_enabled` | `false` | Only use false when the user explicitly does not want the agent to keep monitoring. |
+| `status_interval_minutes` | `5`, `10`, `15` | Already asked during launch intake; customize only if the user wants a different cadence. |
 | `automl_hyperparameters` | `["train.optm_lr", "train.epoch"]` | List choices from the generated schema JSON, not from hand-written guesses. |
 | `custom_param_ranges` | `{"train.optm_lr": {"valid_min": 1e-6, "valid_max": 1e-4}}` | Validate against schema type/range/options before using. |
 | `llm_endpoint`, `llm_model`, `llm_api_key` | `https://inference-api.nvidia.com`, `gcp/google/gemini-3.1-pro-preview`, `nvapi-...` | Required only when the selected algorithm is `llm`, `hybrid`, or `autoresearch`. Resolve from env/secret files first where allowed, then prompt. |
@@ -364,7 +381,7 @@ from tao_sdk.sdk import TaoExecutionSDK
 from tao_automl.runner import AutoMLRunner
 
 TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
-STATUS_INTERVAL_MINUTES = status_interval_minutes or 10
+STATUS_INTERVAL_MINUTES = status_interval_minutes or 5
 
 def print_status(snapshot):
     progress = snapshot.get("progress", {})
@@ -772,12 +789,15 @@ Exceptions from `eval_fn` are caught and logged — the runner falls back to the
 
 ## Step 4: Monitor Progress
 
-`runner.run()` blocks until all recommendations complete. Do not detach the
-runner unless the user explicitly asks for background execution. Use
+`runner.run()` blocks until all recommendations complete. If
+`long_running_enabled` is true, keep the agent attached and emit status until
+the run reaches a terminal state. Detach only when the user disables
+long-running monitoring or explicitly asks for background execution. Use
 `PYTHONUNBUFFERED=1` and the direct Python binary so status updates stream in
 real time.
 
-Ask the user how many minutes between status updates; default to 10 minutes.
+Ask whether long-running monitoring should stay enabled; default to enabled.
+Ask how many minutes between status updates; default to 5 minutes.
 Pass that value as `status_interval_seconds=status_interval_minutes * 60`.
 The runner writes durable status files in the AutoML workspace:
 

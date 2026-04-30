@@ -7,7 +7,8 @@ import argparse
 import json
 import os
 from pathlib import Path
-from typing import Any
+
+from list_tao_models import build_automl_support, format_automl_text
 
 
 def parse_args() -> argparse.Namespace:
@@ -28,37 +29,14 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def load_support(skill_bank: Path) -> dict[str, Any]:
-    """Load the packaged AutoML support summary."""
-    support_path = skill_bank.expanduser() / "models" / "automl_support.json"
-    with support_path.open("r", encoding="utf-8") as handle:
-        return json.load(handle)
-
-
-def format_text(support: dict[str, Any]) -> str:
-    """Format support data for quick human-readable answers."""
-    supported = [item["model"] for item in support.get("supported", [])]
-    unsupported = support.get("unsupported", [])
-
-    lines = ["Supported AutoML models:"]
-    lines.extend(f"- {model}" for model in supported)
-    lines.append("")
-    lines.append("Not supported:")
-    if unsupported:
-        lines.extend(f"- {item['model']}: {item['reason']}" for item in unsupported)
-    else:
-        lines.append("- None")
-    return "\n".join(lines)
-
-
 def main() -> int:
     """Run the support summary helper."""
     args = parse_args()
-    support = load_support(args.skill_bank)
+    support = build_automl_support(args.skill_bank)
     if args.format == "json":
         print(json.dumps(support, indent=2, sort_keys=True))
     else:
-        print(format_text(support))
+        print(format_automl_text(support))
     return 0
 
 
