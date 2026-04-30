@@ -55,7 +55,7 @@ If any step fails, the agent prompts the user to authorize the fix via Bash, the
 
 Two options:
 
-1. **Automated (recommended)**: Get an API token from the Brev console settings page. Add `BREV_API_TOKEN` to `secrets.json`. The handler auto-authenticates via `brev login --token` on first use — same UX as Lepton.
+1. **Automated (recommended)**: Get an API token from the Brev console settings page. Set `BREV_API_TOKEN` as an environment variable (e.g., in `~/.config/tao/.env`). The handler auto-authenticates via `brev login --token` on first use — same UX as Lepton.
 
 2. **Manual**: Run `brev login` (opens browser). Tokens expire hourly — the handler refreshes automatically.
 
@@ -67,6 +67,12 @@ The agent controls instance lifecycle:
 
 - **Reuse**: Pass `instance_id` in `backend_details` to run multiple jobs on the same instance. Efficient for multi-step workflows.
 - **Ephemeral**: Omit `instance_id` — the handler creates a new instance per job. Clean but slower (instance boot ~2-5 min).
+
+## Multi-GPU and multi-node
+
+**Multi-node is not supported on Brev.** Brev is instance-based — one job runs on one instance, with no cross-instance coordination.
+
+Multi-GPU **on a single instance** is supported (instances available with up to 8× H100 / A100 / L40S). `gpu_count` maps to the GPU count on the instance; `torchrun --nproc-per-node=N` or PyTorch DDP work within the instance.
 
 ## GPU Types
 

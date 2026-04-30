@@ -198,12 +198,16 @@ spec_overrides={
 - **policy.model_max_length**: Context window size. Must be 40960 for video SFT. Affected by FPS, resolution, and prompt length.
 - **policy.model_gradient_checkpointing**: Save VRAM by recomputing activations. Keep true for large models.
 
-### Parallelism (Multi-GPU)
-- **policy.parallelism.dp_shard_size**: Data-parallel shard size. CRITICAL: should equal total GPU count. This is the Cosmos-RL equivalent of `num_gpus`.
-- **policy.parallelism.dp_replicate_size**: Data-parallel replication (node count). Equivalent of `num_nodes`.
+### Parallelism (Multi-GPU / Multi-Node)
+- **policy.parallelism.dp_shard_size**: Data-parallel shard size. CRITICAL: should equal **GPUs per node** (the Cosmos-RL equivalent of `num_gpus`).
+- **policy.parallelism.dp_replicate_size**: Data-parallel replication = **node count** (equivalent of `num_nodes`). For single-node training set to 1.
 - **policy.parallelism.tp_size**: Tensor parallelism. Default 1.
 - **policy.parallelism.cp_size**: Context parallelism. Default 1.
 - **policy.parallelism.pp_size**: Pipeline parallelism. Default 1.
+
+For multi-node, set `dp_replicate_size = num_nodes` and `dp_shard_size = gpus_per_node`. Cosmos-RL handles the distributed init internally via FSDP — it does **not** rely on the platform-level `MASTER_ADDR` / `WORLD_SIZE` env vars the way `torchrun`-launched jobs do. Just submit with `gpu_count=<gpus_per_node>` and `num_nodes=<N>` on the SDK; the Cosmos-RL spec keys drive the actual sharding.
+
+For platform-side multi-node setup (sbatch flags on SLURM, Indexed Job + Service on Kubernetes, native multi-replica on Lepton), see the platform skill's "Multi-node training" section: `platform/lepton`, `platform/slurm`, `platform/kubernetes`. Brev and local Docker are single-host only.
 
 ### Optimization & Data Loading
 - **train.optm_lr**: Learning rate. Default 1e-6.
@@ -251,7 +255,7 @@ Cosmos-RL models are 8B parameters and benefit from multi-GPU training with FSDP
 
 **Checkpoint save failure (scheduler is None)**: The cosmos-rl trainer crashes with `'NoneType' object has no attribute 'state_dict'` when saving a checkpoint before any training step has executed. This happens when the dataset is too small for the batch size (0 steps per epoch). See the batch size error above.
 
-**You are trying to access a gated repo**: The HuggingFace model `nvidia/Cosmos-Reason2-8B` requires authentication. All ranks will retry in a loop until they time out. Fix: ensure `HF_TOKEN` is set in `secrets.json` and passed as a `docker_env_var`. The user must also accept the model agreement at <https://huggingface.co/nvidia/Cosmos-Reason2-8B>.
+**You are trying to access a gated repo**: The HuggingFace model `nvidia/Cosmos-Reason2-8B` requires authentication. All ranks will retry in a loop until they time out. Fix: ensure `HF_TOKEN` is set in your environment (e.g., in `~/.config/tao/.env`) and passed into the container with `-e HF_TOKEN`. The user must also accept the model agreement at <https://huggingface.co/nvidia/Cosmos-Reason2-8B>.
 
 ## DEFT Support
 
