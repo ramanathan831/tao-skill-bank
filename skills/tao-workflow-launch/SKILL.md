@@ -21,10 +21,13 @@ Preflight passes only after all of these are true:
 1. The execution platform is selected from the packaged platform helper.
 2. Platform credentials and required credential groups are satisfied.
 3. Model-specific credentials are satisfied.
-4. The platform access check succeeds from the launch host.
-5. Dataset inputs are mapped to concrete spec keys and verified from the
+4. The default container image is resolved from packaged model/action metadata,
+   shown to the user, and either confirmed or replaced by an explicit
+   `image=<override>`.
+5. The platform access check succeeds from the launch host.
+6. Dataset inputs are mapped to concrete spec keys and verified from the
    selected platform's point of view.
-6. Required compute shape fields from the model/workflow skill are known.
+7. Required compute shape fields from the model/workflow skill are known.
 
 If any item is missing, ask for the missing input and stop before generating
 artifacts. This applies to AutoML, normal train/eval/infer/export/TRT, and
@@ -100,15 +103,55 @@ I need these launch inputs before I can create specs or runner files:
    - Lepton/Brev/Kubernetes: s3://bucket/path/train and s3://bucket/path/eval
    - local-docker: /data/tao/<model>/train or file:///data/tao/<model>/eval
 
-3. Compute shape required by the model, for example GPUs/nodes.
+3. Container image. I will resolve the default from packaged model metadata and
+   show it before launch, for example:
+   default image for <model>/<action>: <resolved container image>
+   Use this image, or provide image=<override> to pin a different TAO build.
 
-4. Required credentials from platform/model docs, for example HF_TOKEN for
+4. Compute shape required by the model, for example GPUs/nodes.
+
+5. Required credentials from platform/model docs, for example HF_TOKEN for
    gated Hugging Face models.
 
-5. Monitoring preference. By default I monitor in this chat and post progress
+6. Monitoring preference. By default I monitor in this chat and post progress
    every 5 minutes; choose 1-2 minutes for smoke tests or 10-15 minutes for
    long training.
 ```
+
+## Container Image Confirmation
+
+Before creating specs, runner scripts, workspaces, logs, state files, or
+submitting a job, resolve the image for the selected model/action:
+
+```bash
+${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/resolve_tao_image.py \
+  --skill-bank ${TAO_SKILL_BANK_PATH:-~/tao-skills-external} \
+  --model <network> --action <action> --format text
+```
+
+If the helper is unavailable, read `models/<network>/config.json` through
+`SkillBank().get_model_config(network_arch)`. Resolve image fields in this
+order:
+
+1. `actions.<action>.container_image`
+2. `actions.<action>.image`
+3. top-level `container_image`
+4. top-level `image`
+
+Show the exact image and ask:
+
+```text
+Container image for <network>/<action>:
+default=<resolved image>
+
+Use this image, or provide image=<override>?
+```
+
+If the user accepts, pass the resolved image as the job `image`. If the user
+overrides, require a non-empty image reference and pass that value instead.
+Do not silently launch on the default image. This confirmation applies to
+training, AutoML recommendations, evaluation, inference, export, TensorRT
+engine generation, and application workflows that submit TAO containers.
 
 ## Credential Filtering
 

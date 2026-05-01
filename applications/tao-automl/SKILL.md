@@ -28,9 +28,10 @@ Before running AutoML:
 1. **Shared launch preflight**: Use the `tao-workflow-launch` skill first.
    AutoML must not create runner files, workspaces, state files, logs,
    compatibility shims, or install dependencies until the selected platform's
-   credentials, access check, dataset visibility, model credentials, and compute
-   shape are satisfied. This prevents wasting the AutoML budget on fake
-   recommendation failures caused by SSH, storage, or credential setup.
+   credentials, access check, dataset visibility, model credentials, container
+   image confirmation, and compute shape are satisfied. This prevents wasting
+   the AutoML budget on fake recommendation failures caused by SSH, storage,
+   image, or credential setup.
 2. **SDK credentials**: `secrets.json` must contain only the credentials needed
    for the selected platform plus model-specific credentials. Before asking for
    credentials, run:
@@ -177,6 +178,7 @@ Extract these fields for a default run:
 | `platform` | Yes | `"lepton"`, `"slurm"`, `"local-docker"`, `"kubernetes"` | After the user confirms they want AutoML, run `scripts/list_tao_platforms.py --format text` and ask them to choose from that output. |
 | `train_dataset_uri` or direct train spec paths | Yes | `"s3://bucket/data/subset"`, `"/lustre/fsw/tao_datasets/<model>/train"`, or `custom.train_dataset.annotation_path=/...` | User provides a root URI/path, exact spec-key paths, or the model skill declares a default profile for this exact network/use case. |
 | `eval_dataset_uri` or direct eval spec paths | Model-dependent | `"s3://bucket/data/eval"`, `"/lustre/fsw/tao_datasets/<model>/eval"`, or `custom.val_dataset.media_path=/...` | Ask only if the model skill's Per-Action Dataset Requirements require an eval/validation source and no default profile supplies it. |
+| `image` | Yes | `"nvcr.io/..."` | Resolve the default with `scripts/resolve_tao_image.py --model <network_arch> --action train`, show it to the user, and require confirmation or `image=<override>` before creating the AutoML runner. |
 | `metric` | No | `"<metric_name>"` | Use the model skill recommendation or ask if unclear. Do not choose model-specific metrics from this AutoML skill. |
 | `direction` | No | `"minimize"` or `"maximize"` | **Only needed if your metric name doesn't contain `"loss"` AND you want to minimize, or contains `"loss"` AND you want to maximize.** Otherwise the implicit "contains 'loss' → minimize, else maximize" rule applies. |
 | `skill_bank_path` | Yes (if not set) | `"~/tao-skills-external"` | Check if `TAO_SKILL_BANK_PATH` env var is set. If not, ask the user for the path. Default: `~/tao-skills-external`. The runner raises `ValueError: No skill config found` without it. |
@@ -207,6 +209,8 @@ say "attached monitoring every 5 minutes" without explaining it. Include:
 - direct spec-parameter mode as an equal option;
 - model-required spec keys from the model skill's Per-Action Dataset
   Requirements table;
+- resolved train container image and the option to override it with
+  `image=<override>`;
 - monitoring meaning and cadence choices.
 
 For Cosmos-RL on SLURM, the missing-input prompt should look like:
@@ -239,7 +243,11 @@ I need these before I can create the AutoML runner or submit jobs:
 3. Compute shape. For Cosmos-RL this maps to FSDP:
    dp_shard_size=<total GPUs>, dp_replicate_size=<nodes>.
 
-4. Required SLURM launch values:
+4. Container image. I will resolve the default from models/cosmos-rl/config.json
+   for action=train and show it before creating the runner. Confirm "use
+   default" or provide image=<override> if you want a different container.
+
+5. Required SLURM launch values:
    SLURM_USER=<cluster username>
    SLURM_HOSTNAME=<login-host-or-comma-separated-login-hosts>
    SLURM_PARTITION=<gpu partition>
@@ -253,11 +261,11 @@ I need these before I can create the AutoML runner or submit jobs:
    Do not ask for SLURM_ACCOUNT or SLURM_BASE_RESULTS_DIR unless the user says
    their cluster requires an account or wants a custom results root.
 
-5. HF_TOKEN availability for nvidia/Cosmos-Reason2-8B. Do not paste the token
+6. HF_TOKEN availability for nvidia/Cosmos-Reason2-8B. Do not paste the token
    unless explicitly needed; confirming it is set in the launch environment is
    enough.
 
-6. Monitoring preference. By default I monitor in this chat, polling the job
+7. Monitoring preference. By default I monitor in this chat, polling the job
    and logs until it finishes/fails, and I post an update every 5 minutes.
    This includes long queue waits; I should keep posting every interval while
    the SLURM job is PENDING or RUNNING, not stop after 30 minutes. Use
@@ -271,6 +279,12 @@ visibility using `tao-workflow-launch`. For SLURM, that means passwordless SSH
 to at least one login host and remote `test -e` checks for each required
 annotation/media path. If preflight fails, stop with remediation steps instead
 of creating a runner that will immediately fail.
+
+Also verify container image confirmation using `tao-workflow-launch`. AutoML
+launches real train jobs for each recommendation, so the confirmed train image
+must be passed into `AutoMLRunner.run(..., image=chosen_image, ...)` or into the
+SDK adapter's `create_job(..., image=chosen_image, ...)`. Do not rely on an
+implicit default after the user has chosen a platform and dataset.
 
 Also run any model-specific annotation content checks documented by the model
 skill. For Cosmos-RL AutoML, require `video_fps` on sampled train and validation
@@ -526,7 +540,7 @@ result = runner.run(
     # --- Dataset + resources ---
     eval_dataset_uri=eval_dataset_uri,
     base_checkpoint="",
-    image=image,                                      # only set if the model skill or user requires it
+    image=chosen_image,                              # resolved and confirmed before runner generation
     backend_details={                                # platform-specific
         "backend_type": "lepton",
         "resource_shape": "gpu.h100-sxm",

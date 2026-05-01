@@ -62,6 +62,16 @@ Ask:
    long `PENDING` queue waits.
 3. How many minutes between status updates? Default: 5 minutes.
 
+After the model/action are known, resolve the default container image from the
+packaged metadata and ask the user to confirm it or provide `image=<override>`
+before creating runner files:
+
+```bash
+${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/resolve_tao_image.py \
+  --skill-bank ${TAO_SKILL_BANK_PATH:-~/tao-skills-external} \
+  --model <network_arch> --action <action> --format text
+```
+
 After the platform is selected, get the credential filter:
 
 ```bash
@@ -129,11 +139,14 @@ Generated runners for normal actions (`train`, `evaluate`, `export`,
 
 1. Load `model_info = SkillBank().get_model_config(network_arch)`.
 2. Load `specs = SkillBank().get_default_specs(network_arch, action)`.
-3. Apply the model MD's "Spec Param / Parent Model Inference" guidance through SDK inference helpers.
-4. Apply user overrides and model-skill documented path conventions.
-5. Build `script_runner` directly from `model_info["actions"][action]`.
-6. Submit with `TaoExecutionSDK.create_job(...)`.
-7. Write an `ActionWorkflow` folder and watch the job to completion with periodic status updates.
+3. Resolve and confirm the container image with the user:
+   action-level `container_image`/`image` first, then model-level
+   `container_image`/`image`. Store the accepted value as `chosen_image`.
+4. Apply the model MD's "Spec Param / Parent Model Inference" guidance through SDK inference helpers.
+5. Apply user overrides and model-skill documented path conventions.
+6. Build `script_runner` directly from `model_info["actions"][action]`.
+7. Submit with `TaoExecutionSDK.create_job(...)`.
+8. Write an `ActionWorkflow` folder and watch the job to completion with periodic status updates.
 
 Before launching any normal action, ask the user:
 
@@ -291,11 +304,12 @@ The script_runner:
 ```python
 action = 'train'
 action_config = model_info['actions'][action]
+chosen_image = user_confirmed_image  # resolved with scripts/resolve_tao_image.py
 
 job = sdk.create_job(
     network_arch=model_info.get('network_arch', '<model>'),
     action=action,
-    image=model_info['container_image'],
+    image=chosen_image,
     specs=specs,
     train_dataset_uri=dataset_uri,
     workspace_id=sdk._workspace_id,
@@ -549,7 +563,9 @@ known filenames. For example, DINO standard datasets use `images.tar.gz` and
 
 ## Error Patterns
 
-**No image provided**: `create_job()` requires `image`. Read it from `model_info['container_image']`.
+**No image provided**: `create_job()` requires `image`. Resolve it with
+`scripts/resolve_tao_image.py --model <network> --action <action>`, confirm the
+exact image with the user, and pass the accepted value to `create_job()`.
 
 **Double slash in S3 path**: Strip trailing slashes from URIs before concatenating: `base_uri.rstrip('/')`.
 

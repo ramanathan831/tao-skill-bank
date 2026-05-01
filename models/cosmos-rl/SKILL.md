@@ -46,6 +46,11 @@ For root mode, explain the automatic mapping: `train_root` maps to
 `custom.train_dataset.media_path=train_root`; `eval_root` maps the same way for
 `custom.val_dataset`.
 
+Before train or AutoML runner generation, resolve the action=train container
+image from `models/cosmos-rl/config.json`, show the exact image to the user, and
+ask whether to use it or override with `image=<override>`. Do not silently
+launch on the default image.
+
 For launch preflight, pass the concrete annotation paths to the shared helper
 and require `video_fps`:
 
