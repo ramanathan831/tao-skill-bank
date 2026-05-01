@@ -78,15 +78,34 @@ def resolve_platform(skill_bank: Path, requested: str) -> dict[str, Any]:
     raise ValueError(f"Unknown TAO platform '{requested}'. Supported platforms: {known}")
 
 
+def enrich_credential(
+    item: dict[str, Any],
+    definitions: dict[str, Any],
+) -> dict[str, Any]:
+    """Merge centralized credential descriptions into a platform record."""
+    name = item.get("name")
+    merged = dict(definitions.get(name, {}))
+    merged.update(item)
+    return merged
+
+
 def credentials_for_platform(skill_bank: Path, requested: str) -> dict[str, Any]:
     """Return only the credentials relevant to the selected platform."""
+    manifest = load_platform_manifest(skill_bank)
+    definitions = manifest.get("credential_definitions", {})
     platform = resolve_platform(skill_bank, requested)
     return {
         "platform": platform["name"],
         "display_name": platform.get("display_name", platform["name"]),
-        "required_credentials": platform.get("required_credentials", []),
+        "required_credentials": [
+            enrich_credential(item, definitions)
+            for item in platform.get("required_credentials", [])
+        ],
         "credential_groups": platform.get("credential_groups", []),
-        "optional_credentials": platform.get("optional_credentials", []),
+        "optional_credentials": [
+            enrich_credential(item, definitions)
+            for item in platform.get("optional_credentials", [])
+        ],
         "storage": platform.get("storage", {}),
         "dataset_examples": platform.get("dataset_examples", []),
         "preflight_checks": platform.get("preflight_checks", []),

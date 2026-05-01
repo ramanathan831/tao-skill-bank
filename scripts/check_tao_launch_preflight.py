@@ -11,6 +11,8 @@ import shlex
 import socket
 import subprocess
 import sys
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +22,7 @@ DEFAULT_SKILL_BANK = Path(
 )
 MANIFEST_REL = Path("platform") / "platforms.manifest.json"
 REMOTE_SCHEMES = ("s3://", "azure://", "gs://", "http://", "https://")
+LEPTON_API_BASE_URL = "https://gateway.dgxc-lepton.nvidia.com"
 
 
 def parse_args() -> argparse.Namespace:
@@ -95,7 +98,11 @@ def normalize_local_path(path: str) -> str | None:
     return path
 
 
-def run(command: list[str], timeout: int = 30) -> subprocess.CompletedProcess[str]:
+def run(
+    command: list[str],
+    timeout: int = 30,
+    env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
     try:
         return subprocess.run(
             command,
@@ -103,6 +110,7 @@ def run(command: list[str], timeout: int = 30) -> subprocess.CompletedProcess[st
             text=True,
             timeout=timeout,
             check=False,
+            env=env,
         )
     except subprocess.TimeoutExpired as exc:
         return subprocess.CompletedProcess(
@@ -135,6 +143,198 @@ def ssh_command(host: str, remote_command: str) -> list[str]:
         )
     command.extend([f"{user}@{host}", remote_command])
     return command
+
+
+def s3_paths(paths: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    return [(label, path) for label, path in paths if path.startswith("s3://")]
+
+
+def has_unverified_remote_mounts(
+    platform_name: str,
+    paths: list[tuple[str, str]],
+    skip_access: bool,
+) -> bool:
+    if skip_access or platform_name in {"slurm", "local-docker"}:
+        return False
+
+    failed = False
+    for label, raw_path in paths:
+        if raw_path.startswith(REMOTE_SCHEMES):
+            continue
+        print(
+            f"{platform_name} path requires mounted-volume proof before launch: "
+            f"{label}={raw_path}. Use s3://, or verify the mount/PVC/volume from "
+            "the platform and rerun only after that manual proof exists."
+        )
+        failed = True
+    return failed
+
+
+def check_s3_storage(paths: list[tuple[str, str]], skip_access: bool) -> bool:
+    targets = s3_paths(paths)
+    if not targets:
+        return True
+
+    missing = [key for key in ("ACCESS_KEY", "SECRET_KEY") if not os.environ.get(key)]
+    if missing:
+        print("Missing S3 requirement(s): " + ", ".join(missing))
+        return False
+
+    if skip_access:
+        print("S3 credentials are present; skipped object-store access checks.")
+        return True
+
+    aws = shutil.which("aws")
+    if not aws:
+        print(
+            "aws CLI not found, so s3:// dataset paths cannot be verified. "
+            "Install awscli or manually prove the paths are readable before launch."
+        )
+        return False
+
+    env = os.environ.copy()
+    env["AWS_ACCESS_KEY_ID"] = os.environ["ACCESS_KEY"]
+    env["AWS_SECRET_ACCESS_KEY"] = os.environ["SECRET_KEY"]
+    env.setdefault("AWS_DEFAULT_REGION", os.environ.get("CLOUD_REGION", "us-east-1"))
+
+    ok = True
+    for label, uri in targets:
+        command = [aws]
+        if os.environ.get("S3_ENDPOINT_URL"):
+            command.extend(["--endpoint-url", os.environ["S3_ENDPOINT_URL"]])
+        command.extend(["s3", "ls", uri])
+        result = run(command, timeout=45, env=env)
+        if result.returncode == 0:
+            print(f"S3 path OK: {label}={uri}")
+        else:
+            detail = (result.stderr or result.stdout).strip().splitlines()
+            reason = detail[-1] if detail else "exit " + str(result.returncode)
+            print(f"S3 path missing or inaccessible: {label}={uri}: {reason}")
+            ok = False
+    return ok
+
+
+def check_lepton(platform: dict[str, Any], skip_access: bool) -> bool:
+    missing = env_missing(platform)
+    if missing:
+        print("Missing Lepton requirement(s): " + ", ".join(missing))
+        return False
+    if skip_access:
+        print("Lepton credentials are present; skipped API access check.")
+        return True
+
+    workspace = os.environ["LEPTON_WORKSPACE_ID"]
+    token = os.environ["LEPTON_AUTH_TOKEN"]
+    base_url = os.environ.get("LEPTON_API_BASE_URL", LEPTON_API_BASE_URL).rstrip("/")
+    url = f"{base_url}/api/v2/workspaces/{workspace}/imagepullsecrets"
+    request = urllib.request.Request(
+        url,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            if 200 <= response.status < 300:
+                print(f"Lepton API OK: workspace={workspace}")
+                return True
+            print(f"Lepton API check failed: HTTP {response.status}")
+            return False
+    except urllib.error.HTTPError as exc:
+        print(f"Lepton API check failed: HTTP {exc.code}")
+    except urllib.error.URLError as exc:
+        print(f"Lepton API check failed: {exc.reason}")
+    except TimeoutError:
+        print("Lepton API check timed out")
+    return False
+
+
+def check_brev(platform: dict[str, Any], skip_access: bool) -> bool:
+    missing = env_missing(platform)
+    if missing:
+        print("Missing Brev requirement(s): " + ", ".join(missing))
+        return False
+    if skip_access:
+        print("Brev credentials are present; skipped CLI/API access check.")
+        return True
+
+    brev = shutil.which("brev")
+    if not brev:
+        print("brev CLI not found. Install from https://docs.nvidia.com/brev/.")
+        return False
+
+    token = os.environ.get("BREV_API_TOKEN")
+    if token:
+        login = run([brev, "login", "--token", token], timeout=45)
+        if login.returncode != 0:
+            detail = (login.stderr or login.stdout).strip().splitlines()
+            reason = detail[-1] if detail else "exit " + str(login.returncode)
+            print(f"Brev token login failed: {reason}")
+            return False
+
+    result = run([brev, "ls", "--json"], timeout=60)
+    if result.returncode == 0:
+        print("Brev CLI/API OK")
+        return True
+    detail = (result.stderr or result.stdout).strip().splitlines()
+    reason = detail[-1] if detail else "exit " + str(result.returncode)
+    print(f"Brev CLI/API check failed: {reason}")
+    return False
+
+
+def kubectl_base() -> list[str]:
+    command = ["kubectl"]
+    if os.environ.get("KUBECONFIG"):
+        command.extend(["--kubeconfig", os.environ["KUBECONFIG"]])
+    if os.environ.get("TAO_K8S_CONTEXT"):
+        command.extend(["--context", os.environ["TAO_K8S_CONTEXT"]])
+    return command
+
+
+def check_kubernetes(platform: dict[str, Any], skip_access: bool) -> bool:
+    missing = env_missing(platform)
+    if missing:
+        print("Missing Kubernetes requirement(s): " + ", ".join(missing))
+        return False
+    if skip_access:
+        print("Kubernetes environment is present; skipped cluster access check.")
+        return True
+
+    if not shutil.which("kubectl"):
+        print("kubectl not found. Install kubectl or run from inside the cluster.")
+        return False
+
+    namespace = os.environ.get("TAO_K8S_NAMESPACE", "default")
+    base = kubectl_base()
+    auth = run(base + ["auth", "can-i", "create", "jobs", "-n", namespace], timeout=30)
+    if auth.returncode != 0 or auth.stdout.strip().lower() != "yes":
+        detail = (auth.stderr or auth.stdout).strip().splitlines()
+        reason = detail[-1] if detail else "not allowed"
+        print(f"Kubernetes job-create permission check failed: {reason}")
+        return False
+
+    nodes = run(base + ["get", "nodes", "-o", "json"], timeout=45)
+    if nodes.returncode != 0:
+        detail = (nodes.stderr or nodes.stdout).strip().splitlines()
+        reason = detail[-1] if detail else "exit " + str(nodes.returncode)
+        print(f"Kubernetes node/GPU check failed: {reason}")
+        return False
+    try:
+        payload = json.loads(nodes.stdout)
+        gpu_total = 0
+        for node in payload.get("items", []):
+            allocatable = node.get("status", {}).get("allocatable", {})
+            value = allocatable.get("nvidia.com/gpu", "0")
+            gpu_total += int(str(value))
+    except Exception as exc:
+        print(f"Kubernetes node/GPU check failed: could not parse nodes JSON: {exc}")
+        return False
+    if gpu_total <= 0:
+        print("Kubernetes node/GPU check failed: no allocatable nvidia.com/gpu found")
+        return False
+    print(f"Kubernetes API OK: namespace={namespace}, allocatable_gpus={gpu_total}")
+    return True
 
 
 def check_slurm(
@@ -188,7 +388,6 @@ def check_slurm(
     for label, raw_path in paths:
         path = normalize_local_path(raw_path)
         if path is None:
-            print(f"Skipped remote object-store path check for {label}: {raw_path}")
             continue
         if not path.startswith("/"):
             print(f"SLURM dataset path is not absolute for {label}: {raw_path}")
@@ -223,7 +422,6 @@ def check_local_docker(paths: list[tuple[str, str]], skip_access: bool) -> bool:
     for label, raw_path in paths:
         path = normalize_local_path(raw_path)
         if path is None:
-            print(f"Skipped remote object-store path check for {label}: {raw_path}")
             continue
         if Path(path).exists():
             print(f"Local path OK: {label}={path}")
@@ -256,11 +454,25 @@ def main() -> int:
     name = platform["name"]
 
     if name == "slurm":
-        ok = check_slurm(platform, paths, args.skip_platform_access)
+        platform_ok = check_slurm(platform, paths, args.skip_platform_access)
     elif name == "local-docker":
-        ok = check_local_docker(paths, args.skip_platform_access)
+        platform_ok = check_local_docker(paths, args.skip_platform_access)
+    elif name == "lepton":
+        platform_ok = check_lepton(platform, args.skip_platform_access)
+    elif name == "brev":
+        platform_ok = check_brev(platform, args.skip_platform_access)
+    elif name == "kubernetes":
+        platform_ok = check_kubernetes(platform, args.skip_platform_access)
     else:
-        ok = check_env_only(platform, paths)
+        platform_ok = check_env_only(platform, paths)
+
+    storage_ok = check_s3_storage(paths, args.skip_platform_access)
+    mounts_ok = not has_unverified_remote_mounts(
+        name,
+        paths,
+        args.skip_platform_access,
+    )
+    ok = platform_ok and storage_ok and mounts_ok
 
     if ok:
         print("TAO launch preflight passed")

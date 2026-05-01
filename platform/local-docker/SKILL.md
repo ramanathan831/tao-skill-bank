@@ -32,6 +32,17 @@ Optional environment:
   Optional S3-compatible storage settings for jobs that still read/write cloud
   storage from a local container.
 
+## Launch Preflight
+
+Before generating scripts or starting containers:
+
+1. Verify the Docker daemon is reachable and the NVIDIA runtime can see GPUs.
+2. Verify every local/file dataset annotation and media path exists on the
+   Docker host.
+3. For `s3://` datasets/results, verify `ACCESS_KEY` and `SECRET_KEY` are set
+   and the exact paths are readable with `aws s3 ls`.
+4. Verify model-specific credentials such as `HF_TOKEN` before launch.
+
 ## Backend Details
 
 Use the SDK backend value `local-docker`. The local backend schema has no extra

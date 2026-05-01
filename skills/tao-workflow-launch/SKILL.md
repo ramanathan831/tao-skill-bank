@@ -120,6 +120,12 @@ Pass exact direct spec paths when the user supplied them. For root-mode inputs,
 expand model-required files first, then pass those concrete annotation/media
 paths to the helper.
 
+Do not use `--skip-platform-access` for a real launch. That flag is only for
+dry environment checks or for cases where the user has already provided explicit
+manual proof of platform and storage access. If the helper cannot verify remote
+API, CLI, cluster, or object-store access, treat preflight as failed and do not
+generate launch artifacts.
+
 For SLURM:
 
 1. Require `SLURM_USER`, `SLURM_HOSTNAME`, and one of `SSH_KEY_PATH` or
@@ -136,5 +142,8 @@ For SLURM:
 
 For local Docker, validate Docker/GPU access and local dataset paths before
 writing launch artifacts. For Lepton, Brev, and Kubernetes, validate API or
-cluster access plus object-storage credentials for `s3://` inputs before writing
-launch artifacts.
+cluster access plus object-storage credentials and `aws s3 ls` readability for
+`s3://` inputs before writing launch artifacts. For mounted shared-storage or
+PVC paths on those remote platforms, require manual proof that the path is
+mounted into the job environment; the helper fails closed rather than accepting
+unverified remote mount paths.

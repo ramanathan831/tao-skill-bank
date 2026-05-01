@@ -28,6 +28,20 @@ Optional platform settings:
   outputs.
 - `HF_TOKEN`: ask only when the selected model requires HuggingFace access.
 
+## Launch Preflight
+
+Before generating specs or creating Jobs:
+
+1. Verify `kubectl` can reach the selected context and namespace.
+2. Verify the account can create Jobs in `TAO_K8S_NAMESPACE`.
+3. Verify the cluster has allocatable `nvidia.com/gpu` capacity, or get explicit
+   proof from the cluster admin when node-list RBAC is restricted.
+4. For `s3://` datasets/results, verify `ACCESS_KEY` and `SECRET_KEY` are set
+   and the exact paths are readable with `aws s3 ls`.
+5. For PVC or mounted filesystem paths, require proof that the path is mounted
+   into the job container. Do not accept an agent-host local path as proof.
+6. Verify model-specific credentials such as `HF_TOKEN` before launch.
+
 ## Notes
 
 - The cluster must have NVIDIA GPU Operator or equivalent device plugin support

@@ -1,7 +1,117 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "default_long_running_enabled": true,
   "default_status_interval_minutes": 5,
+  "credential_definitions": {
+    "LEPTON_WORKSPACE_ID": {
+      "description": "Lepton/DGX Cloud workspace where TAO jobs will be submitted.",
+      "how_to_get": "Open the Lepton workspace UI or CLI context and use the workspace id for the target GPU workspace."
+    },
+    "LEPTON_AUTH_TOKEN": {
+      "description": "API token used to submit and monitor Lepton jobs.",
+      "how_to_get": "Create or copy a Lepton API token from the Lepton account/workspace settings."
+    },
+    "BREV_API_TOKEN": {
+      "description": "Brev API token used to create and manage GPU instances/jobs.",
+      "how_to_get": "Create or copy a token from the Brev console settings page."
+    },
+    "SLURM_USER": {
+      "description": "SSH username for the SLURM login node.",
+      "how_to_get": "Use the username you normally use when running ssh <user>@<slurm-login-host>."
+    },
+    "SLURM_HOSTNAME": {
+      "description": "Comma-separated SLURM login hostnames for failover.",
+      "how_to_get": "Use the login hosts provided by the cluster admin, for example login-01.example.com,login-02.example.com."
+    },
+    "SSH_KEY_PATH": {
+      "description": "Private key path used for public-key SSH to SLURM login nodes.",
+      "how_to_get": "Use the key that succeeds with ssh -o BatchMode=yes -i <key> <SLURM_USER>@<host> 'echo ok'."
+    },
+    "SSH_AUTH_SOCK": {
+      "description": "SSH agent socket containing a key accepted by the SLURM login node.",
+      "how_to_get": "Run ssh-agent, add the key with ssh-add, and pass the printed SSH_AUTH_SOCK value to the launch environment."
+    },
+    "SLURM_BASE_RESULTS_DIR": {
+      "description": "Shared filesystem base directory where SLURM job staging, logs, and results should be written.",
+      "how_to_get": "Use a writable Lustre/shared path from the cluster, commonly /lustre/fsw/portfolios/<team>/users/<user>."
+    },
+    "SLURM_ACCOUNT": {
+      "description": "Scheduler account charged by #SBATCH --account when the site requires accounting.",
+      "how_to_get": "Ask the cluster admin or check a known-good sbatch script for the account value."
+    },
+    "SLURM_PARTITION": {
+      "description": "SLURM partition or comma-separated partition list to submit GPU jobs to.",
+      "how_to_get": "Run sinfo on the login node or use the partition from a known-good GPU sbatch script."
+    },
+    "SLURM_CONTAINER_MOUNTS": {
+      "description": "Container mount list that exposes shared data/results paths inside Pyxis/Enroot containers.",
+      "how_to_get": "Use the cluster's required mounts, usually /lustre for Lustre-backed datasets."
+    },
+    "NGC_KEY": {
+      "description": "NVIDIA NGC API key used for nvcr.io image pulls or model/artifact access.",
+      "how_to_get": "Create or copy an API key from the NGC account setup page."
+    },
+    "HF_TOKEN": {
+      "description": "Hugging Face read token for gated model repositories required by the selected model.",
+      "how_to_get": "Accept the model agreement on Hugging Face, then create a read token from Hugging Face settings."
+    },
+    "ACCESS_KEY": {
+      "description": "Access key id for S3 or S3-compatible object storage used by dataset/result URIs.",
+      "how_to_get": "Use the access key from the object-storage account, cloud secret, or data platform credential."
+    },
+    "SECRET_KEY": {
+      "description": "Secret access key for S3 or S3-compatible object storage.",
+      "how_to_get": "Use the paired secret for ACCESS_KEY from the object-storage account or secret manager."
+    },
+    "S3_ENDPOINT_URL": {
+      "description": "Custom S3-compatible endpoint URL for non-AWS object stores such as MinIO.",
+      "how_to_get": "Use the endpoint published by the storage provider; AWS S3 usually does not need this."
+    },
+    "S3_BUCKET_NAME": {
+      "description": "Default bucket for workflow outputs when the launcher needs to construct result URIs.",
+      "how_to_get": "Use a writable bucket allocated for TAO artifacts."
+    },
+    "CLOUD_REGION": {
+      "description": "Cloud/object-storage region used by S3-compatible clients.",
+      "how_to_get": "Use the bucket region from the storage provider, for example us-east-1."
+    },
+    "DOCKER_HOST": {
+      "description": "Docker daemon endpoint when not using the local default socket.",
+      "how_to_get": "Use the value from docker context inspect or the remote Docker daemon configuration."
+    },
+    "DOCKER_NETWORK": {
+      "description": "Docker network name to attach TAO containers to.",
+      "how_to_get": "Run docker network ls and choose the network that can reach required services/storage."
+    },
+    "DOCKER_USERNAME": {
+      "description": "Container registry username for image pulls when registry auth is required.",
+      "how_to_get": "Use the registry account username; for NGC nvcr.io pulls this is usually $oauthtoken."
+    },
+    "DOCKER_PULL_POLICY": {
+      "description": "Controls whether local Docker should always pull, never pull, or pull if missing.",
+      "how_to_get": "Set only when you need behavior different from the local Docker handler default."
+    },
+    "DOCKER_AUTO_REMOVE": {
+      "description": "Controls whether local Docker containers are removed automatically after completion.",
+      "how_to_get": "Set according to debugging needs; disable auto-remove when logs/files need postmortem inspection."
+    },
+    "HOST_SSH_PATH": {
+      "description": "Host SSH directory to mount into local Docker containers when workflows need SSH access.",
+      "how_to_get": "Use the host path containing the SSH keys/config needed inside the container, commonly ~/.ssh."
+    },
+    "KUBECONFIG": {
+      "description": "Path to the kubeconfig file for the target Kubernetes cluster.",
+      "how_to_get": "Use the path from your cluster setup command, for example aws eks update-kubeconfig output."
+    },
+    "TAO_K8S_NAMESPACE": {
+      "description": "Kubernetes namespace where TAO Jobs, pods, and related resources will be created.",
+      "how_to_get": "Use an existing namespace where your account can create Jobs and read pod logs."
+    },
+    "TAO_K8S_CONTEXT": {
+      "description": "Kubeconfig context name for the target cluster.",
+      "how_to_get": "Run kubectl config get-contexts and choose the context for the GPU cluster."
+    }
+  },
   "platforms": [
     {
       "name": "lepton",
@@ -63,11 +173,14 @@
       },
       "dataset_examples": [
         "s3://my-bucket/cosmos_rl/train",
-        "s3://my-bucket/cosmos_rl/eval"
+        "s3://my-bucket/cosmos_rl/eval",
+        "custom.train_dataset.annotation_path=s3://my-bucket/cosmos_rl/train/annotations.json",
+        "custom.train_dataset.media_path=s3://my-bucket/cosmos_rl/media/videos.tar.gz"
       ],
       "preflight_checks": [
         "Confirm LEPTON_WORKSPACE_ID and LEPTON_AUTH_TOKEN are set in the launch environment.",
-        "Verify dataset and result URIs are reachable from the Lepton job. For s3:// URIs, provide ACCESS_KEY/SECRET_KEY and endpoint or region when required.",
+        "Verify Lepton API access for the workspace before generating runner scripts.",
+        "Verify s3:// dataset/result URIs with ACCESS_KEY/SECRET_KEY and aws s3 ls, or provide manual proof for mounted shared storage paths.",
         "Verify model-specific credentials such as HF_TOKEN before generating runner scripts."
       ]
     },
@@ -123,11 +236,13 @@
       },
       "dataset_examples": [
         "s3://my-bucket/tao/train",
-        "s3://my-bucket/tao/eval"
+        "s3://my-bucket/tao/eval",
+        "custom.train_dataset.annotation_path=s3://my-bucket/tao/train/annotations.json",
+        "custom.train_dataset.media_path=s3://my-bucket/tao/media/videos.tar.gz"
       ],
       "preflight_checks": [
-        "Confirm BREV_API_TOKEN is set and the Brev CLI/API can list the target workspace or instance.",
-        "Verify dataset and result URIs are reachable from the Brev instance. For s3:// URIs, provide ACCESS_KEY/SECRET_KEY and endpoint or region when required.",
+        "Confirm BREV_API_TOKEN is set and the Brev CLI/API can list instances before generating runner scripts.",
+        "Verify s3:// dataset/result URIs with ACCESS_KEY/SECRET_KEY and aws s3 ls before generating runner scripts.",
         "Verify model-specific credentials such as HF_TOKEN before generating runner scripts."
       ]
     },
@@ -299,7 +414,7 @@
       "preflight_checks": [
         "Confirm Docker is reachable from the launch host and the NVIDIA runtime can see GPUs.",
         "Validate local dataset annotation/media paths with test -e before generating runner scripts.",
-        "For s3:// inputs, verify S3 credentials are present and will be passed into the container.",
+        "For s3:// inputs, verify S3 credentials are present and aws s3 ls can read the dataset/result paths.",
         "Verify model-specific credentials such as HF_TOKEN before launching the container."
       ]
     },
@@ -369,12 +484,14 @@
       },
       "dataset_examples": [
         "s3://my-bucket/tao/<model>/train",
-        "s3://my-bucket/tao/<model>/eval"
+        "s3://my-bucket/tao/<model>/eval",
+        "custom.train_dataset.annotation_path=s3://my-bucket/tao/<model>/train/annotations.json",
+        "custom.train_dataset.media_path=s3://my-bucket/tao/<model>/media/videos.tar.gz"
       ],
       "preflight_checks": [
         "Confirm kubectl can access the target context and namespace.",
-        "Verify the namespace, service account, image pull access, and GPU scheduling are available before generating runner specs.",
-        "For s3:// inputs, verify S3 credentials are present and reachable from Kubernetes jobs.",
+        "Verify job-create permission and allocatable nvidia.com/gpu nodes before generating runner specs.",
+        "For s3:// inputs, verify S3 credentials are present and aws s3 ls can read the dataset/result paths.",
         "Verify model-specific credentials such as HF_TOKEN before creating Kubernetes jobs."
       ]
     }
