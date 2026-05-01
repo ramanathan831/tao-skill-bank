@@ -25,7 +25,13 @@ The runner is platform-agnostic: platform selection (Lepton, Slurm, K8s) and GPU
 
 Before running AutoML:
 
-1. **SDK credentials**: `secrets.json` must contain only the credentials needed
+1. **Shared launch preflight**: Use the `tao-workflow-launch` skill first.
+   AutoML must not create runner files, workspaces, state files, logs,
+   compatibility shims, or install dependencies until the selected platform's
+   credentials, access check, dataset visibility, model credentials, and compute
+   shape are satisfied. This prevents wasting the AutoML budget on fake
+   recommendation failures caused by SSH, storage, or credential setup.
+2. **SDK credentials**: `secrets.json` must contain only the credentials needed
    for the selected platform plus model-specific credentials. Before asking for
    credentials, run:
    ```bash
@@ -38,12 +44,17 @@ Before running AutoML:
    not need SLURM or Lepton credentials. Ask S3 credentials only when the
    selected platform and dataset/result URIs use `s3://`. Pass the final file
    via `TaoExecutionSDK(creds_file="~/tao-sdk/secrets.json")`.
-2. **Dataset**: Training data accessible from the compute backend. URI format depends on the SDK's platform:
+3. **Dataset**: Training data accessible from the compute backend. URI format depends on the SDK's platform:
    - Lepton / DGX Cloud: `s3://bucket/path` (S3-compatible; do not generate `aws://...`)
    - Slurm / internal shared storage: an absolute shared filesystem path visible to the Slurm job, e.g. `/lustre/fsw/tao_datasets/<model>/train` and `/lustre/fsw/tao_datasets/<model>/eval`
    - Azure: `azure://container/path`
    - Local / Docker: local filesystem path
-3. **Skill bank available**: lives at `~/tao-skills-external`. **CRITICAL**: The runner raises `ValueError: No skill config found for '<network>'` if the skill bank is not set. You MUST set it before importing the runner:
+   Accept either dataset roots or exact spec-key paths. For exact spec paths,
+   preserve user-supplied keys such as
+   `custom.train_dataset.annotation_path=/lustre/.../annotations.json` and
+   `custom.train_dataset.media_path=/lustre/.../videos.tar.gz`; do not force
+   both files to share one parent directory.
+4. **Skill bank available**: lives at `~/tao-skills-external`. **CRITICAL**: The runner raises `ValueError: No skill config found for '<network>'` if the skill bank is not set. You MUST set it before importing the runner:
    ```python
    import os
    os.environ["TAO_SKILL_BANK_PATH"] = os.path.expanduser("~/tao-skills-external")
@@ -72,7 +83,7 @@ Before running AutoML:
    **CRITICAL**: AutoML requires both a default train spec and a packaged generated train dataclass schema:
    - `SkillBank.get_default_specs(network, "train")` requires either `references/spec_template_train.yaml` or `defaults-train.json`. `references/spec_template_<action>.yaml` is generated from the matching schema JSON's top-level `default` field. If missing, the runner raises `ValueError: No default train specs found`.
    - `models/<network>/schemas/train.schema.json` must exist and parse as JSON. This is the gate for AutoML support because it defines `automl_enabled` parameters, defaults, ranges, options, weights, and popular metadata. The plugin workflow must not expect `~/tao-core` to exist at runtime; schemas are generated during skill-bank maintenance and shipped with the plugin. If the packaged train schema is missing, do not run AutoML for that model.
-4. **Conda environment**: Use the `tao_sdk` conda environment which has `tao-sdk` pre-installed:
+5. **Conda environment**: Use the `tao_sdk` conda environment which has `tao-sdk` pre-installed:
    ```bash
    conda activate tao_sdk
    # or prefix commands:
@@ -82,7 +93,7 @@ Before running AutoML:
    ```bash
    PYTHONPATH=~/tao-sdk:~/tao-automl/src PYTHONUNBUFFERED=1 ~/miniconda3/envs/tao_sdk/bin/python my_script.py
    ```
-5. **`nvidia-tao-automl` installed** (editable dev install into `tao_sdk` env):
+6. **`nvidia-tao-automl` installed** (editable dev install into `tao_sdk` env):
    ```bash
    conda activate tao_sdk
    # Core only (classical algorithms)
@@ -164,14 +175,14 @@ Extract these fields for a default run:
 |---|---|---|---|
 | `network_arch` | Yes | `"<network_arch>"` | User states the model |
 | `platform` | Yes | `"lepton"`, `"slurm"`, `"local-docker"`, `"kubernetes"` | After the user confirms they want AutoML, run `scripts/list_tao_platforms.py --format text` and ask them to choose from that output. |
-| `train_dataset_uri` | Yes | `"s3://bucket/data/subset"` or `"/lustre/fsw/tao_datasets/<model>/train"` | User provides the URI/path, or the model skill declares a default profile for this exact network/use case. |
-| `eval_dataset_uri` | Model-dependent | `"s3://bucket/data/eval"` or `"/lustre/fsw/tao_datasets/<model>/eval"` | Ask only if the model skill's Per-Action Dataset Requirements require an eval/validation source and no default profile supplies it. |
+| `train_dataset_uri` or direct train spec paths | Yes | `"s3://bucket/data/subset"`, `"/lustre/fsw/tao_datasets/<model>/train"`, or `custom.train_dataset.annotation_path=/...` | User provides a root URI/path, exact spec-key paths, or the model skill declares a default profile for this exact network/use case. |
+| `eval_dataset_uri` or direct eval spec paths | Model-dependent | `"s3://bucket/data/eval"`, `"/lustre/fsw/tao_datasets/<model>/eval"`, or `custom.val_dataset.media_path=/...` | Ask only if the model skill's Per-Action Dataset Requirements require an eval/validation source and no default profile supplies it. |
 | `metric` | No | `"<metric_name>"` | Use the model skill recommendation or ask if unclear. Do not choose model-specific metrics from this AutoML skill. |
 | `direction` | No | `"minimize"` or `"maximize"` | **Only needed if your metric name doesn't contain `"loss"` AND you want to minimize, or contains `"loss"` AND you want to maximize.** Otherwise the implicit "contains 'loss' → minimize, else maximize" rule applies. |
 | `skill_bank_path` | Yes (if not set) | `"~/tao-skills-external"` | Check if `TAO_SKILL_BANK_PATH` env var is set. If not, ask the user for the path. Default: `~/tao-skills-external`. The runner raises `ValueError: No skill config found` without it. |
 | `long_running_enabled` | Yes | `true` | Ask during launch intake. If enabled, keep the agent attached and emit status until completion. Default: enabled. |
 | `status_interval_minutes` | Yes | `5` | Ask during launch intake. Default: 5 minutes. |
-| required credentials | Platform/model-dependent | `SLURM_USER`, `SLURM_HOSTNAME`, `HF_TOKEN` | First filter platform credentials with `scripts/list_tao_platforms.py --platform <platform>`, then add selected-model credentials. Do not ask for unrelated platform credentials. |
+| required credentials | Platform/model-dependent | `SLURM_USER`, `SLURM_HOSTNAME`, `SSH_KEY_PATH` or `SSH_AUTH_SOCK`, `HF_TOKEN` | First filter platform credentials with `scripts/list_tao_platforms.py --platform <platform>`, satisfy required credential groups, then add selected-model credentials. Do not ask for unrelated platform credentials. |
 | compute shape | Model-dependent | `num_gpus=4`, `dp_shard_size=4`, `dp_replicate_size=1` | Ask only for model-required hardware fields that are not provided by the platform/default profile. |
 
 Use these quick-start AutoML defaults without asking:
@@ -186,6 +197,12 @@ Use these quick-start AutoML defaults without asking:
 | `status_interval_minutes` | `5` |
 
 If any required field is missing, ask the user. Do NOT guess dataset paths, skill bank paths, credentials, or hardware that the model skill marks as required.
+
+Before generating an AutoML script, verify platform access and dataset
+visibility using `tao-workflow-launch`. For SLURM, that means passwordless SSH
+to at least one login host and remote `test -e` checks for each required
+annotation/media path. If preflight fails, stop with remediation steps instead
+of creating a runner that will immediately fail.
 
 **Customization gate:** After the required quick-start fields are resolved, you may briefly offer customization. If the user declines or does not ask for it, proceed with the defaults above. If the user chooses customization, then present the additional options below.
 
@@ -299,9 +316,14 @@ workspace_path = f"./experiment_name/{TIMESTAMP}"
 
 Do NOT use a flat path like `workspace_path="./my_experiment"`. The user should never have to manually delete old workspace folders.
 
-**MANDATORY: Fresh runner per new AutoML request.**
+**MANDATORY: Fresh runner per new AutoML request, after preflight passes.**
 
-Every new user request to run AutoML MUST create a new runner script and launch a new AutoML job, even if an older runner script for the same network/algorithm already exists. Existing runner files and logs may be read only as references for dataset URIs, credentials patterns, and proven fixes; do not reuse them as the execution target for a new request.
+Every new user request to run AutoML MUST create a new runner script and launch
+a new AutoML job, even if an older runner script for the same network/algorithm
+already exists. This freshness rule starts only after platform and dataset
+preflight passes. Existing runner files and logs may be read only as references
+for dataset URIs, credentials patterns, and proven fixes; do not reuse them as
+the execution target for a new request.
 
 Use a unique timestamp in the new runner filename, log filename, PID filename, SDK `state_file`, and `workspace_path`. Derive path components from the requested `network_arch` and `algorithm`; do not hardcode any model or algorithm name unless it is the actual requested value.
 

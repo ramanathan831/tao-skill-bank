@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "default_long_running_enabled": true,
   "default_status_interval_minutes": 5,
   "platforms": [
@@ -14,11 +14,15 @@
       "required_credentials": [
         {
           "name": "LEPTON_WORKSPACE_ID",
-          "source": "env_var"
+          "source": "env_var",
+          "description": "Lepton/DGX Cloud workspace where TAO jobs will be submitted.",
+          "how_to_get": "Open the Lepton workspace UI or CLI context and use the workspace id for the target GPU workspace."
         },
         {
           "name": "LEPTON_AUTH_TOKEN",
-          "source": "env_var"
+          "source": "env_var",
+          "description": "API token used to submit and monitor Lepton jobs.",
+          "how_to_get": "Create or copy a Lepton API token from the Lepton account/workspace settings."
         }
       ],
       "optional_credentials": [
@@ -56,7 +60,16 @@
         "protocol": "aws",
         "uri_format": "s3://{bucket_name}/{path}",
         "metadata_key": "aws"
-      }
+      },
+      "dataset_examples": [
+        "s3://my-bucket/cosmos_rl/train",
+        "s3://my-bucket/cosmos_rl/eval"
+      ],
+      "preflight_checks": [
+        "Confirm LEPTON_WORKSPACE_ID and LEPTON_AUTH_TOKEN are set in the launch environment.",
+        "Verify dataset and result URIs are reachable from the Lepton job. For s3:// URIs, provide ACCESS_KEY/SECRET_KEY and endpoint or region when required.",
+        "Verify model-specific credentials such as HF_TOKEN before generating runner scripts."
+      ]
     },
     {
       "name": "brev",
@@ -67,7 +80,9 @@
       "required_credentials": [
         {
           "name": "BREV_API_TOKEN",
-          "source": "env_var"
+          "source": "env_var",
+          "description": "Brev API token used to create and manage GPU instances/jobs.",
+          "how_to_get": "Create or copy a token from the Brev account settings or CLI login flow."
         }
       ],
       "optional_credentials": [
@@ -105,7 +120,16 @@
         "protocol": "aws",
         "uri_format": "s3://{bucket_name}/{path}",
         "metadata_key": "aws"
-      }
+      },
+      "dataset_examples": [
+        "s3://my-bucket/tao/train",
+        "s3://my-bucket/tao/eval"
+      ],
+      "preflight_checks": [
+        "Confirm BREV_API_TOKEN is set and the Brev CLI/API can list the target workspace or instance.",
+        "Verify dataset and result URIs are reachable from the Brev instance. For s3:// URIs, provide ACCESS_KEY/SECRET_KEY and endpoint or region when required.",
+        "Verify model-specific credentials such as HF_TOKEN before generating runner scripts."
+      ]
     },
     {
       "name": "slurm",
@@ -118,21 +142,40 @@
       "required_credentials": [
         {
           "name": "SLURM_USER",
-          "source": "env_var"
+          "source": "env_var",
+          "description": "SSH username for the SLURM login node.",
+          "how_to_get": "Use the username you normally use when running ssh <user>@<slurm-login-host>."
         },
         {
           "name": "SLURM_HOSTNAME",
-          "source": "env_var"
+          "source": "env_var",
+          "description": "Comma-separated SLURM login hostnames for failover.",
+          "how_to_get": "Use the login hosts provided by the cluster admin, for example login-01.example.com,login-02.example.com."
+        }
+      ],
+      "credential_groups": [
+        {
+          "name": "ssh_identity",
+          "require_one_of": [
+            "SSH_KEY_PATH",
+            "SSH_AUTH_SOCK"
+          ],
+          "description": "Non-interactive SSH identity for passwordless public-key login to at least one SLURM login host.",
+          "how_to_get": "Provide SSH_KEY_PATH for a private key accepted by the cluster, or start ssh-agent with the accepted key and expose SSH_AUTH_SOCK."
         }
       ],
       "optional_credentials": [
         {
           "name": "SSH_KEY_PATH",
-          "source": "env_var"
+          "source": "env_var",
+          "description": "Private key path used for public-key SSH to SLURM login nodes.",
+          "how_to_get": "Use the key that succeeds with ssh -o BatchMode=yes -i <key> <SLURM_USER>@<host> 'echo ok'."
         },
         {
           "name": "SSH_AUTH_SOCK",
-          "source": "env_var"
+          "source": "env_var",
+          "description": "SSH agent socket containing a key accepted by the SLURM login node.",
+          "how_to_get": "Run ssh-agent, add the key with ssh-add, and pass the printed SSH_AUTH_SOCK value to the launch environment."
         },
         {
           "name": "SLURM_BASE_RESULTS_DIR",
@@ -164,7 +207,19 @@
         "protocol": "lustre",
         "uri_format": "lustre:///{absolute_path}",
         "metadata_key": "slurm"
-      }
+      },
+      "dataset_examples": [
+        "/lustre/fsw/portfolios/edgeai/users/<user>/data/<model>/train",
+        "lustre:///lustre/fsw/portfolios/edgeai/users/<user>/data/<model>/eval",
+        "custom.train_dataset.annotation_path=/lustre/fsw/.../annotations.json",
+        "custom.train_dataset.media_path=/lustre/fsw/.../videos.tar.gz"
+      ],
+      "preflight_checks": [
+        "Resolve each host in SLURM_HOSTNAME and require passwordless SSH to at least one host with BatchMode=yes.",
+        "If SSH fails, stop before generating runner scripts and tell the user to install the public key with ssh-copy-id or use an SSH agent.",
+        "After SSH passes, validate dataset annotation/media paths from the login host using test -e before generating runner scripts.",
+        "Verify model-specific credentials such as HF_TOKEN before submitting jobs."
+      ]
     },
     {
       "name": "local-docker",
@@ -234,7 +289,19 @@
         "protocol": "local",
         "uri_format": "file://{absolute_path}",
         "metadata_key": "local"
-      }
+      },
+      "dataset_examples": [
+        "/data/tao/<model>/train",
+        "file:///data/tao/<model>/eval",
+        "custom.train_dataset.annotation_path=/data/tao/train/annotations.json",
+        "custom.train_dataset.media_path=/data/tao/media/videos.tar.gz"
+      ],
+      "preflight_checks": [
+        "Confirm Docker is reachable from the launch host and the NVIDIA runtime can see GPUs.",
+        "Validate local dataset annotation/media paths with test -e before generating runner scripts.",
+        "For s3:// inputs, verify S3 credentials are present and will be passed into the container.",
+        "Verify model-specific credentials such as HF_TOKEN before launching the container."
+      ]
     },
     {
       "name": "kubernetes",
@@ -299,7 +366,17 @@
         "protocol": "aws",
         "uri_format": "s3://{bucket_name}/{path}",
         "metadata_key": "aws"
-      }
+      },
+      "dataset_examples": [
+        "s3://my-bucket/tao/<model>/train",
+        "s3://my-bucket/tao/<model>/eval"
+      ],
+      "preflight_checks": [
+        "Confirm kubectl can access the target context and namespace.",
+        "Verify the namespace, service account, image pull access, and GPU scheduling are available before generating runner specs.",
+        "For s3:// inputs, verify S3 credentials are present and reachable from Kubernetes jobs.",
+        "Verify model-specific credentials such as HF_TOKEN before creating Kubernetes jobs."
+      ]
     }
   ]
 }

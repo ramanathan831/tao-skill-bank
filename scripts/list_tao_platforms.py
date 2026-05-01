@@ -85,8 +85,11 @@ def credentials_for_platform(skill_bank: Path, requested: str) -> dict[str, Any]
         "platform": platform["name"],
         "display_name": platform.get("display_name", platform["name"]),
         "required_credentials": platform.get("required_credentials", []),
+        "credential_groups": platform.get("credential_groups", []),
         "optional_credentials": platform.get("optional_credentials", []),
         "storage": platform.get("storage", {}),
+        "dataset_examples": platform.get("dataset_examples", []),
+        "preflight_checks": platform.get("preflight_checks", []),
     }
 
 
@@ -95,6 +98,27 @@ def format_credential(item: dict[str, Any]) -> str:
     text = item.get("name", "")
     if item.get("only_when"):
         text += f" ({item['only_when']})"
+    details = []
+    if item.get("description"):
+        details.append(str(item["description"]))
+    if item.get("how_to_get"):
+        details.append(f"How to get it: {item['how_to_get']}")
+    if details:
+        text += " - " + " ".join(details)
+    return text
+
+
+def format_credential_group(item: dict[str, Any]) -> str:
+    """Format a required one-of credential group."""
+    choices = ", ".join(item.get("require_one_of", []))
+    text = f"{item.get('name', 'credential_group')}: one of [{choices}]"
+    details = []
+    if item.get("description"):
+        details.append(str(item["description"]))
+    if item.get("how_to_get"):
+        details.append(f"How to get it: {item['how_to_get']}")
+    if details:
+        text += " - " + " ".join(details)
     return text
 
 
@@ -126,8 +150,11 @@ def format_platform_detail_text(skill_bank: Path, requested: str) -> str:
     """Format the selected platform's credentials and storage hints."""
     detail = credentials_for_platform(skill_bank, requested)
     required = detail["required_credentials"]
+    groups = detail["credential_groups"]
     optional = detail["optional_credentials"]
     storage = detail["storage"]
+    dataset_examples = detail["dataset_examples"]
+    preflight_checks = detail["preflight_checks"]
 
     lines = [
         f"Platform: {detail['platform']} ({detail['display_name']})",
@@ -137,6 +164,10 @@ def format_platform_detail_text(skill_bank: Path, requested: str) -> str:
         lines.extend(f"- {format_credential(item)}" for item in required)
     else:
         lines.append("- None")
+
+    if groups:
+        lines.append("Required credential groups:")
+        lines.extend(f"- {format_credential_group(item)}" for item in groups)
 
     lines.append("Optional credentials:")
     if optional:
@@ -152,6 +183,12 @@ def format_platform_detail_text(skill_bank: Path, requested: str) -> str:
                 f"- URI format: {storage.get('uri_format', '')}",
             ]
         )
+    if dataset_examples:
+        lines.append("Dataset examples:")
+        lines.extend(f"- {example}" for example in dataset_examples)
+    if preflight_checks:
+        lines.append("Preflight checks:")
+        lines.extend(f"- {check}" for check in preflight_checks)
     return "\n".join(lines)
 
 

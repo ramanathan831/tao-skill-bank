@@ -1,16 +1,15 @@
 ---
 name: tao-skill-bank-capabilities
 description: >-
-  Answer what the TAO Skill Bank plugin can do, including application workflows,
-  supported TAO model actions, fine-tuning workflows, TensorRT engine generation,
-  AutoML support, or model lists.
+  Answer what the TAO Skill Bank plugin can do by generating the response from
+  packaged application, data, model, AutoML, and platform manifests.
 ---
 
 # TAO Skill Bank Capabilities
 
 Use this skill when the user asks what `tao-skill-bank` can do, asks for plugin
-capabilities, asks which application workflows are available, asks which models
-are supported, or asks what models are capable with AutoML.
+capabilities, asks which application or data workflows are available, asks which
+models are supported, or asks what models are capable with AutoML.
 
 ## Capability Answers
 
@@ -21,9 +20,11 @@ ${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/list_tao_capabilities.py \
   --skill-bank ${TAO_SKILL_BANK_PATH:-~/tao-skills-external} --format text
 ```
 
-Use the output to answer in natural language. Include:
+Use the helper output as the source of truth for the answer instead of manually
+enumerating capabilities from this skill or plugin metadata. Include:
 
 - Every top-level application workflow under `applications/` and what it can do.
+- Every top-level data workflow under `data/` and what it can do.
 - Supported execution platforms from `scripts/list_tao_platforms.py`.
 - The fine-tuning/deployment workflow coverage for models under `models/`: train,
   evaluate, inference, export, and TensorRT engine generation when those actions

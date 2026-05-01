@@ -16,11 +16,12 @@ the cluster.
 
 ## Prerequisites
 
-Before any SLURM job can be submitted, the host running the TAO service or SDK
-must be able to log in to every `SLURM_HOSTNAME` over SSH **without an
-interactive password prompt**. The handler runs `sbatch`, `squeue`, `sacct`,
-`scancel`, and log tails non-interactively, so password or 2FA prompts will
-fail the job at submit or status time.
+Before any SLURM job can be submitted or any runner script is generated, the
+host running the TAO service or SDK must be able to log in to at least one host
+from `SLURM_HOSTNAME` over SSH **without an interactive password prompt**. The
+handler runs `sbatch`, `squeue`, `sacct`, `scancel`, and log tails
+non-interactively, so password or 2FA prompts will fail the job at submit or
+status time.
 
 Set this up once per (host, login node, user) tuple:
 
@@ -46,7 +47,8 @@ Set this up once per (host, login node, user) tuple:
 3. Trust the host key so SSH does not stall on the "authenticity of host" prompt
    inside the handler. Either log in once interactively to accept the prompt,
    or pre-populate `~/.ssh/known_hosts` with `ssh-keyscan -H <login-host> >> ~/.ssh/known_hosts`.
-4. Verify the result is fully non-interactive:
+4. Verify the result is fully non-interactive for at least one listed login
+   host:
 
    ```bash
    ssh -o BatchMode=yes -o PreferredAuthentications=publickey \
@@ -83,10 +85,12 @@ handler via `SSH_AUTH_SOCK`.
 - **SLURM_HOSTNAME** (required): Comma-separated login hostnames for failover.
   Microservices schema stores this as the list field
   `cloud_specific_details.slurm_hostname`.
-- **SSH_KEY_PATH** (optional): Private key path. If omitted, the handler checks
-  common key locations such as `~/.ssh/id_ed25519`, `/root/.ssh/id_ed25519`,
-  and `/home/www-data/.ssh/id_ed25519`.
-- **SSH_AUTH_SOCK** (optional): SSH agent socket for agent-based auth.
+- **SSH_KEY_PATH** or **SSH_AUTH_SOCK** (required one-of before launch):
+  non-interactive public-key auth for the login node. Use `SSH_KEY_PATH` for a
+  private key path, or `SSH_AUTH_SOCK` for an SSH agent socket with an accepted
+  key loaded. If omitted, some handlers may try common key locations such as
+  `~/.ssh/id_ed25519`, but launch intake must still verify passwordless SSH
+  before generating artifacts.
 - **SLURM_BASE_RESULTS_DIR** (optional): Base shared filesystem path. Default
   convention from `tao-core` is `/lustre/fsw/portfolios/edgeai/users/<user>`.
 - **SLURM_ACCOUNT** (usually required by site policy): Account charged by
@@ -121,6 +125,26 @@ dataset paths. Prefer shared filesystem URIs:
   actual Lustre paths before the container starts.
 - Avoid bare `/local/path` and `file://` dataset URIs for SLURM. Validation in
   `tao-core` rejects local and file paths for remote backends.
+
+Accept either dataset roots or direct spec-key paths:
+
+- Root mode: `/lustre/.../<model>/train`, which model skills map to required
+  files such as `<root>/annotations.json` and `<root>` as media path.
+- Direct spec mode: exact fields such as
+  `custom.train_dataset.annotation_path=/lustre/.../train.json` and
+  `custom.train_dataset.media_path=/lustre/.../videos.tar.gz`.
+
+After passwordless SSH succeeds and before generating scripts, validate each
+required dataset file/path from the login host:
+
+```bash
+ssh -o BatchMode=yes <SLURM_USER>@<working-login-host> \
+  'test -e /lustre/.../annotations.json && test -e /lustre/.../media_or_archive'
+```
+
+If the remote `test -e` fails, stop and ask for corrected paths or for the data
+to be staged onto shared cluster storage. Do not create runner scripts that will
+fail inside the first training job.
 
 Results default to:
 

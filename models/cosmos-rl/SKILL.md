@@ -24,7 +24,8 @@ Generated TAO Core schemas are packaged in `schemas/<action>.schema.json`, with 
 - **Accepted dataset intents:** training, evaluation, testing
 - **Monitoring metric:** val/avg_loss, val/reward_avg, val/loss
 - **Dataset URI examples:** `s3://bucket/cosmos/train`, `s3://bucket/cosmos/eval`, `/lustre/fsw/tao_datasets/cosmos_rl/train`, `/lustre/fsw/tao_datasets/cosmos_rl/eval`
-- **Media handling:** do not ask the user to choose `videos.tar.gz` vs `images.tar.gz`. The dataset root is expected to contain the annotation file and its media payload; pass the dataset root as the media path unless the user explicitly provides a more specific path.
+- **Input modes:** accept either dataset roots or direct spec-key paths. Root mode maps `<root>/annotations.json` plus `<root>` as the media path. Direct spec mode is valid when annotations and media live in different locations, for example `custom.train_dataset.annotation_path=/lustre/.../train.json` and `custom.train_dataset.media_path=/lustre/.../videos.tar.gz`.
+- **Media handling:** do not ask the user to choose `videos.tar.gz` vs `images.tar.gz` unless they are using direct spec mode or the model/action requires a single media archive. In root mode, pass the dataset root as the media path.
 
 ### Per-Action Dataset Requirements
 
@@ -49,15 +50,24 @@ EVAL_DATASET_URI = "s3://bucket/data/eval"
 # Slurm/internal example:
 # TRAIN_DATASET_URI = "/lustre/fsw/tao_datasets/cosmos_rl/train"
 # EVAL_DATASET_URI = "/lustre/fsw/tao_datasets/cosmos_rl/eval"
+# Direct spec-path example:
+# TRAIN_ANNOTATION_PATH = "/lustre/fsw/.../annotations_train.json"
+# TRAIN_MEDIA_PATH = "/lustre/fsw/.../videos_train.tar.gz"
+# EVAL_ANNOTATION_PATH = "/lustre/fsw/.../annotations_eval.json"
+# EVAL_MEDIA_PATH = "/lustre/fsw/.../eval_videos"
 ```
 
 **train (mandatory data sources):**
 ```python
 {
-    "custom.train_dataset.annotation_path": f"{TRAIN_DATASET_URI}/annotations.json",
-    "custom.train_dataset.media_path": TRAIN_DATASET_URI,
-    "custom.val_dataset.annotation_path": f"{EVAL_DATASET_URI}/annotations.json",
-    "custom.val_dataset.media_path": EVAL_DATASET_URI,
+    "custom.train_dataset": {
+        "annotation_path": f"{TRAIN_DATASET_URI}/annotations.json",
+        "media_path": TRAIN_DATASET_URI,
+    },
+    "custom.val_dataset": {
+        "annotation_path": f"{EVAL_DATASET_URI}/annotations.json",
+        "media_path": EVAL_DATASET_URI,
+    },
     "policy.model_name_or_path": "hf_model://nvidia/Cosmos-Reason2-8B",
     "policy.model_max_length": 81920,
     "policy.parallelism.dp_shard_size": 4,
@@ -84,6 +94,13 @@ EVAL_DATASET_URI = "s3://bucket/data/eval"
     "logging.logger": ["console", "tao"],
 }
 ```
+
+`custom.val_dataset.annotation_path` and `custom.val_dataset.media_path` are
+valid train schema fields even when `defaults-train.json` does not pre-create
+`custom.val_dataset`. Strict validators must check the packaged train schema or
+seed the parent `custom.val_dataset` object before applying leaf overrides. Do
+not reject those keys as typos just because they are absent from the default
+spec object.
 
 **evaluate (mandatory data sources):**
 ```python
@@ -167,16 +184,25 @@ The script runner reads `dataset.annotation_path`, extracts referenced video pat
 
 ## Datasets
 
-The `data_sources` config in config.json maps dataset URIs to spec paths. It appends `annotations.json` to the dataset directory URI by convention. If your dataset uses a different annotation filename, override the annotation path via spec_overrides:
+The `data_sources` config in config.json maps dataset URIs to spec paths. It
+appends `annotations.json` to the dataset directory URI by convention. If your
+annotations and media do not share a root, or if the annotation file has a
+different name, use direct spec overrides instead of forcing a root:
 
 ```python
 spec_overrides={
-    'custom.val_dataset.annotation_path': 's3://bucket/eval/my_annotations.json',
-    'custom.val_dataset.media_path': 's3://bucket/eval/',
+    'custom.train_dataset': {
+        'annotation_path': 's3://bucket/train/my_annotations.json',
+        'media_path': 's3://bucket/media/videos_train.tar.gz',
+    },
+    'custom.val_dataset': {
+        'annotation_path': 's3://bucket/eval/my_annotations.json',
+        'media_path': 's3://bucket/eval/videos/',
+    },
 }
 ```
 
-**Eval dataset** is optional for training. If provided, validation metrics are computed at the frequency set by `validation.freq_in_epoch`. If not provided, use `dataset.test_size` to auto-split training data.
+**Eval dataset** is optional for plain training only when `train.train_policy.dataset.test_size` is used to auto-split training data. For AutoML or any workflow optimizing a validation metric such as `val/avg_loss`, require either an explicit `custom.val_dataset` or a deliberate auto-split setting before launch preflight passes. If a validation dataset is provided, validation metrics are computed at the frequency set by `validation.freq_in_epoch`.
 
 ## Important Parameters
 
