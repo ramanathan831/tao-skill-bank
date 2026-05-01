@@ -245,6 +245,11 @@ I need these before I can create the AutoML runner or submit jobs:
    SLURM_PARTITION=<gpu partition>
    SSH_KEY_PATH=/path/to/private_key
 
+   For the packaged SLURM defaults I will use the 4-hour partition runtime:
+   SLURM_TIME_HOURS=4 and SLURM_TIMEOUT_HOURS=3.8. I will not use a 12-hour
+   default unless you choose a partition that supports it and explicitly ask
+   for that wall time.
+
    Do not ask for SLURM_ACCOUNT or SLURM_BASE_RESULTS_DIR unless the user says
    their cluster requires an account or wants a custom results root.
 
@@ -254,9 +259,11 @@ I need these before I can create the AutoML runner or submit jobs:
 
 6. Monitoring preference. By default I monitor in this chat, polling the job
    and logs until it finishes/fails, and I post an update every 5 minutes.
-   Use 1-2 minutes for smoke tests, 5 minutes for normal training, or
-   10-15 minutes for long runs. If detached, I launch and give you the job id
-   and log path, then stop polling.
+   This includes long queue waits; I should keep posting every interval while
+   the SLURM job is PENDING or RUNNING, not stop after 30 minutes. Use
+   1-2 minutes for smoke tests, 5 minutes for normal training, or 10-15 minutes
+   for long runs. If detached, I launch and give you the job id and log path,
+   then stop polling.
 ```
 
 Before generating an AutoML script, verify platform access and dataset
@@ -878,6 +885,12 @@ the run reaches a terminal state. Detach only when the user disables
 long-running monitoring or explicitly asks for background execution. Use
 `PYTHONUNBUFFERED=1` and the direct Python binary so status updates stream in
 real time.
+
+Do not stop foreground monitoring after an arbitrary elapsed time or after a
+fixed number of polls. A SLURM AutoML job can sit in `PENDING (Priority)` for
+hours or days; while `long_running_enabled=true`, continue emitting status at
+`status_interval_minutes` until all recommendations reach terminal state or the
+user explicitly asks to detach/stop monitoring.
 
 Ask whether long-running monitoring should stay enabled; default to enabled.
 Ask how many minutes between status updates; default to 5 minutes.

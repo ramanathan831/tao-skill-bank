@@ -86,7 +86,8 @@ handler via `SSH_AUTH_SOCK`.
   Microservices schema stores this as the list field
   `cloud_specific_details.slurm_hostname`.
 - **SLURM_PARTITION** (required): Partition list for GPU job submission. Ask
-  for this in the mandatory SLURM intake list.
+  for this in the mandatory SLURM intake list. The packaged default is
+  `polar,polar3,polar4,grizzly`, which are treated as 4-hour queues.
 - **SSH_KEY_PATH** (preferred and expected before launch): private key path for
   non-interactive public-key auth to the login node. If passwordless SSH fails,
   ask the user for `SSH_KEY_PATH=/path/to/private_key` and show the setup steps
@@ -215,9 +216,24 @@ Defaults from `tao-core`:
 - `cpus_per_task`: 16
 - `time_hours`: 4
 - `timeout_hours`: 3.8
+- `max_time_hours`: 4
 - `container_mounts`: `/lustre`
 - `use_requeue`: true
 - `use_sqsh`: true
+
+When generating launchers or wrapper scripts for SLURM, set the wall-time
+defaults explicitly from the packaged platform resource defaults:
+
+```bash
+export SLURM_TIME_HOURS="${SLURM_TIME_HOURS:-4}"
+export SLURM_TIMEOUT_HOURS="${SLURM_TIMEOUT_HOURS:-3.8}"
+```
+
+Do not default to 12 hours on SLURM. If the user supplies a longer
+`SLURM_TIME_HOURS`, verify that the selected partition supports it before
+submitting. For the packaged default partition list
+`polar,polar3,polar4,grizzly`, reject requests above 4 hours and ask for a
+different partition only if the user actually wants a longer wall time.
 
 When `num_gpus` is greater than or equal to `max_num_gpus_per_node`, the
 handler treats the request as exclusive per node and computes additional nodes
@@ -231,6 +247,10 @@ multi-node role handling for controller, policy, and rollout workers.
 
 - Scheduler status comes from the stored SLURM job id via `squeue` or `sacct`.
 - TAO terminal status comes from `status.json` in the shared results folder.
+- If the user enabled chat monitoring, continue polling at the requested
+  interval while the job is `PENDING`, `RUNNING`, or otherwise non-terminal.
+  Do not stop after a fixed elapsed time such as 30 minutes; long queue waits
+  are normal on shared GPU partitions.
 - Logs are read over SSH from:
 
 ```text

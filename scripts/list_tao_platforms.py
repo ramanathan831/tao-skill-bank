@@ -106,6 +106,7 @@ def credentials_for_platform(skill_bank: Path, requested: str) -> dict[str, Any]
             enrich_credential(item, definitions)
             for item in platform.get("optional_credentials", [])
         ],
+        "resource_defaults": platform.get("resource_defaults", {}),
         "storage": platform.get("storage", {}),
         "dataset_examples": platform.get("dataset_examples", []),
         "preflight_checks": platform.get("preflight_checks", []),
@@ -145,6 +146,13 @@ def format_credential_group(item: dict[str, Any]) -> str:
     return text
 
 
+def format_resource_value(value: Any) -> str:
+    """Format resource defaults in a shell/config-friendly way."""
+    if isinstance(value, bool):
+        return str(value).lower()
+    return str(value)
+
+
 def format_platform_list_text(skill_bank: Path) -> str:
     """Format supported platforms for an initial workflow prompt."""
     defaults = prompt_defaults(skill_bank)
@@ -175,6 +183,7 @@ def format_platform_detail_text(skill_bank: Path, requested: str) -> str:
     required = detail["required_credentials"]
     groups = detail["credential_groups"]
     optional = detail["optional_credentials"]
+    resource_defaults = detail["resource_defaults"]
     storage = detail["storage"]
     dataset_examples = detail["dataset_examples"]
     preflight_checks = detail["preflight_checks"]
@@ -197,6 +206,11 @@ def format_platform_detail_text(skill_bank: Path, requested: str) -> str:
         lines.extend(f"- {format_credential(item)}" for item in optional)
     else:
         lines.append("- None")
+
+    if resource_defaults:
+        lines.append("Resource defaults:")
+        for key, value in resource_defaults.items():
+            lines.append(f"- {key}: {format_resource_value(value)}")
 
     if storage:
         lines.extend(

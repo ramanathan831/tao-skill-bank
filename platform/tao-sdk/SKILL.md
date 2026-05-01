@@ -57,7 +57,9 @@ ${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/list_tao_platforms.py \
 Ask:
 
 1. Which supported platform should run this workflow?
-2. Should long-running monitoring stay enabled? Default: enabled.
+2. Should long-running monitoring stay enabled? Default: enabled. This means
+   the agent remains attached and posts status until terminal state, including
+   long `PENDING` queue waits.
 3. How many minutes between status updates? Default: 5 minutes.
 
 After the platform is selected, get the credential filter:
@@ -144,6 +146,12 @@ How many minutes between status updates? Default is 5 minutes.
 
 If the user accepts the default, use `long_running_enabled = True` and
 `status_interval_minutes = 5`.
+
+With long-running monitoring enabled, do not stop after 30 minutes or after a
+few unchanged polls. Keep emitting updates every `status_interval_minutes`
+until the job finishes, fails, is canceled, or the user asks to detach/stop.
+If the chat/runtime cannot remain open that long, say so explicitly and provide
+the durable workflow/log path for manual status refresh.
 
 Do not inspect or patch the generated runner script to fix missing inputs,
 checkpoint paths, config format, commands, or upload excludes. Those are skill
@@ -496,7 +504,11 @@ known filenames. For example, DINO standard datasets use `images.tar.gz` and
 - Jobs submit over SSH to a login node with `sbatch` and run containers through
   Pyxis/Enroot `srun --container-image`
 - Use `backend_details.backend_type = "slurm"` and pass `partition` when the
-  user requests a specific queue
+  user provides the required queue/partition
+- Use the packaged SLURM runtime defaults unless the user gives a validated
+  override: `time_hours=4`, `timeout_hours=3.8`, and
+  `partition=polar,polar3,polar4,grizzly`. Do not generate 12-hour SLURM
+  wrapper defaults for these 4-hour queues.
 - Dataset paths must be cluster-visible, usually `lustre:///absolute/path`; do
   not pass local or `file://` paths to SLURM jobs
 - Results default to

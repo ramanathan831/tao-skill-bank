@@ -372,6 +372,9 @@ def check_slurm(
         print("SLURM_HOSTNAME did not contain any hosts")
         return False
 
+    if not check_slurm_runtime(platform):
+        return False
+
     working_host = ""
     if not skip_access:
         for host in hosts:
@@ -425,6 +428,61 @@ def check_slurm(
             ok = False
 
     return ok
+
+
+def parse_float_env(name: str) -> float | None:
+    value = os.environ.get(name)
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except ValueError:
+        raise SystemExit(f"{name} must be a number of hours, got: {value}")
+
+
+def check_slurm_runtime(platform: dict[str, Any]) -> bool:
+    defaults = platform.get("resource_defaults", {})
+    default_partition = defaults.get("partition")
+    default_time = float(defaults.get("time_hours", 4))
+    default_timeout = float(defaults.get("timeout_hours", max(default_time - 0.2, 0.1)))
+    max_time = float(defaults.get("max_time_hours", default_time))
+
+    requested_partition = os.environ.get("SLURM_PARTITION", default_partition)
+    requested_time = parse_float_env("SLURM_TIME_HOURS")
+    requested_timeout = parse_float_env("SLURM_TIMEOUT_HOURS")
+
+    if requested_time is None:
+        print(
+            "SLURM runtime default: "
+            f"partition={requested_partition}, SLURM_TIME_HOURS={default_time:g}, "
+            f"SLURM_TIMEOUT_HOURS={default_timeout:g}"
+        )
+        requested_time = default_time
+    else:
+        print(
+            "SLURM runtime requested: "
+            f"partition={requested_partition}, SLURM_TIME_HOURS={requested_time:g}"
+        )
+
+    if requested_timeout is None:
+        requested_timeout = min(default_timeout, max(requested_time - 0.1, 0.1))
+    print(f"SLURM internal timeout: SLURM_TIMEOUT_HOURS={requested_timeout:g}")
+
+    if requested_time > max_time:
+        print(
+            "SLURM runtime exceeds packaged partition limit: "
+            f"requested {requested_time:g}h > max {max_time:g}h. "
+            "Use SLURM_TIME_HOURS=4 or provide a different partition with a "
+            "known-good wall-time limit before launch."
+        )
+        return False
+    if requested_timeout >= requested_time:
+        print(
+            "SLURM_TIMEOUT_HOURS must be smaller than SLURM_TIME_HOURS "
+            f"({requested_timeout:g} >= {requested_time:g})."
+        )
+        return False
+    return True
 
 
 def check_local_docker(paths: list[tuple[str, str]], skip_access: bool) -> bool:

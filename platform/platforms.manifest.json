@@ -318,6 +318,21 @@
         "uri_format": "lustre:///{absolute_path}",
         "metadata_key": "slurm"
       },
+      "resource_defaults": {
+        "num_nodes": 1,
+        "num_gpus": 4,
+        "max_num_gpus_per_node": 8,
+        "cpus_per_task": 16,
+        "partition": "polar,polar3,polar4,grizzly",
+        "time_hours": 4,
+        "timeout_hours": 3.8,
+        "max_time_hours": 4,
+        "container_mounts": "/lustre",
+        "use_sqsh": true,
+        "sqsh_conversion_partition": "cpu",
+        "sqsh_conversion_timeout_minutes": 30,
+        "sqsh_conversion_memory_gb": 32
+      },
       "dataset_examples": [
         "/lustre/fsw/portfolios/edgeai/users/<user>/data/<model>/train",
         "lustre:///lustre/fsw/portfolios/edgeai/users/<user>/data/<model>/eval",

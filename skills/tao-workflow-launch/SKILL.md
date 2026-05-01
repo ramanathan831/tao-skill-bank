@@ -46,13 +46,21 @@ Then ask:
 - Which supported platform should run this workflow?
 - Should I monitor the run in this chat? Monitoring means I keep polling the
   backend/job logs after launch and report progress until the job finishes,
-  fails, or you ask me to stop. If disabled, I launch the job, give you the job
-  id/log path, and stop polling. Default: monitor in chat.
+  fails, or you ask me to stop, even if the job stays queued for hours or days.
+  If disabled, I launch the job, give you the job id/log path, and stop
+  polling. Default: monitor in chat.
 - How often should I post status? Default: every 5 minutes. Use 1-2 minutes for
   smoke tests, 5 minutes for normal training, or 10-15 minutes for long runs.
 
 Use `long_running_enabled=true` and `status_interval_minutes=5` when the user
 accepts the defaults.
+
+When monitoring is enabled, do not send a final summary just because several
+polls have elapsed or the job is still `PENDING`. Keep the turn attached and
+emit status every `status_interval_minutes` until a terminal state or explicit
+user stop/detach request. If the runtime environment cannot keep the chat turn
+open, say that clearly and leave a durable watcher/log path; do not imply that
+chat updates will continue after the turn ends.
 
 ## Missing-Input Prompt Shape
 
@@ -182,6 +190,10 @@ For SLURM:
 
 1. Require `SLURM_USER`, `SLURM_HOSTNAME`, `SLURM_PARTITION`, and one of
    `SSH_KEY_PATH` or `SSH_AUTH_SOCK`.
+   Use the selected platform helper's `Resource defaults` for runtime values.
+   For the packaged SLURM defaults, generate launchers with
+   `SLURM_TIME_HOURS=4` and `SLURM_TIMEOUT_HOURS=3.8`; never invent a
+   12-hour default for the 4-hour partition list.
 2. Split comma-separated `SLURM_HOSTNAME`, resolve hosts where possible, and
    require passwordless `ssh -o BatchMode=yes` to at least one host.
 3. If SSH fails, do not offer several equivalent choices. Ask for
