@@ -39,7 +39,7 @@ after skill edits.
 ├── reports/
 │   ├── baseline_results.json                ← zero-shot metric before fine-tune
 │   └── eval_results.json                    ← post-train metric
-└── skills/run-<short_name>/SKILL.md         ← reproduction skill (Step 12 output)
+└── skills/run-<short_name>/SKILL.md         ← reproduction skill (Step 6 output)
 ```
 
 `data/`, `checkpoints/`, `logs/`, and full `reports/inference_samples/` are
@@ -105,11 +105,11 @@ Expected results and troubleshooting specific to each run are in the skill body.
 ## How these tie back to the parent skill
 
 - Every `config.yaml` has a `research_sources:` list matching the priority order
-  defined in `tao-hf-finetune/SKILL.md` Step 5 (model card → HF repo script →
+  defined in `tao-hf-finetune/SKILL.md` Step 3 (model card → HF repo script →
   author finetune → HF task doc → paper).
 - Every `requirements.txt` has inline comments citing the error-playbook entry
   that justifies each non-obvious pin.
-- Every `skills/run-*/SKILL.md` matches the Step 12 template in the parent skill.
+- Every `skills/run-*/SKILL.md` matches the Step 6 template in the parent skill.
 
 If the parent skill is edited, regenerate these examples by following `SKILL.md`
 fresh — divergence from the template is a signal that the skill drifted.
