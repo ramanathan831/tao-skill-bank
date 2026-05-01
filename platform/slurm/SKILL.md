@@ -251,6 +251,9 @@ multi-node role handling for controller, policy, and rollout workers.
   interval while the job is `PENDING`, `RUNNING`, or otherwise non-terminal.
   Do not stop after a fixed elapsed time such as 30 minutes; long queue waits
   are normal on shared GPU partitions.
+- Do not send a final response for a non-terminal SLURM job when chat
+  monitoring is enabled. A final response is a detach action; use it only if
+  the user asked to detach/stop or the job reached terminal state.
 - Logs are read over SSH from:
 
 ```text

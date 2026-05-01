@@ -62,6 +62,14 @@ user stop/detach request. If the runtime environment cannot keep the chat turn
 open, say that clearly and leave a durable watcher/log path; do not imply that
 chat updates will continue after the turn ends.
 
+Final-answer rule: a `final` response ends chat-side monitoring. While
+`long_running_enabled=true` and any launched job is non-terminal, status
+messages must be sent as in-progress updates and the agent must continue
+polling. Only send a final response when the workflow reaches terminal state,
+the user explicitly asks to detach/stop monitoring, or the runtime genuinely
+cannot keep the turn open; in that last case, say it is a runtime limitation
+and provide the exact durable status command/log path.
+
 ## Missing-Input Prompt Shape
 
 When asking for launch inputs, include concrete examples and both dataset input
@@ -194,6 +202,10 @@ For SLURM:
    For the packaged SLURM defaults, generate launchers with
    `SLURM_TIME_HOURS=4` and `SLURM_TIMEOUT_HOURS=3.8`; never invent a
    12-hour default for the 4-hour partition list.
+   Launching the orchestrator with `nohup` or in the background is allowed for
+   durability, but it does not satisfy chat monitoring by itself. After launch,
+   keep a foreground chat-side polling loop attached until terminal state or
+   explicit detach.
 2. Split comma-separated `SLURM_HOSTNAME`, resolve hosts where possible, and
    require passwordless `ssh -o BatchMode=yes` to at least one host.
 3. If SSH fails, do not offer several equivalent choices. Ask for

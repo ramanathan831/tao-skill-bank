@@ -892,6 +892,13 @@ hours or days; while `long_running_enabled=true`, continue emitting status at
 `status_interval_minutes` until all recommendations reach terminal state or the
 user explicitly asks to detach/stop monitoring.
 
+Do not send a final response while an AutoML run is non-terminal unless the
+user explicitly requested detached/background monitoring. A final response ends
+the chat-side watcher. If the orchestrator is launched with `nohup` for
+durability, still keep a foreground polling loop in this chat and report status
+as in-progress updates until the run finishes, fails, is canceled, or the user
+asks to stop.
+
 Ask whether long-running monitoring should stay enabled; default to enabled.
 Ask how many minutes between status updates; default to 5 minutes.
 Pass that value as `status_interval_seconds=status_interval_minutes * 60`.

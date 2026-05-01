@@ -153,6 +153,11 @@ until the job finishes, fails, is canceled, or the user asks to detach/stop.
 If the chat/runtime cannot remain open that long, say so explicitly and provide
 the durable workflow/log path for manual status refresh.
 
+Do not use a final response for non-terminal monitored jobs. Finalizing the
+turn detaches the chat watcher. Keep non-terminal status messages in progress
+updates and continue polling; only finalize at terminal state, explicit user
+detach/stop, or a real runtime limit that prevents further polling.
+
 Do not inspect or patch the generated runner script to fix missing inputs,
 checkpoint paths, config format, commands, or upload excludes. Those are skill
 bank metadata bugs. Update the model skill's `config.json`,
@@ -320,6 +325,11 @@ watch it until terminal status. Report status at the user-selected interval
 `long_running_enabled` is true. If `long_running_enabled` is false, submit the
 job, write the workflow folder, report the job id/workspace path, and tell the
 user status can be refreshed later from that workspace.
+
+If `long_running_enabled` is true and the job is submitted in the background
+for durability, immediately start a foreground status loop in the chat. A
+background process or persisted workspace is not a replacement for chat-side
+monitoring.
 
 ```python
 from datetime import datetime
