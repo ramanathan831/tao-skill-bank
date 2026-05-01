@@ -84,7 +84,11 @@ def env_missing(platform: dict[str, Any]) -> list[str]:
     for group in platform.get("credential_groups", []):
         choices = [name for name in group.get("require_one_of", []) if name]
         if choices and not any(os.environ.get(name) for name in choices):
-            missing.append("one of " + ", ".join(choices))
+            preferred = group.get("preferred")
+            if preferred:
+                missing.append(f"{preferred} ({group.get('description', 'required')})")
+            else:
+                missing.append("one of " + ", ".join(choices))
     return missing
 
 
@@ -346,6 +350,16 @@ def check_slurm(
     missing = env_missing(platform)
     if missing:
         print("Missing SLURM requirement(s): " + ", ".join(missing))
+        if any("SSH_KEY_PATH" in item for item in missing):
+            print(
+                "Provide SSH_KEY_PATH=/path/to/private_key. To set up passwordless "
+                "access: 1) ssh-keygen -t ed25519 -N '' -f ~/.ssh/id_ed25519; "
+                "2) ssh-copy-id -i ~/.ssh/id_ed25519.pub $SLURM_USER@<login-host>; "
+                "3) ssh-keyscan -H <login-host> >> ~/.ssh/known_hosts; "
+                "4) chmod 600 ~/.ssh/id_ed25519; 5) verify with "
+                "ssh -o BatchMode=yes -i ~/.ssh/id_ed25519 "
+                "$SLURM_USER@<login-host> 'hostname'."
+            )
         return False
 
     key_path = os.environ.get("SSH_KEY_PATH")
@@ -377,9 +391,17 @@ def check_slurm(
 
         if not working_host:
             print(
-                "SLURM preflight failed before artifact generation. Install the public key with "
-                "ssh-copy-id, fix key permissions with chmod 600, trust the host key, or start "
-                "ssh-agent and provide SSH_AUTH_SOCK."
+                "SLURM preflight failed before artifact generation. Provide "
+                "SSH_KEY_PATH=/path/to/private_key for a key accepted by at least "
+                "one SLURM login host. To set up passwordless access: "
+                "1) create a key if needed: ssh-keygen -t ed25519 -N '' -f "
+                "~/.ssh/id_ed25519; 2) install it once: ssh-copy-id -i "
+                "~/.ssh/id_ed25519.pub $SLURM_USER@<login-host>; 3) trust the "
+                "host key: ssh-keyscan -H <login-host> >> ~/.ssh/known_hosts; "
+                "4) lock permissions: chmod 600 ~/.ssh/id_ed25519; 5) verify: "
+                "ssh -o BatchMode=yes -i ~/.ssh/id_ed25519 "
+                "$SLURM_USER@<login-host> 'hostname'. Then rerun with "
+                "SSH_KEY_PATH set to the private key path."
             )
             return False
     else:

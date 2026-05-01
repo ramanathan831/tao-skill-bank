@@ -130,7 +130,11 @@ def format_credential(item: dict[str, Any]) -> str:
 def format_credential_group(item: dict[str, Any]) -> str:
     """Format a required one-of credential group."""
     choices = ", ".join(item.get("require_one_of", []))
-    text = f"{item.get('name', 'credential_group')}: one of [{choices}]"
+    preferred = item.get("preferred")
+    if preferred:
+        text = f"{item.get('name', 'credential_group')}: {preferred} preferred"
+    else:
+        text = f"{item.get('name', 'credential_group')}: one of [{choices}]"
     details = []
     if item.get("description"):
         details.append(str(item["description"]))

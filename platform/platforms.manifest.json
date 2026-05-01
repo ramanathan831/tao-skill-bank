@@ -25,7 +25,7 @@
     },
     "SSH_KEY_PATH": {
       "description": "Private key path used for public-key SSH to SLURM login nodes.",
-      "how_to_get": "Use the key that succeeds with ssh -o BatchMode=yes -i <key> <SLURM_USER>@<host> 'echo ok'."
+      "how_to_get": "Use the private key that succeeds with ssh -o BatchMode=yes -i <key> <SLURM_USER>@<host> 'hostname'. If it is not set up, create one with ssh-keygen, install it with ssh-copy-id, trust the host with ssh-keyscan, chmod 600 the private key, then set SSH_KEY_PATH to that private key path."
     },
     "SSH_AUTH_SOCK": {
       "description": "SSH agent socket containing a key accepted by the SLURM login node.",
@@ -275,8 +275,9 @@
             "SSH_KEY_PATH",
             "SSH_AUTH_SOCK"
           ],
+          "preferred": "SSH_KEY_PATH",
           "description": "Non-interactive SSH identity for passwordless public-key login to at least one SLURM login host.",
-          "how_to_get": "Provide SSH_KEY_PATH for a private key accepted by the cluster, or start ssh-agent with the accepted key and expose SSH_AUTH_SOCK."
+          "how_to_get": "Provide SSH_KEY_PATH for a private key accepted by the cluster. Set up passwordless access with ssh-keygen, ssh-copy-id, ssh-keyscan, chmod 600, then verify using ssh -o BatchMode=yes -i <key> <SLURM_USER>@<host> 'hostname'."
         }
       ],
       "optional_credentials": [
@@ -284,7 +285,7 @@
           "name": "SSH_KEY_PATH",
           "source": "env_var",
           "description": "Private key path used for public-key SSH to SLURM login nodes.",
-          "how_to_get": "Use the key that succeeds with ssh -o BatchMode=yes -i <key> <SLURM_USER>@<host> 'echo ok'."
+          "how_to_get": "Use the private key that succeeds with ssh -o BatchMode=yes -i <key> <SLURM_USER>@<host> 'hostname'. If it is not set up, create one with ssh-keygen, install it with ssh-copy-id, trust the host with ssh-keyscan, chmod 600 the private key, then set SSH_KEY_PATH to that private key path."
         },
         {
           "name": "SSH_AUTH_SOCK",
@@ -331,7 +332,7 @@
       ],
       "preflight_checks": [
         "Resolve each host in SLURM_HOSTNAME and require passwordless SSH to at least one host with BatchMode=yes.",
-        "If SSH fails, stop before generating runner scripts and tell the user to install the public key with ssh-copy-id or use an SSH agent.",
+        "If SSH fails, stop before generating runner scripts, ask for SSH_KEY_PATH, and show ssh-keygen/ssh-copy-id/ssh-keyscan/chmod/BatchMode verification steps.",
         "After SSH passes, validate dataset annotation/media paths from the login host using test -e before generating runner scripts.",
         "Verify model-specific credentials such as HF_TOKEN before submitting jobs."
       ]

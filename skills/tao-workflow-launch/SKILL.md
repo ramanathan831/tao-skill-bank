@@ -115,6 +115,9 @@ When the helper output includes a "Required credential groups" section, satisfy
 one credential from each group before proceeding. Explain each requested value
 using the helper's description and "How to get it" text.
 
+For SLURM, user-facing prompts should ask for `SSH_KEY_PATH` first. Mention
+`SSH_AUTH_SOCK` only if the user says they already use an SSH agent.
+
 ## Dataset Intake
 
 Accept dataset inputs in either mode:
@@ -175,10 +178,15 @@ For SLURM:
    `SSH_AUTH_SOCK`.
 2. Split comma-separated `SLURM_HOSTNAME`, resolve hosts where possible, and
    require passwordless `ssh -o BatchMode=yes` to at least one host.
-3. If SSH fails, stop and tell the user to install the public key with
-   `ssh-copy-id`, fix key permissions with `chmod 600`, trust the host key with
-   an interactive login or `ssh-keyscan`, or start `ssh-agent` and expose
-   `SSH_AUTH_SOCK`.
+3. If SSH fails, do not offer several equivalent choices. Ask for
+   `SSH_KEY_PATH=/path/to/private_key` and show the passwordless setup steps:
+   create a key if needed with
+   `ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_ed25519`; install it with
+   `ssh-copy-id -i ~/.ssh/id_ed25519.pub <SLURM_USER>@<login-host>`; trust the
+   host with `ssh-keyscan -H <login-host> >> ~/.ssh/known_hosts`; set
+   `chmod 600 ~/.ssh/id_ed25519`; verify with
+   `ssh -o BatchMode=yes -i ~/.ssh/id_ed25519 <SLURM_USER>@<login-host> 'hostname'`;
+   then rerun with `SSH_KEY_PATH=~/.ssh/id_ed25519`.
 4. After SSH passes, validate dataset annotation/media paths on the remote login
    host with `test -e` or an equivalent read-only command.
 5. Only then create runner scripts, specs, workspaces, or submit jobs.
