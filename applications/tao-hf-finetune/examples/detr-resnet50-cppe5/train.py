@@ -39,29 +39,26 @@ def format_image_annotations_as_coco(image_id, categories, areas, bboxes):
     return {"image_id": image_id, "annotations": annotations}
 
 
-def augment_and_transform_batch(examples, transform, image_processor, return_pixel_mask=False):
-    images, targets = [], []
+def augment_and_transform_batch(examples, transform, image_processor):
+    pixel_values, labels = [], []
     for img_id, img, objs in zip(examples["image_id"], examples["image"], examples["objects"]):
         image = np.array(img.convert("RGB"))
-        out = transform(image=image, bboxes=objs["bbox"], category=objs["category"])
-        images.append(out["image"])
+        out = transform(image=image, bboxes=objs["bbox"], category_ids=objs["category"])
         formatted = format_image_annotations_as_coco(
-            img_id, out["category"], objs["area"], out["bboxes"])
-        targets.append(formatted)
-    result = image_processor(
-        images=images, annotations=targets, return_tensors="pt")
-    if not return_pixel_mask:
-        result.pop("pixel_mask", None)
-    return result
+            img_id, out["category_ids"], [b[2] * b[3] for b in out["bboxes"]], out["bboxes"])
+        encoded = image_processor(images=out["image"], annotations=formatted, return_tensors="pt")
+        pixel_values.append(encoded["pixel_values"][0])
+        labels.append(encoded["labels"][0])
+    return {"pixel_values": pixel_values, "labels": labels}
 
 
-def collate_fn(batch):
-    data = {}
-    data["pixel_values"] = torch.stack([b["pixel_values"] for b in batch])
-    data["labels"] = [b["labels"] for b in batch]
-    if "pixel_mask" in batch[0]:
-        data["pixel_mask"] = torch.stack([b["pixel_mask"] for b in batch])
-    return data
+def make_collate_fn(image_processor):
+    def collate_fn(batch):
+        pixel_values = [torch.as_tensor(b["pixel_values"]) for b in batch]
+        encoding = image_processor.pad(pixel_values, return_tensors="pt")
+        labels = [{k: torch.as_tensor(v) for k, v in b["labels"].items()} for b in batch]
+        return {"pixel_values": encoding["pixel_values"], "pixel_mask": encoding["pixel_mask"], "labels": labels}
+    return collate_fn
 
 
 @torch.no_grad()
@@ -133,7 +130,7 @@ def main():
 
     ip = AutoImageProcessor.from_pretrained(cfg["model_id"], token=token, do_resize=True,
                                             size={"shortest_edge": 480, "longest_edge": 640},
-                                            do_pad=True)
+                                            do_pad=False)
 
     # Albumentations transforms (COCO format bboxes); filter_invalid_bboxes drops zero-area
     # boxes that clipping can collapse, which CPPE-5 has a handful of.
@@ -142,17 +139,16 @@ def main():
         A.HorizontalFlip(p=0.5),
         A.RandomBrightnessContrast(p=0.5),
         A.HueSaturationValue(p=0.1),
-    ], bbox_params=A.BboxParams(format="coco", label_fields=["category"], clip=True,
-                                min_area=25, filter_invalid_bboxes=True))
+    ], bbox_params=A.BboxParams(format="coco", label_fields=["category_ids"], clip=True,
+                                min_area=1, filter_invalid_bboxes=True))
     eval_tx = A.Compose([A.NoOp()],
-        bbox_params=A.BboxParams(format="coco", label_fields=["category"], clip=True,
+        bbox_params=A.BboxParams(format="coco", label_fields=["category_ids"], clip=True,
                                  min_area=1, filter_invalid_bboxes=True))
 
     ds_tr = ds_tr.with_transform(partial(augment_and_transform_batch,
                                           transform=train_tx, image_processor=ip))
     ds_ev = ds_ev.with_transform(partial(augment_and_transform_batch,
-                                          transform=eval_tx, image_processor=ip,
-                                          return_pixel_mask=True))
+                                          transform=eval_tx, image_processor=ip))
 
     model = AutoModelForObjectDetection.from_pretrained(
         cfg["model_id"], num_labels=len(label_names),
@@ -197,7 +193,7 @@ def main():
     # Use eval loss as selection signal — mAP is computed standalone via run_eval.py.
     trainer = Trainer(
         model=model, args=TrainingArguments(**kw),
-        data_collator=collate_fn,
+        data_collator=make_collate_fn(ip),
         train_dataset=ds_tr, eval_dataset=ds_ev,
         processing_class=ip,
     )
