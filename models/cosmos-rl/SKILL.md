@@ -26,6 +26,10 @@ Generated TAO Core schemas are packaged in `schemas/<action>.schema.json`, with 
 - **Dataset URI examples:** `s3://bucket/cosmos/train`, `s3://bucket/cosmos/eval`, `/lustre/fsw/tao_datasets/cosmos_rl/train`, `/lustre/fsw/tao_datasets/cosmos_rl/eval`
 - **Input modes:** accept either dataset roots or direct spec-key paths. Root mode maps `<root>/annotations.json` plus `<root>` as the media path. Direct spec mode is valid when annotations and media live in different locations, for example `custom.train_dataset.annotation_path=/lustre/.../train.json` and `custom.train_dataset.media_path=/lustre/.../videos.tar.gz`.
 - **Media handling:** do not ask the user to choose `videos.tar.gz` vs `images.tar.gz` unless they are using direct spec mode or the model/action requires a single media archive. In root mode, pass the dataset root as the media path.
+- **Annotation validation:** before launching train/AutoML/evaluate, sample the
+  annotation JSON from the selected platform and require `video_fps` in each
+  sampled record. Missing `video_fps` causes the Cosmos-RL SFT loader to fail
+  with `Error processing sample: 'video_fps'` after the SLURM job starts.
 
 ### Launch Intake Reminder
 
@@ -41,6 +45,19 @@ For root mode, explain the automatic mapping: `train_root` maps to
 `custom.train_dataset.annotation_path=train_root/annotations.json` and
 `custom.train_dataset.media_path=train_root`; `eval_root` maps the same way for
 `custom.val_dataset`.
+
+For launch preflight, pass the concrete annotation paths to the shared helper
+and require `video_fps`:
+
+```bash
+scripts/check_tao_launch_preflight.py --platform slurm \
+  --path train_annotation=/lustre/.../train/annotations.json \
+  --path train_media=/lustre/.../train \
+  --path val_annotation=/lustre/.../eval/annotations.json \
+  --path val_media=/lustre/.../eval \
+  --json-required-field train_annotation=video_fps \
+  --json-required-field val_annotation=video_fps
+```
 
 ### Per-Action Dataset Requirements
 
@@ -218,6 +235,11 @@ spec_overrides={
 ```
 
 **Eval dataset** is optional for plain training only when `train.train_policy.dataset.test_size` is used to auto-split training data. For AutoML or any workflow optimizing a validation metric such as `val/avg_loss`, require either an explicit `custom.val_dataset` or a deliberate auto-split setting before launch preflight passes. If a validation dataset is provided, validation metrics are computed at the frequency set by `validation.freq_in_epoch`.
+
+Every sampled annotation record must include `video_fps`. If this field is
+absent, stop before runner generation and ask the user to add it to the train
+and validation annotation files or provide corrected direct spec paths. Do not
+start AutoML to discover this inside torchrun.
 
 ## Important Parameters
 

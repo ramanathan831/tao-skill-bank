@@ -272,6 +272,12 @@ to at least one login host and remote `test -e` checks for each required
 annotation/media path. If preflight fails, stop with remediation steps instead
 of creating a runner that will immediately fail.
 
+Also run any model-specific annotation content checks documented by the model
+skill. For Cosmos-RL AutoML, require `video_fps` on sampled train and validation
+annotation records via `check_tao_launch_preflight.py --json-required-field`;
+missing `video_fps` is a preflight failure, not an AutoML recommendation
+failure.
+
 **Customization gate:** After the required quick-start fields are resolved, you may briefly offer customization. If the user declines or does not ask for it, proceed with the defaults above. If the user chooses customization, then present the additional options below.
 
 Customization-only fields:

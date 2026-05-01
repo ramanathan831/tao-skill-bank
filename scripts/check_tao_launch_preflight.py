@@ -42,6 +42,22 @@ def parse_args() -> argparse.Namespace:
         help="Dataset/spec path to verify. May be repeated.",
     )
     parser.add_argument(
+        "--json-required-field",
+        action="append",
+        default=[],
+        metavar="LABEL=FIELD[,FIELD...]",
+        help=(
+            "Require one or more top-level fields in sample records from a JSON "
+            "annotation file identified by LABEL. May be repeated."
+        ),
+    )
+    parser.add_argument(
+        "--json-sample-limit",
+        type=int,
+        default=20,
+        help="Number of JSON annotation records to sample for required fields.",
+    )
+    parser.add_argument(
         "--skip-platform-access",
         action="store_true",
         help="Only validate environment variables and paths.",
@@ -73,6 +89,24 @@ def parse_paths(values: list[str]) -> list[tuple[str, str]]:
             label, path = value, value
         parsed.append((label.strip() or path.strip(), path.strip()))
     return parsed
+
+
+def parse_required_fields(values: list[str]) -> dict[str, list[str]]:
+    fields_by_label: dict[str, list[str]] = {}
+    for value in values:
+        if "=" not in value:
+            raise SystemExit(
+                "--json-required-field must use LABEL=FIELD[,FIELD...] syntax"
+            )
+        label, fields = value.split("=", 1)
+        label = label.strip()
+        parsed_fields = [field.strip() for field in fields.split(",") if field.strip()]
+        if not label or not parsed_fields:
+            raise SystemExit(
+                "--json-required-field must include a label and at least one field"
+            )
+        fields_by_label.setdefault(label, []).extend(parsed_fields)
+    return fields_by_label
 
 
 def env_missing(platform: dict[str, Any]) -> list[str]:
@@ -123,6 +157,102 @@ def run(
             stdout=exc.stdout or "",
             stderr=exc.stderr or "command timed out",
         )
+
+
+JSON_FIELD_CHECK_SCRIPT = r"""
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+fields = [field for field in sys.argv[2].split(",") if field]
+limit = int(sys.argv[3])
+
+with path.open("r", encoding="utf-8") as handle:
+    payload = json.load(handle)
+
+if isinstance(payload, list):
+    records = payload
+elif isinstance(payload, dict):
+    for key in ("annotations", "data", "samples", "items"):
+        value = payload.get(key)
+        if isinstance(value, list):
+            records = value
+            break
+    else:
+        records = [payload]
+else:
+    raise SystemExit(f"unsupported JSON top-level type: {type(payload).__name__}")
+
+if not records:
+    raise SystemExit("annotation JSON has no records")
+
+checked = records[: max(1, min(limit, len(records)))]
+missing = []
+for index, record in enumerate(checked):
+    if not isinstance(record, dict):
+        missing.append(f"record {index}: not an object")
+        continue
+    absent = [field for field in fields if field not in record]
+    if absent:
+        missing.append(f"record {index}: missing {','.join(absent)}")
+
+if missing:
+    raise SystemExit("; ".join(missing[:5]))
+
+print(f"checked={len(checked)} fields={','.join(fields)}")
+"""
+
+
+def check_json_required_fields_local(
+    label: str,
+    path: str,
+    fields: list[str],
+    sample_limit: int,
+) -> bool:
+    command = [
+        sys.executable,
+        "-c",
+        JSON_FIELD_CHECK_SCRIPT,
+        path,
+        ",".join(fields),
+        str(sample_limit),
+    ]
+    result = run(command, timeout=30)
+    if result.returncode == 0:
+        print(f"JSON fields OK: {label}={path}: {result.stdout.strip()}")
+        return True
+    reason = (result.stderr or result.stdout).strip().splitlines()
+    detail = reason[-1] if reason else "exit " + str(result.returncode)
+    print(f"JSON fields missing or invalid: {label}={path}: {detail}")
+    return False
+
+
+def check_json_required_fields_remote(
+    host: str,
+    label: str,
+    path: str,
+    fields: list[str],
+    sample_limit: int,
+) -> bool:
+    remote_command = " ".join(
+        [
+            "python3",
+            "-c",
+            shlex.quote(JSON_FIELD_CHECK_SCRIPT),
+            shlex.quote(path),
+            shlex.quote(",".join(fields)),
+            str(sample_limit),
+        ]
+    )
+    result = run(ssh_command(host, remote_command), timeout=45)
+    if result.returncode == 0:
+        print(f"Remote JSON fields OK: {label}={path}: {result.stdout.strip()}")
+        return True
+    reason = (result.stderr or result.stdout).strip().splitlines()
+    detail = reason[-1] if reason else "exit " + str(result.returncode)
+    print(f"Remote JSON fields missing or invalid: {label}={path}: {detail}")
+    return False
 
 
 def ssh_command(host: str, remote_command: str) -> list[str]:
@@ -344,6 +474,8 @@ def check_kubernetes(platform: dict[str, Any], skip_access: bool) -> bool:
 def check_slurm(
     platform: dict[str, Any],
     paths: list[tuple[str, str]],
+    required_json_fields: dict[str, list[str]],
+    json_sample_limit: int,
     skip_access: bool,
 ) -> bool:
     ok = True
@@ -426,6 +558,16 @@ def check_slurm(
         else:
             print(f"Remote path missing or inaccessible: {label}={path}")
             ok = False
+            continue
+        fields = required_json_fields.get(label)
+        if fields and not check_json_required_fields_remote(
+            working_host,
+            label,
+            path,
+            fields,
+            json_sample_limit,
+        ):
+            ok = False
 
     return ok
 
@@ -485,7 +627,12 @@ def check_slurm_runtime(platform: dict[str, Any]) -> bool:
     return True
 
 
-def check_local_docker(paths: list[tuple[str, str]], skip_access: bool) -> bool:
+def check_local_docker(
+    paths: list[tuple[str, str]],
+    required_json_fields: dict[str, list[str]],
+    json_sample_limit: int,
+    skip_access: bool,
+) -> bool:
     ok = True
     if not skip_access:
         if not shutil.which("docker"):
@@ -507,6 +654,15 @@ def check_local_docker(paths: list[tuple[str, str]], skip_access: bool) -> bool:
             print(f"Local path OK: {label}={path}")
         else:
             print(f"Local path missing: {label}={path}")
+            ok = False
+            continue
+        fields = required_json_fields.get(label)
+        if fields and not check_json_required_fields_local(
+            label,
+            path,
+            fields,
+            json_sample_limit,
+        ):
             ok = False
     return ok
 
@@ -531,12 +687,24 @@ def main() -> int:
     args = parse_args()
     platform = resolve_platform(args.skill_bank, args.platform)
     paths = parse_paths(args.path)
+    required_json_fields = parse_required_fields(args.json_required_field)
     name = platform["name"]
 
     if name == "slurm":
-        platform_ok = check_slurm(platform, paths, args.skip_platform_access)
+        platform_ok = check_slurm(
+            platform,
+            paths,
+            required_json_fields,
+            args.json_sample_limit,
+            args.skip_platform_access,
+        )
     elif name == "local-docker":
-        platform_ok = check_local_docker(paths, args.skip_platform_access)
+        platform_ok = check_local_docker(
+            paths,
+            required_json_fields,
+            args.json_sample_limit,
+            args.skip_platform_access,
+        )
     elif name == "lepton":
         platform_ok = check_lepton(platform, args.skip_platform_access)
     elif name == "brev":

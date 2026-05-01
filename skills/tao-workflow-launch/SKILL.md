@@ -188,6 +188,13 @@ Pass exact direct spec paths when the user supplied them. For root-mode inputs,
 expand model-required files first, then pass those concrete annotation/media
 paths to the helper.
 
+When a model skill lists annotation-level required fields, pass them with
+`--json-required-field <path-label>=<field>[,<field>...]` so schema/data
+content issues fail during preflight rather than inside the first training
+container. For example, Cosmos-RL train/AutoML requires
+`--json-required-field train_annotation=video_fps` and
+`--json-required-field val_annotation=video_fps`.
+
 Do not use `--skip-platform-access` for a real launch. That flag is only for
 dry environment checks or for cases where the user has already provided explicit
 manual proof of platform and storage access. If the helper cannot verify remote
