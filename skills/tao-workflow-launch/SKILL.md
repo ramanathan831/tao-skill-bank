@@ -44,12 +44,55 @@ ${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/list_tao_platforms.py \
 Then ask:
 
 - Which supported platform should run this workflow?
-- Should long-running monitoring stay enabled? If enabled, keep the agent
-  attached and emit status until terminal completion. Default: enabled.
-- How many minutes between status updates? Default: 5 minutes.
+- Should I monitor the run in this chat? Monitoring means I keep polling the
+  backend/job logs after launch and report progress until the job finishes,
+  fails, or you ask me to stop. If disabled, I launch the job, give you the job
+  id/log path, and stop polling. Default: monitor in chat.
+- How often should I post status? Default: every 5 minutes. Use 1-2 minutes for
+  smoke tests, 5 minutes for normal training, or 10-15 minutes for long runs.
 
 Use `long_running_enabled=true` and `status_interval_minutes=5` when the user
 accepts the defaults.
+
+## Missing-Input Prompt Shape
+
+When asking for launch inputs, include concrete examples and both dataset input
+modes. Do not ask only for "dataset root".
+
+Use this structure and adapt spec keys to the selected model/action:
+
+```text
+I need these launch inputs before I can create specs or runner files:
+
+1. Execution platform: lepton, brev, slurm, local-docker, or kubernetes.
+
+2. Dataset inputs. You can provide either mode:
+   A) Root mode: give train/eval roots and I map required files automatically.
+      Example Cosmos-RL:
+      train_root=/lustre/fsw/.../cosmos/train
+      -> custom.train_dataset.annotation_path=train_root/annotations.json
+      -> custom.train_dataset.media_path=train_root
+   B) Direct spec mode: give the exact config/spec parameters yourself.
+      Example:
+      custom.train_dataset.annotation_path=/lustre/fsw/.../train_annotations.json
+      custom.train_dataset.media_path=/lustre/fsw/.../videos_train.tar.gz
+      custom.val_dataset.annotation_path=/lustre/fsw/.../eval_annotations.json
+      custom.val_dataset.media_path=/lustre/fsw/.../eval_videos/
+
+   Platform examples:
+   - SLURM/Lustre: /lustre/fsw/.../data/train or lustre:///lustre/fsw/.../data/train
+   - Lepton/Brev/Kubernetes: s3://bucket/path/train and s3://bucket/path/eval
+   - local-docker: /data/tao/<model>/train or file:///data/tao/<model>/eval
+
+3. Compute shape required by the model, for example GPUs/nodes.
+
+4. Required credentials from platform/model docs, for example HF_TOKEN for
+   gated Hugging Face models.
+
+5. Monitoring preference. By default I monitor in this chat and post progress
+   every 5 minutes; choose 1-2 minutes for smoke tests or 10-15 minutes for
+   long training.
+```
 
 ## Credential Filtering
 

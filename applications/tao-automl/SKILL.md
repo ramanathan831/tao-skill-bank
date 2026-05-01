@@ -198,6 +198,58 @@ Use these quick-start AutoML defaults without asking:
 
 If any required field is missing, ask the user. Do NOT guess dataset paths, skill bank paths, credentials, or hardware that the model skill marks as required.
 
+When asking for missing AutoML launch inputs, use a first-time-user friendly
+prompt. Do not say only "train dataset root" / "eval dataset root", and do not
+say "attached monitoring every 5 minutes" without explaining it. Include:
+
+- platform choices;
+- root-mode dataset examples for the selected platform;
+- direct spec-parameter mode as an equal option;
+- model-required spec keys from the model skill's Per-Action Dataset
+  Requirements table;
+- monitoring meaning and cadence choices.
+
+For Cosmos-RL on SLURM, the missing-input prompt should look like:
+
+```text
+I need these before I can create the AutoML runner or submit jobs:
+
+1. Execution platform: lepton, brev, slurm, local-docker, or kubernetes.
+
+2. Dataset inputs. You can give either:
+   A) Root mode, and I map files into the Cosmos-RL spec:
+      train_root=/lustre/fsw/.../cosmos_rl/train
+      eval_root=/lustre/fsw/.../cosmos_rl/eval
+      -> custom.train_dataset.annotation_path=train_root/annotations.json
+      -> custom.train_dataset.media_path=train_root
+      -> custom.val_dataset.annotation_path=eval_root/annotations.json
+      -> custom.val_dataset.media_path=eval_root
+
+   B) Direct spec mode, if annotations/media are in different places:
+      custom.train_dataset.annotation_path=/lustre/fsw/.../train_annotations.json
+      custom.train_dataset.media_path=/lustre/fsw/.../videos_train.tar.gz
+      custom.val_dataset.annotation_path=/lustre/fsw/.../eval_annotations.json
+      custom.val_dataset.media_path=/lustre/fsw/.../eval_videos/
+
+   Platform path examples:
+   - SLURM/Lustre: /lustre/fsw/.../data/train or lustre:///lustre/fsw/.../data/train
+   - Lepton/Brev/Kubernetes: s3://bucket/path/train and s3://bucket/path/eval
+   - local-docker: /data/tao/cosmos_rl/train or file:///data/tao/cosmos_rl/eval
+
+3. Compute shape. For Cosmos-RL this maps to FSDP:
+   dp_shard_size=<total GPUs>, dp_replicate_size=<nodes>.
+
+4. HF_TOKEN availability for nvidia/Cosmos-Reason2-8B. Do not paste the token
+   unless explicitly needed; confirming it is set in the launch environment is
+   enough.
+
+5. Monitoring preference. By default I monitor in this chat, polling the job
+   and logs until it finishes/fails, and I post an update every 5 minutes.
+   Use 1-2 minutes for smoke tests, 5 minutes for normal training, or
+   10-15 minutes for long runs. If detached, I launch and give you the job id
+   and log path, then stop polling.
+```
+
 Before generating an AutoML script, verify platform access and dataset
 visibility using `tao-workflow-launch`. For SLURM, that means passwordless SSH
 to at least one login host and remote `test -e` checks for each required

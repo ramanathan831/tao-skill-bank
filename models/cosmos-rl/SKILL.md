@@ -27,6 +27,21 @@ Generated TAO Core schemas are packaged in `schemas/<action>.schema.json`, with 
 - **Input modes:** accept either dataset roots or direct spec-key paths. Root mode maps `<root>/annotations.json` plus `<root>` as the media path. Direct spec mode is valid when annotations and media live in different locations, for example `custom.train_dataset.annotation_path=/lustre/.../train.json` and `custom.train_dataset.media_path=/lustre/.../videos.tar.gz`.
 - **Media handling:** do not ask the user to choose `videos.tar.gz` vs `images.tar.gz` unless they are using direct spec mode or the model/action requires a single media archive. In root mode, pass the dataset root as the media path.
 
+### Launch Intake Reminder
+
+When prompting for Cosmos-RL train or AutoML data, list the actual spec keys as
+an option. Users may provide roots, or they may directly provide:
+
+- `custom.train_dataset.annotation_path`
+- `custom.train_dataset.media_path`
+- `custom.val_dataset.annotation_path`
+- `custom.val_dataset.media_path`
+
+For root mode, explain the automatic mapping: `train_root` maps to
+`custom.train_dataset.annotation_path=train_root/annotations.json` and
+`custom.train_dataset.media_path=train_root`; `eval_root` maps the same way for
+`custom.val_dataset`.
+
 ### Per-Action Dataset Requirements
 
 | Action | Spec Key | Source | Files | List? |
