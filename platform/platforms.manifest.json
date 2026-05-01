@@ -266,6 +266,12 @@
           "source": "env_var",
           "description": "Comma-separated SLURM login hostnames for failover.",
           "how_to_get": "Use the login hosts provided by the cluster admin, for example login-01.example.com,login-02.example.com."
+        },
+        {
+          "name": "SLURM_PARTITION",
+          "source": "env_var",
+          "description": "SLURM partition or comma-separated partition list to submit GPU jobs to.",
+          "how_to_get": "Run sinfo on the login node or use the GPU partition from a known-good sbatch script."
         }
       ],
       "credential_groups": [
@@ -282,36 +288,24 @@
       ],
       "optional_credentials": [
         {
-          "name": "SSH_KEY_PATH",
-          "source": "env_var",
-          "description": "Private key path used for public-key SSH to SLURM login nodes.",
-          "how_to_get": "Use the private key that succeeds with ssh -o BatchMode=yes -i <key> <SLURM_USER>@<host> 'hostname'. If it is not set up, create one with ssh-keygen, install it with ssh-copy-id, trust the host with ssh-keyscan, chmod 600 the private key, then set SSH_KEY_PATH to that private key path."
-        },
-        {
-          "name": "SSH_AUTH_SOCK",
-          "source": "env_var",
-          "description": "SSH agent socket containing a key accepted by the SLURM login node.",
-          "how_to_get": "Run ssh-agent, add the key with ssh-add, and pass the printed SSH_AUTH_SOCK value to the launch environment."
-        },
-        {
           "name": "SLURM_BASE_RESULTS_DIR",
-          "source": "env_var"
+          "source": "env_var",
+          "only_when": "user wants a custom results/staging root instead of the platform default"
         },
         {
           "name": "SLURM_ACCOUNT",
-          "source": "env_var"
-        },
-        {
-          "name": "SLURM_PARTITION",
-          "source": "env_var"
+          "source": "env_var",
+          "only_when": "the cluster site requires #SBATCH --account"
         },
         {
           "name": "SLURM_CONTAINER_MOUNTS",
-          "source": "env_var"
+          "source": "env_var",
+          "only_when": "cluster requires container mounts different from the platform default"
         },
         {
           "name": "NGC_KEY",
-          "source": "env_var"
+          "source": "env_var",
+          "only_when": "private nvcr.io image pulls require NGC auth"
         },
         {
           "name": "HF_TOKEN",

@@ -239,11 +239,20 @@ I need these before I can create the AutoML runner or submit jobs:
 3. Compute shape. For Cosmos-RL this maps to FSDP:
    dp_shard_size=<total GPUs>, dp_replicate_size=<nodes>.
 
-4. HF_TOKEN availability for nvidia/Cosmos-Reason2-8B. Do not paste the token
+4. Required SLURM launch values:
+   SLURM_USER=<cluster username>
+   SLURM_HOSTNAME=<login-host-or-comma-separated-login-hosts>
+   SLURM_PARTITION=<gpu partition>
+   SSH_KEY_PATH=/path/to/private_key
+
+   Do not ask for SLURM_ACCOUNT or SLURM_BASE_RESULTS_DIR unless the user says
+   their cluster requires an account or wants a custom results root.
+
+5. HF_TOKEN availability for nvidia/Cosmos-Reason2-8B. Do not paste the token
    unless explicitly needed; confirming it is set in the launch environment is
    enough.
 
-5. Monitoring preference. By default I monitor in this chat, polling the job
+6. Monitoring preference. By default I monitor in this chat, polling the job
    and logs until it finishes/fails, and I post an update every 5 minutes.
    Use 1-2 minutes for smoke tests, 5 minutes for normal training, or
    10-15 minutes for long runs. If detached, I launch and give you the job id

@@ -111,6 +111,12 @@ SLURM, Kubernetes, or local Docker. Do not ask for SLURM credentials on Lepton,
 Brev, Kubernetes, or local Docker. Ask S3 credentials only when the selected
 platform and the dataset/result URIs require `s3://` access.
 
+For initial launch intake, ask for required credentials and required credential
+groups only. Treat the helper's optional credentials/settings section as
+reference material; do not request those values unless their `only_when`
+condition applies, the selected workflow cannot proceed without them, or the
+user asks to customize that setting.
+
 When the helper output includes a "Required credential groups" section, satisfy
 one credential from each group before proceeding. Explain each requested value
 using the helper's description and "How to get it" text.
@@ -174,8 +180,8 @@ generate launch artifacts.
 
 For SLURM:
 
-1. Require `SLURM_USER`, `SLURM_HOSTNAME`, and one of `SSH_KEY_PATH` or
-   `SSH_AUTH_SOCK`.
+1. Require `SLURM_USER`, `SLURM_HOSTNAME`, `SLURM_PARTITION`, and one of
+   `SSH_KEY_PATH` or `SSH_AUTH_SOCK`.
 2. Split comma-separated `SLURM_HOSTNAME`, resolve hosts where possible, and
    require passwordless `ssh -o BatchMode=yes` to at least one host.
 3. If SSH fails, do not offer several equivalent choices. Ask for

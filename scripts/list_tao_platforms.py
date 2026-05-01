@@ -192,7 +192,7 @@ def format_platform_detail_text(skill_bank: Path, requested: str) -> str:
         lines.append("Required credential groups:")
         lines.extend(f"- {format_credential_group(item)}" for item in groups)
 
-    lines.append("Optional credentials:")
+    lines.append("Optional credentials/settings (do not request during initial intake unless the condition applies):")
     if optional:
         lines.extend(f"- {format_credential(item)}" for item in optional)
     else:

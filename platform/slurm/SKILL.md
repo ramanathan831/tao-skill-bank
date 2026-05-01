@@ -85,6 +85,8 @@ handler via `SSH_AUTH_SOCK`.
 - **SLURM_HOSTNAME** (required): Comma-separated login hostnames for failover.
   Microservices schema stores this as the list field
   `cloud_specific_details.slurm_hostname`.
+- **SLURM_PARTITION** (required): Partition list for GPU job submission. Ask
+  for this in the mandatory SLURM intake list.
 - **SSH_KEY_PATH** (preferred and expected before launch): private key path for
   non-interactive public-key auth to the login node. If passwordless SSH fails,
   ask the user for `SSH_KEY_PATH=/path/to/private_key` and show the setup steps
@@ -95,8 +97,10 @@ handler via `SSH_AUTH_SOCK`.
   convention from `tao-core` is `/lustre/fsw/portfolios/edgeai/users/<user>`.
 - **SLURM_ACCOUNT** (usually required by site policy): Account charged by
   `#SBATCH --account`.
-- **SLURM_PARTITION** (optional): Partition list. `tao-core` defaults to
-  `polar,polar3,polar4,grizzly` when no partition is supplied.
+
+Do not ask for `SLURM_ACCOUNT` or `SLURM_BASE_RESULTS_DIR` in the initial
+intake unless the user says their site requires an account, wants a custom
+results root, or the workflow cannot proceed without overriding defaults.
 
 ## Backend Details
 
