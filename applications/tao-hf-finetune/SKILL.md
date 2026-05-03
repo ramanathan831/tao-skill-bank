@@ -422,6 +422,30 @@ Authority order while writing: live research from Step 3 → scaffold reference
 `[FETCH LIVE]` blocks. Apply each `applicable_workarounds` entry: Dockerfile
 blocks, requirements pins, config overrides, runtime env vars.
 
+Every generated `.py` file (`prepare_data.py`, `train.py`, `run_eval.py`,
+`infer.py`, `merge_lora.py`, and any `tests/*.py`) must start with the NVIDIA
+Apache-2.0 copyright header as a `#`-prefixed comment block — same text as the
+HTML copyright comment used in the rerun skill, just commented for Python:
+
+```python
+# Copyright (c) 2026, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+```
+
+If you generate an emitter script, make it fail unless every emitted `.py`
+begins with that header.
+
 If `emit_unit_tests: true`, also generate `tests/` per `references/testing.md`.
 
 **Dockerfile template:**
@@ -529,7 +553,7 @@ template in `references/pipeline-skill-template.md`. Every `<placeholder>` must
 be substituted with a real value. Literal placeholders in the output are a bug.
 Include full YAML (`license`, `compatibility`, `metadata`, `allowed-tools`) and
 the NVIDIA copyright notice in an HTML comment (`<!--` … `-->`) immediately after
-the closing `---`, as in that template.
+the closing `---`, as in that template. If you generate an emitter script, make it fail unless the emitted `SKILL.md` contains those fields and the HTML copyright comment.
 
 **Gate (Done criteria):** all of:
 - Step 5 gate met

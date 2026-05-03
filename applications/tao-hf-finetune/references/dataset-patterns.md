@@ -100,20 +100,20 @@ def main():
         print(f"Downloading {n} examples from {dataset_id} split={split}...")
         try:
             if task == "image-classification":
-                ds = load_dataset(dataset_id, split=split, token=token, trust_remote_code=True)
+                ds = load_dataset(dataset_id, split=split, token=token)
                 ds = ds.filter(lambda x: filter_valid(x, task))
                 label_col = "labels" if "labels" in ds.column_names else "label"
                 examples = stratified_examples(ds, n, label_col, seed=42 if name == "train" else 43)
             else:
                 raw = load_dataset(dataset_id, split=split, streaming=True,
-                                   token=token, trust_remote_code=True)
+                                   token=token)
                 raw = raw.filter(lambda x: filter_valid(x, task))
                 examples = list(islice(raw, n))
         except Exception as e:
             # Fallback: try non-streaming if dataset doesn't support it
             print(f"  Streaming failed ({e}), falling back to direct load...")
             ds = load_dataset(dataset_id, split=f"{split}[:{n}]",
-                              token=token, trust_remote_code=True)
+                              token=token)
             examples = [ds[i] for i in range(min(n, len(ds)))]
 
         if len(examples) == 0:

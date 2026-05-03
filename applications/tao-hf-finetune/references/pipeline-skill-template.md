@@ -140,7 +140,7 @@ docker run -d --name run_train --gpus all --shm-size=16g --entrypoint /bin/bash 
   -e WANDB_API_KEY=$WANDB_API_KEY -e WANDB_PROJECT=$WANDB_PROJECT \
   -v $(pwd):/workspace \
   run-<model_short_name>:latest \
-  -lc "cd /workspace && python train.py --config config.yaml 2>&1 | tee logs/train.log"
+  -lc "set -o pipefail; cd /workspace && python train.py --config config.yaml 2>&1 | tee logs/train.log"
 docker logs -f run_train
 
 # 6. Post-train eval + 5 inference samples

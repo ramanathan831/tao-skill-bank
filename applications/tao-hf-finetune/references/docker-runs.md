@@ -85,7 +85,7 @@ docker run --rm --gpus all --shm-size=16g --entrypoint /bin/bash \
   -e PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
   -v $(pwd)/$OUTPUT_DIR:/workspace \
   run-<short>:latest \
-  -lc "cd /workspace && python train.py --config config.yaml --smoke --max_steps 1 2>&1 | tee logs/smoke.log"
+  -lc "set -o pipefail; cd /workspace && python train.py --config config.yaml --smoke --max_steps 1 2>&1 | tee logs/smoke.log"
 ```
 
 Pass criteria in `logs/smoke.log`:
@@ -118,7 +118,7 @@ docker run -d --name hft_train --gpus all --shm-size=16g --entrypoint /bin/bash 
   -e PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
   -v $(pwd)/$OUTPUT_DIR:/workspace \
   run-<short>:latest \
-  -lc "cd /workspace && python train.py --config config.yaml 2>&1 | tee logs/train.log"
+  -lc "set -o pipefail; cd /workspace && python train.py --config config.yaml 2>&1 | tee logs/train.log"
 
 docker logs -f hft_train      # watch loss descend within 10-20 steps
 ```
