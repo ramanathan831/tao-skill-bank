@@ -20,6 +20,8 @@
         "./applications/normal-train",
         "./applications/rca-changenet",
         "./applications/tao-automl",
+        "./applications/tao-hf-finetune",
+        "./applications/tao-hf-integration",
         "./applications/workflow-deft-aoi-loop",
         "./data/analyze-kpi",
         "./data/deft-aoi-anomalygen-inference",
