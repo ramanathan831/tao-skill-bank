@@ -100,13 +100,13 @@ Adjustments by use case:
 Common:
 
 - The TAO Deploy command is `depth_net` for mono, stereo, and fast-stereo skills. The `model.model_type` field discriminates between them.
-- Recommended TRT precision for FFS-bp2: **`gen_trt_engine.tensorrt.data_type: fp16` on the static-shape ONNX path** (static-shape deploy below). Use `fp32` on the dynamic-shape engine path.
+- Recommended TRT precision for FFS-bp2: **`gen_trt_engine.tensorrt.data_type: fp16` on the static-shape ONNX path** (static-shape deploy below). The dynamic-shape engine path supports both `fp16` and `fp32` — see the deployment matrix below for the trade-off.
 
 ## Two deploy paths
 
 ### Static-shape deploy — export static fp32 ONNX, build fp16 engine
 
-Recommended path for FFS-bp2 deploy. Static shape avoids the dynamic-shape engine fp16 caveat.
+Recommended path for FFS-bp2 deploy. Static fp16 has the lowest deploy-time disparity drift vs upstream.
 
 ```yaml
 # export spec — produced via depth_net export
@@ -146,7 +146,7 @@ dataset:
 
 The fp16 selection at TRT compile is what gives FFS its real-time deploy latency. The pyt model itself trained with `mixed_precision: false` (or upstream's bf16) — `gen_trt_engine.tensorrt.data_type: fp16` is the compile-time switch.
 
-### Dynamic-shape deploy (fp32 only)
+### Dynamic-shape deploy (fp32 or fp16)
 
 ```yaml
 export:
@@ -166,7 +166,7 @@ gen_trt_engine:
   opt_width: 736
   max_width: 1536                        # ≥ widest expected input
   tensorrt:
-    data_type: fp32                      # dynamic-shape FFS: fp16 not validated
+    data_type: fp32                      # fp32 default; fp16 also supported (see deployment matrix)
     workspace_size: 4096
 evaluate:
   trt_engine: <built engine>
@@ -175,7 +175,7 @@ evaluate:
   # Pooling Runner failure" below.
 ```
 
-Use `fp32` for the dynamic-shape engine. `fp16` on the dynamic-shape engine is currently not validated for FFS.
+`fp32` is the default for the dynamic-shape engine (matches static-fp32 parity vs upstream). `fp16` on the dynamic-shape engine is supported but has higher drift than static fp16 — use it for latency-critical multi-resolution inference where the drift is acceptable for the downstream task.
 
 #### Sizing the profile (`min/opt/max_height`, `min/opt/max_width`)
 
@@ -209,8 +209,9 @@ Validate the drift on your own dataset and decide whether it is acceptable for y
 ### Implication for fp16 deploy
 
 If your application requires fp16 (latency budget) AND multi-resolution input,
-the cleanest current option is to **batch-resize to a fixed engine H × W at
-preprocess** and use the static fp16 engine.
+two options:
+- **Static fp16 engine + per-image preprocess resize** — lowest drift; caller resizes each input to the engine H×W and rescales disparity by the per-image scale factor.
+- **Dynamic H/W fp16 engine** — accepts variable resolutions natively (drift higher than static fp16; engine may produce NaN under some checkpoint states — fall back to dynamic fp32 if NaN observed).
 
 ### Note — drift floor is FFS-specific
 
@@ -289,7 +290,7 @@ The spec yaml's basename (modulo `.yaml`) must match the action verb passed on t
 2. **Input resize parity** — your preprocessing resize order / interpolation must match upstream's, or drift amplifies for reasons unrelated to TAO.
 3. **`model.max_disparity` explicit** — if the spec yaml's `model:` block omits `max_disparity: 192`, OmegaConf falls back to the schema default of `416`, which builds a 2× oversized cost volume and shifts disparity out of the trained regime. See the parent skill's "Important Parameters" entry.
 
-**fp16 dynamic-shape engine produces NaN or aspect-stretched bad disparity**: Not validated for FFS. Stay on the static-shape fp16 or dynamic-shape fp32 deploy paths.
+**fp16 dynamic-shape engine produces NaN or aspect-stretched bad disparity**: fp16 dynamic-shape is supported but more sensitive than static fp16. NaN can occur under some checkpoint states. If observed, fall back to static-shape fp16 or dynamic-shape fp32 — both are robust.
 
 **`Key 'gwc_feature_normalize' not in 'DepthNetModelConfig'`**: TAO Core too old. The `gwc_feature_normalize` knob lives on the model config schema and is required for FFS-bp2; upgrade your TAO container.
 

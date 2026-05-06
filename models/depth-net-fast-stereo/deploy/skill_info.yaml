@@ -68,6 +68,6 @@ spec_templates:
   inference: ../references/spec_template_deploy.yaml
 notes:
 - The TAO Deploy command is `depth_net` for mono, stereo, and fast-stereo skills. `model.model_type` discriminates between them.
-- Build TRT engines with `gen_trt_engine.tensorrt.data_type: fp16` on the static-shape FFS ONNX path. Use `fp32` on the dynamic-shape path; fp16 on the dynamic-shape engine is not validated for FFS.
+- Build TRT engines with `gen_trt_engine.tensorrt.data_type: fp16` on the static-shape FFS ONNX path (lowest drift vs upstream). The dynamic-shape engine path supports both `fp32` (default; static-fp32 parity) and `fp16` (higher drift than static fp16; engine may produce NaN under some checkpoint states — fall back to fp32 if observed). See deploy/SKILL.md deployment matrix.
 - Match `evaluate.input_height/input_width` to the export-time ONNX shape and to `dataset.test_dataset.augmentation.crop_size` for end-to-end shape consistency.
 - FFS-bp2 requires `model.gwc_feature_normalize: true`. Without it the model produces broken disparity; the deploy engine inherits the broken output.

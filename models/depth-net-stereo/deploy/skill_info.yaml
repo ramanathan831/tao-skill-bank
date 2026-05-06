@@ -71,8 +71,8 @@ notes:
 - The TAO Deploy command is `depth_net` for both mono and stereo DepthNet model skills.
 - 'Keep `dataset.dataset_name: StereoDataset` and use a stereo data source such as
   `GenericDataset` (no GT) or a dataset-specific class like `Middlebury` (with GT) in the deploy spec.'
-- 'Build TRT engines with `gen_trt_engine.tensorrt.data_type: fp32` for FoundationStereo.
-  FP16 may abort the TensorRT builder with an internal optimizer assertion; see deploy
-  SKILL.md for the caveat.'
+- 'Build TRT engines with `gen_trt_engine.tensorrt.data_type: fp16` for FoundationStereo
+  on supported deploy paths (NGC static-shape and user-trained static / batch-only-dynamic).
+  Engine input H/W are pinned to the trace shape on every path. See deploy/SKILL.md.'
 - 'Match `evaluate.input_height/input_width` to the export-time ONNX shape and to
   `dataset.test_dataset.augmentation.crop_size` for end-to-end shape consistency.'

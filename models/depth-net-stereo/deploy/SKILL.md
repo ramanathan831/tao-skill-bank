@@ -137,7 +137,7 @@ export:
   onnx_file: <out.onnx>
   input_height: 576
   input_width: 960
-  opset_version: 17        # native LayerNormalization op
+  opset_version: 17        # 17 OK with on_cpu=True (NGC release uses 17); 16 also works
   batch_size: 1            # static
   on_cpu: True             # required at 576×960 to avoid GPU OOM during trace
 ```
@@ -152,6 +152,8 @@ export:
   batch_size: -1           # batch axis dynamic; H, W are static at the trace shape
   input_height: 320
   input_width: 736
+  opset_version: 16        # required when on_cpu=False (opset 17 + on_cpu=False is broken on TRT 10.13 fp16)
+  on_cpu: False            # GPU trace fits ≤320×736; use on_cpu: True for ≥480×736
 
 gen_trt_engine:
   onnx_file: <user batch-dynamic ONNX>
@@ -172,6 +174,22 @@ inference:
   input_height: 320
   input_width: 736
 ```
+
+### Recommended `opset_version` and `on_cpu` for FS small fp16 deploy
+
+`opset_version` must be paired with `on_cpu` per the validated combinations below:
+
+| `on_cpu` | `opset_version` for fp16 | Status |
+|---|---|---|
+| **`True`** (CPU trace) | **16 or 17** | Deterministic PASS (validated at 480×736 and 576×960) |
+| **`False`** (GPU trace) | **16 only** | Mostly works; occasional non-deterministic build failure on TRT 10.13 — re-run on `costTensor.cpp::indexOfMin::120` or `optimizer.cpp::reduce::1258` assertions |
+| `False` + `17` | — | Deterministically broken on TRT 10.13 fp16 — do not use |
+
+`on_cpu` is driven by export-trace GPU memory:
+- ≤320×736: `on_cpu: False` is feasible (GPU trace fits in 47 GB VRAM).
+- ≥480×736: `on_cpu: True` is required (PyTorch GPU trace OOMs on a 47 GB GPU).
+
+Prefer `on_cpu: True` whenever feasible — at `on_cpu=True` the fp16 build is empirically deterministic at every tested shape (including the NGC release recipe 576×960+opset 17). fp32 builds are unaffected by these constraints.
 
 ## Shape consistency: export ↔ evaluate ↔ deploy
 

@@ -87,7 +87,7 @@ model:
   n_downsample: 2
   valid_iters: 8
   max_disparity: 192                    # bp2 commercial; NOT 416 (full FS default)
-  volume_dim: 32
+  volume_dim: 28                       # bp2 ckpt invariant; NOT 32 (full FS default)
   mixed_precision: false                # see "Important Parameters" below
   gwc_feature_normalize: true           # see "Important Parameters" below
 
@@ -205,7 +205,7 @@ FFS_MODEL_BLOCK = {
     "model.n_downsample": 2,
     "model.valid_iters": 8,
     "model.max_disparity": 192,
-    "model.volume_dim": 32,
+    "model.volume_dim": 28,
     "model.mixed_precision": False,
     "model.gwc_feature_normalize": True,
     "model.motion_encoder_widths": [56, 96, 16, 12],
@@ -308,7 +308,7 @@ Optional. Val dataset configured via `dataset.val_dataset.data_sources` (each en
 - **model.gwc_feature_normalize**: Must be `true` for FFS-bp2. The bp2 model was trained with normalized group-wise correlation cost volume, and the model code without this flag produces broken disparity (negative values, large drift from upstream baseline). Required for both pyt and deploy paths.
 - **model.train_iters**: GRU refinement iterations during training. Default 22.
 - **model.valid_iters**: GRU refinement iterations during inference / eval. bp2 ckpt was distilled targeting `8`; values higher than 8 do not improve quality.
-- **model.volume_dim**: Cost volume dimension. Default 32.
+- **model.volume_dim**: Cost volume Conv output channels. Schema default `32` (full-FS); FFS bp2 ckpt requires `28` — must override explicitly. Changing breaks bp2 ckpt key-shape match.
 - **model.low_memory**: Memory optimization level. Range 0-4. Higher = less memory, slower.
 - **dataset.dataset_name**: Top-level dataset family identifier (`StereoDataset`).
 - **dataset.{train,val,test,infer}_dataset.batch_size**: Per-split batch size. Use `1` for variable-aspect datasets (Middlebury / KITTI / ETH3D) and during eval / TRT comparison; larger batch sizes are fine for fixed-shape synthetic data.
@@ -349,7 +349,7 @@ Multi-node requires `WORLD_SIZE`, `NODE_RANK`, `MASTER_ADDR`, `MASTER_PORT` env 
 ## Export / TRT Defaults
 
 - TRT data types: FP32, FP16.
-- Recommended TRT precision for FFS-bp2: `fp16` on the static-shape ONNX path; `fp32` on the dynamic-shape engine path. See `deploy/SKILL.md` for the supported scenarios.
+- Recommended TRT precision for FFS-bp2: `fp16` on the static-shape ONNX path (lowest drift). Dynamic-shape path supports both `fp32` (default; static-fp32 parity) and `fp16` (latency-critical multi-resolution; higher drift than static fp16, may NaN under some checkpoint states — fall back to fp32 if observed). See `deploy/SKILL.md` deployment matrix.
 - `export` always emits a **fp32 ONNX** regardless of `model.mixed_precision`. The fp16 vs fp32 selection happens at the `gen_trt_engine` step via `gen_trt_engine.tensorrt.data_type`.
 - For static-shape FFS at 480×736: `export.batch_size: 1`, `export.opset_version: 17`, `export.on_cpu: False`.
 - **`export.batch_size`**: positive int (default `1`) — static batch dimension; `-1` enables a dynamic batch axis on the ONNX input.
