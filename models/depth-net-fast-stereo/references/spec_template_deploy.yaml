@@ -6,7 +6,7 @@
 #   inference:      TRT engine + 2-col annotations → disparity outputs
 #
 # Use the static-shape fp16 deploy path by default; see deploy/SKILL.md for the
-# dynamic-shape fp32 deploy path.
+# dynamic-shape deploy path (fp32 default; fp16 also supported with caveats).
 
 results_dir: /results
 
@@ -51,13 +51,13 @@ gen_trt_engine:
   trt_engine: /results/depth-net-fast-stereo.engine
   batch_size: 1                          # static-shape deploy; -1 enables dynamic batch axis
   tensorrt:
-    data_type: fp16                      # static-shape FFS supports fp16; dynamic uses fp32
+    data_type: fp16                      # static-shape FFS = fp16 recommended; dynamic-shape = fp32 default or fp16 (see deploy/SKILL.md)
     workspace_size: 4096                 # MB; FFS needs more than the 1024 default
     min_batch_size: 1
     opt_batch_size: 1
     max_batch_size: 1
   verbose: true
-  # Optional dynamic H/W profile (dynamic-shape deploy; switch tensorrt.data_type to fp32).
+  # Optional dynamic H/W profile (dynamic-shape deploy; tensorrt.data_type can be fp32 or fp16).
   # Size max_height/max_width to ≥ the largest input you'll inference at;
   # the defaults below cover most variable-aspect public stereo datasets
   # with ~30 % headroom.

@@ -37,7 +37,7 @@ model:
   max_disparity: 192            # bp2 commercial — must match ckpt training-time value; NOT 416 (schema default)
   valid_iters: 8
   train_iters: 22
-  volume_dim: 32
+  volume_dim: 28               # bp2 ckpt invariant; NOT 32 (schema default for full-FS)
   mixed_precision: false
   gwc_feature_normalize: true
 

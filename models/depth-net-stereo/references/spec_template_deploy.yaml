@@ -2,6 +2,7 @@ results_dir: /results
 model:
   # Required. Must match the trained model variant.
   model_type: FoundationStereo
+  encoder: vits          # schema default vitl; FS small NGC ckpt was trained with vits
 dataset:
   dataset_name: StereoDataset
   infer_dataset:
