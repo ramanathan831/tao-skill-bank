@@ -22,10 +22,13 @@
         "./applications/tao-hf-finetune",
         "./applications/tao-hf-integration",
         "./applications/workflow-deft-aoi-loop",
-        "./data/deft-aoi-anomalygen-inference",
-        "./data/deft-aoi-data-mining",
-        "./data/deft-aoi-omniverse-sdg",
-        "./data/deft-aoi-rca-changenet",
+        "./data/analyze-kpi",
+        "./data/cosmos-anomalygen",
+        "./data/deft-aoi-mining",
+        "./data/deft-aoi-rca-vcn",
+        "./data/deft-aoi-routing-vcn",
+        "./data/knn-mining",
+        "./data/nim-embedding",
         "./data/qwen-caption",
         "./models/action-recognition",
         "./models/bevfusion",
@@ -69,15 +72,19 @@
     },
     {
       "name": "deft-aoi-loop-plugin",
-      "description": "Focused bundle for the DEFT AOI loop only — Evaluate → RCCA → SDG → Retrain → Deploy for NVIDIA PCB AOI ChangeNet. Install this if you want JUST the DEFT workflow without the full TAO skill bank.",
+      "description": "Focused bundle for the DEFT AOI loop only — Evaluate → RCA → SDG → Retrain → Deploy for NVIDIA PCB AOI. Install this if you want JUST the DEFT workflow without the full TAO skill bank.",
       "source": "./",
       "strict": true,
       "skills": [
         "./applications/workflow-deft-aoi-loop",
-        "./data/deft-aoi-rca-changenet",
-        "./data/deft-aoi-anomalygen-inference",
-        "./data/deft-aoi-omniverse-sdg",
-        "./data/deft-aoi-data-mining"
+        "./models/visual-changenet",
+        "./data/deft-aoi-rca-vcn",
+        "./data/deft-aoi-routing-vcn",
+        "./data/deft-aoi-mining",
+        "./data/cosmos-anomalygen",
+        "./data/analyze-kpi",
+        "./platform/docker",
+        "./platform/nvidia-gpu-setup"
       ]
     }
   ]

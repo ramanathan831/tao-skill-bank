@@ -66,7 +66,7 @@ actions:
     - inputs/
 pretrained_models:
   classify:
-    backbone: ngc://nvidia/tao/cradiov2:cradiov2-b
+    backbone: https://huggingface.co/nvidia/C-RADIOv2-B
     full_model: ngc://nvidia/tao/visual_changenet_classification:visual_changenet_nvpcb_trainable_v1.0
   segment:
     full_model: ngc://nvidia/tao/visual_changenet_segmentation_levircd:visual_changenet_levircd_trainable_v1.0
