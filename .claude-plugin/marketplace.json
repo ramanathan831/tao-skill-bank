@@ -27,6 +27,7 @@
         "./data/deft-aoi-omniverse-sdg",
         "./data/deft-aoi-rca-changenet",
         "./data/qwen-caption",
+        "./data/video-reasoning-annotation",
         "./models/action-recognition",
         "./models/bevfusion",
         "./models/centerpose",
