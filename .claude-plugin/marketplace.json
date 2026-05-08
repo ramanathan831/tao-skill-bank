@@ -67,7 +67,9 @@
         "./platform/lepton",
         "./platform/local-docker",
         "./platform/slurm",
-        "./platform/tao-sdk"
+        "./platform/tao-sdk",
+        "./data/daft-convert",
+        "./data/daft-validate"
       ]
     },
     {
@@ -85,6 +87,16 @@
         "./data/analyze-kpi",
         "./platform/docker",
         "./platform/nvidia-gpu-setup"
+      ]
+    },
+    {
+      "name": "daft-process",
+      "description": "Process a DAFT dataset by running `tao-daft process`.",
+      "source": "./",
+      "strict": true,
+      "skills": [
+        "./data/daft-convert",
+        "./data/daft-validate"
       ]
     }
   ]
