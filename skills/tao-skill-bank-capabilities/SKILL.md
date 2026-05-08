@@ -3,6 +3,16 @@ name: tao-skill-bank-capabilities
 description: >-
   Answer what the TAO Skill Bank plugin can do by generating the response from
   packaged application, data, model, AutoML, and platform manifests.
+license: Apache-2.0
+compatibility: Requires the packaged TAO skill bank helper scripts.
+metadata:
+  author: Ramanathan Arunachalam
+  version: '0.1'
+allowed-tools: Read Bash
+tags:
+- tao
+- capabilities
+- discovery
 ---
 
 # TAO Skill Bank Capabilities
@@ -10,6 +20,11 @@ description: >-
 Use this skill when the user asks what `tao-skill-bank` can do, asks for plugin
 capabilities, asks which application or data workflows are available, asks which
 models are supported, or asks what models are capable with AutoML.
+
+## Quick Start
+
+Run `scripts/list_tao_capabilities.py` for general capability questions, or
+`scripts/list_tao_models.py` for model/action and AutoML support questions.
 
 ## Capability Answers
 

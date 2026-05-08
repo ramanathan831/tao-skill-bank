@@ -1,6 +1,20 @@
 ---
 name: deft-cosmos-rl
-description: "DEFT pipeline for Cosmos-RL video QA: gap analysis, Qwen captioning, Cosmos Predict 2.5 video generation, data merge, and fine-tuning. Use when running iterative data augmentation for video QA models."
+description: 'DEFT pipeline for Cosmos-RL video QA: gap analysis, Qwen captioning, Cosmos Predict 2.5 video generation, data
+  merge, and fine-tuning. Use when running iterative data augmentation for video QA models.'
+license: Apache-2.0
+compatibility: Requires docker + nvidia-container-toolkit. Sub-skills declare additional requirements.
+metadata:
+  author: Arif Ahmed
+  version: '0.1'
+allowed-tools: Read Bash Write
+tags:
+- video
+- qa
+- cosmos
+- deft
+- sda
+- iterative
 ---
 
 # DEFT Cosmos-RL Workflow
@@ -39,7 +53,7 @@ Before the DEFT loop begins, the workflow runs optional initialization stages:
 | `sft_training` | cosmos-rl (train) | GPU | Only if `train_dataset_uri` is provided |
 | `sft_eval` | cosmos-rl (eval) | GPU | Only after `sft_training` completes |
 
-Init stage results are stored at job-specific paths (`s3://{bucket}/results/{job_id}`), not under the `storage_root`. The planner uses `{step_results:N}` references so that iteration stages (e.g., gap_analysis) can find init stage outputs at runtime — the agent_runner resolves these from the job store.
+Init stage results are stored at job-specific paths (`s3://{bucket}/results/{job_id}`), not under the `storage_root`. The planner uses `{step_results:N}` references so that iteration stages (e.g., gap_analysis) can find init stage outputs at runtime — the orchestrator resolves these from the job store.
 
 ## 3. The 8 Iteration Stages
 
@@ -52,7 +66,7 @@ Compares previous eval predictions to ground truth and extracts failure cases.
 - **Script:** `model/cosmos-rl/scripts/analyze_gaps.py`
 - **Image:** `nvcr.io/nvidian/iva/smart_data_augmentation`
 - **Input:**
-  - `{prev_storage_root}` -- previous iteration's eval results. For iteration 1, this resolves to `{step_results:N}` (the last init step's job results_dir, resolved at runtime by the agent_runner from the job store). For iteration N>1, this is `iter_{N-1}`.
+  - `{prev_storage_root}` -- previous iteration's eval results. For iteration 1, this resolves to `{step_results:N}` (the last init step's job results_dir, resolved at runtime by the orchestrator from the job store). For iteration N>1, this is `iter_{N-1}`.
   - `{kpi_dataset_uri}/{kpi_ann_filename}` -- ground truth annotation file (defaults to `annotations.json`)
   - `{kpi_dataset_uri}` -- media directory for gap videos
 - **Output:** `{storage_root}/gaps/gaps.parquet` -- rows with video paths, questions, wrong answers, and ground truth
@@ -84,7 +98,7 @@ Splits captions into N chunks for parallel video generation.
 Generates synthetic videos from captions using Cosmos Predict 2.5.
 
 - **Skill:** `cosmos-predict-2-5` (see `cosmos-predict-2-5.md` for generation params)
-- **Parallelism:** The agent launches **8 concurrent `execute_step` calls**, one per split file. Each job processes one split independently.
+- **Parallelism:** The agent launches **8 concurrent `job-dispatch` calls**, one per split file. Each job processes one split independently.
 - **Input:** `{storage_root}/splits/split_{i}.jsonl` for i in 0..7
 - **Output:** `{storage_root}/generated/` -- generated videos + `all_generated.parquet` (merged by the last job or a post-step)
 - **GPU requirement:** Each split job requires GPU resources; 8 jobs run simultaneously on the platform
@@ -113,11 +127,12 @@ Merges current iteration's augmented data with previous training annotations.
 
 Fine-tunes Cosmos-RL on the merged training dataset.
 
-- **Skill:** `cosmos-rl` (train action; see `cosmos-rl.md` for spec params like dp_shard_size, dp_replicate_size)
+- **Skill:** `cosmos-rl` (train action; see `models/cosmos-rl/SKILL.md` for spec params like `dp_shard_size`, `dp_replicate_size`).
 - **Input:**
   - `{storage_root}/training_data/annotations.json`
   - Checkpoint: resolved via continual_model rules (see Section 5)
 - **Output:** `{storage_root}/model/` -- trained checkpoint
+- **Multi-node:** set `dp_replicate_size = num_nodes` in the spec and submit with `num_nodes>1` on a multi-node-capable platform (`platform/lepton`, `platform/slurm`, `platform/kubernetes`). Cosmos-RL drives FSDP from those spec keys; see `models/cosmos-rl/SKILL.md` "Parallelism" section. Brev and local Docker are single-host only.
 
 ### Stage 8: evaluation (GPU)
 
@@ -137,7 +152,7 @@ The agent computes the storage root for each iteration and passes it to `generat
 storage_root = s3://{bucket}/results/deft-cosmos-rl/{plan_id}/iter_{iteration}
 ```
 
-Init stages (zero-shot eval, SFT) store results at **job-specific paths** (`s3://{bucket}/results/{job_id}`), not under storage_root. The planner uses `{step_results:N}` so iteration stages can reference these outputs — the agent_runner resolves them at runtime from the job store (SQLite, keyed by plan_id + step_id).
+Init stages (zero-shot eval, SFT) store results at **job-specific paths** (`s3://{bucket}/results/{job_id}`), not under storage_root. The planner uses `{step_results:N}` so iteration stages can reference these outputs — the orchestrator resolves them at runtime from the job store (SQLite, keyed by plan_id + step_id).
 
 Iteration stages use subdirectories under `storage_root`:
 
@@ -199,7 +214,7 @@ The agent should present these findings and wait for user confirmation before pr
 
 The `video_generation` stage runs 8 jobs in parallel. The agent must:
 
-1. Call `execute_step` 8 times, once per split file (`split_0.jsonl` through `split_7.jsonl`)
+1. Call `job-dispatch` 8 times, once per split file (`split_0.jsonl` through `split_7.jsonl`)
 2. Track all 8 job IDs independently
 3. Wait for all 8 to complete before proceeding to `merge_outputs`
 4. If a subset of splits fail, retry only the failed splits (do not re-run successful ones)
@@ -211,7 +226,7 @@ See `cosmos-predict-2-5.md` for per-job GPU requirements and generation paramete
 
 Before generating the plan, the agent should validate the KPI dataset and auto-discover the annotation file:
 
-1. Run `sdk.list_path(kpi_dataset_uri)` to list the dataset contents
+1. List the dataset contents with `aws s3 ls <kpi_dataset_uri>` (or storage CLI equivalent)
 2. Look for a `.json` file in the root — this is the annotation file
 3. If the annotation file is **not** `annotations.json` (the default), pass `kpi_ann_filename` as an override in `extra_args`:
    ```python
@@ -224,9 +239,9 @@ This avoids an extra turn asking the user for the annotation filename — the ag
 ## 9. Error Patterns
 
 ### gap_analysis
-- **No results found:** Previous eval did not produce `results.json`. The `results-dir` arg should resolve to the prior eval step's job results_dir via `{step_results:N}`. If the referenced step hasn't been run, the agent_runner will raise a clear error. Re-run the eval step first.
+- **No results found:** Previous eval did not produce `results.json`. The `results-dir` arg should resolve to the prior eval step's job results_dir via `{step_results:N}`. If the referenced step hasn't been run, the orchestrator will raise a clear error. Re-run the eval step first.
 - **Empty parquet:** Model got everything right (no gaps). Report to user -- DEFT may not be needed.
-- **Path mismatch:** `{kpi_dataset_uri}/{kpi_ann_filename}` does not point to a valid annotation file. Run `sdk.check_path()` to verify.
+- **Path mismatch:** `{kpi_dataset_uri}/{kpi_ann_filename}` does not point to a valid annotation file. Verify with `aws s3 ls` or your storage CLI.
 
 ### caption_generation
 - **Qwen endpoint timeout:** Retry with backoff. Check Qwen service health on the platform.

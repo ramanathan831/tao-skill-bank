@@ -1,6 +1,21 @@
 ---
 name: visual-changenet
-description: "Visual ChangeNet for binary image classification and segmentation in AOI defect detection. Use when training, evaluating, or running inference for PCB defect detection or visual inspection."
+description: Visual ChangeNet for binary image classification and segmentation in AOI defect detection. Use when training,
+  evaluating, or running inference for PCB defect detection or visual inspection.
+license: Apache-2.0
+compatibility: Requires docker + nvidia-container-toolkit.
+metadata:
+  author: Ramanathan Arunachalam, Arif Ahmed
+  version: '0.1'
+allowed-tools: Read Bash
+tags:
+- pcb
+- aoi
+- defect
+- classification
+- segmentation
+- siamese
+- visual-inspection
 ---
 
 # Visual ChangeNet
@@ -10,7 +25,7 @@ Visual ChangeNet is a TAO Toolkit model for visual inspection and defect detecti
 - **Classify** — Binary image classification using a siamese-style architecture with a shared backbone (C-RADIO ViT) and a learnable difference module. Compares image pairs to classify defects as PASS/NO_PASS.
 - **Segment** — Pixel-level change segmentation using a ViT-Large NVDINOv2 backbone. Compares before/after image pairs to produce a binary change mask.
 
-The backbone weight (`c_radio_v2_vit_base_patch16_224`) is downloaded from NGC at runtime. Ensure `NGC_KEY` is set in `secrets.json`. The default spec path `model.backbone.pretrained_backbone_path: /workspace/weights/backbone.pth` is resolved by the container infrastructure.
+The backbone weight (`c_radio_v2_vit_base_patch16_224`) is downloaded from Hugging Face at runtime: `https://huggingface.co/nvidia/C-RADIOv2-B`. Ensure the runtime has Hugging Face access when required. The default spec path `model.backbone.pretrained_backbone_path: /workspace/weights/backbone.pth` is resolved by the container infrastructure.
 
 ## Dataclass Schemas
 
@@ -190,15 +205,46 @@ S3_EVAL = "s3://bucket/data/eval"
     "gen_trt_engine.tensorrt.calibration.cal_image_dir": [f"{S3_TRAIN}/images.tar.gz"],
 }
 ```
+## Local Docker Invocation
+
+When running without the TAO SDK (local docker), use the `tao-toolkit:6.26.3-pyt` image directly:
+
+```bash
+set -a; source <workspace>/.env; set +a
+
+docker run --rm --gpus all --shm-size=8g \
+    -e NGC_API_KEY="${NGC_API_KEY}" \
+    -v <workspace>:/data/workspace \
+    -v <workspace>/results:/results \
+    -v <workspace>/kpi/images:/data/datasets/NV_PCB_Siamese/images \
+    -v <workspace>/train/base:/data/datasets/NV_PCB_Siamese/csv \
+    -v <workspace>/kpi:/data/datasets/NV_PCB_Siamese/kpi \
+    -v <workspace>/augmentation/backbone/c_radio_v2_b.ckpt:/data/pretrained_models/C-RADIOv2_B.pth \
+    nvcr.io/nvidia/tao/tao-toolkit:6.26.3-pyt \
+    visual_changenet <action> -e /data/workspace/specs/<spec>.yaml \
+    [key=value overrides...]
+```
+
+**`--shm-size=8g` is required** — without it, dataloader workers crash with `Unexpected bus error encountered in worker` due to insufficient shared memory.
+
+**Backbone mount**: mount the `.ckpt` file directly as a single file (not the directory), aliased to `/data/pretrained_models/C-RADIOv2_B.pth`.
+
+Override checkpoint and results_dir on the command line to avoid editing the spec:
+```bash
+visual_changenet inference -e /data/workspace/specs/spec.yaml \
+    inference.checkpoint=/results/<iter>/train/model_epoch_<EEE>_step_<SSS>.pth \
+    inference.results_dir=/results/<iter>/inference/<label>
+```
+
 ## Tasks
 
 ### Classify (default)
 
-Uses actions: `train`, `evaluate`, `inference`. Defaults file: `defaults-train.json`.
+Uses actions: `train`, `evaluate`, `inference`. Defaults template: `references/spec_template_train.yaml`.
 
 ### Segment
 
-Uses actions: `segment_train`, `segment_evaluate`, `segment_inference`. Defaults file: `defaults-segment.json`.
+Uses actions: `segment_train`, `segment_evaluate`, `segment_inference`. Defaults template: `references/spec_template_segment.yaml`.
 
 Segmentation requires compiling custom CUDA ops (`MultiScaleDeformableAttention`) on first run, which takes ~5 minutes. The ViT adapter backbone uses these for multi-scale feature extraction.
 
@@ -217,7 +263,7 @@ The model needs two things from the dataset: a CSV file and an images directory.
 | `dataset.classify.validation_dataset.csv_path` | S3 path to the validation CSV (optional) | Same 4-column format |
 | `dataset.classify.validation_dataset.images_dir` | S3 path to the images directory (optional) | Can be same as training images_dir |
 
-**How to find the right files:** List the dataset URI with `sdk.list_path()`. Look for:
+**How to find the right files:** List the dataset URI with `aws s3 ls <uri>` (or your storage CLI equivalent). Look for:
 - A CSV with 4 columns (`input_path`, `golden_path`, `label`, `object_name`) — may be in a subdirectory, may have a descriptive name
 - An `images/` directory (or similar) containing the image subdirectories referenced by the CSV
 

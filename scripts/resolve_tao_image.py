@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 from typing import Any
 
+import yaml
 
 DEFAULT_SKILL_BANK = Path(
     os.environ.get("TAO_SKILL_BANK_PATH", Path.home() / "tao-skills-external")
@@ -50,23 +51,43 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def load_json(path: Path) -> dict[str, Any]:
-    """Load a JSON object from disk."""
+def load_yaml(path: Path) -> dict[str, Any]:
+    """Load a YAML object from disk."""
     with path.open("r", encoding="utf-8") as handle:
-        data = json.load(handle)
+        data = yaml.safe_load(handle)
     if not isinstance(data, dict):
-        raise ValueError(f"{path} must contain a JSON object")
+        raise ValueError(f"{path} must contain a YAML object")
     return data
+
+
+def resolve_image_key(skill_bank: Path, image: str) -> tuple[str, str]:
+    """Resolve a versions.yaml image key to a URI when possible."""
+    image = image.strip()
+    if "/" in image or ":" in image:
+        return image, "absolute"
+
+    versions_path = skill_bank.expanduser() / "versions.yaml"
+    versions = load_yaml(versions_path)
+    cursor: Any = versions.get("images", {})
+    for part in image.split("."):
+        if not isinstance(cursor, dict) or part not in cursor:
+            return image, "unresolved_key"
+        cursor = cursor[part]
+    if not isinstance(cursor, str) or not cursor.strip():
+        return image, "unresolved_key"
+    return cursor.strip(), "versions.yaml"
 
 
 def resolve_image(skill_bank: Path, model: str, action: str) -> dict[str, Any]:
     """Resolve action-level image first, then model-level image."""
-    config_path = skill_bank.expanduser() / "models" / model / "config.json"
-    if not config_path.exists():
-        raise FileNotFoundError(f"Model config not found: {config_path}")
+    metadata_path = (
+        skill_bank.expanduser() / "models" / model / "references" / "skill_info.yaml"
+    )
+    if not metadata_path.exists():
+        raise FileNotFoundError(f"Model metadata not found: {metadata_path}")
 
-    config = load_json(config_path)
-    actions = config.get("actions", {})
+    skill_info = load_yaml(metadata_path)
+    actions = skill_info.get("actions", {})
     if not isinstance(actions, dict):
         actions = {}
 
@@ -78,30 +99,35 @@ def resolve_image(skill_bank: Path, model: str, action: str) -> dict[str, Any]:
             f"Available actions: {available}"
         )
     if not isinstance(action_config, dict):
-        raise ValueError(f"models/{model}/config.json actions.{action} must be an object")
+        raise ValueError(
+            f"models/{model}/references/skill_info.yaml actions.{action} must be an object"
+        )
 
     candidates = [
         ("action.container_image", action_config.get("container_image")),
         ("action.image", action_config.get("image")),
-        ("model.container_image", config.get("container_image")),
-        ("model.image", config.get("image")),
+        ("model.container_image", skill_info.get("container_image")),
+        ("model.image", skill_info.get("image")),
     ]
     for source, image in candidates:
         if isinstance(image, str) and image.strip():
+            resolved_image, resolved_from = resolve_image_key(skill_bank, image)
             return {
-                "schema_version": 1,
+                "schema_version": 2,
                 "model": model,
-                "network_arch": config.get("network_arch", model),
+                "network_arch": skill_info.get("network_arch", model),
                 "action": action,
-                "image": image.strip(),
+                "image": resolved_image,
+                "declared_image": image.strip(),
+                "resolved_from": resolved_from,
                 "source": source,
-                "config_path": str(config_path),
+                "metadata_path": str(metadata_path),
                 "confirmation_required": True,
                 "override_key": "image",
             }
 
     raise ValueError(
-        f"No container image found for model '{model}' action '{action}' in {config_path}"
+        f"No container image found for model '{model}' action '{action}' in {metadata_path}"
     )
 
 
@@ -113,7 +139,9 @@ def format_text(data: dict[str, Any]) -> str:
             f"- model: {data['model']} ({data['network_arch']})",
             f"- action: {data['action']}",
             f"- default image: {data['image']}",
-            f"- source: {data['source']} in {data['config_path']}",
+            f"- declared image: {data['declared_image']}",
+            f"- source: {data['source']} in {data['metadata_path']}",
+            f"- resolved from: {data['resolved_from']}",
             "- confirmation: ask the user to use this image or provide image=<override> before launch",
         ]
     )
