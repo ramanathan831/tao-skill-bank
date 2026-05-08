@@ -30,6 +30,7 @@
         "./data/knn-mining",
         "./data/nim-embedding",
         "./data/qwen-caption",
+        "./data/video-reasoning-annotation",
         "./models/action-recognition",
         "./models/bevfusion",
         "./models/centerpose",
