@@ -1,467 +1,324 @@
 ---
 name: tao-sdk
-description: TAO Execution SDK for submitting and monitoring GPU training jobs on supported platforms (Lepton, Brev, SLURM, local Docker). Use when the user wants to train, evaluate, or run inference on a model via GPU compute.
+description: TAO Execution SDK for submitting and monitoring GPU training jobs on Lepton (DGX Cloud) or Brev. Use when the user wants job tracking, S3 I/O wrapping, multi-node distributed training, or platform-specific features that docker-run can't provide.
+license: Apache-2.0
+compatibility: Requires Python 3.10+ and the nvidia-tao-sdk package (pip install nvidia-tao-sdk).
+metadata:
+  author: Ramanathan Arunachalam, Arif Ahmed
+  version: '0.2'
+allowed-tools: Read Bash
+tags:
+- platform
+- tao
+- sdk
 ---
 
 # TAO Execution SDK
 
-The SDK provides job submission and monitoring for GPU training on supported
-platforms. The agent does all the thinking (reading skills, resolving specs,
-mapping data). The SDK handles infrastructure (entrypoint building, mount
-detection, job submission).
+The SDK is the **optional** Python layer for users who need job handles, S3 I/O wrapping, or platform-specific features (Lepton multi-node, Lustre mounts, Brev instance reuse). Most TAO skills run with just `docker run` and don't need it. Reach for the SDK when:
+
+- You want a `Job` handle to poll status and stream logs over time.
+- The platform is API-only (Lepton has no docker-run equivalent).
+- You need S3-aware input download / output upload baked into the entrypoint.
+- You're chaining multiple jobs and want persisted state.
+
+## Preflight
+
+```bash
+python -c "import tao_sdk" 2>/dev/null || {
+  echo "MISSING: nvidia-tao-sdk not installed. Run:"
+  echo "  pip install nvidia-tao-sdk[lepton]   # or [brev], [all]"
+  exit 1
+}
+```
+
+If missing, the agent prompts the user to authorize the install via Bash, then re-runs the preflight. Never auto-install silently.
 
 ## Setup
 
-```python
-from tao_sdk import TaoExecutionSDK
-sdk = TaoExecutionSDK(creds_file='secrets.json')
-```
-
-Credentials in `secrets.json`:
-```json
-{
-  "LEPTON_WORKSPACE_ID": "...",
-  "LEPTON_AUTH_TOKEN": "...",
-  "BREV_API_TOKEN": "...",
-  "SLURM_USER": "...",
-  "SLURM_HOSTNAME": "login-1,login-2",
-  "SLURM_BASE_RESULTS_DIR": "/lustre/fsw/portfolios/edgeai/users/<user>",
-  "DOCKER_HOST": "unix:///var/run/docker.sock",
-  "DOCKER_NETWORK": "tao_default",
-  "NGC_KEY": "...",
-  "ACCESS_KEY": "...",
-  "SECRET_KEY": "...",
-  "S3_ENDPOINT_URL": "...",
-  "S3_BUCKET_NAME": "...",
-  "HF_TOKEN": "..."
-}
-```
-
-## Skill Discovery
+Credentials come from **environment variables** — sourced from `~/.config/tao/.env` (auto-loaded by the skill bank's SessionStart hook).
 
 ```python
-catalog = sdk.list_skills()
-# Returns: [{name, layer, description, actions, tags, path, has_skill_md, agent_native}, ...]
+from tao_sdk.platforms.lepton import LeptonSDK   # DGX Cloud
+from tao_sdk.platforms.brev   import BrevSDK     # Brev GPU instances
+
+sdk = LeptonSDK()    # reads LEPTON_WORKSPACE_ID, LEPTON_AUTH_TOKEN
+# or
+sdk = BrevSDK()      # reads BREV_API_TOKEN (optional — falls back to brev login)
 ```
 
-Each skill is at the returned `path`. Read:
-- `<model>.md` or `SKILL.md` — full instructions, error patterns, data format docs
-- `config.json` — container image, commands, inputs/outputs, data_sources
-- `defaults-<action>.json` — default spec for the requested action
+Both SDKs validate credentials lazily on first use and raise `CredentialError` with a clear message if a required env var is missing. Required env vars:
 
-## Reading a Model Skill
+| Platform | Required | Optional |
+|---|---|---|
+| Lepton | `LEPTON_WORKSPACE_ID`, `LEPTON_AUTH_TOKEN` | — |
+| Brev | — (manual `brev login` works) | `BREV_API_TOKEN` |
+| S3 I/O (any platform) | `S3_BUCKET_NAME`, `ACCESS_KEY`, `SECRET_KEY` | `S3_ENDPOINT_URL`, `CLOUD_REGION` |
+| Container env | `NGC_KEY` | `HF_TOKEN` |
 
-Prefer the `SkillBank` API when generating action runners. It is the same
-loader used by the plugin and avoids file searching:
+The agent never reads credential values — it only checks presence with `[ -n "$VAR_NAME" ]`.
+
+## Core API
+
+Both `LeptonSDK` and `BrevSDK` implement the same shape:
 
 ```python
-from tao_sdk.planner import SkillBank
-
-bank = SkillBank()
-model_info = bank.get_model_config(network_arch)
-specs = bank.get_default_specs(network_arch, action=action)
+sdk.create_job(image, command, gpu_count=1, env_vars=None, inputs=None, outputs=None, **kwargs) -> Job
+sdk.get_job_status(job_id) -> JobStatus
+sdk.get_job_logs(job_id, tail=None) -> str
+sdk.cancel_job(job_id) -> bool
+sdk.get_failure_analysis(job_id) -> dict | None
+sdk.get_job_results_dir(job_id) -> str
+sdk.check_path(remote_path) -> bool
+sdk.list_path(remote_path) -> list[str]
 ```
 
-If you already have a catalog entry from `sdk.list_skills()`, direct reads are
-also valid:
+Lepton-only:
+- `sdk.get_job_replicas(job_id)` — replica-level diagnostics for stuck-pending jobs.
 
-```python
-import json
-
-skill_path = catalog[0]["path"]  # from sdk.list_skills()
-action = "evaluate"
-
-with open(f"{skill_path}/config.json", encoding="utf-8") as f:
-    model_info = json.load(f)
-
-with open(f"{skill_path}/defaults-{action}.json", encoding="utf-8") as f:
-    specs = json.load(f)
-```
-
-`model_info["actions"][action]` is the source of truth for the command,
-config format, script-runner inputs, outputs, and upload excludes. Do not
-debug generated runner scripts to rediscover these fields; fix the skill bank
-metadata instead.
-
-## Generated Action Runner Contract
-
-Generated runners for normal actions (`train`, `evaluate`, `export`,
-`inference`, etc.) should be thin wrappers over the skill bank and SDK:
-
-1. Load `model_info = SkillBank().get_model_config(network_arch)`.
-2. Load `specs = SkillBank().get_default_specs(network_arch, action)`.
-3. Apply the model MD's "Spec Param / Parent Model Inference" guidance through SDK inference helpers.
-4. Apply user overrides and model-skill documented path conventions.
-5. Build `script_runner` directly from `model_info["actions"][action]`.
-6. Submit with `TaoExecutionSDK.create_job(...)`.
-7. Write and sync an `ActionWorkflow` folder.
-
-Do not inspect or patch the generated runner script to fix missing inputs,
-checkpoint paths, config format, commands, or upload excludes. Those are skill
-bank metadata bugs. Update the model skill's `config.json`,
-`defaults-<action>.json`, or instructions, then regenerate and rerun.
-
-## Spec Param Inference
-
-Model-specific inference mappings belong in the model Markdown file, not
-`config.json`. The MD may document microservices-style `spec_params`, for
-example:
-
-```json
-{
-  "spec_params": {
-    "evaluate": {
-      "evaluate.checkpoint": "parent_model"
-    }
-  }
-}
-```
-
-Generated runners should read that model MD section and apply the documented
-mappings before submission. For `parent_model`, pass the upstream train job id
-as `parent_job_id`; the SDK mirrors the old microservices path by listing the
-parent job's results folder, filtering model checkpoint files, and returning
-the selected `.pth`/`.tlt`/`.hdf5` path.
-
-```python
-import uuid
-
-def set_nested(specs, dotted_key, value):
-    target = specs
-    parts = dotted_key.split(".")
-    for part in parts[:-1]:
-        target = target.setdefault(part, {})
-    target[parts[-1]] = value
-
-job_id = str(uuid.uuid4())
-parent_job_id = train_job_id  # train job, AutoML best child job, export job, etc.
-
-# Derived from the current model MD, not from config.json.
-spec_param_map = {
-    "evaluate.checkpoint": "parent_model",
-}
-
-for field_name, inference_fn in spec_param_map.items():
-    value = sdk.resolve_spec_param(
-        job_id,
-        inference_fn,
-        network_arch=network_arch,
-        parent_job_id=parent_job_id,
-    )
-    if value:
-        set_nested(specs, field_name, value)
-```
-
-When submitting the action, preserve the relationship:
-
-```python
-job = sdk.create_job(..., job_id=job_id, parent_job_id=parent_job_id)
-```
-
-Do not hardcode a checkpoint path when `parent_model` is documented. If the SDK
-cannot list the parent result folder, fix the result-folder metadata or the
-model MD checkpoint guidance instead of patching the runner script.
-
-## Applying Overrides
-
-The `spec_shorthand_keys` in model_info/config maps flat keys to nested spec paths:
-
-```yaml
-# model_info/config
-spec_shorthand_keys:
-  num_epochs: train.num_epochs
-  num_gpus: train.num_gpus
-  batch_size: train.batch_size
-```
-
-To apply `num_epochs=10`:
-```python
-# Read the shorthand mapping
-path = model_info['spec_shorthand_keys']['num_epochs']  # "train.num_epochs"
-parts = path.split('.')
-target = specs
-for part in parts[:-1]:
-    target = target.setdefault(part, {})
-target[parts[-1]] = 10
-```
-
-## Mapping Dataset Files to Spec Fields
-
-Each model SKILL.md documents which spec fields need dataset paths. The general pattern:
-
-1. **Read the model SKILL.md** — find the spec field mapping table and any exact artifact-name conventions.
-2. **Set spec fields** from those conventions when the skill documents exact filenames.
-3. **List the dataset** with `sdk.list_path(dataset_uri)` only when the model skill does not provide exact filenames or the user says their layout is nonstandard.
-
-```python
-base_uri = dataset_uri.rstrip('/')  # IMPORTANT: strip trailing slash to avoid double slashes
-
-# Agent reads model SKILL.md, finds which spec fields need data.
-# If the skill gives exact filenames, construct them directly:
-specs[...] = f"{base_uri}/path/to/actual/file"
-```
-
-Do not invent filenames. Use the model skill's declared filenames when present.
-If the skill only describes a format or the user provides a custom layout, list
-the remote path and match actual files to the documented spec fields.
-
-## How inputs and specs work together
-
-The `inputs` dict in `script_runner` tells the container WHICH spec keys have remote data to download. The actual URIs are in the specs dict.
-
-```python
-# 1. Agent sets URIs in specs (from model SKILL.md conventions, or dataset listing when needed)
-specs['some.input.path'] = "s3://bucket/data/actual_file.csv"
-
-# 2. inputs declares which keys to download — from model_info/config, NOT URIs
-inputs = model_info['actions'][action]['inputs']
-# e.g. {"some.input.path": {"type": "file"}, "some.folder.path": {"type": "folder"}}
-```
-
-The script_runner:
-1. Reads the spec value at the declared key → gets the S3 URI
-2. Checks the input type (file or folder)
-3. Downloads from S3
-4. Rewrites the spec value to the local download path
+Brev-only:
+- `sdk.delete_instance(instance_id)` — clean up an ephemeral instance.
+- `sdk.list_instances()` — list active instances.
 
 ## Submitting a Job
 
-```python
-action = 'train'
-action_config = model_info['actions'][action]
+The agent reads the skill's `references/skill_info.yaml` to get `container_image` and `actions.<action>.command`, builds the spec, then constructs the full shell command and calls `create_job()`:
 
+```python
+import yaml
+from tao_sdk.platforms.lepton import LeptonSDK
+from tao_sdk.versions import resolve_container_image
+
+# 1. Read the skill's metadata
+skill_info = yaml.safe_load(open(f"{skill_path}/references/skill_info.yaml"))
+image = resolve_container_image(skill_info["container_image"])  # accepts key or absolute URI
+command_template = skill_info["actions"]["train"]["command"]
+# e.g. "dino train -e {config_path}"
+
+# 2. Build the spec (agent reads SKILL.md to know what fields to set)
+specs = {
+    "dataset": {
+        "train_data_sources": [{
+            "image_dir": "/data/train/images",
+            "json_file": "/data/train/annotations.json",
+        }],
+        "val_data_sources": [{
+            "image_dir": "/data/val/images",
+            "json_file": "/data/val/annotations.json",
+        }],
+        "num_classes": 80,
+    },
+    "train": {"num_epochs": 10, "num_gpus": 8},
+    "results_dir": "/results",
+}
+
+# 3. Construct the full shell command (spec heredoc + the action command)
+spec_heredoc = f"""cat > /tmp/spec.yaml <<'EOF'
+{yaml.safe_dump(specs)}
+EOF
+"""
+command = spec_heredoc + command_template.replace("{config_path}", "/tmp/spec.yaml")
+
+# 4. Submit
+sdk = LeptonSDK()
 job = sdk.create_job(
-    network_arch=model_info.get('network_arch', '<model>'),
-    action=action,
-    image=model_info['container_image'],
-    specs=specs,
-    train_dataset_uri=dataset_uri,
-    workspace_id=sdk._workspace_id,
-    script_runner={
-        'command': action_config['command'],
-        'config_format': action_config.get('config_format', 'yaml'),
-        'inputs': action_config.get('inputs', {}),
-        'outputs': action_config.get('outputs', {}),
-        'upload_excludes': action_config.get('upload_excludes', []),
+    image=image,
+    command=command,
+    gpu_count=8,
+    inputs={
+        "/data/train/images":     "s3://my-bucket/coco/train/images",
+        "/data/train/annotations.json": "s3://my-bucket/coco/train/annotations.json",
+        "/data/val/images":       "s3://my-bucket/coco/val/images",
+        "/data/val/annotations.json":   "s3://my-bucket/coco/val/annotations.json",
     },
-    backend_details={
-        'backend_type': 'lepton',
-        'num_gpus': 8,
-    },
+    outputs=["/results/"],
+    env_vars={"NGC_KEY": os.environ["NGC_KEY"]},
+    # Lepton-specific:
+    dedicated_node_group="my-h100-pool",   # optional
+    num_nodes=1,
 )
 
 print(f"Job submitted: {job.id}")
-print(f"Results will be at: {job.results_dir}")
+print(f"Results: {job.results_dir}")
 ```
 
-## Non-AutoML Action Workflow Folders
+`inputs` and `outputs` are S3-aware: the SDK injects a script_runner entrypoint that downloads inputs to the listed container paths before the command runs, then uploads the listed output paths to S3 (under `s3://$S3_BUCKET_NAME/results/<job_id>/`) after.
 
-For direct plugin-launched actions (`train`, `evaluate`, `export`,
-`inference`, etc.), create a timestamped workflow folder and sync status
-through the SDK. Do **not** start a long-lived per-job local process just to
-monitor status. AutoML needs a long-lived brain process because it proposes
-and launches multiple child train jobs; ordinary actions are single backend
-jobs and should refresh status on demand.
+## Resolving container images
+
+Skills declare images either by key (`tao_toolkit.pyt`) or as an absolute URI (`nvcr.io/...`). Use `resolve_container_image()` to handle both:
 
 ```python
-from datetime import datetime
-from tao_sdk.action_workflow import ActionWorkflow
-from tao_sdk.sdk import TaoExecutionSDK
-
-timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-workflow = ActionWorkflow(
-    root_dir="./eval_runs",
-    run_name=f"{network_arch}_{action}",
-    timestamp=timestamp,
-)
-
-sdk = TaoExecutionSDK(
-    creds_file="~/tao-sdk/secrets.json",
-    state_file=str(workflow.workspace / "tao_session_state.json"),
-)
-
-workflow.write_metadata(
-    network_arch=network_arch,
-    action=action,
-    state_file=str(workflow.workspace / "tao_session_state.json"),
-)
-
-job = sdk.create_job(...)
-workflow.write_submission(job=job, specs=specs, script_runner=script_runner)
-workflow.sync_from_sdk(sdk, job.id)  # one immediate refresh, then exit
+from tao_sdk.versions import resolve_container_image
+image = resolve_container_image(skill_info["container_image"])
 ```
 
-When the user asks for status later, re-open the same workflow folder and do a
-single refresh:
-
-```python
-workflow = ActionWorkflow.from_workspace(workspace_path)
-sdk = TaoExecutionSDK(
-    creds_file="~/tao-sdk/secrets.json",
-    state_file=f"{workspace_path}/tao_session_state.db",
-)
-status = workflow.sync_from_sdk(sdk, job_id)
-```
-
-This keeps `metadata.json`, `status.json`, `status_events.jsonl`,
-`active_jobs.json`, `latest_logs.txt`, and `failure_analysis.json` aligned with
-Lepton status without requiring a separate PID for every non-AutoML job.
+Behind the scenes it walks `versions.yaml` for keys; absolute URIs are returned as-is.
 
 ## Monitoring
 
 ```python
 status = sdk.get_job_status(job.id)
-print(status.status)  # Pending, Running, Complete, Error, Canceled
+print(status.status)   # Pending, Running, Complete, Error, Canceled
+print(status.message)  # platform-specific detail
 
-logs = sdk.get_job_logs(job.id, tail=50)
+logs = sdk.get_job_logs(job.id, tail=200)
 print(logs)
-
-# On failure:
-analysis = sdk.get_failure_analysis(job.id)
-if analysis:
-    print(analysis['err_class'])
-    print(analysis['suggestion'])
 ```
 
-## Polling Pattern
+For stuck-Pending Lepton jobs, replica diagnostics reveal the cause (image pull, scheduling, mount errors):
 
-Only use a local polling loop when the user explicitly asks to watch a job in
-the foreground. For normal plugin operation, prefer the workflow-folder
-`sync_from_sdk()` refresh shown above.
+```python
+for r in sdk.get_job_replicas(job.id):
+    issue = r["status"].get("readiness_issue")
+    if issue:
+        print(issue["reason"], issue["message"])
+        # e.g. "InProgress" / "Pulling image"  (normal for big images)
+        #      "Failed"     / "ImagePullBackOff" (NGC_KEY problem)
+        #      "ConfigError" / "Mount point not found" (bad node)
+```
+
+On failure, `get_failure_analysis()` classifies the root cause:
+
+```python
+analysis = sdk.get_failure_analysis(job.id)
+if analysis:
+    print(analysis["err_class"])   # ERR_PROGRAM, ERR_INFRA, etc.
+    print(analysis["suggestion"])  # human-readable fix
+    for event in analysis.get("job_failure_by_node_event", []):
+        print(event["node_event_name"], event["message"])  # OOM, GPU error, etc.
+```
+
+## Polling pattern
+
+For interactive runs where the user wants to watch:
 
 ```python
 import time
 while True:
     status = sdk.get_job_status(job.id)
-    if status.status in ('Complete', 'Error', 'Canceled'):
+    if status.status in ("Complete", "Error", "Canceled"):
         break
-    print(f"Status: {status.status}")
+    print(f"  {status.status}")
     time.sleep(30)
 
-if status.status == 'Error':
-    logs = sdk.get_job_logs(job.id)
-    analysis = sdk.get_failure_analysis(job.id)
-    # Diagnose and fix
+if status.status == "Error":
+    print(sdk.get_job_logs(job.id, tail=100))
+    print(sdk.get_failure_analysis(job.id))
 ```
 
-## Multi-Step Workflows
+For background runs, persist `job.id` and the `state_file` path, then re-attach later by constructing the same SDK and calling `get_job_status(job_id)` — job state is read from the on-disk store.
 
-Chain jobs using the upstream job id and skill `spec_params`:
+## Multi-step workflows
+
+The agent chains jobs by waiting for a parent to complete, then constructing the next job's command using the parent's results directory:
 
 ```python
-# Step 1: Train
-train_job = sdk.create_job(network_arch='<model>', action='train', ...)
-# Wait for completion...
+# Step 1: train
+train = sdk.create_job(image=img, command=train_cmd, gpu_count=8, ...)
+while sdk.get_job_status(train.id).status not in ("Complete", "Error"):
+    time.sleep(30)
+assert sdk.get_job_status(train.id).status == "Complete"
 
-# Step 2: Evaluate (uses training results)
-checkpoint = sdk.resolve_spec_param(
-    eval_job_id,
-    "parent_model",
-    network_arch="<model>",
-    parent_job_id=train_job.id,
-)
-set_nested(specs, "evaluate.checkpoint", checkpoint)
-eval_job = sdk.create_job(
-    network_arch="<model>",
-    action="evaluate",
-    job_id=eval_job_id,
-    parent_job_id=train_job.id,
-    specs=specs,
-    ...
-)
+# Step 2: evaluate (uses the train results dir)
+ckpt = f"{train.results_dir}/best.pth"
+eval_cmd = make_eval_command(checkpoint=ckpt, ...)
+eval_job = sdk.create_job(image=img, command=eval_cmd, gpu_count=1, ...)
 ```
 
-## Parallel Execution
+There is no `SkillBank`, `Planner`, or `parent_job_id` mechanism — workflow orchestration is the agent's job, not the SDK's. (The SDK does ship an `ActionWorkflow` helper for run-folder durability — see below.)
+
+## Run-folder durability with `ActionWorkflow`
+
+Optional state-persistence helper for skills that want a durable run folder
+across context breaks. Decoupled from any specific platform.
 
 ```python
-jobs = []
-for split_id in range(8):
-    j = sdk.create_job(network_arch='cosmos-predict-2-5', action='generate', ...)
-    jobs.append(j)
+from datetime import datetime
+from tao_sdk.action_workflow import ActionWorkflow
+from tao_sdk.platforms.lepton import LeptonSDK
 
-# Wait for all
-for j in jobs:
-    while sdk.get_job_status(j.id).status not in ('Complete', 'Error'):
-        time.sleep(30)
+ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+workflow = ActionWorkflow(root_dir="./runs", run_name="dino-train", timestamp=ts)
+sdk = LeptonSDK(state_file=str(workflow.workspace / "tao_session_state.json"))
+
+workflow.write_metadata(network="dino", action="train", dataset_uri="s3://bucket/coco/")
+job = sdk.create_job(image=..., command=..., gpu_count=8, ...)
+workflow.write_submission(job=job, specs=specs, script_runner={})
+workflow.sync_from_sdk(sdk, job.id)  # writes status.json + latest_logs.txt + failure_analysis.json
 ```
 
-## Dataset Validation
+The folder layout (`./runs/dino-train/<timestamp>/`):
+- `metadata.json` — what the user asked for
+- `status.json` — current job status snapshot
+- `status_events.jsonl` — append-only event log
+- `active_jobs.json` — in-flight job IDs (drained on terminal)
+- `latest_logs.txt` — last polled log tail
+- `failure_analysis.json` — populated on failure
 
-Validate datasets before calling `create_job()` when the model skill does not
-declare deterministic filenames, when the user provided a custom layout, or
-when a previous run failed due to missing data. Cross-reference actual contents
-against the model's documented data mapping. Mismatches cause failures inside
-the container.
+Re-attach later with `ActionWorkflow.from_workspace(path)`. Works with any
+SDK that has `get_job_status` / `get_job_logs` / `get_failure_analysis` —
+Lepton, Brev, Docker, SLURM, Kubernetes.
+
+## Parallel execution
 
 ```python
-# 1. Check dataset exists
-assert sdk.check_path(dataset_uri), f"Dataset not found: {dataset_uri}"
-
-# 2. List actual contents only if needed
-files = sdk.list_path(dataset_uri)
-print(files)
-
-# 3. Read the model SKILL.md to see what spec fields need data
-# The SKILL.md has a table mapping spec fields to expected data types
-
-# 4. Match actual files to spec fields when no exact convention exists
-# Set each spec field to the actual S3 path where the data lives
+jobs = [sdk.create_job(image=img, command=make_cmd(i), gpu_count=1, ...) for i in range(8)]
+# Poll all
+while not all(sdk.get_job_status(j.id).status in ("Complete", "Error") for j in jobs):
+    time.sleep(30)
 ```
 
-For standard layouts documented by a model skill, do not list just to rediscover
-known filenames. For example, DINO standard datasets use `images.tar.gz` and
-`annotations.json`; construct those URIs from the dataset base URI.
+## Dataset utilities
 
-## Platform-Specific Notes
+When the skill's documented filenames don't match the user's layout, list the dataset to confirm:
 
-### Lepton
-- Jobs run as containers on DGX Cloud
-- NFS/Lustre mounts auto-detected
-- `backend_details.num_gpus` maps to resource_shape
+```python
+assert sdk.check_path("s3://my-bucket/coco/")
+files = sdk.list_path("s3://my-bucket/coco/train/")
+# Use the actual paths to set spec fields.
+```
 
-### Brev
-- Jobs run on GPU instances via `brev exec`
-- No shared storage — S3 only
-- Pass `instance_id` in backend_details to reuse an instance
-- `backend_details.gpu_type` for instance type selection
+For S3 paths, strip trailing slashes when concatenating to avoid `//`:
 
-### SLURM
-- Jobs submit over SSH to a login node with `sbatch` and run containers through
-  Pyxis/Enroot `srun --container-image`
-- Use `backend_details.backend_type = "slurm"` and pass `partition` when the
-  user requests a specific queue
-- Dataset paths must be cluster-visible, usually `lustre:///absolute/path`; do
-  not pass local or `file://` paths to SLURM jobs
-- Results default to
-  `/lustre/fsw/portfolios/edgeai/users/<slurm_user>/results/<job_id>`
-- Status uses both scheduler state (`squeue`/`sacct`) and `status.json` from the
-  shared results directory
+```python
+base = dataset_uri.rstrip("/")
+spec["dataset.train_csv"] = f"{base}/train.csv"
+```
 
-### Local Docker
-- Jobs run as named Docker containers on the configured `DOCKER_HOST`
-- Requires Docker daemon access and NVIDIA Container Toolkit on GPU hosts
-- Follows the Lepton/Brev SDK principle: run the baked SDK entrypoint directly
-  and keep platform metadata in SDK state/Docker labels, not in TAO Core
-  control-plane env vars
-- Do not inject `BACKEND`, `HOST_PLATFORM`, `MONGOSECRET`, `DOCKER_HOST`, or
-  `DOCKER_NETWORK` into the training container
-- Use explicit `num_gpu` values for shared machines; `-1` requests all visible
-  GPUs
-- Local and `file://` paths are valid only when reachable inside the container
-- Logs are read with the Docker client from the job container
+## Platform-specific notes
 
-## Error Patterns
+### Lepton (`from tao_sdk.platforms.lepton import LeptonSDK`)
+- Jobs run as containers on DGX Cloud.
+- NFS/Lustre mounts auto-detected from the node group; the SDK builds the appropriate `Mount` objects.
+- `gpu_count` resolves to a Lepton resource shape; or pass `dedicated_node_group="<name>"` for guaranteed allocation.
+- `num_nodes=N` (N>1) enables distributed training.
 
-**No image provided**: `create_job()` requires `image`. Read it from `model_info['container_image']`.
+### Brev (`from tao_sdk.platforms.brev import BrevSDK`)
+- Jobs run on GPU instances via `brev exec`.
+- No shared storage — S3 only.
+- Pass `instance_id="<id>"` in kwargs to reuse an existing instance (skip 2–5 min boot).
+- Pass `gpu_type="L40S"` to control instance class for ephemeral instances.
+- Use `sdk.delete_instance(instance_id)` when done with an ephemeral one.
 
-**Double slash in S3 path**: Strip trailing slashes from URIs before concatenating: `base_uri.rstrip('/')`.
+## Error patterns
 
-**Credential missing**: The SDK validates credentials lazily when the handler is first used. Check `secrets.json` has the required keys for your platform.
+**`CredentialError: Missing LEPTON_WORKSPACE_ID`**: env var not loaded. Run `source ~/.config/tao/.env` or check the SessionStart hook fired.
 
-**Job stuck in Pending**: Check `sdk.get_job_replicas(job_id)` for `readiness_issue` — usually image pull or resource scheduling.
+**`CredentialError: S3_BUCKET_NAME env var required`**: any `inputs` or `outputs` argument needs S3 credentials. Set `S3_BUCKET_NAME`, `ACCESS_KEY`, `SECRET_KEY` (and `S3_ENDPOINT_URL` for non-AWS).
 
-**SLURM local path rejected**: Remote backends reject local dataset paths. Copy
-the data to the cluster filesystem and use `lustre:///...`.
+**Job stuck in `Pending` (Lepton)**: call `get_job_replicas(job_id)` and inspect `readiness_issue`. Most common: image pull (waited too long) or `ConfigError` on a bad node — cancel and resubmit.
 
-**Local Docker client unavailable**: Set `DOCKER_HOST` and verify the process can
-access the Docker socket.
+**`Image pull failed`**: `NGC_KEY` is invalid or expired. The SDK auto-creates a Lepton image-pull-secret from `$NGC_KEY`; refresh the key and resubmit.
+
+**Double slash in S3 URI**: `dataset_uri.rstrip("/")` before concatenating, or use `os.path.join` (note: not `posixpath.join` — that doesn't strip).
+
+**Brev instance won't start**: GPU type unavailable in the user's region. Try a different `gpu_type` or wait.
+
+## What the SDK does NOT do
+
+- It does **not** read or interpret skills. The agent reads `SKILL.md` and `references/skill_info.yaml`; the SDK just submits whatever command the agent constructs.
+- It does **not** do hyperparameter optimization. For HPO, use `applications/tao-automl` (which uses this SDK as a building block).
+- It does **not** generate config files. The agent writes the spec heredoc into the `command` argument.
+- It does **not** select platforms automatically. Pick `LeptonSDK` or `BrevSDK` explicitly.
+- It does **not** orchestrate multi-step workflows. The agent chains jobs by polling and constructing the next command.

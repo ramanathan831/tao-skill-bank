@@ -1,6 +1,17 @@
 ---
 name: normal-train
-description: "Standard single-step train/eval/export workflow for any TAO model. Use when training a model on a dataset without iterative augmentation."
+description: Standard single-step train/eval/export workflow for any TAO model. Use when training a model on a dataset without
+  iterative augmentation.
+license: Apache-2.0
+compatibility: Requires docker + nvidia-container-toolkit. Sub-skills declare additional requirements.
+metadata:
+  author: Arif Ahmed
+  version: '0.1'
+allowed-tools: Read Bash Write
+tags:
+- training
+- single-step
+- generic
 ---
 
 # Normal Train

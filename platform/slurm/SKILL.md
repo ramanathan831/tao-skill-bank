@@ -1,7 +1,43 @@
 ---
 name: slurm
-description: "Remote SLURM GPU cluster execution over SSH with sbatch/srun, Pyxis/Enroot containers, and Lustre-backed results. Use when running TAO jobs on an on-prem or DGX SLURM cluster."
+description: Remote SLURM GPU cluster execution over SSH with sbatch/srun, Pyxis/Enroot containers, and Lustre-backed results.
+  Use when running TAO jobs on an on-prem or DGX SLURM cluster.
+license: Apache-2.0
+compatibility: Requires SSH access to a SLURM login node (passwordless via key auth) and SLURM_USER + SLURM_HOSTNAME env vars.
+  The TAO SDK with the slurm extra (pip install 'nvidia-tao-sdk[slurm]') is needed only if you want Job handles, S3 I/O wrapping,
+  or run-folder durability via ActionWorkflow.
+metadata:
+  author: Ramanathan Arunachalam
+  version: '0.2'
+allowed-tools: Read Bash
+tags:
+- platform
+- slurm
 ---
+
+## Preflight
+
+```bash
+# 1. SSH to the login node works without a password prompt
+SLURM_HOST="${SLURM_HOSTNAME%%,*}"
+[ -n "$SLURM_USER" ] && [ -n "$SLURM_HOST" ] || {
+  echo "MISSING: set SLURM_USER and SLURM_HOSTNAME (comma-separated for failover) in your env (~/.config/tao/.env)."
+  exit 1
+}
+ssh -o BatchMode=yes -o ConnectTimeout=10 "${SLURM_USER}@${SLURM_HOST}" "true" 2>/dev/null || {
+  echo "MISSING: passwordless SSH to ${SLURM_USER}@${SLURM_HOST} not working. See the Prerequisites section."
+  exit 1
+}
+
+# 2. Optional: TAO SDK wrapper for Job handles + S3 wrapping
+python -c "import tao_sdk" 2>/dev/null || {
+  echo "MISSING: nvidia-tao-sdk not installed. Run:"
+  echo "  pip install nvidia-tao-sdk[slurm]"
+  exit 1
+}
+```
+
+If a check fails, the agent prompts the user to authorize the install/fix via Bash.
 
 # SLURM
 
@@ -202,6 +238,100 @@ Status mapping:
 Cancel by looking up `backend_details.slurm_metadata.slurm_job_id` and running
 `scancel <slurm_job_id>` over SSH. Treat missing or already terminated SLURM
 jobs as successful cancellation.
+
+## Multi-node training (distributed)
+
+SLURM is the platform of choice for large multi-node runs — pass `num_nodes > 1` and the SDK handles the sbatch directives + PyTorch-distributed env vars automatically.
+
+```python
+job = sdk.create_job(
+    image='nvcr.io/nvidia/tao/tao-toolkit:6.26.3-pyt',
+    command='torchrun --nnodes=$WORLD_SIZE --nproc-per-node=$NUM_GPU_PER_NODE '
+            '--node-rank=$NODE_RANK --master-addr=$MASTER_ADDR --master-port=$MASTER_PORT '
+            'train.py',
+    gpu_count=8,           # GPUs per node
+    num_nodes=4,           # 4 × 8 = 32 GPUs total
+    inputs={'/data/train.json': 'lustre:///lustre/.../coco/train.json'},
+    outputs=['/results/'],
+)
+```
+
+### What the SDK generates
+
+The handler builds an `sbatch` script with:
+
+```
+#SBATCH --nodes=N                    # node count
+#SBATCH --ntasks-per-node=1          # one container per node (Pyxis spawns the GPU procs inside)
+#SBATCH --ntasks=N                   # total tasks across the job
+#SBATCH --gres=gpu:G                 # G GPUs per node
+#SBATCH --wait-all-nodes=1           # don't start until all N nodes are allocated
+```
+
+Then exports the rendezvous env vars before `srun --container-image=...` launches the container on each node. These match the TAO PyTorch container contract (`nvidia_tao_pytorch/core/entrypoint.py`):
+
+| Env var | Value | Read by |
+|---|---|---|
+| `WORLD_SIZE` | `N` (= node count, TAO's misnamed convention) | TAO container entrypoint |
+| `NUM_GPU_PER_NODE` | `G` | TAO container entrypoint |
+| `NODE_RANK` | `$SLURM_NODEID` | TAO container entrypoint, torchrun |
+| `MASTER_ADDR` | first hostname from `scontrol show hostname $SLURM_JOB_NODELIST` | TAO container entrypoint, torchrun |
+| `MASTER_PORT` | `29500` | TAO container entrypoint, torchrun |
+
+```bash
+export WORLD_SIZE=N
+export NUM_GPU_PER_NODE=G
+export MASTER_PORT=29500
+NODELIST=$(scontrol show hostname $SLURM_JOB_NODELIST)
+export MASTER_ADDR=$(echo $NODELIST | cut -d' ' -f1)   # first node = rank-0 / master
+export NODE_RANK=$SLURM_NODEID                          # SLURM provides this per-node
+```
+
+`SLURM_JOB_NODELIST` and `SLURM_NODEID` come from SLURM itself — no manual registration step.
+
+For TAO entrypoints (`dino train -e spec.yaml`, etc.) the container's entrypoint reads `WORLD_SIZE` + `NUM_GPU_PER_NODE` and constructs the torchrun command internally. For raw `torchrun` commands, use the standard PyTorch flags pointing at these env vars.
+
+### Cluster requirements for multi-node
+
+- **Pyxis + Enroot** must be installed on the cluster for `srun --container-image` to work. (Standard on DGX SuperPOD; check with your cluster admin elsewhere.)
+- **InfiniBand / NVLink** is recommended for performance — set `NCCL_IB_HCA`, `NCCL_SOCKET_IFNAME` via `env_vars` if the defaults don't pick the right interface.
+- **Shared filesystem** (Lustre) for staging the entrypoint script, env files, and results. Set `SLURM_BASE_RESULTS_DIR`.
+
+### Reference reading
+
+- SLURM multi-node + sbatch: <https://slurm.schedmd.com/sbatch.html>
+- Pyxis (NVIDIA's SLURM container plugin): <https://github.com/NVIDIA/pyxis>
+- Enroot (NVIDIA's container runtime for SLURM/Pyxis): <https://github.com/NVIDIA/enroot>
+- PyTorch distributed (env-var rendezvous): <https://pytorch.org/docs/stable/elastic/run.html>
+- NCCL networking tuning (NCCL_SOCKET_IFNAME, NCCL_IB_HCA): <https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html>
+
+## Optional: via the TAO SDK
+
+If you want Job handles, S3 I/O wrapping via `script_runner`, or run-folder
+durability via `ActionWorkflow`:
+
+```python
+from tao_sdk.platforms.slurm import SlurmSDK
+
+sdk = SlurmSDK()  # reads SLURM_USER, SLURM_HOSTNAME, SLURM_BASE_RESULTS_DIR from env
+job = sdk.create_job(
+    image='nvcr.io/nvidia/tao/tao-toolkit:6.26.3-pyt',
+    command='dino train -e /tmp/spec.yaml',
+    gpu_count=8,
+    num_nodes=2,                                           # multi-node supported
+    inputs={'/data/train.json': 'lustre:///lustre/.../coco/train.json'},
+    outputs=['/results/'],
+    partition='batch',                                      # optional override
+    account='myproject',                                    # optional override
+)
+
+status = sdk.get_job_status(job.id)
+logs = sdk.get_job_logs(job.id, tail=200)
+```
+
+The SDK takes care of staging files to Lustre, generating the `sbatch` script
+with Pyxis `srun --container-image`, and parsing `squeue`/`sacct` for status.
+Without the SDK, drive `sbatch` and `srun` yourself.
 
 ## Failure Modes
 

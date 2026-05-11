@@ -1,6 +1,18 @@
 ---
 name: brev
-description: "Brev managed GPU instances with Docker support. Use when running training or inference on Brev GPU instances or managing Brev deployments."
+description: Brev managed GPU instances with Docker support. Use when running training or inference on Brev GPU instances
+  or managing Brev deployments.
+license: Apache-2.0
+compatibility: Requires the brev CLI (https://github.com/brevdev/brev-cli) and an active brev login.
+metadata:
+  author: Arif Ahmed
+  version: '0.1'
+allowed-tools: Read Bash
+tags:
+- gpu
+- compute
+- instance-based
+- brev
 ---
 
 # Brev
@@ -9,11 +21,41 @@ NVIDIA Brev provides on-demand GPU instances across multiple cloud providers. In
 
 Brev is instance-based (not job-based like Lepton). You create an instance, run commands on it via `brev exec`, and delete it when done. The TAO SDK's BrevHandler wraps this into the standard job interface.
 
+## Preflight
+
+This skill needs the `brev` CLI, its companion agent skill (`brev-cli`), and an active login. Check before proceeding:
+
+```bash
+# 1. brev CLI installed
+command -v brev >/dev/null 2>&1 || {
+  echo "MISSING: brev CLI not installed. Install:"
+  echo "  https://docs.nvidia.com/brev/"
+  exit 1
+}
+
+# 2. brev-cli agent skill installed — provides the brev CLI's command reference to the agent
+[ -d "$HOME/.claude/skills/brev-cli" ] || [ -d ".claude/skills/brev-cli" ] || {
+  echo "MISSING: brev-cli agent skill not installed. Run:"
+  echo "  brev agent-skill install"
+  exit 1
+}
+
+# 3. brev login active
+brev ls >/dev/null 2>&1 || {
+  echo "MISSING: not logged in to brev. Run:"
+  echo "  brev login                                    # interactive (opens browser)"
+  echo "  # or set BREV_API_TOKEN in ~/.config/tao/.env (then 'brev login --token \$BREV_API_TOKEN')"
+  exit 1
+}
+```
+
+If any step fails, the agent prompts the user to authorize the fix via Bash, then re-runs the preflight before continuing. The TAO SDK is **not** required for Brev — `brev exec docker run …` is sufficient. Reach for `pip install nvidia-tao-sdk[brev]` only if you want Job handles, S3 I/O wrapping via `script_runner`, or state persistence.
+
 ## Authentication
 
 Two options:
 
-1. **Automated (recommended)**: Get an API token from the Brev console settings page. Add `BREV_API_TOKEN` to `secrets.json`. The handler auto-authenticates via `brev login --token` on first use — same UX as Lepton.
+1. **Automated (recommended)**: Get an API token from the Brev console settings page. Set `BREV_API_TOKEN` as an environment variable (e.g., in `~/.config/tao/.env`). The handler auto-authenticates via `brev login --token` on first use — same UX as Lepton.
 
 2. **Manual**: Run `brev login` (opens browser). Tokens expire hourly — the handler refreshes automatically.
 
@@ -25,6 +67,12 @@ The agent controls instance lifecycle:
 
 - **Reuse**: Pass `instance_id` in `backend_details` to run multiple jobs on the same instance. Efficient for multi-step workflows.
 - **Ephemeral**: Omit `instance_id` — the handler creates a new instance per job. Clean but slower (instance boot ~2-5 min).
+
+## Multi-GPU and multi-node
+
+**Multi-node is not supported on Brev.** Brev is instance-based — one job runs on one instance, with no cross-instance coordination.
+
+Multi-GPU **on a single instance** is supported (instances available with up to 8× H100 / A100 / L40S). `gpu_count` maps to the GPU count on the instance; `torchrun --nproc-per-node=N` or PyTorch DDP work within the instance.
 
 ## GPU Types
 

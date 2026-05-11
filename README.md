@@ -1,222 +1,152 @@
-# TAO-Next Skill Bank
+# NVIDIA TAO Skill Bank
 
-Consolidated skill bank for the TAO-Next agent-driven ML training platform. Skills are structured, discoverable units with explicit scope, inputs, actions, and execution references. The agent uses these skills to move from high-level intent to concrete runnable sandbox code without hard-coding per-workflow logic.
+Portable agent skills for training, evaluating, and running inference on NVIDIA TAO models. Works with Claude Code, Codex, Gemini CLI, or any coding agent that speaks the [Agent Skills open standard](https://agentskills.io). **Zero Python required** for local docker workflows — install the plugin, install docker + nvidia-container-toolkit, and an agent can run every skill by constructing `docker run` commands directly. For advanced features (job tracking, multi-node, Lepton access, S3 I/O wrapping), an optional Python layer — the [TAO Execution SDK](#optional-python-layer) — sits on top.
 
-Based on the TAO-Next Skills Taxonomy proposal.
+## Install
 
-## Install — `deft-aoi-loop-plugin`
+In a Claude Code session, add the marketplace and install a plugin. Two choices:
 
-Clone the repo, then in a Claude Code session add it as a marketplace and install the plugin:
+```
+/plugin marketplace add ssh://git@gitlab-master.nvidia.com:12051/nvidia-tao-toolkit/tao-skills-external.git
+/plugin install tao-skills@tao-skill-bank             # everything (recommended)
+# or
+/plugin install deft-aoi-loop-plugin@tao-skill-bank   # just the DEFT AOI loop
+```
+
+That's it — no `git clone`, no `pip install`. The `tao-skills` plugin bundles all 56 skills (every model, data, platform, and application). If you want only the focused DEFT loop bundle, install `deft-aoi-loop-plugin` instead.
+
+### Credentials
+
+On first session start, the plugin looks for `~/.config/tao/.env` and auto-loads it. To set up:
 
 ```bash
-git clone ssh://git@gitlab-master.nvidia.com:12051/nvidia-tao-toolkit/tao-skills-external.git ~/tao-skills-external
+mkdir -p ~/.config/tao
+cp "${CLAUDE_PLUGIN_ROOT}/.env.example" ~/.config/tao/.env  # template ships in the plugin
+# Edit ~/.config/tao/.env and fill in NGC_KEY, LEPTON_*, S3 keys, etc.
 ```
 
-```
-/plugin marketplace add ~/tao-skills-external
-/plugin install deft-aoi-loop-plugin@tao-skill-bank
-```
+The `.env.example` is also at the [repo root](.env.example) for direct reference. The agent never reads credential values — it only checks presence.
 
-This bundles the `workflow-deft-aoi-loop` orchestrator and its four `deft-aoi-*` sub-skills. Trigger the workflow with something like *"Run the DEFT loop on my model, KPI: FAR < 0.1% at recall=100%"*. For Brev / cloud-GPU setup, see `applications/workflow-deft-aoi-loop/references/brev-setup-with-demo-data.md`.
+### When does the SDK get installed?
+
+The TAO SDK is **opt-in** and installed lazily. Most skills (any model or data skill) run with just `docker run` and need no Python. Only `platform/lepton`, `platform/tao-sdk`, and `applications/tao-automl` require the SDK; their Preflight blocks tell the agent to run `pip install nvidia-tao-sdk[lepton]` (or another extra) the first time the skill is invoked.
 
 ### Updating
 
-Plugins don't auto-update. When a new version lands:
-
-```bash
-# 1. Pull the latest from the marketplace repo
-git -C ~/tao-skills-external pull
 ```
-
-In Claude Code:
-
-```
-# 2. Refresh marketplace metadata (picks up added/removed/renamed plugins)
 /plugin marketplace update tao-skill-bank
-
-# 3. Reload skill contents
 /reload-plugins
 ```
 
-If skills still look stale after that (cached contents), wipe the plugin cache and reinstall:
+If skills look stale (cached contents):
 
 ```bash
-rm -rf ~/.claude/plugins/cache/tao-skill-bank/deft-aoi-loop-plugin
+rm -rf ~/.claude/plugins/cache/tao-skill-bank
 ```
 
-```
-/plugin install deft-aoi-loop-plugin@tao-skill-bank
-```
+then re-run `/plugin install`.
 
-## Taxonomy Overview
+## Getting started (5 minutes)
 
-The taxonomy is organized around the layers of the TAO-Next stack. Each layer has its own purpose while depending on the layers beneath it.
+The quickest way to verify your setup: run a Visual ChangeNet inference on a sample image.
 
-| Layer | Primary Purpose | Examples | Depends On |
-|---|---|---|---|
-| **Applications** | Publish a complete workflow or product/use-case capability | DEFT (SDA), HALP, AutoML, AOI | Models, Data, Platform |
-| **Models** | Publish flattened network-centric skills and action knowledge | Cosmos-RL, Visual ChangeNet, CLIP, AnomalyGen | Platform |
-| **Data** | Publish data acquisition, preparation, analysis, and enhancement capabilities | SigLIP Embed, k-NN Mining, Qwen Caption, Pseudolabelling | Platform |
-| **Optimization** | Publish model-agnostic optimization skills (latency vs accuracy) | Quantization, Pruning, Distillation | Models, Platform |
-| **Deployment** | Publish inference serving runtime skills | GroundingDINO serving, VLM serving | Platform, Models |
-| **Platform** | Publish where and how GPU jobs run | Available platforms, runner interface (run/status/cancel) | Independent base layer |
+### Prerequisites
 
-> **Note:** Optimization and Deployment layers are defined in the taxonomy but not yet populated in this repo. They will be added as skills are developed.
-
-## Directory Structure
-
-```
-tao-skill-external/
-  applications/              # Workflow and use-case skills
-    deft-cosmos-rl/          #   DEFT iterative data improvement for video QA
-    deft-vcn-aoi/                 #   Mining-based SDA for visual change detection
-    normal-train/            #   Standard single-step train/eval/export
-    tao-automl/              #   AutoML/HPO workflow for TAO training
-  models/                    # Network-centric skills
-    cosmos-rl/               #   Cosmos-Reason2-8B video QA SFT
-    visual-changenet/        #   Binary classification + segmentation for AOI
-    clip/                    #   CLIP vision-language model
-    cosmos-predict-2-5/      #   Text-to-video generation
-    anomalygen/              #   Cosmos AnomalyGen synthetic defect generation
-  data/                      # Data processing skills
-    siglip-embed/            #   SigLIP image/video embeddings
-    knn-mining/              #   k-NN similarity mining (cuML)
-    qwen-caption/            #   VLM captioning via Qwen endpoint
-    nim-embedding/           #   Video embeddings via NIM endpoint
-    changenet-data-prepare/  #   CSV generation for VCN training
-  platform/                  # Compute backends
-    lepton/                  #   DGX Cloud Lepton managed GPU compute
-    brev/                    #   Brev managed GPU instances
-    slurm/                   #   Remote SLURM clusters with Lustre + Pyxis/Enroot
-    local-docker/            #   Local Docker daemon with NVIDIA GPU runtime
+```shell
+docker --version
+docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-smi
+echo "$NGC_KEY" | docker login nvcr.io -u '$oauthtoken' --password-stdin
 ```
 
-## Skill Layers
+If any check fails, see `platform/docker/SKILL.md` for install/troubleshooting.
 
-### Applications
+### Smoke test
 
-Application skills represent the highest layer of abstraction. They package a full product or workflow view while explicitly depending on referenced model, data, and platform skills rather than duplicating their execution logic.
+In a Claude Code session with the plugin installed, ask:
 
-Application skills define `init` and `iteration` stages in their `config.json`, with stage dependencies and conditional execution. Each stage references a model or data skill by name, or runs an inline script.
+> *"Run visual-changenet inference on this sample image: /tmp/sample.png. Write results to /tmp/vcn-out/."*
 
-Examples:
-- **deft-cosmos-rl**: DEFT pipeline for video QA — 10-stage iterative loop (gap analysis, captioning, video generation, data merge, training, evaluation)
-- **deft-vcn-aoi**: Mining-based SDA for AOI — embedding, k-NN search, merge, retrain loop
-- **tao-automl**: Model-agnostic HPO workflow using AutoMLRunner, model skills, and platform execution
+The agent will read `models/visual-changenet/SKILL.md` (and `references/skill_info.yaml` if present), construct a `docker run --gpus all ...` invocation, and execute via Bash. **No Python needed.** No SDK install. Just docker + the plugin.
 
-The DEFT AOI use case shows how an application skill decomposes into domain-specific stages: data mining for retrieval, anomaly generation using AnomalyGen/Cosmos Predict 2.5, gap analysis, data enhancement, fine-tuning, and loop-back evaluation.
+For more complex workflows (iterative fine-tuning with synthetic data augmentation), see `applications/workflow-deft-aoi-loop/SKILL.md`.
 
-### Models
+## What's in the bank
 
-Model skills are flattened into network-centric skills. The agent discovers a model as a named network and then learns the operational details needed to run actions on that network.
-
-Each model skill publishes:
-- Container URI or runnable image reference
-- Checkpoint references
-- Specification templates or schemas (via `defaults-{action}.json`)
-- Action-specific configuration (train, evaluate, inference, export)
-- Supported data formats
-- Platform requirements
-
-The model layer is not only executable — it is also **recommendatory**. It helps the agent answer: which network is best suited for a given data type and purpose.
-
-Examples:
-- **cosmos-rl**: Cosmos-Reason2-8B video QA SFT with FSDP parallelism
-- **visual-changenet**: Siamese classification + pixel-level segmentation for AOI
-- **anomalygen**: Cosmos AnomalyGen synthetic defect image generation
-
-### Data
-
-Data skills capture capabilities applied to datasets rather than networks — preparation, analysis, enhancement, and transformation operations.
-
-Application skills depend heavily on data skills. For example, the AOI flow uses data mining (k-NN retrieval), anomaly generation, embedding, and CSV preparation to improve coverage before fine-tuning begins.
-
-Examples:
-- **siglip-embed**: SigLIP image embeddings for similarity search
-- **knn-mining**: GPU-accelerated k-NN nearest neighbor mining
-- **changenet-data-prepare**: CSV generation with filename normalization for VCN
-
-### Platform
-
-Platform skills form the lowest layer and serve as the execution foundation. This layer has two responsibilities:
-
-1. **Platform discovery** — publish available compute platforms so the agent knows where jobs can run
-2. **Runner interface** — publish a common interface for long-running GPU jobs: run, status, cancel
-
-For normal model training, the agent uses the selected model skill to assemble the network-specific execution contract and uses the platform skill to launch the job through the common runner.
-
-## Skill Publication Contract
-
-Each skill must provide enough metadata to function as a discoverable, composable contract.
-
-| Contract Field | Purpose |
-|---|---|
-| Name and hierarchy path | Identity, discoverability, and placement in the taxonomy |
-| Purpose and scope | What the skill is for and what it should not be used for |
-| Inputs and outputs | Accepted inputs, produced outputs, and data formats |
-| Actions | Operations the agent can request from the skill |
-| Execution references | Container URIs, checkpoints, schemas, configs |
-| Platform requirements | Runner constraints, GPU expectations, environment needs |
-| Troubleshooting guide | Expert knowledge, error patterns, and behavior notes |
-
-In this repo, the contract is split across two files:
-
-- **`config.json`** — structured metadata: actions, inputs/outputs, execution references, credentials, data sources
-- **`{skill-name}.md`** — agent-readable documentation: purpose/scope, data formats, parameters, troubleshooting
-
-## Skill Package Format
-
-```
-{skill-name}/
-  config.json              # Structured config (contract fields above)
-  {skill-name}.md          # Agent documentation (plain markdown, no frontmatter)
-  defaults-{action}.json   # Per-action default spec values (JSON only)
-  scripts/                 # Inline scripts for workflow stages (optional)
-```
-
-### defaults-{action}.json
-
-Complete default spec for each action. The planner loads these and applies user overrides on top. All defaults are JSON format regardless of what the container expects — the script runner converts to the container's native format (YAML/TOML/JSON) at runtime.
-
-## Execution Patterns
-
-The taxonomy supports distinct execution patterns depending on whether the user request maps to a known network action or a higher-level application workflow.
-
-| Scenario | Skills Composed by Agent | Result |
+| Layer | Purpose | Examples |
 |---|---|---|
-| Normal training or inference on a known network | Model skill + Platform skill | Agent generates sandbox code using the network's container, schemas, configs, command line, env vars, and platform requirements |
-| High-level application workflow (e.g., AutoML) | Application skill + referenced skills + Platform skill | Agent generates sandbox code from high-level workflow knowledge while grounding execution in the platform layer |
-| Application use case (e.g., DEFT AOI) | Application skill + referenced Model/Data skills + Platform skill | Agent decomposes the use case, selects required sub-skills, and orchestrates the closed-loop workflow |
+| `models/` | Network-centric skills: containers, commands, data formats, checkpoints | `cosmos-rl`, `visual-changenet`, `clip`, `vila`, `dino`, `segformer`, … |
+| `data/` | Data preparation, analysis, and enhancement | `knn-mining`, `siglip-embed`, `qwen-caption`, `nim-embedding`, `vcn-*`, `deft-aoi-*` |
+| `platform/` | Where and how jobs run | `docker` (conventions), `brev` (instance-based GPU), `lepton` (DGX Cloud API), `slurm` (remote SLURM cluster), `local-docker` (local Docker daemon), `tao-sdk` (optional Python) |
+| `applications/` | End-to-end workflows composing the layers above | `workflow-deft-aoi-loop`, `deft-cosmos-rl`, `deft-vcn-aoi`, `rca-changenet`, `normal-train`, `tao-automl` |
 
-Current platform skills include Lepton, Brev, SLURM, and local Docker. Use the
-platform layer to choose the execution backend before generating a model or
-workflow runner.
+Each skill is a directory with `SKILL.md` (agent-readable instructions). Optional `references/skill_info.yaml` provides structured metadata for SDK-orchestrated execution; optional `scripts/` bundles supporting code.
 
-## Skill Discovery
+## Optional Python layer
 
-The TAO-Next planner discovers skills via the `SkillBank` class:
+For users who want job handles, S3 I/O wrapping via `script_runner`, state persistence, multi-node distributed training, Lepton access, or failure analysis, the [TAO Execution SDK](https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-sdk) provides a single wheel with optional extras:
 
-1. Model skills are searched in both `models/` and `data/` directories
-2. Workflow skills are loaded from `applications/`
-3. Platform configs are loaded from `platform/`
-4. Skill names use hyphen-case (`cosmos-rl`, not `cosmos_rl`)
+```shell
+pip install nvidia-tao-sdk            # core
+pip install 'nvidia-tao-sdk[lepton]'  # + Lepton handler (required for Lepton — no docker-run equivalent)
+pip install 'nvidia-tao-sdk[brev]'    # + Brev handler (wraps brev CLI with Job handles)
+pip install 'nvidia-tao-sdk[all]'     # both extras
+```
 
-The `TAO_SKILL_BANK_PATH` environment variable overrides the default discovery path.
+You don't have to pre-install — the relevant skills (`platform/lepton`, `platform/tao-sdk`, `applications/tao-automl`) run a Preflight that prompts the agent to install the right extra on first use. If you're running locally on your own GPU or on Brev via `brev exec`, you don't need the SDK at all.
 
-## Design Rules
+## Contributing a new skill
 
-- Keep application skills workflow-centric — avoid embedding low-level runtime duplication when a referenced model or data skill already exists.
-- Keep model skills flattened at the network level so the agent can reason cleanly about network choice and action contracts.
-- Treat the platform layer as the base execution contract for all GPU jobs.
-- Publish enough execution metadata for code synthesis, not just narrative descriptions.
-- Use explicit references between skills so composition remains deterministic and explainable.
+See [docs/authoring.md](docs/authoring.md) for the full guide. The minimum viable skill is just `SKILL.md` — `references/skill_info.yaml` and friends are optional and only added when they earn their keep.
 
-## Adding a New Skill
+In brief:
 
-1. Choose the correct layer: `models/` for trainable networks, `data/` for data processing, `applications/` for workflows, `platform/` for compute backends
-2. Create a directory: `{layer}/{skill-name}/`
-3. Add `config.json` with actions, inputs, outputs, credentials, execution references
-4. Add `{skill-name}.md` with agent documentation (purpose, data formats, parameters, error patterns)
-5. Add `defaults-{action}.json` for each action with default spec values
-6. If the skill has inline scripts, add them under `scripts/`
-7. Test: verify `SkillBank().get_model_config('{skill-name}')` returns your config
+1. Pick the layer (`models/`, `data/`, `platform/`, `applications/`).
+2. Copy a template from [`templates/skill-skeleton/`](templates/skill-skeleton/) — `minimal/` for the bare path, `model/`, `data/`, `platform/`, or `workflow/` for richer scaffolding.
+3. Fill in frontmatter and SKILL.md body. Body must contain a `## Quick Start` section, a `docker run` block, an SDK call, or a link to `references/skill_info.yaml`.
+4. Add the skill path to [`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json) under the relevant plugin(s).
+5. Validate with `scripts/validate-skills.sh` before submitting a PR.
+
+## Repository structure
+
+```
+tao-skills-external/
+├── .claude-plugin/
+│   ├── marketplace.json              # marketplace catalog (lists tao-skills + deft-aoi-loop-plugin)
+│   └── plugin.json                   # plugin manifest (fallback when loaded directly)
+├── hooks/
+│   ├── hooks.json                    # SessionStart hook registration
+│   └── session_start.sh              # emits agent guidance; sources ~/.config/tao/.env
+├── .env.example                      # credential template (copy to ~/.config/tao/.env)
+├── versions.yaml                     # single source of truth: container images + SDK wheel versions
+├── README.md
+├── docs/
+│   ├── authoring.md                  # guide for adding new skills
+│   └── maintenance.md                # RC bump procedure for versions.yaml
+├── templates/skill-skeleton/         # copy-paste starting points (minimal + per-layer)
+├── scripts/
+│   ├── validate-skills.sh            # CI validator
+│   ├── verify-standalone.sh          # end-to-end smoke (docker-only path)
+│   └── migrate-to-version-keys.py    # one-shot: literal nvcr.io paths → versions.yaml keys
+├── applications/
+├── data/
+├── models/
+└── platform/
+```
+
+## CI
+
+The repo runs three CI suites in parallel:
+
+- **NV-ACES skill evaluation** (`.skill-eval.yml`) — Tier 1/2 quality scoring, security scan.
+- **Skill execution eval** (`.gitlab-ci.yml`) — runs each skill's `eval.config` on a real GPU runner.
+- **`validate-skills`** (`scripts/validate-skills.sh`) — marketplace path resolution, frontmatter, body has runnable info, no SDK leaks, hook references resolve.
+
+PRs must pass all three before merge.
+
+## Design rules
+
+- **Docker-native first.** Every model/data skill should be runnable with just `docker run` + the contents of `SKILL.md`. SDK invocation is an optional enhancement, documented in `platform/tao-sdk`.
+- **Generic docker conventions live once** in `platform/docker`. Other skills defer to it for `--gpus`, NGC auth, mount patterns, data-root relocation, etc.
+- **No SDK leaks in model/data/application skills.** `tao_sdk`-specific imports, `sdk.create_job` calls, and credential-file references belong only in `platform/tao-sdk` and (for platform-specific reasons) `platform/lepton`.
+- **Minimum-viable skill is `SKILL.md` only.** Add `references/skill_info.yaml` only when SDK orchestration or multi-action structured metadata earn their keep.
+- **Prefer portability over cleverness.** A skill that works across three coding agents is more valuable than a skill that works perfectly in one.

@@ -11,17 +11,28 @@ include:
     ref: master
     file: '/ci/skill-execution-eval.yml'
 
-skill-execution-eval:
+# Per-backend fan-out for the skill-eval runtime. Each entry spawns a
+# matrix job named `skill-exec-eval: [<backend>]` with a Runtime-tagged
+# MR comment. Trim the list to run a single backend (e.g. [claude] only).
+skill-exec-eval:
   tags:
     - omnistation_with_L40S_GPU
   variables:
     SKILL_EVAL_REF: master
+  parallel:
+    matrix:
+      - SKILL_EVAL_BACKENDS: [claude, codex]
 
-"Slow Eval (Manual Trigger)":
+# Same fan-out for the slow-manual variant — two matrix jobs, both gated
+# by `when: manual` in the template. Click the one you need in the UI.
+"[Manual] skill-exec-eval-slow":
   tags:
     - omnistation_with_L40S_GPU
   variables:
     SKILL_EVAL_REF: master
+  parallel:
+    matrix:
+      - SKILL_EVAL_BACKENDS: [claude, codex]
 
 # Placeholder job so .post stage (used by NV-ACES) can run.
 # Replace with your own CI jobs as needed.
@@ -30,3 +41,17 @@ nv_aces_placeholder:
   image: alpine:3.20
   script:
     - echo "NV-ACES skill evaluation enabled"
+
+# Custom validator: marketplace paths, frontmatter, body has runnable info,
+# SDK leaks, hook references, optional skill_info.yaml structure.
+# Implements the standalone-mode guarantee and minimum-viable-skill contract.
+validate-skills:
+  stage: test
+  image: python:3.12-slim
+  before_script:
+    - pip install --quiet pyyaml
+  script:
+    - bash scripts/validate-skills.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "main"'

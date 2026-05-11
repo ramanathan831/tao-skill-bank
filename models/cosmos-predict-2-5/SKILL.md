@@ -1,6 +1,19 @@
 ---
 name: cosmos-predict-2-5
-description: "Cosmos Predict 2.5 text-to-video generation for synthetic data augmentation. Use when generating synthetic training videos from text captions or augmenting video datasets."
+description: Cosmos Predict 2.5 text-to-video generation for synthetic data augmentation. Use when generating synthetic training
+  videos from text captions or augmenting video datasets.
+license: Apache-2.0
+compatibility: Requires docker + nvidia-container-toolkit.
+metadata:
+  author: Ramanathan Arunachalam, Arif Ahmed
+  version: '0.1'
+allowed-tools: Read Bash
+tags:
+- video
+- generation
+- text-to-video
+- cosmos
+- sdg
 ---
 
 # Cosmos Predict 2.5
@@ -44,7 +57,7 @@ Cosmos Predict 2.5 includes safety guardrails that block generation of certain c
 |-------|-------|-----|
 | NCCL timeout / SIGABRT | Guardrail blocks a prompt mid-batch, desynchronizing GPU ranks | Disable guardrails (`--disable-guardrails` flag) |
 | CUDA OOM | Video resolution or batch too large for GPU memory | Reduce batch size or num_output_frames |
-| HF auth failure | Missing or invalid HF_TOKEN | Ensure HF_TOKEN is set in secrets.json with a valid HuggingFace token that has access to the model |
+| HF auth failure | Missing or invalid HF_TOKEN | Ensure HF_TOKEN is set in your environment (e.g., in `~/.config/tao/.env`) with a valid HuggingFace token that has access to the model |
 | Low quality / artifacts | Guidance scale too low or too high | Adjust guidance parameter (typical range: 5-10) |
 | Slow generation | Insufficient GPU count | Increase num_gpus or use faster GPU hardware (H100 preferred) |
 

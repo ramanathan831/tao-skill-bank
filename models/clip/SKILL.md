@@ -1,87 +1,191 @@
 ---
 name: clip
-description: "CLIP vision-language model for image classification, zero-shot recognition, and embeddings. Use when training or fine-tuning CLIP, running zero-shot classification, or computing image embeddings."
+description: CLIP vision-language model for image-text retrieval, zero-shot classification, embedding extraction, ONNX export, and TensorRT deployment. Use when training or fine-tuning CLIP, running zero-shot classification, computing image embeddings, or deploying CLIP to ONNX/TensorRT.
+license: Apache-2.0
+compatibility: Requires docker + nvidia-container-toolkit.
+metadata:
+  author: Ramanathan Arunachalam, Arif Ahmed, NVIDIA TAO Toolkit Team
+  version: '1.0'
+allowed-tools: Read Bash
+tags:
+- vision-language
+- classification
+- embedding
+- zero-shot
+- deployment
 ---
 
 # CLIP
 
-Contrastive Language-Image Pre-training model for zero-shot and fine-tuned image classification and retrieval. Fine-tuning adapts CLIP's vision-language alignment to domain-specific datasets.
+Contrastive Language-Image Pre-training model for zero-shot and fine-tuned image classification, image-text retrieval, and embedding extraction. Fine-tuning adapts CLIP's shared image-text embedding space to domain-specific image-caption data.
 
-No default NGC pretrained checkpoint — uses HuggingFace CLIP weights built into the container.
+No default NGC pretrained checkpoint is required. When `train.pretrained_model_path`, `evaluate.checkpoint`, `inference.checkpoint`, or `export.checkpoint` is unset, TAO loads pretrained weights from HuggingFace for SigLIP2/OpenCLIP variants or `torch.hub` for Radio-CLIP, so first use needs network access or a local mirror.
+
+Supported actions: `train`, `evaluate`, `inference`, `export`, `gen_trt_engine`.
+
+## Instructions
+
+Use this skill for NVIDIA TAO CLIP jobs: training, evaluation, embedding inference, ONNX export, and TensorRT engine generation. Start by identifying the requested action, then load only the referenced files needed for that action: `defaults.json` for default parameters, `config.json` for action/data-source wiring, `references/spec_template.yaml` for full spec shape, and `references/model_info.yaml` for SDK metadata.
+
+For dataset-backed actions, collect the required image, caption, list, or prompt files from the user and place the resolved paths in `spec_overrides`. For `export` and `gen_trt_engine`, infer parent artifacts from the upstream job when available; otherwise require explicit checkpoint, ONNX, or engine paths. Run `gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference` in the TAO Deploy image.
 
 ## Training Requirements
 
 - **Dataset type:** image_text
-- **Formats:** default
+- **Formats:** custom image/caption folders or WebDataset shards
 - **Monitoring metric:** val/t2i_mAP
+
+### Supported Models
+
+- **SigLIP2:** `siglip2-so400m-patch16-256` (default), `siglip2-so400m-patch14-224`, `siglip2-so400m-patch14-384`, `siglip2-so400m-patch16-384`, `siglip2-so400m-patch16-512`, `siglip2-so400m-patch16-naflex`
+- **Radio-CLIP:** `c-radio_v3-b`, `c-radio_v3-l`, `c-radio_v3-h`, `c-radio_v3-g`
+- **OpenCLIP / NV-CLIP:** `ViT-L-14-SigLIP-CLIPA-224`, `ViT-L-14-SigLIP-CLIPA-336`, `ViT-H-14-SigLIP-CLIPA-224`, `ViT-H-14-SigLIP-CLIPA-336`, `ViT-H-14-SigLIP-CLIPA-574`
+
+Radio-CLIP requires `model.adaptor_name` to be set to `siglip` or `clip`.
 
 ### Per-Action Dataset Requirements
 
 | Action | Spec Key | Source | Files | List? |
 |---|---|---|---|---|
+| train | dataset.train.datasets | train_datasets | image_dir: images.tar.gz, image_list_file: image_list.txt, caption_dir: captions.tar.gz | Yes |
+| train | dataset.train.wds.root_dir | train_wds_dataset | root directory containing `.tar` shards | No |
+| train | dataset.train.wds.shard_list_file | train_wds_dataset | shards.txt listing shard paths | No |
+| train | dataset.val.datasets | eval_dataset | image_dir: images.tar.gz, image_list_file: image_list.txt, caption_dir: captions.tar.gz | Yes |
 | evaluate | dataset.val.datasets | eval_dataset | image_dir: images.tar.gz, image_list_file: image_list.txt, caption_dir: captions.tar.gz | Yes |
 | inference | inference.datasets | inference_dataset | image_dir: images.tar.gz | Yes |
 | inference | inference.text_file | inference_dataset | prompts.txt | No |
-| train | dataset.train.datasets | train_datasets | image_dir: images.tar.gz, image_list_file: image_list.txt, caption_dir: captions.tar.gz | Yes |
-| train | dataset.val.datasets | eval_dataset | image_dir: images.tar.gz, image_list_file: image_list.txt, caption_dir: captions.tar.gz | Yes |
+| export | export.checkpoint | parent train job or explicit checkpoint | checkpoint .pth, optional for pretrained export | No |
+| gen_trt_engine | gen_trt_engine.onnx_file | parent export job or explicit ONNX | clip_model.onnx | No |
+
+For custom training, set `dataset.train.type: custom` and provide `dataset.train.datasets` entries. Image and caption files must share the same base name. `caption_file_suffix` defaults to `.txt`, and `image_list_file` is optional.
+
+For WDS training, set `dataset.train.type: wds` and provide at least one of `dataset.train.wds.root_dir` or `dataset.train.wds.shard_list_file`. `root_dir` is scanned recursively for `.tar` shards. `shard_list_file` is a text file with one shard path per line; relative lines resolve under the list-file directory unless `root_dir` is also supplied, in which case they resolve under `root_dir`. Validation/evaluation data remains custom format via `dataset.val.datasets`.
 
 ### Typical Spec Overrides
 
-Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
+Data source overrides are mandatory for dataset-backed actions. Construct paths from the Per-Action Dataset Requirements table and include them in `spec_overrides`. For inference, provide at least one of `inference.datasets` or `inference.text_file`.
 
 ```python
 S3_TRAIN = "aws://bucket/data/train"
+S3_WDS = "aws://bucket/data/wds"
 S3_EVAL = "aws://bucket/data/eval"
+S3_INFER = "aws://bucket/data/infer"
 ```
 
-**train (mandatory data sources):**
+**train, custom dataset:**
 ```python
 {
-    "train.num_epochs": 1,
+    "train.num_epochs": 10,
+    "dataset.train.type": "custom",
     "dataset.train.datasets": [{"image_dir": f"{S3_TRAIN}/images.tar.gz", "image_list_file": f"{S3_TRAIN}/image_list.txt", "caption_dir": f"{S3_TRAIN}/captions.tar.gz"}],
     "dataset.val.datasets": [{"image_dir": f"{S3_EVAL}/images.tar.gz", "image_list_file": f"{S3_EVAL}/image_list.txt", "caption_dir": f"{S3_EVAL}/captions.tar.gz"}],
 }
 ```
 
-**evaluate (mandatory data sources):**
+**train, WDS dataset:**
+```python
+{
+    "train.num_epochs": 10,
+    "dataset.train.type": "wds",
+    "dataset.train.wds.root_dir": f"{S3_WDS}",
+    "dataset.train.wds.shard_list_file": f"{S3_WDS}/shards.txt",
+    "dataset.train.wds.samples_per_shard": 10000,
+    "dataset.val.datasets": [{"image_dir": f"{S3_EVAL}/images.tar.gz", "image_list_file": f"{S3_EVAL}/image_list.txt", "caption_dir": f"{S3_EVAL}/captions.tar.gz"}],
+}
+```
+
+**evaluate:**
 ```python
 {
     "dataset.val.datasets": [{"image_dir": f"{S3_EVAL}/images.tar.gz", "image_list_file": f"{S3_EVAL}/image_list.txt", "caption_dir": f"{S3_EVAL}/captions.tar.gz"}],
 }
 ```
 
-**inference (mandatory data sources):**
+Leave `evaluate.checkpoint` unset for zero-shot evaluation with pretrained weights. Set `evaluate.trt_engine` instead of `evaluate.checkpoint` for TensorRT evaluation.
+
+**inference:**
 ```python
 {
-    "inference.datasets": [{"image_dir": f"{S3_EVAL}/images.tar.gz"}],
-    "inference.text_file": f"{S3_EVAL}/prompts.txt",
+    "inference.datasets": [{"image_dir": f"{S3_INFER}/images.tar.gz"}],
+    "inference.text_file": f"{S3_INFER}/prompts.txt",
 }
 ```
+
+Inference writes `image_embeddings.h5` and/or `text_embeddings.h5` under `results_dir`. The saved embeddings are L2-normalized.
+
+**export:**
+```python
+{
+    "export.onnx_file": "${results_dir}/export/clip_model.onnx",
+    "export.encoder_type": "combined",
+    "export.batch_size": -1,
+}
+```
+
+Set `export.encoder_type: separate` when deployment should use independent vision and text encoders. Separate export writes `_vision.onnx` and `_text.onnx` variants derived from the base `export.onnx_file`.
+
+**gen_trt_engine:**
+```python
+{
+    "gen_trt_engine.onnx_file": "${results_dir}/export/clip_model.onnx",
+    "gen_trt_engine.trt_engine": "${results_dir}/deploy/clip_model.engine",
+    "gen_trt_engine.batch_size": -1,
+    "gen_trt_engine.tensorrt.data_type": "fp16",
+    "gen_trt_engine.tensorrt.min_batch_size": 1,
+    "gen_trt_engine.tensorrt.opt_batch_size": 1,
+    "gen_trt_engine.tensorrt.max_batch_size": 16,
+}
+```
+
 ## Eval Dataset
 
-Optional. CLIP training does not require a separate eval dataset. If provided, validation metrics are computed at each checkpoint interval.
+Optional for training. If provided, validation metrics are computed at validation intervals. Required for `evaluate`.
+
+## Deploy Workflow
+
+The skill exposes `gen_trt_engine` as the deploy action. In generated SDK runners, use `model_info["actions"]["gen_trt_engine"]` and run it in the TAO Deploy image, not the PyTorch training image. The in-container command is `clip gen_trt_engine -e {config_path}`; direct TAO Launcher usage spells the same action as `tao deploy clip gen_trt_engine -e /path/to/spec.yaml`.
+
+TAO Deploy supports both combined and separate encoder formats. For separate encoders, pass the base path without `_vision` or `_text` to `gen_trt_engine.onnx_file` and `gen_trt_engine.trt_engine`; TAO detects or writes the suffixed vision/text files.
+
+Use `evaluate.trt_engine` for TensorRT evaluation and `inference.trt_engine` for TensorRT embedding extraction. These TensorRT paths also run in the TAO Deploy image. Direct TAO Launcher usage spells these as `tao deploy clip evaluate` and `tao deploy clip inference`.
 
 ## Important Parameters
 
-- **num_epochs**: CLIP fine-tuning typically converges quickly. 10–20 epochs is usually sufficient for domain adaptation. Increase if validation loss is still decreasing at the end of training.
-- **train.optim.lr**: Learning rate for fine-tuning. CLIP is sensitive to high learning rates — use 1e-6 to 1e-5. Higher values risk catastrophic forgetting of the pretrained representations.
-- **model.freeze_text_encoder**: Whether to freeze the text encoder during training. Set to true (default) for most fine-tuning tasks. Only unfreeze if you have a large dataset and want to adapt both modalities.
+- **model.type**: Backbone family and resolution. Use fixed-resolution SigLIP2/OpenCLIP variants for deployment.
+- **model.adaptor_name**: Required for Radio-CLIP. Set to `siglip` or `clip`.
+- **model.image_size**: Training transform image resolution. Keep it aligned with the selected fixed-resolution backbone.
+- **train.num_epochs**: CLIP fine-tuning often converges quickly. Start with 10-20 epochs for domain adaptation, then increase only if validation loss is still improving.
+- **train.optim.vision_lr / train.optim.text_lr**: Learning rates for the two encoders. CLIP is sensitive to high learning rates; reduce both if loss is unstable.
+- **model.freeze_vision_encoder / model.freeze_text_encoder**: Defaults are false. Freezing one encoder can help when the dataset is small or only one modality needs adaptation.
+- **train.loss_type**: `siglip` is recommended for SigLIP2 and Radio-CLIP. Use `clip` for CLIP-style softmax loss.
+- **export.encoder_type**: `combined` exports one ONNX graph. `separate` exports independent vision and text graphs.
+- **gen_trt_engine.tensorrt.data_type**: TensorRT deployment supports `fp16` and `fp32`.
 
 ## Hardware
 
-CLIP is relatively lightweight compared to detection models. Single GPU training works for small datasets. Use 4+ GPUs for datasets with >100k images. 16GB+ VRAM per GPU (V100 or A100).
+Single-GPU training works for small datasets. Use 4+ GPUs for datasets with more than 100k images or large backbones. Use 16GB+ VRAM per GPU for small/fixed-resolution runs and larger GPUs for Radio-CLIP or high-resolution OpenCLIP variants.
 
 ## Error Patterns
 
-**CUDA out of memory**: Reduce batch_size (32 → 16 → 8). CLIP's memory footprint is dominated by the vision encoder resolution — if OOM persists, check `model.image_size` in the spec.
+**CUDA out of memory**: Reduce `dataset.train.batch_size`, `dataset.val.batch_size`, or the TensorRT opt/max batch sizes. For export/deploy, check `export.input_height` and `export.input_width` against the selected fixed-resolution backbone.
 
-**NaN loss**: Learning rate is too high for fine-tuning. Reduce to 1e-7 and increase warmup steps. Also verify that input images are normalized correctly.
+**NaN loss**: Learning rate is too high for fine-tuning. Reduce `train.optim.vision_lr` and `train.optim.text_lr`, increase `train.optim.warmup_steps`, and verify that captions are valid non-empty text.
 
-**Zero accuracy after training**: Check that the dataset class names match the text prompts used during training. CLIP matches images to text descriptions, so class label format matters.
+**Zero retrieval or classification quality**: Check that captions and prompts match the target label vocabulary. CLIP compares image and text embeddings, so prompt wording matters.
 
-**Dataset size smaller than total batch size**: The total batch size is `batch_size × num_gpus`. For example, batch_size=16 with num_gpus=8 gives a total batch size of 128. If the dataset (especially val) has fewer samples than this, training fails with ValueError. Fix: reduce `dataset.val.batch_size` or `dataset.train.batch_size` so that `batch_size × num_gpus <= dataset_size`. The agent should proactively check this when num_gpus > 1 and the dataset is known to be small.
+**Dataset size smaller than total batch size**: The total batch size is `batch_size * num_gpus`. If the dataset, especially validation, has fewer samples than this, reduce `dataset.val.batch_size` or `dataset.train.batch_size`.
 
-**Error merging spec.yaml with schema**: A Hydra/OmegaConf config validation error. Usually caused by spec keys placed at the wrong nesting level. Common cause: `num_epochs` and `num_gpus` must be under `train.*`, not at the spec root. Use the SDK's spec_shorthand_keys mapping to ensure correct placement.
+**Radio-CLIP config validation error**: Set `model.adaptor_name` explicitly to `siglip` or `clip`.
+
+**Naflex export failure**: `siglip2-so400m-patch16-naflex` is training-only in the current TAO docs and cannot be exported to ONNX or TensorRT. Use a fixed-resolution variant such as `siglip2-so400m-patch16-384`.
+
+**ONNX external data missing**: Models larger than 2 GB export an ONNX file plus an external data file. Keep both files in the same directory and do not rename the external data file before `gen_trt_engine`.
+
+**TensorRT shape mismatch**: When using dynamic batch export, provide min/opt/max shape profiles for every input. Text sequence length must match the tokenizer length, commonly 77 for CLIP tokenizers and 64 for SigLIP2 tokenizers.
+
+**attention_mask warning**: `attention_mask` is currently accepted by exported graphs for compatibility, but TAO ignores its values and may remove it in a future release. Do not build new direct-ONNX inference code that depends on mask values.
+
+**Error merging spec.yaml with schema**: A Hydra/OmegaConf config validation error. Common causes are putting `num_epochs` or `num_gpus` at the spec root instead of under `train.*`, or mixing up training image size (`model.image_size`) with export dimensions (`export.input_height` and `export.input_width`).
 
 ## Spec Param / Parent Model Inference
 

@@ -1,6 +1,18 @@
 ---
 name: qwen-caption
-description: "VLM captioning via Qwen endpoint for generating text descriptions of images/videos. Use when generating captions for synthetic video generation or describing visual content."
+description: VLM captioning via Qwen endpoint for generating text descriptions of images/videos. Use when generating captions
+  for synthetic video generation or describing visual content.
+license: Apache-2.0
+compatibility: Requires docker + nvidia-container-toolkit.
+metadata:
+  author: Arif Ahmed
+  version: '0.1'
+allowed-tools: Read Bash
+tags:
+- captioning
+- vlm
+- qwen
+- text-generation
 ---
 
 # Qwen Caption
