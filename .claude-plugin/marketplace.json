@@ -5,8 +5,8 @@
     "email": "sherryj@nvidia.com"
   },
   "metadata": {
-    "description": "NVIDIA TAO skill bank for agentic fine-tuning — model training, data processing, workflow orchestration, and platform execution skills.",
-    "version": "0.1.0"
+    "description": "NVIDIA TAO skill bank with generated capability discovery for model training, data processing, workflow orchestration, AutoML, and platform execution.",
+    "version": "0.1.6"
   },
   "plugins": [
     {
@@ -22,13 +22,10 @@
         "./applications/tao-hf-finetune",
         "./applications/tao-hf-integration",
         "./applications/workflow-deft-aoi-loop",
-        "./data/analyze-kpi",
         "./data/cosmos-anomalygen",
         "./data/deft-aoi-mining",
         "./data/deft-aoi-rca-vcn",
         "./data/deft-aoi-routing-vcn",
-        "./data/knn-mining",
-        "./data/nim-embedding",
         "./data/qwen-caption",
         "./data/video-reasoning-annotation",
         "./models/action-recognition",
@@ -39,6 +36,7 @@
         "./models/cosmos-predict-2-5",
         "./models/cosmos-rl",
         "./models/deformable-detr",
+        "./models/depth-net-fast-stereo",
         "./models/depth-net-mono",
         "./models/depth-net-stereo",
         "./models/dino",
@@ -67,6 +65,7 @@
         "./platform/kubernetes",
         "./platform/lepton",
         "./platform/local-docker",
+        "./platform/nvidia-gpu-setup",
         "./platform/slurm",
         "./platform/tao-sdk",
         "./data/daft-convert",
@@ -85,7 +84,6 @@
         "./data/deft-aoi-routing-vcn",
         "./data/deft-aoi-mining",
         "./data/cosmos-anomalygen",
-        "./data/analyze-kpi",
         "./platform/docker",
         "./platform/nvidia-gpu-setup"
       ]

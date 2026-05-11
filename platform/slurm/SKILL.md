@@ -52,11 +52,12 @@ the cluster.
 
 ## Prerequisites
 
-Before any SLURM job can be submitted, the host running the TAO service or SDK
-must be able to log in to every `SLURM_HOSTNAME` over SSH **without an
-interactive password prompt**. The handler runs `sbatch`, `squeue`, `sacct`,
-`scancel`, and log tails non-interactively, so password or 2FA prompts will
-fail the job at submit or status time.
+Before any SLURM job can be submitted or any runner script is generated, the
+host running the TAO service or SDK must be able to log in to at least one host
+from `SLURM_HOSTNAME` over SSH **without an interactive password prompt**. The
+handler runs `sbatch`, `squeue`, `sacct`, `scancel`, and log tails
+non-interactively, so password or 2FA prompts will fail the job at submit or
+status time.
 
 Set this up once per (host, login node, user) tuple:
 
@@ -82,7 +83,8 @@ Set this up once per (host, login node, user) tuple:
 3. Trust the host key so SSH does not stall on the "authenticity of host" prompt
    inside the handler. Either log in once interactively to accept the prompt,
    or pre-populate `~/.ssh/known_hosts` with `ssh-keyscan -H <login-host> >> ~/.ssh/known_hosts`.
-4. Verify the result is fully non-interactive:
+4. Verify the result is fully non-interactive for at least one listed login
+   host:
 
    ```bash
    ssh -o BatchMode=yes -o PreferredAuthentications=publickey \
@@ -119,16 +121,23 @@ handler via `SSH_AUTH_SOCK`.
 - **SLURM_HOSTNAME** (required): Comma-separated login hostnames for failover.
   Microservices schema stores this as the list field
   `cloud_specific_details.slurm_hostname`.
-- **SSH_KEY_PATH** (optional): Private key path. If omitted, the handler checks
-  common key locations such as `~/.ssh/id_ed25519`, `/root/.ssh/id_ed25519`,
-  and `/home/www-data/.ssh/id_ed25519`.
-- **SSH_AUTH_SOCK** (optional): SSH agent socket for agent-based auth.
+- **SLURM_PARTITION** (required): Partition list for GPU job submission. Ask
+  for this in the mandatory SLURM intake list. The packaged default is
+  `polar,polar3,polar4,grizzly`, which are treated as 4-hour queues.
+- **SSH_KEY_PATH** (preferred and expected before launch): private key path for
+  non-interactive public-key auth to the login node. If passwordless SSH fails,
+  ask the user for `SSH_KEY_PATH=/path/to/private_key` and show the setup steps
+  below; do not bury this behind several alternate choices.
+- **SSH_AUTH_SOCK** (advanced fallback): SSH agent socket with an accepted key
+  already loaded. Prefer `SSH_KEY_PATH` in user-facing remediation prompts.
 - **SLURM_BASE_RESULTS_DIR** (optional): Base shared filesystem path. Default
   convention from `tao-core` is `/lustre/fsw/portfolios/edgeai/users/<user>`.
 - **SLURM_ACCOUNT** (usually required by site policy): Account charged by
   `#SBATCH --account`.
-- **SLURM_PARTITION** (optional): Partition list. `tao-core` defaults to
-  `polar,polar3,polar4,grizzly` when no partition is supplied.
+
+Do not ask for `SLURM_ACCOUNT` or `SLURM_BASE_RESULTS_DIR` in the initial
+intake unless the user says their site requires an account, wants a custom
+results root, or the workflow cannot proceed without overriding defaults.
 
 ## Backend Details
 
@@ -157,6 +166,50 @@ dataset paths. Prefer shared filesystem URIs:
   actual Lustre paths before the container starts.
 - Avoid bare `/local/path` and `file://` dataset URIs for SLURM. Validation in
   `tao-core` rejects local and file paths for remote backends.
+
+Accept either dataset roots or direct spec-key paths:
+
+- Root mode: `/lustre/.../<model>/train`, which model skills map to required
+  files such as `<root>/annotations.json` and `<root>` as media path.
+- Direct spec mode: exact fields such as
+  `custom.train_dataset.annotation_path=/lustre/.../train.json` and
+  `custom.train_dataset.media_path=/lustre/.../videos.tar.gz`.
+
+After passwordless SSH succeeds and before generating scripts, validate each
+required dataset file/path from the login host:
+
+```bash
+ssh -o BatchMode=yes <SLURM_USER>@<working-login-host> \
+  'test -e /lustre/.../annotations.json && test -e /lustre/.../media_or_archive'
+```
+
+If the remote `test -e` fails, stop and ask for corrected paths or for the data
+to be staged onto shared cluster storage. Do not create runner scripts that will
+fail inside the first training job.
+
+## SSH Failure Remediation Prompt
+
+When passwordless SSH fails, use this concise prompt:
+
+```text
+SLURM is blocked on passwordless SSH. Please provide:
+
+SSH_KEY_PATH=/path/to/private_key
+
+If you have not set up passwordless access yet:
+1. Create a key if needed:
+   ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_ed25519
+2. Install the public key on one login host:
+   ssh-copy-id -i ~/.ssh/id_ed25519.pub <SLURM_USER>@<login-host>
+3. Trust the host key:
+   ssh-keyscan -H <login-host> >> ~/.ssh/known_hosts
+4. Lock private-key permissions:
+   chmod 600 ~/.ssh/id_ed25519
+5. Verify it works without prompts:
+   ssh -o BatchMode=yes -i ~/.ssh/id_ed25519 <SLURM_USER>@<login-host> 'hostname'
+
+After that, rerun with SSH_KEY_PATH=~/.ssh/id_ed25519.
+```
 
 Results default to:
 
@@ -199,9 +252,24 @@ Defaults from `tao-core`:
 - `cpus_per_task`: 16
 - `time_hours`: 4
 - `timeout_hours`: 3.8
+- `max_time_hours`: 4
 - `container_mounts`: `/lustre`
 - `use_requeue`: true
 - `use_sqsh`: true
+
+When generating launchers or wrapper scripts for SLURM, set the wall-time
+defaults explicitly from the packaged platform resource defaults:
+
+```bash
+export SLURM_TIME_HOURS="${SLURM_TIME_HOURS:-4}"
+export SLURM_TIMEOUT_HOURS="${SLURM_TIMEOUT_HOURS:-3.8}"
+```
+
+Do not default to 12 hours on SLURM. If the user supplies a longer
+`SLURM_TIME_HOURS`, verify that the selected partition supports it before
+submitting. For the packaged default partition list
+`polar,polar3,polar4,grizzly`, reject requests above 4 hours and ask for a
+different partition only if the user actually wants a longer wall time.
 
 When `num_gpus` is greater than or equal to `max_num_gpus_per_node`, the
 handler treats the request as exclusive per node and computes additional nodes
@@ -215,6 +283,13 @@ multi-node role handling for controller, policy, and rollout workers.
 
 - Scheduler status comes from the stored SLURM job id via `squeue` or `sacct`.
 - TAO terminal status comes from `status.json` in the shared results folder.
+- If the user enabled chat monitoring, continue polling at the requested
+  interval while the job is `PENDING`, `RUNNING`, or otherwise non-terminal.
+  Do not stop after a fixed elapsed time such as 30 minutes; long queue waits
+  are normal on shared GPU partitions.
+- Do not send a final response for a non-terminal SLURM job when chat
+  monitoring is enabled. A final response is a detach action; use it only if
+  the user asked to detach/stop or the job reached terminal state.
 - Logs are read over SSH from:
 
 ```text

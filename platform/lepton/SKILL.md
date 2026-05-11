@@ -51,6 +51,20 @@ If missing, the agent prompts the user to authorize the install via Bash, then r
 - **S3_BUCKET_NAME** (optional): Bucket for job output artifacts.
 - **CLOUD_REGION** (optional): Storage region (e.g., us-east-1).
 
+## Launch Preflight
+
+Before generating scripts or submitting jobs:
+
+1. Verify `LEPTON_WORKSPACE_ID` and `LEPTON_AUTH_TOKEN` are set.
+2. Verify the workspace API is reachable with the packaged helper:
+   `scripts/check_tao_launch_preflight.py --platform lepton ...`.
+3. For `s3://` datasets/results, verify `ACCESS_KEY` and `SECRET_KEY` are set
+   and the exact paths are readable with `aws s3 ls`.
+4. For NFS/Lustre mounted paths, require proof from Lepton volume/storage
+   permissions that the path will be mounted into the job. Do not treat a local
+   filesystem `test -e` on the agent host as proof for Lepton jobs.
+5. Verify model-specific credentials such as `HF_TOKEN` before launch.
+
 ## Backend Details
 
 `LeptonSDK.create_job` accepts these Lepton-specific kwargs (in addition to the platform-agnostic ones — `image`, `command`, `gpu_count`, `env_vars`, `inputs`, `outputs`, `hooks`):

@@ -66,10 +66,10 @@ For WDS training, set `dataset.train.type: wds` and provide at least one of `dat
 Data source overrides are mandatory for dataset-backed actions. Construct paths from the Per-Action Dataset Requirements table and include them in `spec_overrides`. For inference, provide at least one of `inference.datasets` or `inference.text_file`.
 
 ```python
-S3_TRAIN = "aws://bucket/data/train"
-S3_WDS = "aws://bucket/data/wds"
-S3_EVAL = "aws://bucket/data/eval"
-S3_INFER = "aws://bucket/data/infer"
+S3_TRAIN = "s3://bucket/data/train"
+S3_WDS = "s3://bucket/data/wds"
+S3_EVAL = "s3://bucket/data/eval"
+S3_INFER = "s3://bucket/data/infer"
 ```
 
 **train, custom dataset:**

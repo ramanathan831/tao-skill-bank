@@ -20,6 +20,10 @@ Metric learning recognition for fine-grained visual recognition. Learns embeddin
 
 Set model.pretrained_model_path for pretrained backbone.
 
+## Dataclass Schemas
+
+Generated TAO Core schemas are packaged in `schemas/<action>.schema.json`, with `schemas/manifest.json` listing available actions. Each generated schema also emits `references/spec_template_<action>.yaml` from the schema top-level `default` field. For AutoML, `schemas/train.schema.json` and `references/spec_template_train.yaml` must exist and parse; otherwise AutoML is unsupported for this model in the plugin workflow. Use the packaged train schema for `automl_default_parameters`, `automl_disabled_parameters`, defaults, min/max bounds, enums, option weights, math conditions, dependencies, and popular parameters. Do not expect `~/tao-core` at runtime; maintainers regenerate schemas/templates before packaging the skill bank.
+
 ## Training Requirements
 
 - **Dataset type:** ml_recog
@@ -42,7 +46,7 @@ Set model.pretrained_model_path for pretrained backbone.
 Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
 
 ```python
-S3_TRAIN = "aws://bucket/data/train"
+S3_TRAIN = "s3://bucket/data/train"
 ```
 
 **train (mandatory data sources):**

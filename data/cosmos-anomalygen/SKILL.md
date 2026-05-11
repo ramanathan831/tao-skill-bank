@@ -9,6 +9,16 @@ description: >-
   to fine-tune, train, generate anomaly images, run SDG, run AnomalyGen, evaluate
   SDG output quality, run per-sample search/refinement, or run any part of the
   AnomalyGen pipeline — even if they only mention one phase.
+license: Apache-2.0
+compatibility: Requires Cosmos AnomalyGen assets, checkpoints, Python helpers, and GPU runtime access.
+metadata:
+  author: TAO Skill Bank Maintainers
+  version: '0.1'
+allowed-tools: Read Bash Write
+tags:
+- data
+- anomalygen
+- sdg
 ---
 
 # Cosmos AnomalyGen

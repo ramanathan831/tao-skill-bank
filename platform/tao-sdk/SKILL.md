@@ -1,6 +1,6 @@
 ---
 name: tao-sdk
-description: TAO Execution SDK for submitting and monitoring GPU training jobs on Lepton (DGX Cloud) or Brev. Use when the user wants job tracking, S3 I/O wrapping, multi-node distributed training, or platform-specific features that docker-run can't provide.
+description: TAO Execution SDK for submitting and monitoring GPU training jobs on supported platforms (Lepton, Brev, SLURM, local Docker, Kubernetes). Use when the user wants job tracking, S3 I/O wrapping, multi-node distributed training, or platform-specific features that docker-run can't provide.
 license: Apache-2.0
 compatibility: Requires Python 3.10+ and the nvidia-tao-sdk package (pip install nvidia-tao-sdk).
 metadata:
@@ -15,7 +15,7 @@ tags:
 
 # TAO Execution SDK
 
-The SDK is the **optional** Python layer for users who need job handles, S3 I/O wrapping, or platform-specific features (Lepton multi-node, Lustre mounts, Brev instance reuse). Most TAO skills run with just `docker run` and don't need it. Reach for the SDK when:
+The SDK is the **optional** Python layer for users who need job handles, S3 I/O wrapping, or platform-specific features (Lepton multi-node, SLURM/Lustre queues, Kubernetes Jobs, local Docker debugging, Brev instance reuse). Most TAO skills run with just `docker run` and don't need it. Reach for the SDK when:
 
 - You want a `Job` handle to poll status and stream logs over time.
 - The platform is API-only (Lepton has no docker-run equivalent).
@@ -58,9 +58,53 @@ Both SDKs validate credentials lazily on first use and raise `CredentialError` w
 
 The agent never reads credential values — it only checks presence with `[ -n "$VAR_NAME" ]`.
 
+## Workflow Launch Intake
+
+For any TAO workflow or action launch, first confirm the user goal. Then ask
+for platform and monitoring preferences before credentials or launch details.
+Generate the supported platform choices from the packaged helper, not by
+scanning platform docs or folders:
+
+```bash
+${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/list_tao_platforms.py \
+  --skill-bank ${TAO_SKILL_BANK_PATH:-~/tao-skills-external} --format text
+```
+
+Ask:
+
+1. Which supported platform should run this workflow?
+2. Should long-running monitoring stay enabled? Default: enabled. This means
+   the agent remains attached and posts status until terminal state, including
+   long `PENDING` queue waits.
+3. How many minutes between status updates? Default: 5 minutes.
+
+After the model/action are known, resolve the default container image from the
+packaged metadata and ask the user to confirm it or provide `image=<override>`
+before creating runner files:
+
+```bash
+${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/resolve_tao_image.py \
+  --skill-bank ${TAO_SKILL_BANK_PATH:-~/tao-skills-external} \
+  --model <network_arch> --action <action> --format text
+```
+
+After the platform is selected, get the credential filter:
+
+```bash
+${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/list_tao_platforms.py \
+  --skill-bank ${TAO_SKILL_BANK_PATH:-~/tao-skills-external} \
+  --platform <platform> --format text
+```
+
+Ask only for credentials returned for the selected platform. For example, SLURM
+needs `SLURM_USER` and `SLURM_HOSTNAME`; it does not need Lepton credentials.
+Kubernetes and local Docker do not need Lepton or SLURM credentials. Ask storage
+credentials such as S3 keys only when the selected platform and the data/result
+URIs require them.
+
 ## Core API
 
-Both `LeptonSDK` and `BrevSDK` implement the same shape:
+All platform SDKs implement the same core shape:
 
 ```python
 sdk.create_job(image, command, gpu_count=1, env_vars=None, inputs=None, outputs=None, **kwargs) -> Job
@@ -195,17 +239,29 @@ For interactive runs where the user wants to watch:
 
 ```python
 import time
+status_interval_minutes = status_interval_minutes or 5
 while True:
     status = sdk.get_job_status(job.id)
     if status.status in ("Complete", "Error", "Canceled"):
         break
     print(f"  {status.status}")
-    time.sleep(30)
+    time.sleep(status_interval_minutes * 60)
 
 if status.status == "Error":
     print(sdk.get_job_logs(job.id, tail=100))
     print(sdk.get_failure_analysis(job.id))
 ```
+
+With long-running monitoring enabled, do not stop after 30 minutes or after a
+few unchanged polls. Keep emitting updates every `status_interval_minutes`
+until the job finishes, fails, is canceled, or the user asks to detach/stop.
+If the chat/runtime cannot remain open that long, say so explicitly and provide
+the durable workflow/log path for manual status refresh.
+
+Do not use a final response for non-terminal monitored jobs. Finalizing the
+turn detaches the chat watcher. Keep non-terminal status messages in progress
+updates and continue polling; only finalize at terminal state, explicit user
+detach/stop, or a real runtime limit that prevents further polling.
 
 For background runs, persist `job.id` and the `state_file` path, then re-attach later by constructing the same SDK and calling `get_job_status(job_id)` — job state is read from the on-disk store.
 
@@ -301,6 +357,32 @@ spec["dataset.train_csv"] = f"{base}/train.csv"
 - Pass `gpu_type="L40S"` to control instance class for ephemeral instances.
 - Use `sdk.delete_instance(instance_id)` when done with an ephemeral one.
 
+### SLURM
+- Jobs submit over SSH to a login node with `sbatch` and run containers through
+  Pyxis/Enroot `srun --container-image`.
+- Use the platform helper output to ask only for SLURM credentials and storage
+  settings. Do not ask for Lepton, Brev, or Kubernetes credentials.
+- Dataset paths must be visible from the cluster job, usually absolute Lustre or
+  shared filesystem paths; do not pass agent-host local paths to SLURM jobs.
+- Use the packaged SLURM runtime defaults unless the user gives a validated
+  override. For the common `polar,polar3,polar4,grizzly` queues, prefer the
+  four-hour default rather than generating 12-hour wrappers.
+
+### Kubernetes
+- Jobs run as Kubernetes Jobs on a configured GPU cluster.
+- Auth uses kubeconfig (`KUBECONFIG` or `~/.kube/config`) or an in-cluster
+  service account.
+- Requires NVIDIA GPU Operator or equivalent `nvidia.com/gpu` device plugin.
+- Do not ask for Lepton, Brev, or SLURM credentials for Kubernetes runs.
+- A local path on the agent host is not proof that the path is mounted inside
+  the job pod.
+
+### Local Docker
+- Jobs run on the local Docker daemon host.
+- Multi-node is not supported; multi-GPU on the local host is supported.
+- Verify local dataset paths, Docker daemon access, and NVIDIA runtime before
+  generating or launching runner artifacts.
+
 ## Error patterns
 
 **`CredentialError: Missing LEPTON_WORKSPACE_ID`**: env var not loaded. Run `source ~/.config/tao/.env` or check the SessionStart hook fired.
@@ -320,5 +402,5 @@ spec["dataset.train_csv"] = f"{base}/train.csv"
 - It does **not** read or interpret skills. The agent reads `SKILL.md` and `references/skill_info.yaml`; the SDK just submits whatever command the agent constructs.
 - It does **not** do hyperparameter optimization. For HPO, use `applications/tao-automl` (which uses this SDK as a building block).
 - It does **not** generate config files. The agent writes the spec heredoc into the `command` argument.
-- It does **not** select platforms automatically. Pick `LeptonSDK` or `BrevSDK` explicitly.
+- It does **not** select platforms automatically. Pick the requested platform SDK explicitly.
 - It does **not** orchestrate multi-step workflows. The agent chains jobs by polling and constructing the next command.

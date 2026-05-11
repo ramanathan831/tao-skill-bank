@@ -20,6 +20,10 @@ tags:
 
 NVIDIA's text-to-video generation model. Cosmos Predict 2.5 generates synthetic training videos from text captions, serving as a core component of the DEFT (Data-Efficient Fine-Tuning) pipeline.
 
+## Dataclass Schemas
+
+Generated TAO Core schemas are packaged in `schemas/<action>.schema.json`, with `schemas/manifest.json` listing available actions. Each generated schema also emits `references/spec_template_<action>.yaml` from the schema top-level `default` field. For AutoML, `schemas/train.schema.json` and `references/spec_template_train.yaml` must exist and parse; otherwise AutoML is unsupported for this model in the plugin workflow. Use the packaged train schema for `automl_default_parameters`, `automl_disabled_parameters`, defaults, min/max bounds, enums, option weights, math conditions, dependencies, and popular parameters. Do not expect `~/tao-core` at runtime; maintainers regenerate schemas/templates before packaging the skill bank.
+
 ## Purpose
 
 Given text captions describing desired video content, Cosmos Predict 2.5 generates realistic synthetic videos. These generated videos augment real training data to improve downstream model performance, particularly for tasks where collecting real-world video data is expensive or dangerous.

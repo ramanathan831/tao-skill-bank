@@ -21,6 +21,10 @@ NVPanoptix3D for panoptic 3D scene reconstruction from posed RGB images. Produce
 
 Uses 2D and 3D stage checkpoints. Set train.checkpoint_2d and train.checkpoint_3d for staged initialization.
 
+## Dataclass Schemas
+
+Generated TAO Core schemas are packaged in `schemas/<action>.schema.json`, with `schemas/manifest.json` listing available actions. Each generated schema also emits `references/spec_template_<action>.yaml` from the schema top-level `default` field. For AutoML, `schemas/train.schema.json` and `references/spec_template_train.yaml` must exist and parse; otherwise AutoML is unsupported for this model in the plugin workflow. Use the packaged train schema for `automl_default_parameters`, `automl_disabled_parameters`, defaults, min/max bounds, enums, option weights, math conditions, dependencies, and popular parameters. Do not expect `~/tao-core` at runtime; maintainers regenerate schemas/templates before packaging the skill bank.
+
 ## Training Requirements
 
 - **Dataset type:** nvpanoptix3d
@@ -54,8 +58,8 @@ Uses 2D and 3D stage checkpoints. Set train.checkpoint_2d and train.checkpoint_3
 Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
 
 ```python
-S3_TRAIN = "aws://bucket/data/train"
-S3_EVAL = "aws://bucket/data/eval"
+S3_TRAIN = "s3://bucket/data/train"
+S3_EVAL = "s3://bucket/data/eval"
 ```
 
 **train (mandatory data sources):**

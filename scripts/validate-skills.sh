@@ -54,10 +54,22 @@ PY
 echo
 echo "=== 2. SKILL.md frontmatter ==="
 python3 - <<'PY'
-import os, sys, yaml, re, glob
+import os, sys, yaml, re
 errs = 0
 warns = 0
-for skill_md in [p for p in glob.glob('**/SKILL.md', recursive=True) if 'templates/skill-skeleton' not in p]:
+
+def iter_skill_files():
+    for root, dirs, files in os.walk('.', followlinks=False):
+        dirs[:] = [
+            d for d in dirs
+            if d not in ('.git', 'plugins')
+            and 'templates/skill-skeleton' not in os.path.join(root, d)
+            and not os.path.islink(os.path.join(root, d))
+        ]
+        if 'SKILL.md' in files:
+            yield os.path.join(root, 'SKILL.md').lstrip('./')
+
+for skill_md in iter_skill_files():
     with open(skill_md) as f:
         content = f.read()
     m = re.match(r'^---\n(.*?)\n---\n', content, re.DOTALL)
@@ -95,7 +107,7 @@ PY
 echo
 echo "=== 3. SKILL.md body has runnable info ==="
 python3 - <<'PY'
-import os, sys, re, glob
+import os, sys, re
 # A SKILL.md is "runnable" if any of:
 #   - body has a "## Quick Start" or "## Quick start" heading
 #   - body has a `docker run` code block
@@ -103,7 +115,19 @@ import os, sys, re, glob
 #   - the skill dir has references/skill_info.yaml or references/model_info.yaml on disk
 # Skips templates/.
 errs = 0
-for skill_md in [p for p in glob.glob('**/SKILL.md', recursive=True) if 'templates/skill-skeleton' not in p]:
+
+def iter_skill_files():
+    for root, dirs, files in os.walk('.', followlinks=False):
+        dirs[:] = [
+            d for d in dirs
+            if d not in ('.git', 'plugins')
+            and 'templates/skill-skeleton' not in os.path.join(root, d)
+            and not os.path.islink(os.path.join(root, d))
+        ]
+        if 'SKILL.md' in files:
+            yield os.path.join(root, 'SKILL.md').lstrip('./')
+
+for skill_md in iter_skill_files():
     skill_dir = os.path.dirname(skill_md)
     with open(skill_md) as f:
         content = f.read()

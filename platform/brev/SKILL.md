@@ -61,6 +61,19 @@ Two options:
 
 S3 credentials (ACCESS_KEY, SECRET_KEY) are needed separately for data transfer.
 
+## Launch Preflight
+
+Before generating scripts or submitting jobs:
+
+1. Verify `BREV_API_TOKEN` is set.
+2. Verify the `brev` CLI is installed and can list instances, for example
+   `brev ls --json`. If needed, authenticate with `brev login --token`.
+3. For `s3://` datasets/results, verify `ACCESS_KEY` and `SECRET_KEY` are set
+   and the exact paths are readable with `aws s3 ls`.
+4. Do not accept local `/path` inputs for Brev unless the user has proven those
+   paths exist on the target Brev instance or are mounted into it.
+5. Verify model-specific credentials such as `HF_TOKEN` before launch.
+
 ## Instance Lifecycle
 
 The agent controls instance lifecycle:

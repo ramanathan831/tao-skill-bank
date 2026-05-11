@@ -96,6 +96,14 @@ GPU capacity before submitting.
 - **NGC_KEY** (optional): for nvcr.io image pulls. Pass `image_pull_secret="<existing-secret-name>"` to `create_job` if you've pre-created an image-pull secret in the target namespace.
 - **ACCESS_KEY / SECRET_KEY / S3_BUCKET_NAME / S3_ENDPOINT_URL** (optional): for S3 dataset I/O via the SDK's `inputs`/`outputs` script_runner wrapping.
 
+Do not ask for Lepton, Brev, or SLURM credentials for Kubernetes runs. Ask for
+S3 credentials only when the selected workflow uses `s3://` inputs or outputs,
+and ask for model-specific credentials such as `HF_TOKEN` only when the selected
+model requires them. Before launch, verify the selected namespace can create
+Jobs, dataset/result paths are visible from the pod, and PVC/mounted filesystem
+paths are proven to be mounted into the job container; an agent-host local path
+is not sufficient proof.
+
 ## SDK API
 
 ```python
