@@ -5,7 +5,7 @@ description: Visual ChangeNet for binary image classification and segmentation i
 license: Apache-2.0
 compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  author: Ramanathan Arunachalam, Arif Ahmed
+  author: NVIDIA Corporation
   version: '0.1'
 allowed-tools: Read Bash
 tags:

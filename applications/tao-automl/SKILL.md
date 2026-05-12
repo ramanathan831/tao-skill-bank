@@ -8,7 +8,7 @@ description: Run hyperparameter optimization (HPO) for NVIDIA TAO networks using
 license: Apache-2.0
 compatibility: Requires docker + nvidia-container-toolkit. Sub-skills declare additional requirements.
 metadata:
-  author: Ramanathan Arunachalam
+  author: NVIDIA Corporation
   version: '0.1'
 allowed-tools: Read Bash Write
 tags:

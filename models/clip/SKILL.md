@@ -4,7 +4,7 @@ description: CLIP vision-language model for image-text retrieval, zero-shot clas
 license: Apache-2.0
 compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  author: Ramanathan Arunachalam, Arif Ahmed, NVIDIA TAO Toolkit Team
+  author: NVIDIA Corporation
   version: '1.0'
 allowed-tools: Read Bash
 tags:

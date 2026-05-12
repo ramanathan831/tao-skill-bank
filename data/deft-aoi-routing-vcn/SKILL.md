@@ -4,7 +4,7 @@ description: Routes the weakest VCN samples (output of deft-aoi-rca-vcn) into pe
 license: Apache-2.0
 compatibility: Standalone — no external runtime requirements.
 metadata:
-  author: Sean Farhat
+  author: NVIDIA Corporation
   version: '0.1'
 allowed-tools: Read Bash
 tags:

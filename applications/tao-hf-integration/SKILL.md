@@ -17,7 +17,7 @@ description: >
 license: Apache-2.0
 compatibility: Requires Python 3.10+, NVIDIA driver, CUDA 13.0+, docker + nvidia-container-toolkit, an NGC API key (`docker login nvcr.io`), an HF_TOKEN, and access to the TAO Toolkit container images on `nvcr.io` for `tao-pytorch`, `tao-deploy`, and (optionally) `tao-dataservices` — Phase 0 asks the user for the exact image references and prepares them locally as `tao-pytorch-base:latest`, `tao-deploy-base:latest`, `tao-dataservices-base:latest`. Local clones of `tao-core`, `tao-pytorch`, `tao-deploy`, and `tao-dataservices` are required (the skill drives modifications across all four). All work is local-only — the skill never pushes to remote git, container registries, or HF Hub.
 metadata:
-  author: NVIDIA CORPORATION
+  author: NVIDIA Corporation
   version: '0.1'
 allowed-tools: Read Bash Write Edit Grep Glob WebFetch
 tags:

@@ -6,7 +6,7 @@ description: Performs deep Root Cause Analysis on NVIDIA TAO ChangeNet classific
 license: Apache-2.0
 compatibility: Requires docker + nvidia-container-toolkit. Sub-skills declare additional requirements.
 metadata:
-  author: Arif Ahmed
+  author: NVIDIA Corporation
   version: '0.1'
 allowed-tools: Read Bash
 tags:

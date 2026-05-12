@@ -6,7 +6,7 @@ license: Apache-2.0
 compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
   version: '0.1'
-  author: Arif Ahmed
+  author: NVIDIA Corporation
 allowed-tools: Read Bash
 tags:
 - point
