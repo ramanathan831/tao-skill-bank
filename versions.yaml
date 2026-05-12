@@ -14,9 +14,11 @@
 
 images:
   tao_toolkit:
-    pyt:        nvcr.io/nvidia/tao/tao-toolkit:6.26.3-pyt
-    cosmos_rl:  nvcr.io/nvidia/tao/tao-toolkit:6.26.3-cosmos-rl
-    vila:       nvcr.io/nvidia/tao/tao-toolkit:6.26.3-vila
+    pyt:                nvcr.io/nvidia/tao/tao-toolkit:6.26.3-pyt
+    cosmos_rl:          nvcr.io/nvidia/tao/tao-toolkit:6.26.3-cosmos-rl
+    cosmos_predict_2_5: nvcr.io/nvidia/tao/tao-toolkit:6.26.3-cosmos-predict-2.5
+    dataservices:       nvcr.io/nvidia/tao/tao-toolkit:6.26.3-dataservices
+    vila:               nvcr.io/nvidia/tao/tao-toolkit:6.26.3-vila
 
   metropolis_sdg:
     cosmos_anomalygen: nvcr.io/nv-metropolis-dev/metropolis-sdg/cosmos-anomalygen:1.0.3-006434bb.main
