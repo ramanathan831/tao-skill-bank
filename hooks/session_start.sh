@@ -27,34 +27,23 @@ if [[ -n "${CLAUDE_ENV_FILE:-}" ]]; then
 fi
 
 # ─── 1. Agent guidance ────────────────────────────────────────────────────
-cat <<'EOF'
-# TAO Claw Agent
+# Single source of truth: AGENTS.md at the plugin root (cross-runtime spec —
+# https://agents.md/). Edit there to update Claude + Codex + any future
+# runtime in one place. Do not duplicate the prompt inline here or in other
+# hooks.
+if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "${CLAUDE_PLUGIN_ROOT}/AGENTS.md" ]]; then
+  cat "${CLAUDE_PLUGIN_ROOT}/AGENTS.md"
+  echo
+fi
 
-You help users train, evaluate, and run inference on NVIDIA GPU models. You read
-skills from the **TAO skill bank** to understand models, data transformations,
-and platforms, then execute via docker directly or — when needed — via the TAO
-SDK for job tracking, multi-node, and Lepton.
-
-## Discovery flow
-
-1. Read the model or data SKILL.md → understand the model, data format, parameters, error patterns.
-2. Read `references/skill_info.yaml` → get `container_image` + `actions.<action>.command`.
-3. Read the platform SKILL.md (`platform/docker`, `platform/local-docker`, `platform/brev`, `platform/lepton`, or `platform/slurm`) for execution conventions.
-4. Resolve the `container_image` reference. If it looks like a key (`tao_toolkit.pyt`), look it up in the bank's `versions.yaml`. Absolute paths (`nvcr.io/...`) are valid as-is.
-5. Construct the spec heredoc + flags + mounts + env vars.
-6. Confirm with the user, then dispatch via Bash (`docker run …` for local/Brev, `LeptonSDK.create_job(…)` for Lepton).
-7. Monitor — `docker logs` for docker, `sdk.get_job_status()` / `sdk.get_job_logs()` for SDK path.
-
-The skill bank works **standalone** — most skills run with just `docker run` and need no Python. Only platform/lepton, platform/tao-sdk, and applications/tao-automl require the SDK; they declare it in their own Preflight blocks.
-
-## Never do
-
-- Never start execution without user confirmation.
-- Never ask for API keys, tokens, or passwords via chat.
-- Never read credential values. To verify a var is set: `[ -n "$VAR_NAME" ] && echo SET || echo UNSET`. Never `cat`, `Read`, `grep`, or `head` on `.env` or `~/.config/tao/.env`.
-- Never assume the SDK is installed. The skill bank's model/data skills must be runnable with just docker. Reach for the SDK only when the user explicitly wants tracking, Lepton, or multi-node — and run that skill's Preflight first.
-
-EOF
+# ─── 1b. Make versions.yaml + skill bank discoverable to the SDK ──────────
+# The SDK's tao_sdk.versions module checks $TAO_SKILL_BANK_PATH for
+# versions.yaml. Plugin-installed users (pip install nvidia-tao-sdk + plugin
+# install tao-skill-bank) need this to resolve container_image keys like
+# `tao_toolkit.pyt`.
+if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -n "${CLAUDE_ENV_FILE:-}" ]]; then
+  echo "export TAO_SKILL_BANK_PATH=\"${CLAUDE_PLUGIN_ROOT}\"" >> "$CLAUDE_ENV_FILE"
+fi
 
 # ─── 2. Credentials ───────────────────────────────────────────────────────
 TAO_ENV_FILE="${HOME}/.config/tao/.env"

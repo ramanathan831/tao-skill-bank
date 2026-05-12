@@ -1,7 +1,7 @@
 ---
 name: tao-inference
 version: "1.0.0"
-author: NVIDIA CORPORATION
+author: NVIDIA Corporation
 tools: Read Bash Write
 description: >
   Start, query, and stop a network-specific TAO inference microservice
@@ -14,7 +14,7 @@ description: >
 license: Apache-2.0
 compatibility: The inference service has no cloud-storage dependency — model weights come from the HuggingFace Hub (HF_TOKEN env var for gated models) or a local container path. Platform prerequisites are checked by each platform skill.
 metadata:
-  author: NVIDIA CORPORATION
+  author: NVIDIA Corporation
   version: '0.3'
 allowed-tools: Read Bash Write
 tags:
