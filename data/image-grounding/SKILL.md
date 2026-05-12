@@ -41,10 +41,18 @@ When a user wants to run this pipeline, walk through these steps:
 
 1. **Input JSONL**: Ask for the JSONL path. Each line must be one object like `{"image_path": "...", "caption": "..."}`. `image_path` can be absolute or relative.
 2. **Image root**: If any `image_path` values are relative, set `data.image_root` to the directory they should resolve from.
-3. **API access**: Confirm the user has one supported VLM endpoint:
-   - Gemini: requires `GOOGLE_API_KEY`.
-   - OpenAI-compatible endpoint, such as NIM or vLLM: requires `base_url`, `model_name`, and `api_key`.
-   If the user has no endpoint and wants to self-host, point them to the `applications/tao-inference` skill. That workflow starts a local TAO inference microservice with an OpenAI-compatible API. Before promising a specific model, check `applications/tao-inference/references/service.yaml` for `valid_network_arch_config_basenames`. If the user has no endpoint and does not want to set one up, stop and help resolve API access first.
+3. **API access**: Ask the user which VLM endpoint they want to use. Present these five options and act on the choice:
+   1. **Gemini** — set `vlm.backend: "gemini"`; require `GOOGLE_API_KEY` (env var or `vlm.gemini.api_key`).
+   2. **NIM** (e.g. `https://inference-api.nvidia.com/v1`) — set `vlm.backend: "openai"`; collect `base_url`, `model_name`, and `api_key`.
+   3. **TAO inference microservice** (self-hosted, OpenAI-compatible). Confirm whether the server is already running:
+      - **Running** — collect `base_url`, `model_name`, and (optionally) `api_key`; set `vlm.backend: "openai"`.
+      - **Not running** — guide the user through the `applications/tao-inference` skill, which stands up a local TAO inference microservice with an OpenAI-compatible API. Before promising a specific model, check `applications/tao-inference/references/service.yaml` for `valid_network_arch_config_basenames`. Once the server is up, collect `base_url`, `model_name`, and (optionally) `api_key`; set `vlm.backend: "openai"`.
+   4. **vLLM** (self-hosted, OpenAI-compatible). Confirm whether the server is already running:
+      - **Running** — collect `base_url`, `model_name`, and (optionally) `api_key`; set `vlm.backend: "openai"`.
+      - **Not running** — follow [references/vllm_server.md](references/vllm_server.md) to install and launch a vLLM server, then collect `base_url`, `model_name`, and (optionally) `api_key`; set `vlm.backend: "openai"`.
+   5. **Custom** (any other OpenAI-compatible endpoint) — set `vlm.backend: "openai"`; collect `base_url`, `model_name`, and (optionally) `api_key`.
+
+   If the user has no endpoint and does not want to set one up, stop and help resolve API access first.
 4. **Workflow steps**: Choose one of:
    - Full pipeline: `["0", "1"]`
    - Expression extraction only: `["0"]`
