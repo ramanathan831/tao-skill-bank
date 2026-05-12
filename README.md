@@ -4,6 +4,10 @@ Portable agent skills for training, evaluating, and running inference on NVIDIA 
 
 ## Install
 
+The skill bank works with both Claude Code and Codex. Pick the runtime you use.
+
+### Claude Code
+
 In a Claude Code session, add the marketplace and install a plugin. Two choices:
 
 ```
@@ -13,7 +17,34 @@ In a Claude Code session, add the marketplace and install a plugin. Two choices:
 /plugin install deft-aoi-loop-plugin@tao-skill-bank   # just the DEFT AOI loop
 ```
 
-That's it — no `git clone`, no `pip install`. The `tao-skills` plugin bundles all 56 skills (every model, data, platform, and application). If you want only the focused DEFT loop bundle, install `deft-aoi-loop-plugin` instead.
+That's it — no `git clone`, no `pip install`. The `tao-skills` plugin bundles all 56 skills (every model, data, platform, and application). If you want only the focused DEFT loop bundle, install `deft-aoi-loop-plugin` instead. The plugin's [`SessionStart`](hooks/session_start.sh) hook loads the [`AGENTS.md`](AGENTS.md) identity at the start of every session.
+
+### Codex
+
+Codex setup has **two independent pieces** — the plugin (which surfaces the skills to Codex) and `AGENTS.md` (which loads the agent identity). You need both for parity with Claude Code.
+
+#### 1. Install the plugin
+
+**Option A — VS Code Codex extension (recommended for VS Code users).** Open the extension's plugin UI, add the marketplace URL, and install `tao-skill-bank` — all from the UI. Most discoverable, one click.
+
+**Option B — CLI + TUI.** Add the marketplace from the shell, then install the plugin from inside the Codex TUI (no CLI `install` subcommand exists yet — [openai/codex#17431](https://github.com/openai/codex/issues/17431)):
+
+```bash
+codex plugin marketplace add ssh://git@gitlab-master.nvidia.com:12051/nvidia-tao-toolkit/tao-skills-external.git
+codex                # opens TUI
+/plugins             # then: select tao-skill-bank → Install plugin
+```
+
+Either path installs the bundle to `~/.codex/plugins/cache/<marketplace>/tao-skill-bank/<version>/` (the `<marketplace>` segment comes from the `name` field in `.agents/plugins/marketplace.json`).
+
+#### 2. Load the agent identity (`AGENTS.md`)
+
+The plugin install does **not** auto-load [`AGENTS.md`](AGENTS.md) — Codex's `AGENTS.md` discovery walks down from the project root, not into the plugin cache (see [openai/codex#16430](https://github.com/openai/codex/issues/16430) for why plugin-bundled `SessionStart` hooks don't fix this yet). Pick one:
+
+- **Per-project (preferred)**: `git clone` this repo and launch `codex` from inside the clone. Codex auto-loads `AGENTS.md` from the project root per the [agents.md](https://agents.md/) cross-runtime spec.
+- **Globally** (one-time copy): `cp ~/.codex/plugins/cache/<marketplace>/tao-skill-bank/<version>/AGENTS.md ~/.codex/AGENTS.md`. The identity then loads in every Codex session, anywhere.
+
+Once Codex starts honoring plugin-bundled hooks, the identity will install automatically alongside the plugin — until then, this manual step is needed.
 
 ### Credentials
 
@@ -33,6 +64,8 @@ The TAO SDK is **opt-in** and installed lazily. Most skills (any model or data s
 
 ### Updating
 
+**Claude Code:**
+
 ```
 /plugin marketplace update tao-skill-bank
 /reload-plugins
@@ -45,6 +78,14 @@ rm -rf ~/.claude/plugins/cache/tao-skill-bank
 ```
 
 then re-run `/plugin install`.
+
+**Codex:**
+
+```bash
+codex plugin marketplace upgrade tao-skill-bank
+```
+
+If you copied `AGENTS.md` to `~/.codex/AGENTS.md`, re-copy from the upgraded plugin cache to pick up identity changes.
 
 ## Getting started (5 minutes)
 
