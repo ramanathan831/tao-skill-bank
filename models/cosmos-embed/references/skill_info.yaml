@@ -1,5 +1,5 @@
 network_arch: cosmos-embed
-container_image: cosmos-embed1:latest
+container_image: tao_toolkit.cosmos_embed
 required_credentials:
 - HF_TOKEN
 data_format: msrvtt

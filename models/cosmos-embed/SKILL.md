@@ -5,13 +5,16 @@ description: >-
   fine-tuning. Use when the user asks to "fine-tune Cosmos-Embed1", "run cosmos-embed inference", "export Cosmos-Embed1",
   "embed videos", or "search videos with text".
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit, a built `cosmos-embed1:latest` image from the Cosmos-Embed1 source tree, and a HuggingFace token when downloading pretrained `nvidia/Cosmos-Embed1-*` weights.
+compatibility: Requires docker + nvidia-container-toolkit, the published Cosmos-Embed TAO container from versions.yaml, and a HuggingFace token when downloading pretrained `nvidia/Cosmos-Embed1-*` weights.
 metadata:
   author: NVIDIA Corporation
   version: "0.1"
 allowed-tools: Read Bash
 tags:
 - video
+- vision-language
+- vlm
+- multimodal
 - retrieval
 - embedding
 - cosmos
@@ -26,11 +29,22 @@ Container image and per-action commands are in `references/skill_info.yaml`. Com
 
 ## Quick Start
 
-Build the local image from the Cosmos-Embed1 source tree before running actions:
+Use the published Cosmos-Embed container declared by `references/skill_info.yaml`
+and resolved through `versions.yaml`. Do not build from the private
+Cosmos-Embed1 source tree for normal skill use; build from source only when
+developing the container itself.
 
 ```bash
-COSMOS_EMBED_REPO="${COSMOS_EMBED_REPO:-$HOME/cosmos-embed1}"
-docker build -t cosmos-embed1:latest "$COSMOS_EMBED_REPO"
+TAO_SKILL_BANK_PATH="${TAO_SKILL_BANK_PATH:-$PWD}"
+COSMOS_EMBED_IMAGE="${COSMOS_EMBED_IMAGE:-$(
+  python "$TAO_SKILL_BANK_PATH/scripts/resolve_tao_image.py" \
+    --skill-bank "$TAO_SKILL_BANK_PATH" \
+    --model cosmos-embed \
+    --action train \
+    --format json |
+  python -c 'import json,sys; print(json.load(sys.stdin)["image"])'
+)}"
+docker pull "$COSMOS_EMBED_IMAGE"
 ```
 
 Expected local workspace layout:
@@ -56,7 +70,15 @@ workspace/
 Use these Docker options for all actions unless the local Docker/platform skill gives a stricter environment-specific command:
 
 ```bash
-COSMOS_EMBED_IMAGE="${COSMOS_EMBED_IMAGE:-cosmos-embed1:latest}"
+TAO_SKILL_BANK_PATH="${TAO_SKILL_BANK_PATH:-$PWD}"
+COSMOS_EMBED_IMAGE="${COSMOS_EMBED_IMAGE:-$(
+  python "$TAO_SKILL_BANK_PATH/scripts/resolve_tao_image.py" \
+    --skill-bank "$TAO_SKILL_BANK_PATH" \
+    --model cosmos-embed \
+    --action train \
+    --format json |
+  python -c 'import json,sys; print(json.load(sys.stdin)["image"])'
+)}"
 RUN_ROOT="${RUN_ROOT:-$PWD}"
 DOCKER_COMMON=(
   --rm --gpus all --ipc=host --network=host
@@ -188,10 +210,27 @@ Keep `model.network.embed_dim`, `model.input_hw`, and `model.network.spatial_res
 | `train.max_iter` | Main training length. Use `1` only for smoke testing. |
 | `train.optim.optim` | `fused_adamw` is faster when available; `adamw` is safer for smoke and portability. |
 | `model.lora.enabled` | Enables LoRA. Set `model.network.visual_encoder.transformer_engine=false` when LoRA is on. |
+| `model.lora.lora_rank` | LoRA rank. Start with `8`; try `4`, `8`, or `16` for manual or AutoML-style sweeps. |
+| `model.lora.lora_alpha` | LoRA scaling factor. Start with `16`; keep near `2 * lora_rank` unless experiments show otherwise. |
+| `model.lora.lora_dropout` | LoRA dropout. Start with `0.1`; sweep `0.0`, `0.05`, and `0.1` for small datasets. |
+| `model.lora.bias` | Bias policy: `none`, `all`, or `lora_only`. Keep `none` unless intentionally training biases. |
+| `model.lora.use_rslora` / `use_dora` | Optional LoRA variants. Enable one at a time and record the setting with the checkpoint. |
+| `model.lora.target_modules` | Optional module-name patterns for LoRA injection. Leave empty for the default ViT + Q-Former attention/MLP targets. |
+| `model.lora.modules_to_save` | Optional modules to keep fully trainable alongside LoRA. Leave empty unless preserving a task-specific head. |
 | `evaluate.load_dataset_pkl` / `save_dataset_pkl` | Cache evaluation embeddings. |
 | `inference.load_dataset_pkl` / `save_dataset_pkl` | Cache the search database for repeated retrieval. |
 | `export.mode` | `video`, `text`, `combined`, or `huggingface`. |
 | `export.on_cpu` | Recommended for export to avoid device mismatch issues. |
+
+### LoRA and AutoML Notes
+
+For parameter-efficient fine-tuning, set `model.lora.enabled=true` and keep
+`model.network.visual_encoder.transformer_engine=false`; TAO Core's
+Cosmos-Embed1 config notes that PEFT cannot inject adapters into Transformer
+Engine layers. Treat the LoRA fields above as the first candidate parameters
+for manual tuning or AutoML-style search before unfreezing larger model blocks.
+Avoid changing `target_modules` or `modules_to_save` unless the user explicitly
+needs custom adapter placement.
 
 ## S3 Staging
 
