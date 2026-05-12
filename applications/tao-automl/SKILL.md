@@ -41,20 +41,24 @@ Multi-node per rec works on Lepton, SLURM, and K8s (each rec is an N-node distri
 
 ## Preflight
 
-This skill needs the TAO SDK and `nvidia-tao-automl`. Check before proceeding:
+This skill needs `nvidia-tao-automl` (which pulls `nvidia-tao-sdk` as a transitive dep). Neither package is published to public PyPI yet — install directly from the NVIDIA GitLab repo using a `pip` direct-URL with the platform extra you want:
 
 ```bash
-python -c "import tao_sdk" 2>/dev/null || {
-  echo "MISSING: nvidia-tao-sdk not installed. Run:"
-  echo "  pip install nvidia-tao-sdk[all]"
-  exit 1
-}
 python -c "import tao_automl" 2>/dev/null || {
-  echo "MISSING: nvidia-tao-automl not installed. Run:"
-  echo "  pip install -e ~/tao-automl[dev,llm]   --extra-index-url https://pypi.nvidia.com"
+  REPO='git+https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-automl.git'
+  echo "MISSING: nvidia-tao-automl not installed. Pick the platform extra you need:"
+  echo "  pip install \"nvidia-tao-automl[lepton] @ \$REPO\"      # DGX Cloud / Lepton"
+  echo "  pip install \"nvidia-tao-automl[slurm] @ \$REPO\"       # on-prem SLURM cluster"
+  echo "  pip install \"nvidia-tao-automl[kubernetes] @ \$REPO\"  # K8s (EKS / GKE / on-prem)"
+  echo "  pip install \"nvidia-tao-automl[docker] @ \$REPO\"      # local Docker daemon"
+  echo "  pip install \"nvidia-tao-automl[brev] @ \$REPO\"        # Brev GPU instances"
+  echo "  pip install \"nvidia-tao-automl[all] @ \$REPO\"         # all 5 platforms"
+  echo "  REPO=$REPO"
   exit 1
 }
 ```
+
+(For local development against a checkout: `pip install -e '~/tao-automl[lepton]'` from the cloned repo.)
 
 If missing, the agent prompts the user to authorize the install via Bash, then re-runs the preflight before continuing.
 
@@ -80,19 +84,20 @@ Before running AutoML:
    `custom.train_dataset.annotation_path=/lustre/.../annotations.json` and
    `custom.train_dataset.media_path=/lustre/.../videos.tar.gz`; do not force
    both files to share one parent directory.
-3. **Skill bank available**: lives at `~/tao-skills-external`. **CRITICAL**: The runner raises `ValueError: No skill config found for '<network>'` if the skill bank is not set. You MUST set it before importing the runner:
+3. **Skill bank available**: the runner takes an explicit `skill_dir` — the **absolute path to a model directory** inside the skill bank, e.g. `<bank-root>/models/dino`. No global env var; pass per run. The agent already knows the bank root (it loaded this SKILL.md from there) — use that same root. Common locations:
+   - cloned standalone: `~/tao-skills-external/` (or wherever the user cloned).
+   - Claude Code plugin: `~/.claude/plugins/cache/tao-skill-bank/<version>/`.
+   - Codex plugin: `~/.codex/plugins/cache/<marketplace>/tao-skill-bank/<version>/`.
+   - submodule inside a cloned SDK: `<sdk>/tao-skills-external/`.
    ```python
-   import os
-   os.environ["TAO_SKILL_BANK_PATH"] = os.path.expanduser("~/tao-skills-external")
-   ```
-   Or in bash:
-   ```bash
-   export TAO_SKILL_BANK_PATH=~/tao-skills-external
+   from pathlib import Path
+   SKILL_BANK = Path("<bank-root>")        # substitute the actual path
+   skill_dir  = SKILL_BANK / "models" / network_arch
    ```
    The bank structure is:
    ```
    tao-skills-external/
-   ├── applications/         # workflow configs
+   ├── applications/         # workflow configs (this skill)
    ├── models/               # per-network skill packages
    │   ├── <network>/
    │   │   ├── SKILL.md
@@ -100,45 +105,32 @@ Before running AutoML:
    │   │   │   └── train.schema.json          # REQUIRED AutoML gate
    │   │   └── references/
    │   │       ├── skill_info.yaml             # actions, data_sources, container image
-   │   │       └── spec_template_train.yaml    # default training spec (REQUIRED by AutoML)
-   │   ├── <another-network>/
+   │   │       └── spec_template_train.yaml    # default training spec (recommended)
    │   └── ...
    ├── data/
    └── platform/
    ```
-   **CRITICAL**: AutoML requires both `references/spec_template_train.yaml` and a packaged generated train dataclass schema. `SkillBank.get_default_specs(network, "train")` loads `$TAO_SKILL_BANK_PATH/models/<network>/references/spec_template_train.yaml`; if missing, the runner raises `ValueError: No default train specs found`. `models/<network>/schemas/train.schema.json` must exist and parse as JSON. It is the AutoML support gate because it defines `automl_enabled` parameters, defaults, ranges, options, weights, and popular metadata. The plugin workflow must not expect `~/tao-core` to exist at runtime; schemas are generated during skill-bank maintenance and shipped with the plugin. If the packaged train schema is missing, do not run AutoML for that model.
-4. **Conda environment**: Use the `tao_sdk` conda environment which has `tao-sdk` pre-installed:
-   ```bash
-   conda activate tao_sdk
-   # or prefix commands:
-   conda run -n tao_sdk python3 my_script.py
-   ```
-   For unbuffered output (recommended for long-running AutoML), use the Python binary directly:
-   ```bash
-   PYTHONPATH=~/tao-sdk:~/tao-automl/src PYTHONUNBUFFERED=1 ~/miniconda3/envs/tao_sdk/bin/python my_script.py
-   ```
-5. **`nvidia-tao-automl` installed** (editable dev install into `tao_sdk` env):
-   ```bash
-   conda activate tao_sdk
-   # Core only (classical algorithms)
-   pip install -e "~/tao-automl[dev]" --extra-index-url https://pypi.nvidia.com
+   **CRITICAL**: AutoML requires a packaged generated train dataclass schema at `<bank-root>/models/<network>/schemas/train.schema.json`. The schema must exist and parse as JSON — it's the AutoML support gate because it defines `automl_enabled` parameters, defaults, ranges, options, weights, and popular metadata. Schemas are generated during skill-bank maintenance and shipped with the plugin; the runtime must not expect `~/tao-core` to exist. If the packaged train schema is missing, do not run AutoML for that model.
 
-   # With LLM/agentic algorithms
-   pip install -e "~/tao-automl[dev,llm]" --extra-index-url https://pypi.nvidia.com
-
-   # Everything
-   pip install -e "~/tao-automl[all,dev]" --extra-index-url https://pypi.nvidia.com
+   `references/spec_template_<action>.yaml` is required for **non-TAO-Core models** (cosmos-rl, clip, etc.) — without it the runner has no defaults and the trial spec will be missing keys. For **TAO Core / Hydra-based models** (DINO, BEVFusion, etc.) the template is optional; Hydra fills container-side defaults at runtime.
+4. **`nvidia-tao-automl` installed** with the platform extra you want. Not on public PyPI yet — install from the GitLab repo via `pip` direct-URL:
+   ```bash
+   REPO='git+https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-automl.git'
+   pip install "nvidia-tao-automl[lepton] @ $REPO"        # or [slurm], [kubernetes], [docker], [brev], [all]
+   # With LLM/agentic algorithms:
+   pip install "nvidia-tao-automl[lepton,llm] @ $REPO"
    ```
+   For local development against a checkout: `pip install -e '~/tao-automl[lepton]'`.
 
 Verify setup:
 ```bash
-conda run -n tao_sdk python3 -c "from tao_automl.runner import AutoMLRunner; print('OK')"
+python3 -c "from tao_automl.runner import AutoMLRunner; print('OK')"
 
 # Verify LLM features (optional)
-conda run -n tao_sdk python3 -c "from tao_automl.brain.llm_brain import LLMBrain; print('LLM OK')"
+python3 -c "from tao_automl.brain.llm_brain import LLMBrain; print('LLM OK')"
 
 # Verify WandB (optional)
-conda run -n tao_sdk python3 -c "import wandb; print('WandB OK')"
+python3 -c "import wandb; print('WandB OK')"
 ```
 
 ---
@@ -204,11 +196,14 @@ Extract these fields for a default run:
 | `image` | Yes | `"nvcr.io/..."` | Resolve the default with `scripts/resolve_tao_image.py --model <network_arch> --action train`, show it to the user, and require confirmation or `image=<override>` before creating the AutoML runner. |
 | `metric` | No | `"<metric_name>"` | Use the model skill recommendation or ask if unclear. Do not choose model-specific metrics from this AutoML skill. |
 | `direction` | No | `"minimize"` or `"maximize"` | **Only needed if your metric name doesn't contain `"loss"` AND you want to minimize, or contains `"loss"` AND you want to maximize.** Otherwise the implicit "contains 'loss' → minimize, else maximize" rule applies. |
-| `skill_bank_path` | Yes (if not set) | `"~/tao-skills-external"` | Check if `TAO_SKILL_BANK_PATH` env var is set. If not, ask the user for the path. Default: `~/tao-skills-external`. The runner raises `ValueError: No skill config found` without it. |
+| `skill_dir` | Yes | `"<bank-root>/models/dino"` | Absolute path to the model directory in the skill bank. Combine the user's `network_arch` with the bank root the agent loaded this SKILL.md from. Passed explicitly to `AutoMLRunner(skill_dir=...)` — no env-var fallback. |
 | `long_running_enabled` | Yes | `true` | Ask during launch intake. If enabled, keep the agent attached and emit status until completion. Default: enabled. |
 | `status_interval_minutes` | Yes | `5` | Ask during launch intake. Default: 5 minutes. |
 | required credentials | Platform/model-dependent | `SLURM_USER`, `SLURM_HOSTNAME`, `SSH_KEY_PATH` or `SSH_AUTH_SOCK`, `HF_TOKEN` | First filter platform credentials with `scripts/list_tao_platforms.py --platform <platform>`, satisfy required credential groups, then add selected-model credentials. Do not ask for unrelated platform credentials. |
 | compute shape | Model-dependent | `num_gpus=4`, `num_nodes=1` | Ask only for model-required hardware fields that are not provided by the platform/default profile. |
+| `llm_endpoint` | **Yes** (for `llm`/`hybrid`/`autoresearch`) | `"https://inference-api.nvidia.com"` | **MUST prompt.** The code default `https://integrate.api.nvidia.com/v1` returns 404. Always ask for and pass explicitly. |
+| `llm_model` | **Yes** (for `llm`/`hybrid`/`autoresearch`) | `"gcp/google/gemini-3.1-pro-preview"` | **MUST prompt.** Ask which model to use. Default: `meta/llama-3.1-70b-instruct` via NIM. |
+| `llm_api_key` | **Yes** (for `llm`/`hybrid`/`autoresearch`) | `"nvapi-..."` or `"sk-..."` | **MUST prompt** if `NVIDIA_API_KEY` / `AUTOML_LLM_API_KEY` env vars are not set. |
 
 Use these quick-start AutoML defaults without asking:
 
@@ -291,8 +286,9 @@ network has its own set; never hardcode them in this workflow skill.
 Quick-start runner shape:
 
 ```python
+# network_arch is NOT a runner.run() arg anymore; it's encoded in
+# skill_dir which was passed to AutoMLRunner(skill_dir=...) at construction.
 result = runner.run(
-    network_arch=network_arch,
     train_dataset_uri=TRAIN_DATASET_URI,
     automl_settings={
         "algorithm": "bayesian",
@@ -334,7 +330,7 @@ If the runner does not receive valid LLM settings, the LLM brain may silently fa
 
 **MANDATORY: Read the model skill before generating the script.**
 
-AutoML runs training. Before generating any AutoML script, read the selected model skill at `~/tao-skills-external/models/<network>/SKILL.md`. The model skill contains all model-specific knowledge:
+AutoML runs training. Before generating any AutoML script, read `<bank-root>/models/<network>/SKILL.md` (where `<bank-root>` is wherever the agent loaded this SKILL.md from). The model skill contains all model-specific knowledge:
 
 - **Training Requirements** — dataset type, formats, monitoring metric, required dataset URIs to prompt for, required user prompts (data format, num_classes, etc.), and mandatory `spec_overrides`. Prompt the user for every required field. Apply mandatory spec_overrides exactly.
 - **Per-Action Dataset Requirements** — table mapping each action to its spec keys, data source, expected files, and whether the field is a list. Use this table to construct the correct data source `spec_overrides` for the requested action. If the model's Typical Spec Overrides mark data sources as "mandatory", construct them from this table and the user's dataset URIs.
@@ -346,7 +342,7 @@ Do NOT hardcode model-specific knowledge in the AutoML script without reading th
 
 **MANDATORY: No model-specific constants in this AutoML skill.**
 
-The AutoML skill must not define model-specific hyperparameter names, ranges, defaults, metric names, dataset layouts, archive names, class-count rules, spec override keys, container images, checkpoint quirks, or custom metric regexes. Hyperparameter metadata belongs in `~/tao-skills-external/models/<network>/schemas/train.schema.json`; model-specific runtime guidance belongs in the model skill's **Training Requirements**, **Typical Spec Overrides**, **AutoML / HPO Notes**, and **Error Patterns** sections. This skill may describe how to read and apply those sources, but not the concrete per-model values.
+The AutoML skill must not define model-specific hyperparameter names, ranges, defaults, metric names, dataset layouts, archive names, class-count rules, spec override keys, container images, checkpoint quirks, or custom metric regexes. Hyperparameter metadata belongs in `<bank-root>/models/<network>/schemas/train.schema.json`; model-specific runtime guidance belongs in the model skill's **Training Requirements**, **Typical Spec Overrides**, **AutoML / HPO Notes**, and **Error Patterns** sections. This skill may describe how to read and apply those sources, but not the concrete per-model values.
 
 **MANDATORY: Timestamped workspace folders.**
 
@@ -431,28 +427,27 @@ These use a large language model to reason about hyperparameter choices. They re
 ### Minimal Example
 
 ```python
-import os
 from datetime import datetime
+from pathlib import Path
 
-# MANDATORY: Set skill bank path before importing the runner.
-# Without this, runner.run() raises ValueError: No skill config found.
-os.environ["TAO_SKILL_BANK_PATH"] = os.path.expanduser("~/tao-skills-external")
-
-# Pick whichever SDK matches where you want recs to run. AutoMLRunner is
-# platform-agnostic — it just calls create_job / get_job_status on the SDK.
-from tao_sdk.platforms.lepton import LeptonSDK         # DGX Cloud Lepton
-# from tao_sdk.platforms.brev import BrevSDK            # Brev instance per rec
-# from tao_sdk.platforms.slurm import SlurmSDK          # SLURM cluster
-# from tao_sdk.platforms.kubernetes import KubernetesSDK  # k8s (EKS / GKE / etc.)
-# from tao_sdk.platforms.docker import DockerSDK        # local Docker daemon
+# Pick whichever SDK matches where you want trials to run. AutoMLRunner is
+# platform-agnostic — none of the 5 SDKs is a default; the user picks.
+from tao_sdk.platforms.lepton     import LeptonSDK     # DGX Cloud Lepton
+# from tao_sdk.platforms.slurm      import SlurmSDK      # SLURM cluster
+# from tao_sdk.platforms.kubernetes import KubernetesSDK # K8s (EKS / GKE / on-prem)
+# from tao_sdk.platforms.docker     import DockerSDK     # local Docker daemon
+# from tao_sdk.platforms.brev       import BrevSDK       # Brev GPU instances
 from tao_automl.runner import AutoMLRunner
 
 TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-sdk = LeptonSDK()                     # reads platform credentials from env
-runner = AutoMLRunner(sdk)
+sdk = LeptonSDK()                                # reads platform credentials from env
+runner = AutoMLRunner(
+    sdk=sdk,
+    skill_dir=SKILL_BANK / "models" / network_arch,           # SKILL_BANK = Path("<bank-root>")
+    action="train",
+)
 result = runner.run(
-    network_arch=network_arch,
     train_dataset_uri=train_dataset_uri,
     automl_settings={
         "algorithm": algorithm,
@@ -460,6 +455,11 @@ result = runner.run(
         "automl_max_recommendations": max_recommendations,
     },
     workspace_path=f"./automl_workspace/{TIMESTAMP}",  # timestamped to avoid collisions
+    # Platform-specific create_job kwargs go here as **platform_kwargs.
+    # See each platform's SKILL.md for the kwargs each accepts.
+    gpu_count=8,
+    num_nodes=1,
+    dedicated_node_group="my-h100-pool",          # Lepton-specific
 )
 ```
 
@@ -475,17 +475,12 @@ def my_eval(rec, train_job_id):
 
 result = runner.run(
     # --- Required ---
-    network_arch=network_arch,
     train_dataset_uri=train_dataset_uri,
 
     # --- Dataset + resources ---
     eval_dataset_uri=eval_dataset_uri,
     base_checkpoint="",
-    image=image,                                      # only set if the model skill or user requires it
-    backend_details={                                # platform-specific
-        "backend_type": "lepton",
-        "resource_shape": "gpu.h100-sxm",
-    },
+    image=image,                                      # only set to override skill_info's container_image
 
     # --- AutoML config ---
     automl_settings={
@@ -504,18 +499,21 @@ result = runner.run(
     workspace_path=f"./my_experiment/{TIMESTAMP}",   # ALWAYS timestamp to avoid collisions
     resume=False,                                    # True → recovers in-flight jobs
 
-    # --- WandB tracking (optional) ---
-    wandb_config={
-        "enabled": True,
-        "project": "my-tao-experiments",
-        "api_key": "your-wandb-api-key",             # or set WANDB_API_KEY env var
-    },
-
     # --- Hooks (all optional, opt-in) ---
     metric_extractor=None,                           # custom log→metric parser
     eval_fn=my_eval,                                 # post-training real-metric eval
     on_recommendation=lambda r: print(f"launching rec {r.id}: {r.specs}"),
     on_result=lambda r, metric, status: print(f"rec {r.id} {status} → {metric}"),
+
+    # --- Platform create_job kwargs (forwarded as **platform_kwargs) ---
+    # Lepton:     dedicated_node_group, resource_shape, num_nodes, gpu_count
+    # SLURM:      partition, account, num_nodes, gpu_count
+    # Kubernetes: namespace, node_selector, tolerations, num_nodes, gpu_count
+    # Docker:     mounts, gpu_count
+    # Brev:       instance_id, gpu_type, gpu_count
+    gpu_count=8,
+    num_nodes=1,
+    dedicated_node_group="my-h100-pool",
 )
 ```
 
@@ -639,7 +637,8 @@ AutoML optionally integrates with [Weights & Biases](https://wandb.ai) to track 
 
 ```bash
 pip install wandb
-# or: pip install nvidia-tao-automl[wandb]
+# or (when reinstalling tao-automl with the wandb extra):
+#   pip install "nvidia-tao-automl[wandb] @ git+https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-automl.git"
 ```
 
 ### How it works
@@ -926,15 +925,15 @@ Check common issues:
 
 ## Model-Specific Notes
 
-Model-specific notes do not belong in this AutoML skill. For every requested `network_arch`, read `~/tao-skills-external/models/<network>/<network>.md` and use its **Training Requirements**, **Per-Action Dataset Requirements**, **Typical Spec Overrides**, **AutoML / HPO Notes**, and **Error Patterns** sections as the source of truth.
+Model-specific notes do not belong in this AutoML skill. For every requested `network_arch`, read `<bank-root>/models/<network>/SKILL.md` and use its **Training Requirements**, **Per-Action Dataset Requirements**, **Typical Spec Overrides**, **AutoML / HPO Notes**, and **Error Patterns** sections as the source of truth.
 
 ---
 
 ## Common Pitfalls
 
-1. **`TAO_SKILL_BANK_PATH` not set.** The #1 first-run error. The runner raises `ValueError: No skill config found for '<network>'`. Fix: `os.environ["TAO_SKILL_BANK_PATH"] = os.path.expanduser("~/tao-skills-external")` before importing the runner. ALWAYS include this in generated scripts.
+1. **`skill_dir` not passed (or wrong path).** `AutoMLRunner(skill_dir=...)` requires an absolute path to a model directory inside the skill bank. The runner raises `FileNotFoundError: skill_info.yaml not found at <skill_dir>/references/skill_info.yaml` if the path is wrong. Use the same bank root the agent loaded this SKILL.md from; combine with `models/<network>/`.
 2. **Wrong LLM endpoint (404).** The code hardcodes `https://integrate.api.nvidia.com/v1` as the default, which returns 404. The correct endpoint is `https://inference-api.nvidia.com`. ALWAYS pass `llm_endpoint` explicitly in `automl_settings`. The LLM brain silently falls back to random sampling on 404, so you won't see a crash — just useless random configs.
-3. **Model-specific training failures (data format, missing datasets, invalid params).** Each network has unique training requirements. ALWAYS read `~/tao-skills-external/models/<network>/<network>.md` — the "Training Requirements" and "Error Patterns" sections document model-specific failure modes that apply to AutoML recs too.
+3. **Model-specific training failures (data format, missing datasets, invalid params).** Each network has unique training requirements. ALWAYS read `<bank-root>/models/<network>/SKILL.md` — the "Training Requirements" and "Error Patterns" sections document model-specific failure modes that apply to AutoML recs too.
 4. **Workspace path collisions.** Running the same script twice overwrites the previous experiment. Always include a timestamp: `workspace_path=f"./automl_workspace/{TIMESTAMP}"` where `TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")`.
 5. **Using a weak proxy metric.** The brain can optimize a metric that does not reflect real task quality. Use the metric recommended by the model skill or provide `eval_fn`.
 6. **Implicit direction trap.** If the metric name does not imply the desired direction, set `direction` explicitly.
@@ -943,7 +942,7 @@ Model-specific notes do not belong in this AutoML skill. For every requested `ne
 9. **Rec never reports a metric.** Check the model skill's metric-emission requirements and custom extractor guidance.
 10. **Parallel Bayesian arms.** Bayesian is inherently sequential. If you want parallelism, use `asha`. If you use multiple `AutoMLRunner` instances, give each its own `<SDK>(state_file=...)` (e.g., `LeptonSDK(state_file=...)`, `KubernetesSDK(state_file=...)`) to avoid SQLite write races on the SDK's job store.
 11. **LLM brain returning random configs.** If every LLM recommendation looks random, the LLM endpoint is probably failing silently. Check the logs for "LLM call failed" warnings. Verify your API key and endpoint are correct. Common cause: using the wrong endpoint URL (see pitfall #2).
-12. **`openai` package not installed.** The `llm`, `hybrid`, and `autoresearch` algorithms require the `openai` Python package. Install with `pip install openai` or `pip install nvidia-tao-automl[llm]`.
+12. **`openai` package not installed.** The `llm`, `hybrid`, and `autoresearch` algorithms require the `openai` Python package. Install with `pip install openai` or reinstall tao-automl with the `[llm]` extra (see Preflight for the `git+https://...` direct-URL form).
 13. **WandB not logging.** Ensure `wandb_config={"enabled": True}` is passed and either `api_key` is in the config or `WANDB_API_KEY` is set in the environment. Check logs for "WandB initialized" confirmation.
 14. **`No default train specs found` for a network.** The skill bank model directory is missing `references/spec_template_train.yaml`, or the packaged AutoML support check is missing `schemas/train.schema.json`. Generate both during skill-bank maintenance and ship them with the plugin; do not expect `~/tao-core` to exist on the runtime machine.
 15. **`conda run` buffers output.** When running AutoML via `conda run -n tao_sdk python script.py`, all output is buffered until completion. Use `PYTHONUNBUFFERED=1 ~/miniconda3/envs/tao_sdk/bin/python script.py` for real-time output.

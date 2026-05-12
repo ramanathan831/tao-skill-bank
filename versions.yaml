@@ -1,4 +1,4 @@
-# versions.yaml — single source of truth for TAO container images and SDK wheels.
+# versions.yaml — single source of truth for TAO container images.
 #
 # Skills reference these by dotted key in their `references/skill_info.yaml`
 # `container_image` field. CI bumps RC versions by editing this file; downstream
@@ -11,6 +11,12 @@
 # Use absolute paths for experimental images, third-party registries, or one-off
 # skills not worth adding here. Add to this file when the image will be used by
 # more than one skill OR will be bumped on a release cadence.
+#
+# Wheels are NOT pinned here. `nvidia-tao-sdk` and `nvidia-tao-automl` aren't
+# published to public PyPI yet; each skill's Preflight section declares the
+# explicit `pip install "...[<extra>] @ git+https://..."` direct-URL command
+# it needs. This keeps install instructions co-located with the skills that
+# require them and avoids a central pin that resolves to a non-existent wheel.
 
 images:
   tao_toolkit:
@@ -24,11 +30,3 @@ images:
 
   metropolis_sdg:
     cosmos_anomalygen: nvcr.io/nv-metropolis-dev/metropolis-sdg/cosmos-anomalygen:1.0.3-006434bb.main
-
-wheels:
-  # Single SDK wheel with extras. The `nvidia-tao-sdk` package consolidates
-  # what used to be three wheels (tao-sdk, tao-sdk-lepton, tao-sdk-brev).
-  tao_sdk:        nvidia-tao-sdk==0.2.0
-  tao_sdk_lepton: nvidia-tao-sdk[lepton]==0.2.0
-  tao_sdk_brev:   nvidia-tao-sdk[brev]==0.2.0
-  tao_sdk_all:    nvidia-tao-sdk[all]==0.2.0

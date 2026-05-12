@@ -49,7 +49,7 @@ brev ls >/dev/null 2>&1 || {
 }
 ```
 
-If any step fails, the agent prompts the user to authorize the fix via Bash, then re-runs the preflight before continuing. The TAO SDK is **not** required for Brev — `brev exec docker run …` is sufficient. Reach for `pip install nvidia-tao-sdk[brev]` only if you want Job handles, S3 I/O wrapping via `script_runner`, or state persistence.
+If any step fails, the agent prompts the user to authorize the fix via Bash, then re-runs the preflight before continuing. The TAO SDK is **not** required for Brev — `brev exec docker run …` is sufficient. Reach for the SDK only if you want Job handles, S3 I/O wrapping via `script_runner`, or state persistence; the SDK is not on public PyPI yet, install with: `pip install "nvidia-tao-sdk[brev] @ git+https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-sdk.git"`.
 
 ## Authentication
 
