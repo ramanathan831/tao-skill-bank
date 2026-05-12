@@ -17,7 +17,7 @@ docker_image_defaults:
   mapping:
     COSMOS_RL: tao_toolkit.cosmos_rl
     COSMOS_PREDICT2_5: tao_toolkit.cosmos_predict_2_5
-    TAO_DATASERVICES: tao_toolkit.dataservices
+    TAO_DATASERVICES: tao_toolkit.data_services
 
 network_config_files:
   convention: "{network_arch}.config.json"

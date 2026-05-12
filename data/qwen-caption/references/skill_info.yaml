@@ -1,5 +1,5 @@
 network_arch: qwen-caption
-container_image: iva.its_cosmos_sda
+container_image: nvcr.io/nvidian/iva/its-cosmos-sda
 gpu_spec_key: null
 actions:
   caption:

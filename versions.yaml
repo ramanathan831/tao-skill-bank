@@ -15,18 +15,15 @@
 images:
   tao_toolkit:
     pyt:                nvcr.io/nvidia/tao/tao-toolkit:6.26.3-pyt
+    deploy:             nvcr.io/nvidia/tao/tao-toolkit:6.26.3-deploy
+    data_services:      nvcr.io/nvidia/tao/tao-toolkit:6.26.3-data-services
     cosmos_rl:          nvcr.io/nvidia/tao/tao-toolkit:6.26.3-cosmos-rl
     cosmos_predict_2_5: nvcr.io/nvidia/tao/tao-toolkit:6.26.3-cosmos-predict-2.5
-    dataservices:       nvcr.io/nvidia/tao/tao-toolkit:6.26.3-dataservices
+    cosmos_embed:       nvcr.io/nvidia/tao/tao-toolkit:6.26.3-cosmos-embed
     vila:               nvcr.io/nvidia/tao/tao-toolkit:6.26.3-vila
 
   metropolis_sdg:
     cosmos_anomalygen: nvcr.io/nv-metropolis-dev/metropolis-sdg/cosmos-anomalygen:1.0.3-006434bb.main
-
-  iva:
-    sda_cosmos_predict_2:    nvcr.io/nvidian/iva/sda-cosmos-predict-2
-    its_cosmos_sda:          nvcr.io/nvidian/iva/its-cosmos-sda
-    tao_toolkit_ds_aoi:      nvcr.io/nvstaging/tao/tao-toolkit-ds:6.26.5-rc-171-multiarch
 
 wheels:
   # Single SDK wheel with extras. The `nvidia-tao-sdk` package consolidates
