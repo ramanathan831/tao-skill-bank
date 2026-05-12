@@ -1,6 +1,6 @@
 network_arch: video-reasoning-annotation
 type: data
-container_image: tao_toolkit.pyt
+container_image: tao_toolkit.data_services
 gpu_spec_key: null
 required_credentials: []
 actions:

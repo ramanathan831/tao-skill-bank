@@ -1,5 +1,5 @@
 network_arch: cosmos-predict-2-5
-container_image: iva.sda_cosmos_predict_2
+container_image: nvcr.io/nvidian/iva/sda-cosmos-predict-2
 gpu_spec_key: null
 required_credentials:
 - HF_TOKEN

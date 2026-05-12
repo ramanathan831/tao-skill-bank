@@ -150,7 +150,7 @@ job_payload_builder:
 
       # Resolve image per Section 2 (versions.yaml dotted key → concrete URI).
       from tao_sdk.versions import resolve_container_image
-      image = resolve_container_image("tao_toolkit.dataservices")  # or IMAGE_TAO_DATASERVICES env-var override
+      image = resolve_container_image("tao_toolkit.data_services")  # or IMAGE_TAO_DATASERVICES env-var override
 
 registry_write:
   description: >

@@ -4,9 +4,9 @@ type: data
 #   - dotted key resolved against ../../../versions.yaml (preferred for shared images)
 #   - absolute registry URI (for one-off / experimental / third-party images)
 # Examples:
-#   container_image: iva.embed
-#   container_image: nvcr.io/nvidian/iva/embed:latest
-container_image: iva.embed
+#   container_image: tao_toolkit.pyt
+#   container_image: nvcr.io/nvidia/tao/tao-toolkit:6.26.3-pyt
+container_image: tao_toolkit.pyt
 required_credentials: []
 
 actions:

@@ -63,14 +63,14 @@ Skill preflight blocks reference `nvidia-tao-sdk[lepton]` (without a pinned vers
 
    ```yaml
    images:
-     iva:
-       my_new_image: nvcr.io/nvidian/iva/my-new-image:v1.0
+     tao_toolkit:
+       my_new_image: nvcr.io/nvidia/tao/tao-toolkit:6.26.3-my-new-image
    ```
 
 2. In the skill's `references/skill_info.yaml`, reference by key:
 
    ```yaml
-   container_image: iva.my_new_image
+   container_image: tao_toolkit.my_new_image
    ```
 
 3. Run the validator — confirms the key resolves.
