@@ -5,7 +5,7 @@ description: Cosmos Predict 2.5 text-to-video generation for synthetic data augm
 license: Apache-2.0
 compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  author: Ramanathan Arunachalam, Arif Ahmed
+  author: NVIDIA Corporation
   version: '0.1'
 allowed-tools: Read Bash
 tags:

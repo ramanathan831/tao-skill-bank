@@ -5,7 +5,7 @@ description: Local Docker execution for TAO SDK job containers using the host Do
 license: Apache-2.0
 compatibility: Requires NVIDIA driver branch 580, CUDA Toolkit 13.0, Docker, and NVIDIA Container Toolkit 1.19.0. The TAO SDK with the docker extra (pip install 'nvidia-tao-sdk[docker]') is needed only if you want Job handles, S3 I/O wrapping, or run-folder durability via ActionWorkflow.
 metadata:
-  author: Ramanathan Arunachalam
+  author: NVIDIA Corporation
   version: '0.2'
 allowed-tools: Read Bash
 tags:

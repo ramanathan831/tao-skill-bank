@@ -13,7 +13,7 @@ description: >-
 license: Apache-2.0
 compatibility: Requires docker + nvidia-container-toolkit + at least one VLM endpoint (Gemini API key or OpenAI-compatible).
 metadata:
-  author: Paris Zhang
+  author: NVIDIA Corporation
   version: "0.1"
 allowed-tools: Read Bash Write
 tags:

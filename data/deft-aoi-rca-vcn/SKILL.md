@@ -4,7 +4,7 @@ description: Performs gap analysis on NVIDIA TAO VCN Classify (Visual Component 
 license: Apache-2.0
 compatibility: Requires docker + nvidia-container-toolkit and a CUDA GPU. Pulls `nvcr.io/nvidian/iva/tao-toolkit-ds:aoi`.
 metadata:
-  author: Sean Farhat
+  author: NVIDIA Corporation
   version: '0.3'
 allowed-tools: Read Bash
 tags:

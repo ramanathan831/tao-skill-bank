@@ -7,7 +7,7 @@ description: >-
 license: Apache-2.0
 compatibility: Requires Ubuntu 22.04/24.04 with apt, sudo/root, internet access to NVIDIA package repositories, and Docker if configuring the Docker backend.
 metadata:
-  author: Ramanathan Arunachalam
+  author: NVIDIA Corporation
   version: '0.1'
 allowed-tools: Read Bash
 tags:

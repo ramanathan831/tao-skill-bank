@@ -12,7 +12,7 @@ description: >-
 license: Apache-2.0
 compatibility: Requires Cosmos AnomalyGen assets, checkpoints, Python helpers, and GPU runtime access.
 metadata:
-  author: TAO Skill Bank Maintainers
+  author: NVIDIA Corporation
   version: '0.1'
 allowed-tools: Read Bash Write
 tags:

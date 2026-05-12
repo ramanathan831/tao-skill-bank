@@ -4,7 +4,7 @@ description: "Two-step image grounding pipeline: extracts referring expressions 
 license: Apache-2.0
 compatibility: Requires docker + nvidia-container-toolkit + at least one VLM endpoint (Gemini API key or OpenAI-compatible).
 metadata:
-  author: Yu Wang
+  author: NVIDIA Corporation
   version: "0.1"
 allowed-tools: Read Bash Write
 tags:

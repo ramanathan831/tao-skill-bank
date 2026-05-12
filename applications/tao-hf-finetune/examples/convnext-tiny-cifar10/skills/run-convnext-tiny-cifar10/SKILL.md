@@ -7,7 +7,7 @@ description: >
 license: Apache-2.0
 compatibility: Requires docker + nvidia-container-toolkit, NVIDIA GPU (driver ≥ 545, ≥ 8 GB VRAM), ~40 GB free disk, and HF_TOKEN. WANDB_API_KEY/WANDB_PROJECT optional.
 metadata:
-  author: NVIDIA CORPORATION
+  author: NVIDIA Corporation
   version: '0.1'
 allowed-tools: Read Bash
 ---

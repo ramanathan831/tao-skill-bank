@@ -5,7 +5,7 @@ description: Brev managed GPU instances with Docker support. Use when running tr
 license: Apache-2.0
 compatibility: Requires the brev CLI (https://github.com/brevdev/brev-cli) and an active brev login.
 metadata:
-  author: Arif Ahmed
+  author: NVIDIA Corporation
   version: '0.1'
 allowed-tools: Read Bash
 tags:

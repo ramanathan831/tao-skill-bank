@@ -31,7 +31,7 @@ tools:
   - WebFetch
 compatibility: Requires docker + nvidia-container-toolkit, NVIDIA GPU (driver ≥ 545, ≥ 24 GB VRAM for ≤3B models), ~40 GB free disk, HF_TOKEN, and WANDB_API_KEY/WANDB_PROJECT.
 metadata:
-  author: NVIDIA CORPORATION
+  author: NVIDIA Corporation
   version: '0.1'
 allowed-tools: Read Bash Write WebFetch
 ---

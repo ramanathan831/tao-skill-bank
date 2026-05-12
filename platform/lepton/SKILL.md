@@ -6,7 +6,7 @@ license: Apache-2.0
 compatibility: Requires the tao-sdk Python package with the lepton extra (pip install 'tao-sdk[lepton]') plus LEPTON_WORKSPACE_ID
   and LEPTON_AUTH_TOKEN.
 metadata:
-  author: Arif Ahmed
+  author: NVIDIA Corporation
   version: '0.1'
 allowed-tools: Read Bash
 tags:

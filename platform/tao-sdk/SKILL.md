@@ -4,7 +4,7 @@ description: TAO Execution SDK for submitting and monitoring GPU training jobs o
 license: Apache-2.0
 compatibility: Requires Python 3.10+ and the nvidia-tao-sdk package (pip install nvidia-tao-sdk).
 metadata:
-  author: Ramanathan Arunachalam, Arif Ahmed
+  author: NVIDIA Corporation
   version: '0.2'
 allowed-tools: Read Bash
 tags:
@@ -126,67 +126,187 @@ Brev-only:
 
 ## Submitting a Job
 
-The agent reads the skill's `references/skill_info.yaml` to get `container_image` and `actions.<action>.command`, builds the spec, then constructs the full shell command and calls `create_job()`:
+The agent always **constructs the container command via `build_entrypoint`** before calling `create_job`. The agent reads the action's schema from `skill_info.yaml` (`command`, `config_format`, `inputs`, `outputs`, `upload_excludes`) and passes those fields as kwargs. `build_entrypoint` then bakes:
+
+1. The in-container `script_runner` runtime (inlined as a base64 heredoc — no need for `tao_sdk` to be installed in the container).
+2. The CLI invocation that, at runtime in the container, will: download declared inputs (S3 / HF-Hub / NGC), write the spec file at `{config_path}` with remote URIs rewritten to local paths, run the user command, and upload outputs.
+
+Output destinations are resolved at runtime from env vars the SDK injects (see "Where outputs go" below). The platform SDK's `create_job` runs the resulting command **as-is** — no inputs/outputs kwargs, no implicit wrapping. The data flow is visible in the agent's code.
+
+### Where outputs go (resolved at runtime — agents don't manage it)
+
+The SDK injects `TAO_JOB_ID` (matches `Job.id`) and, when a persistent mount is attached, `TAO_RESULTS_ROOT` into the container env. Inside the container, `script_runner` resolves output destinations:
+
+| Container env | Result |
+|---|---|
+| `TAO_RESULTS_ROOT` set (Lustre / PVC / bind / NFS) | Outputs at `{TAO_RESULTS_ROOT}/<job_id>/<key>/`; no upload |
+| `S3_BUCKET_NAME` set (cloud, no mount) | Outputs at `s3://{bucket}/results/<job_id>/<key>/`; uploaded at end of run |
+| Neither | Outputs at `/results/<job_id>/<key>/` (container-ephemeral) with a loud end-of-run warning |
+
+Per-platform policy:
+
+| SDK | What gets injected |
+|---|---|
+| `SlurmSDK` | `TAO_RESULTS_ROOT={SLURM_BASE_RESULTS_DIR}/results` (always — Lustre, never S3, avoids GPU-idle scheduler kill) |
+| `LeptonSDK` | `TAO_RESULTS_ROOT={mount}/results` if a workspace volume is attached; otherwise S3 fallback |
+| `KubernetesSDK` / `DockerSDK` / `BrevSDK` | `TAO_RESULTS_ROOT=/results` if a mount targets `/results`; otherwise S3 fallback |
+
+Agents who want a custom destination can put an `s3://...` URI or absolute path directly at the output spec key — explicit values override the auto-fill. Otherwise, model-natural defaults like cosmos-rl's `output_dir: "output"` or DINO's empty `results_dir` are auto-rewritten by `script_runner`.
+
+### The spec is nested dicts, NOT flat dotted keys
+
+This is the most common mistake when constructing a spec. The dotted notation that appears in `skill_info.yaml`'s `inputs:` / `outputs:` blocks (e.g. `section.subsection.key`) is a **path into** a nested spec — `script_runner` looks values up at that path. It's not the spec's own shape. The spec mirrors whatever shape the model's container expects (typically a nested TOML/YAML).
+
+```python
+# ✓ CORRECT — nested dicts
+specs = {
+    "section": {
+        "subsection": {"key": "value"},
+    },
+}
+
+# ✗ WRONG — flat top-level key with dots. TOML/YAML emits this as a
+# quoted bare-string key, the model sees an empty `section` table, and
+# any input declared at "section.subsection.key" silently fails to
+# download because _get_nested(specs, "section.subsection.key") → None.
+specs = {
+    "section.subsection.key": "value",
+}
+```
+
+The two shapes look superficially similar but mean different things. When in doubt, open the model's `references/` directory (e.g. a default-spec TOML or YAML) — that's the literal nested structure the spec dict needs to mirror. The `inputs:` / `outputs:` declarations in `skill_info.yaml` are *paths into* the nested spec, not key names.
+
+### Constructing the spec / args
+
+The skill's action declares its config mechanism in `skill_info.yaml`'s `actions.<action>.mode` field (defaulting to `config` when absent). The agent's construction strategy follows from that:
+
+| `mode` | How to construct |
+|---|---|
+| `args` | Copy the `actions.<a>.args` block from `skill_info.yaml` as your template. Substitute placeholders (`{storage_root}`, `{split_id}`, `{num_gpus}`, etc.) with the user's runtime values. Pass to `build_entrypoint(args=...)`. |
+| `config` + `references/spec_template_<a>.yaml` exists | Load the template via `yaml.safe_load(...)` as the base spec; apply user overrides on top. Pass to `build_entrypoint(specs=...)`. |
+| `config`, no template | Follow the model's `SKILL.md` — typically a "Critical Overrides" section lists which keys must be set. Construct the spec accordingly. Pass to `build_entrypoint(specs=...)`. |
+| `passthrough` | Bare command + path-keyed `inputs={container_path: uri}` / `outputs=[paths]`. Pass to `build_entrypoint(inputs=..., outputs=...)`. |
+
+**Recommended decision order:**
+
+1. Read `action_cfg = skill_info["actions"][action]`. Check `action_cfg.get("mode", "config")`.
+2. For `config` mode: check `references/spec_template_<action>.yaml`. If it exists, **load it as your base** — don't rebuild from scratch.
+3. Apply user overrides on top (plus any "Critical Overrides" rows from the model's `SKILL.md`).
+4. For `args` mode: copy `action_cfg["args"]`, fill placeholders, hand to `build_entrypoint(args=...)`.
 
 ```python
 import yaml
-from tao_sdk.platforms.lepton import LeptonSDK
+from pathlib import Path
+
+skill_dir = Path(bank) / "models/<model>"
+skill_info = yaml.safe_load((skill_dir / "references/skill_info.yaml").read_text())
+action_cfg = skill_info["actions"][action]
+mode = action_cfg.get("mode", "config")
+
+if mode == "args":
+    args = dict(action_cfg["args"])
+    args["weak-video-list"] = args["weak-video-list"].format(storage_root=user_storage)
+    # ... substitute remaining placeholders
+    ep = build_entrypoint(command=action_cfg["command"], args=args, ...)
+
+elif mode == "config":
+    template = skill_dir / f"references/spec_template_{action}.yaml"
+    specs = yaml.safe_load(template.read_text()) if template.exists() else {}
+    # apply user overrides on top
+    specs.setdefault("policy", {})["model_name_or_path"] = user_model
+    # ... etc
+    ep = build_entrypoint(command=action_cfg["command"], specs=specs, ...)
+```
+
+### Spec-driven jobs
+
+The skill's action declares a config file (`config_format`, `command: ... {config_path} ...`). Covers TAO models (DINO, BEVFusion, classification-pyt, …), cosmos-rl, cosmos-predict-2-5's config-driven actions — anything whose container reads a spec file and writes outputs to declared spec keys. Use whichever platform SDK fits the target backend; the `build_entrypoint` call is identical across platforms.
+
+```python
+import yaml
+from tao_sdk.script_runner import build_entrypoint
 from tao_sdk.versions import resolve_container_image
+# pick the SDK matching your target platform:
+from tao_sdk.platforms.lepton     import LeptonSDK     # or
+from tao_sdk.platforms.slurm      import SlurmSDK      # or
+from tao_sdk.platforms.kubernetes import KubernetesSDK # or
+from tao_sdk.platforms.docker     import DockerSDK     # or
+from tao_sdk.platforms.brev       import BrevSDK
 
-# 1. Read the skill's metadata
-skill_info = yaml.safe_load(open(f"{skill_path}/references/skill_info.yaml"))
-image = resolve_container_image(skill_info["container_image"])  # accepts key or absolute URI
-command_template = skill_info["actions"]["train"]["command"]
-# e.g. "dino train -e {config_path}"
+skill_info = yaml.safe_load(open(f"{bank}/models/dino/references/skill_info.yaml"))
+action_cfg = skill_info["actions"]["train"]
 
-# 2. Build the spec (agent reads SKILL.md to know what fields to set)
 specs = {
     "dataset": {
         "train_data_sources": [{
-            "image_dir": "/data/train/images",
-            "json_file": "/data/train/annotations.json",
+            "image_dir":  "s3://my-bucket/coco/train/images",
+            "json_file":  "s3://my-bucket/coco/train/annotations.json",
         }],
         "val_data_sources": [{
-            "image_dir": "/data/val/images",
-            "json_file": "/data/val/annotations.json",
+            "image_dir":  "s3://my-bucket/coco/val/images",
+            "json_file":  "s3://my-bucket/coco/val/annotations.json",
         }],
         "num_classes": 80,
     },
     "train": {"num_epochs": 10, "num_gpus": 8},
-    "results_dir": "/results",
+    # No results_dir — script_runner auto-fills at runtime.
 }
 
-# 3. Construct the full shell command (spec heredoc + the action command)
-spec_heredoc = f"""cat > /tmp/spec.yaml <<'EOF'
-{yaml.safe_dump(specs)}
-EOF
-"""
-command = spec_heredoc + command_template.replace("{config_path}", "/tmp/spec.yaml")
-
-# 4. Submit
-sdk = LeptonSDK()
-job = sdk.create_job(
-    image=image,
-    command=command,
-    gpu_count=8,
-    inputs={
-        "/data/train/images":     "s3://my-bucket/coco/train/images",
-        "/data/train/annotations.json": "s3://my-bucket/coco/train/annotations.json",
-        "/data/val/images":       "s3://my-bucket/coco/val/images",
-        "/data/val/annotations.json":   "s3://my-bucket/coco/val/annotations.json",
-    },
-    outputs=["/results/"],
-    env_vars={"NGC_KEY": os.environ["NGC_KEY"]},
-    # Lepton-specific:
-    dedicated_node_group="my-h100-pool",   # optional
-    num_nodes=1,
+ep = build_entrypoint(
+    command=action_cfg["command"],                       # e.g. "dino train -e {config_path}"
+    specs=specs,                                          # → infers config mode
+    inputs=action_cfg["inputs"],                          # spec-keyed dict from skill_info.yaml
+    outputs=action_cfg["outputs"],
+    config_format=action_cfg["config_format"],            # "yaml" / "toml" / "json"
+    upload_excludes=action_cfg.get("upload_excludes", []),
 )
 
-print(f"Job submitted: {job.id}")
-print(f"Results: {job.results_dir}")
+sdk = ...   # one of the SDKs above
+job = sdk.create_job(
+    image=resolve_container_image(skill_info["container_image"]),
+    command=ep["command"],
+    gpu_count=8,
+    # Platform-specific kwargs go here — see each platform's SKILL.md:
+    #   Lepton:     dedicated_node_group, resource_shape, num_nodes
+    #   SLURM:      partition, account, num_nodes
+    #   Kubernetes: namespace, node_selector, tolerations, num_nodes
+    #   Docker:     mounts
+    #   Brev:       instance_id, gpu_type
+)
+print(f"Job submitted: {job.id}    Results: {job.results_dir}")
 ```
 
-`inputs` and `outputs` are S3-aware: the SDK injects a script_runner entrypoint that downloads inputs to the listed container paths before the command runs, then uploads the listed output paths to S3 (under `s3://$S3_BUCKET_NAME/results/<job_id>/`) after.
+### Path-keyed jobs (no config file)
+
+The skill's action does not write a spec file — inputs are passed as `{container_path: uri}` and outputs as a list of container paths. Covers HF inference scripts, custom commands, anything that takes its inputs via direct paths rather than a config file.
+
+```python
+ep = build_entrypoint(
+    command="python infer.py --model /models/cosmos --input /data/in --output /results",
+    inputs={                                              # path-keyed → infers passthrough mode
+        "/models/cosmos": "hf_model://nvidia/Cosmos-Reason2-8B",   # HF Hub
+        "/data/in":       "s3://bucket/test/in",                    # S3
+        # also supported: "ngc://..."
+    },
+    outputs=["/results/"],
+)
+sdk.create_job(image=img, command=ep["command"], gpu_count=1)
+```
+
+In passthrough mode the runtime dispatches each input URI by scheme — `s3://`, `hf_model://`, `ngc://` — to the right downloader. No spec rewriting, no `{config_path}`. After the command, listed output paths are uploaded per the same destination resolution rules (S3 if `S3_BUCKET_NAME`, else mount, else container-ephemeral with warning).
+
+### Mode inference (you don't pass `mode`)
+
+`build_entrypoint` infers the mode from what the agent passes:
+
+| What the agent passes | Inferred mode |
+|---|---|
+| `specs=...` (with optional spec-keyed `inputs` / `outputs`) | `config` — write spec file, rewrite URIs, run command |
+| `args=...` (with optional spec-keyed `inputs` / `outputs`) | `args` — substitute CLI args into the command template |
+| `inputs=...` and/or `outputs=...` only (path-keyed) | `passthrough` — download to listed paths, run, upload |
+| nothing extra (just `command`) | `passthrough` with no I/O — bare command |
+
+One helper, one signature.
 
 ## Resolving container images
 
@@ -339,7 +459,7 @@ For S3 paths, strip trailing slashes when concatenating to avoid `//`:
 
 ```python
 base = dataset_uri.rstrip("/")
-spec["dataset.train_csv"] = f"{base}/train.csv"
+specs["dataset"]["train_csv"] = f"{base}/train.csv"   # nested — see "spec is nested dicts"
 ```
 
 ## Platform-specific notes
@@ -401,6 +521,6 @@ spec["dataset.train_csv"] = f"{base}/train.csv"
 
 - It does **not** read or interpret skills. The agent reads `SKILL.md` and `references/skill_info.yaml`; the SDK just submits whatever command the agent constructs.
 - It does **not** do hyperparameter optimization. For HPO, use `applications/tao-automl` (which uses this SDK as a building block).
-- It does **not** generate config files. The agent writes the spec heredoc into the `command` argument.
-- It does **not** select platforms automatically. Pick the requested platform SDK explicitly.
+- It does **not** decide what goes in the spec. The agent constructs the spec dict (loading templates, applying overrides) and passes it to `build_entrypoint`, which serializes the spec and inlines the in-container runner that writes it to `{config_path}` at job start. The SDK has no opinion about which keys you set.
+- It does **not** select platforms automatically. Pick the SDK matching your target backend explicitly: `LeptonSDK`, `BrevSDK`, `DockerSDK`, `SlurmSDK`, or `KubernetesSDK`.
 - It does **not** orchestrate multi-step workflows. The agent chains jobs by polling and constructing the next command.

@@ -5,7 +5,7 @@ description: 'DEFT pipeline for Cosmos-RL video QA: gap analysis, Qwen captionin
 license: Apache-2.0
 compatibility: Requires docker + nvidia-container-toolkit. Sub-skills declare additional requirements.
 metadata:
-  author: Arif Ahmed
+  author: NVIDIA Corporation
   version: '0.1'
 allowed-tools: Read Bash Write
 tags:

@@ -9,7 +9,7 @@ description: >
 license: Apache-2.0 AND CC-BY-4.0
 compatibility: Requires docker + nvidia-container-toolkit. Sub-skills declare additional requirements.
 metadata:
-  author: Sherry Jiang, Sean Lin
+  author: NVIDIA Corporation
   version: '0.1'
 allowed-tools: Read Bash Write Task
 tags:

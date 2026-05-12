@@ -5,7 +5,7 @@ description: Cosmos-Reason2-8B video QA supervised fine-tuning with FSDP paralle
 license: Apache-2.0
 compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  author: Ramanathan Arunachalam, Arif Ahmed
+  author: NVIDIA Corporation
   version: '0.1'
 allowed-tools: Read Bash
 tags:
@@ -91,9 +91,26 @@ scripts/check_tao_launch_preflight.py --platform slurm \
 | quantize | calibration_dataset.annotation_path | calibration_dataset | annotations.json | No |
 | quantize | calibration_dataset.media_dir | calibration_dataset | dataset root containing media payload | No |
 
+## Spec construction
+
+cosmos-rl is `mode: config`. **Always start from `references/spec_template_train.yaml`** (or `spec_template_evaluate.yaml` for evaluate) — load it as your base spec via `yaml.safe_load(...)` and apply user overrides on top. Don't rebuild from scratch. See `platform/tao-sdk/SKILL.md`'s "Constructing the spec / args" section for the load-template-then-override pattern.
+
+```python
+import yaml
+from pathlib import Path
+
+skill = Path.home() / "tao-sdk/tao-skills-external/models/cosmos-rl"
+specs = yaml.safe_load((skill / "references/spec_template_train.yaml").read_text())
+# Now apply your overrides on top of `specs` (next section).
+```
+
+The reference TOML (and the spec the model actually consumes) is **nested dicts**, not flat dotted keys. The dotted notation in the override examples below denotes *paths into the nested spec* — the agent must walk the path and assign at the leaf, not store the dotted string as a literal key. See `platform/tao-sdk/SKILL.md`'s "spec is nested dicts" callout.
+
 ### Typical Spec Overrides
 
-Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
+These are the typical override **paths** to apply on top of the template (not the full spec). The agent reads each `key.subkey.leaf` as a dotted path and assigns the value at that nested location in the template-loaded `specs` dict.
+
+Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above.
 
 ```python
 TRAIN_DATASET_URI = "s3://bucket/data/train"
@@ -140,7 +157,8 @@ EVAL_DATASET_URI = "s3://bucket/data/eval"
     "validation.freq_in_epoch": 1,
     "validation.batch_size": 1,
     "validation.enable_dataset_cache": False,
-    "custom.vision.nframes": 8,
+    # custom.vision.fps defaults to 1 from the spec template — leave it
+    # alone unless you need fixed-count extraction (see Vision Encoders below).
     "custom.system_prompt": "You are a helpful assistant.",
     "logging.logger": ["console", "tao"],
 }
@@ -158,7 +176,7 @@ spec object.
 {
     "dataset.annotation_path": f"{EVAL_DATASET_URI}/annotations.json",
     "dataset.media_dir": EVAL_DATASET_URI,
-    "vision.nframes": 8,
+    # vision.fps defaults to 1 — see Vision Encoders for fps vs nframes.
     "model.enable_lora": True,
     "model.base_model_path": "hf_model://nvidia/Cosmos-Reason2-8B",
 }
@@ -186,17 +204,18 @@ spec object.
 
 ## Critical Overrides (Train)
 
-The TAO Core schema has broken defaults for cosmos-rl training. These are applied automatically via `key_defaults` in config.json:
+These are the keys whose template defaults are wrong or where omission flips the run into a different mode:
 
-| Parameter | Schema Default | Required Value | Why |
+| Parameter | Template Default | Required Value | Why |
 |---|---|---|---|
-| `policy.model_name_or_path` | `nvidia/Cosmos-Reason1-7B` | `nvidia/Cosmos-Reason2-8B` | CR1 is outdated |
-| `policy.model_max_length` | 4096 | 40960 | Too small for video — causes `vision_embeds` shape mismatch |
-| `train.train_batch_per_replica` | 1 | 32 (or any multiple of mini_batch) | Default not divisible by mini_batch=4 — immediate AssertionError |
+| `policy.model_name_or_path` | `nvidia/Cosmos-Reason2-8B` | `hf_model://nvidia/Cosmos-Reason2-8B` (or local checkpoint) | The bare HF id makes cosmos-rl fetch from HF Hub at runtime; the `hf_model://` URI form pre-downloads the weights before the training command starts |
+| `policy.model_max_length` | 40960 | Keep at 40960 or higher | Smaller than ~40k causes `vision_embeds` shape mismatch on video inputs |
+| `train.train_batch_per_replica` | 32 | Any multiple of `train.train_policy.mini_batch` | Mismatch raises an immediate AssertionError |
+| `train.train_policy.type` | `"sft"` | Keep as `"sft"` for SFT workflows | If dropped during agent regeneration, cosmos-rl flips to RL mode → rollout replica allocated → multi-node attempted → hostname errors when `num_nodes=1` |
 
 ## Evaluate
 
-Evaluate uses the **script runner** (not container_handler). The `actions.evaluate` config in config.json declares inputs/outputs, and the script runner handles S3 I/O, selective download, and Lustre caching.
+The `actions.evaluate` block in `references/skill_info.yaml` declares the action's inputs (annotation file + media folder + model) and outputs (results directory). For SDK invocation see `platform/tao-sdk/SKILL.md`.
 
 ### Config format
 
@@ -220,11 +239,11 @@ spec_overrides={
 }
 ```
 
-The script runner downloads the LoRA adapter from S3/Lustre and the evaluator merges it with the base model before running inference.
+The LoRA adapter is downloaded from S3/Lustre before the evaluator runs; the evaluator merges it with the base model and runs inference on the merged weights.
 
 ### Selective download
 
-The script runner reads `dataset.annotation_path`, extracts referenced video paths via the `video` key, and downloads only those files. For a 112-sample collision dataset, this downloads ~500MB instead of the full 4.8GB folder.
+When the input declaration carries a `selective` block (`{annotation, format, keys}`), only the files referenced in `dataset.annotation_path` (under the `video` key) are pulled — not the full media folder. For a 112-sample collision dataset, this downloads ~500MB instead of the full 4.8GB folder.
 
 ### Results
 
@@ -292,7 +311,10 @@ For platform-side multi-node setup (sbatch flags on SLURM, Indexed Job + Service
 - **train.train_policy.dataset.test_size**: Validation split. Float (0.0–1.0) = ratio; Int = absolute number.
 
 ### Vision Encoders
-- **custom.vision.fps**: Frames per second extracted from video. High motion: 3. Low motion/static: 1–2.
+- **custom.vision.fps** *or* **custom.vision.nframes** — **mutually exclusive**, set exactly one.
+  - `fps` (default in template, recommended): extract frames at this rate. High motion: 3. Low motion/static: 1–2.
+  - `nframes`: extract this many frames evenly across the clip (use for fixed-count batching).
+  - Setting both makes qwen-vl-utils' decord backend error out (`Only accept either fps or nframes`) and silently fall back to torchvision, which deadlocks under multi-worker dataloading (`BlockingIOError [Errno 11]` swscaler errors). If you switch from `fps` to `nframes`, also delete `fps` from your spec.
 - **custom.vision.total_pixels**: Resolution constraint. Increase if the object of focus is small relative to the frame. Default 3136000.
 - **custom.system_prompt**: Instructions prepended to every prompt.
 

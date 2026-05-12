@@ -4,7 +4,7 @@ description: Run `tao-daft validate` to check NVIDIA TAO DAFT datasets for struc
 version: 1.1.0
 compatibility: Requires Python 3.10+ and the nvidia-tao-sdk package (pip install nvidia-tao-daft) 
 metadata:
-  author: NVIDIA CORPORATION
+  author: NVIDIA Corporation
   version: "1.0"
 license: Apache-2.0
 tags: [tao-daft, dataset, validation, schema]
@@ -13,6 +13,16 @@ allowed-tools: Bash, Read
 ---
 
 # Validate a TAO DAFT Dataset
+
+## Quick start
+
+```bash
+tao-daft validate <format> --path <dataset-or-parent-dir>
+```
+
+`<format>` is a positional subcommand (e.g. `metropolis-v3.0`, `cosmos-reason-v1.0`);
+`--path` is required. Discover supported formats and per-format flags via
+`tao-daft validate --help` and the leaf `--help` (see "CLI conventions" below).
 
 ## Preflight
 ```bash
