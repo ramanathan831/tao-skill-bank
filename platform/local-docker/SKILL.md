@@ -54,14 +54,16 @@ docker run --rm --runtime=nvidia --gpus all ubuntu nvidia-smi >/dev/null 2>&1 ||
 
 # Mode 2 — TAO SDK wrapper. Adds Job handles, S3 I/O wrapping, ActionWorkflow.
 # Skip this block if Mode 1 is sufficient for the user's request.
+# nvidia-tao-sdk is not on public PyPI yet — install from the GitLab repo:
+REPO='git+https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-sdk.git'
 python -c "import tao_sdk" 2>/dev/null || {
   echo "MISSING: nvidia-tao-sdk not installed. Run:"
-  echo "  pip install nvidia-tao-sdk[docker]"
+  echo "  pip install \"nvidia-tao-sdk[docker] @ $REPO\""
   exit 1
 }
 python -c "import docker" 2>/dev/null || {
   echo "MISSING: docker Python client not installed. Run:"
-  echo "  pip install nvidia-tao-sdk[docker]"
+  echo "  pip install \"nvidia-tao-sdk[docker] @ $REPO\""
   exit 1
 }
 ```

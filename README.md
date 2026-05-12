@@ -29,7 +29,7 @@ The `.env.example` is also at the [repo root](.env.example) for direct reference
 
 ### When does the SDK get installed?
 
-The TAO SDK is **opt-in** and installed lazily. Most skills (any model or data skill) run with just `docker run` and need no Python. Only `platform/lepton`, `platform/tao-sdk`, and `applications/tao-automl` require the SDK; their Preflight blocks tell the agent to run `pip install nvidia-tao-sdk[lepton]` (or another extra) the first time the skill is invoked.
+The TAO SDK is **opt-in** and installed lazily. Most skills (any model or data skill) run with just `docker run` and need no Python. Only `platform/lepton`, `platform/tao-sdk`, the managed-platform skills (slurm/kubernetes/docker), and `applications/tao-automl` require the SDK; their Preflight blocks tell the agent to run a `pip install "nvidia-tao-sdk[<platform>] @ git+https://..."` direct-URL the first time the skill is invoked. (The SDK isn't on public PyPI yet — see each skill's Preflight for the exact command.)
 
 ### Updating
 
@@ -86,10 +86,15 @@ Each skill is a directory with `SKILL.md` (agent-readable instructions). Optiona
 For users who want job handles, S3 I/O wrapping via `script_runner`, state persistence, multi-node distributed training, Lepton access, or failure analysis, the [TAO Execution SDK](https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-sdk) provides a single wheel with optional extras:
 
 ```shell
-pip install nvidia-tao-sdk            # core
-pip install 'nvidia-tao-sdk[lepton]'  # + Lepton handler (required for Lepton — no docker-run equivalent)
-pip install 'nvidia-tao-sdk[brev]'    # + Brev handler (wraps brev CLI with Job handles)
-pip install 'nvidia-tao-sdk[all]'     # both extras
+# The SDK is not on public PyPI yet — install via pip direct-URL:
+REPO='git+https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-sdk.git'
+pip install "nvidia-tao-sdk @ $REPO"                  # core
+pip install "nvidia-tao-sdk[lepton] @ $REPO"          # + Lepton (required — no docker-run equivalent)
+pip install "nvidia-tao-sdk[brev] @ $REPO"            # + Brev (wraps brev CLI with Job handles)
+pip install "nvidia-tao-sdk[slurm] @ $REPO"           # + SLURM
+pip install "nvidia-tao-sdk[kubernetes] @ $REPO"      # + Kubernetes
+pip install "nvidia-tao-sdk[docker] @ $REPO"          # + local Docker
+pip install "nvidia-tao-sdk[all] @ $REPO"             # all platforms
 ```
 
 You don't have to pre-install — the relevant skills (`platform/lepton`, `platform/tao-sdk`, `applications/tao-automl`) run a Preflight that prompts the agent to install the right extra on first use. If you're running locally on your own GPU or on Brev via `brev exec`, you don't need the SDK at all.

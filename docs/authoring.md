@@ -185,12 +185,14 @@ Most skills run with just docker (no Python SDK). A few skills are SDK-orchestra
 ````markdown
 ## Preflight
 
-This skill needs the TAO SDK. Check before proceeding:
+This skill needs the TAO SDK. `nvidia-tao-sdk` is not on public PyPI yet — Preflight blocks use a `pip` direct-URL form:
 
 ```bash
+REPO='git+https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-sdk.git'
 python -c "import tao_sdk" 2>/dev/null || {
   echo "MISSING: nvidia-tao-sdk not installed. Run:"
-  echo "  pip install nvidia-tao-sdk[lepton]"   # or [brev], [all]
+  echo "  pip install \"nvidia-tao-sdk[lepton] @ \$REPO\"      # or [brev], [docker], [slurm], [kubernetes], [all]"
+  echo "  REPO=$REPO"
   exit 1
 }
 ```
