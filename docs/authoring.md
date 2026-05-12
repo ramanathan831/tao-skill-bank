@@ -53,7 +53,7 @@ The validator fails CI when `license` is missing. `name` and `description` follo
 ```yaml
 compatibility: Requires docker + nvidia-container-toolkit + NGC API key.
 metadata:
-  author: Xiaolong Li, Paris Zhang
+  author: NVIDIA Corporation
   version: "1.0"
 allowed-tools: Read Bash
 ```
@@ -72,7 +72,7 @@ allowed-tools: Read Bash
 | Local Python script (no container) | `Requires Python 3.8+ and Pillow.` (or whatever) |
 | Agent-prompt-driven | `Standalone — no external runtime requirements.` or omit the field. |
 
-**`metadata.author`** — comma-separated list of human contributors. Used for attribution.
+**`metadata.author`** — must be exactly `NVIDIA Corporation`. The validator fails CI on any other value (including personal names or all-caps variants).
 
 **`metadata.version`** — skill version (NOT tool/model version). Start at `"0.1"` for new skills; bump when the SKILL.md materially changes (new actions, schema changes, etc.).
 

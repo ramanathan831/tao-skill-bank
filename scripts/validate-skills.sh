@@ -90,7 +90,9 @@ for skill_md in iter_skill_files():
     if 'compatibility' not in fm:
         print(f"WARN: {skill_md} — missing `compatibility:` (runtime requirements). See docs/authoring.md for examples.", file=sys.stderr); warns += 1
     if not isinstance(fm.get('metadata'), dict) or 'author' not in fm.get('metadata', {}):
-        print(f"WARN: {skill_md} — missing `metadata.author`. Add author attribution.", file=sys.stderr); warns += 1
+        print(f"WARN: {skill_md} — missing `metadata.author`. Add `author: NVIDIA Corporation`.", file=sys.stderr); warns += 1
+    elif fm['metadata'].get('author') != 'NVIDIA Corporation':
+        print(f"ERROR: {skill_md} — `metadata.author` must be exactly 'NVIDIA Corporation' (found: {fm['metadata'].get('author')!r}).", file=sys.stderr); errs += 1
     if not isinstance(fm.get('metadata'), dict) or 'version' not in fm.get('metadata', {}):
         print(f"WARN: {skill_md} — missing `metadata.version`. Add e.g. `version: \"0.1\"`.", file=sys.stderr); warns += 1
     if 'allowed-tools' not in fm:
