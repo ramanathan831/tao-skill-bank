@@ -23,6 +23,18 @@ python -c "import nvidia_tao_daft" 2>/dev/null || {
 }
 ```
 
+## Quick Start
+
+Discover the installed CLI surface before choosing format slugs, then run the
+leaf conversion command with explicit `--path` and `--output` flags:
+
+```bash
+tao-daft --version
+tao-daft convert --help
+tao-daft convert <source-format> --help
+tao-daft convert <source-format> <target-format> --path /path/to/daft --output /path/to/converted
+```
+
 ## Purpose
 
 Drives `tao-daft convert` to transform a DAFT dataset (or a tree of

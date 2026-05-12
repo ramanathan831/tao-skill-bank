@@ -117,6 +117,8 @@ Without `--user $(id -u):$(id -g)` the container writes outputs as `nobody:nogro
 - For `train`: inspect per-step `train_loss` directly — the entrypoint reports `Execution status: PASS` even when `train_loss = NaN` (see Metric Variant Finetuning Recipe → Sanity-run PASS criteria)
 - For `evaluate` / `inference`: artifacts under `results_dir`
 
+For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference`), read `deploy/SKILL.md` first. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
+
 ## Training Requirements
 
 - **Valid `dataset_name` values for mono `data_sources`** (case-insensitive): `ThreeDVLM`, `FSD`, `NvCLIP`, `IssacStereo`, `Crestereo`, `Middlebury`, `NYUDV2`, `NYUDV2Relative`, `RelativeMonoDataset`, `MetricMonoDataset`. `NYUDV2` carries metric depth GT (meters) — pair with `MetricDepthAnything`; `NYUDV2Relative` is the same data with relative-depth conventions — pair with `RelativeDepthAnything`.
