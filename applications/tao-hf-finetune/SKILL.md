@@ -16,6 +16,19 @@ description: >
   image-text-to-text (VLM SFT / LoRA), LLM SFT / DPO / GRPO.
   Rejects models whose AutoConfig fails to load.
 license: Apache-2.0
+version: "0.1.0"
+author: NVIDIA CORPORATION
+tags:
+  - finetuning
+  - huggingface
+  - nvidia-tao
+  - computer-vision
+  - training
+tools:
+  - Read
+  - Bash
+  - Write
+  - WebFetch
 compatibility: Requires docker + nvidia-container-toolkit, NVIDIA GPU (driver ≥ 545, ≥ 24 GB VRAM for ≤3B models), ~40 GB free disk, HF_TOKEN, and WANDB_API_KEY/WANDB_PROJECT.
 metadata:
   author: NVIDIA CORPORATION
@@ -327,15 +340,19 @@ Do not proceed if any field is missing.
 **Goal:** verify Docker + GPU + disk, pick the NGC PyTorch image live, finalize
 hardware-dependent compat rules.
 
-**2a. Audit:**
+**2a. Audit (hard gate):** run the preflight script. It hard-fails on missing
+driver, docker daemon, `nvidia-container-toolkit` registration, `--gpus all`
+smoke (against a CUDA tag derived from the driver's max supported CUDA), or
+missing `HF_TOKEN`. Free-disk on `/` is a **soft warn** at 100 GB (override via
+`MIN_DISK_GB`); the script continues so the user can decide. On hard-fail it
+prints a distro-aware install hint parsed from `/etc/os-release` and exits
+non-zero. **Do not proceed to Step 4 on a hard-fail** — Step 4's `docker build`
+pulls a 20+ GB NGC base image, and a missing `nvidia-container-toolkit` only
+surfaces at `prepare_data.py` time as the cryptic
+`could not select device driver "" with capabilities: [[gpu]]`.
 
 ```bash
-nvidia-smi --query-gpu=index,name,driver_version,memory.total,compute_cap \
-           --format=csv,noheader,nounits
-docker --version && docker info >/dev/null 2>&1
-docker run --rm --gpus all nvidia/cuda:12.0.0-base-ubuntu22.04 nvidia-smi >/dev/null 2>&1
-df -BG . | awk 'NR==2 {print $4}' | tr -d G    # need ~40
-[ -z "$HF_TOKEN" ] && echo "REJECT: HF_TOKEN missing" && exit 1
+bash scripts/preflight.sh    # see scripts/preflight.sh — all 6 checks live there
 ```
 
 Record `gpu_count`, `gpu_name`, `driver_major`, `vram_gb_per_gpu` in

@@ -22,13 +22,10 @@
         "./applications/tao-hf-finetune",
         "./applications/tao-hf-integration",
         "./applications/workflow-deft-aoi-loop",
-        "./data/analyze-kpi",
         "./data/cosmos-anomalygen",
         "./data/deft-aoi-mining",
         "./data/deft-aoi-rca-vcn",
         "./data/deft-aoi-routing-vcn",
-        "./data/knn-mining",
-        "./data/nim-embedding",
         "./data/qwen-caption",
         "./data/video-reasoning-annotation",
         "./models/action-recognition",
@@ -85,7 +82,6 @@
         "./data/deft-aoi-routing-vcn",
         "./data/deft-aoi-mining",
         "./data/cosmos-anomalygen",
-        "./data/analyze-kpi",
         "./platform/docker",
         "./platform/nvidia-gpu-setup"
       ]
