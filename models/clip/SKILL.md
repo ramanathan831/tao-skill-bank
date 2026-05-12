@@ -29,6 +29,8 @@ Use this skill for NVIDIA TAO CLIP jobs: training, evaluation, embedding inferen
 
 For dataset-backed actions, collect the required image, caption, list, or prompt files from the user and place the resolved paths in `spec_overrides`. For `export` and `gen_trt_engine`, infer parent artifacts from the upstream job when available; otherwise require explicit checkpoint, ONNX, or engine paths. Run `gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference` in the TAO Deploy image.
 
+For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference`), read `deploy/SKILL.md` first. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
+
 ## Training Requirements
 
 - **Dataset type:** image_text

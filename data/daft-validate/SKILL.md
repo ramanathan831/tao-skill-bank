@@ -23,6 +23,18 @@ python -c "import nvidia_tao_daft" 2>/dev/null || {
 }
 ```
 
+## Quick Start
+
+Discover the installed validator formats before choosing a format slug, then
+run validation with the target passed through `--path`:
+
+```bash
+tao-daft --version
+tao-daft validate --help
+tao-daft validate <format> --help
+tao-daft validate <format> --path /path/to/daft-dataset
+```
+
 ## Purpose
 
 Drive `tao-daft validate` against a DAFT dataset (or a tree of them).
