@@ -1,8 +1,7 @@
 {
   "name": "tao-skill-bank",
   "owner": {
-    "name": "Sherry Jiang",
-    "email": "sherryj@nvidia.com"
+    "name": "NVIDIA Corporation"
   },
   "metadata": {
     "description": "NVIDIA TAO skill bank with generated capability discovery for model training, data processing, workflow orchestration, AutoML, and platform execution.",

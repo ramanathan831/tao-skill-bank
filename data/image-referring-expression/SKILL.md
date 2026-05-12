@@ -48,10 +48,18 @@ When a user wants to run this pipeline, walk through these steps:
 1. **Images**: Ask for `data.image_dir`, the directory containing `.jpg`, `.jpeg`, or `.png` images.
 2. **KITTI labels**: Ask for `data.kitti_label_dir`, the directory containing one `.txt` label file per image. Each label line must use KITTI format: `<type> <truncated> <occluded> <alpha> <bbox_left> <bbox_top> <bbox_right> <bbox_bottom> ...`. Lines with fewer than 8 fields are silently skipped. Set this even for Step 1-only runs because Steps 0 and 2 require it.
 3. **Resume from existing annotations**: If the user already has a unified `annotations.jsonl` from a previous run, set `data.input_annotations_jsonl` to that file instead of seeding from `data.image_dir` and `data.kitti_label_dir`.
-4. **API access**: Confirm the user has one supported VLM endpoint:
-   - Gemini: requires `GOOGLE_API_KEY`.
-   - OpenAI-compatible endpoint, such as NIM or vLLM: requires `base_url`, `model_name`, and `api_key`.
-   If the user has no endpoint and wants to self-host, point them to the `applications/tao-inference` skill. That workflow starts a local TAO inference microservice with an OpenAI-compatible API. Before promising a specific model, check `applications/tao-inference/references/service.yaml` for `valid_network_arch_config_basenames`. If the user has no endpoint and does not want to set one up, stop and help resolve API access first.
+4. **API access**: Ask the user which VLM endpoint they want to use. Present these five options and act on the choice:
+   1. **Gemini** — set `vlm.backend: "gemini"`; require `GOOGLE_API_KEY` (env var or `vlm.gemini.api_key`).
+   2. **NIM** (e.g. `https://inference-api.nvidia.com/v1`) — set `vlm.backend: "openai"`; collect `base_url`, `model_name`, and `api_key`.
+   3. **TAO inference microservice** (self-hosted, OpenAI-compatible). Confirm whether the server is already running:
+      - **Running** — collect `base_url`, `model_name`, and (optionally) `api_key`; set `vlm.backend: "openai"`.
+      - **Not running** — guide the user through the `applications/tao-inference` skill, which stands up a local TAO inference microservice with an OpenAI-compatible API. Before promising a specific model, check `applications/tao-inference/references/service.yaml` for `valid_network_arch_config_basenames`. Once the server is up, collect `base_url`, `model_name`, and (optionally) `api_key`; set `vlm.backend: "openai"`.
+   4. **vLLM** (self-hosted, OpenAI-compatible). Confirm whether the server is already running:
+      - **Running** — collect `base_url`, `model_name`, and (optionally) `api_key`; set `vlm.backend: "openai"`.
+      - **Not running** — follow [references/vllm_server.md](references/vllm_server.md) to install and launch a vLLM server, then collect `base_url`, `model_name`, and (optionally) `api_key`; set `vlm.backend: "openai"`.
+   5. **Custom** (any other OpenAI-compatible endpoint) — set `vlm.backend: "openai"`; collect `base_url`, `model_name`, and (optionally) `api_key`.
+
+   If the user has no endpoint and does not want to set one up, stop and help resolve API access first.
 5. **Workflow steps**: Choose one of:
    - Full pipeline: `["0", "1", "2", "3"]`
    - No caption generation: `["0", "2", "3"]`, where Step 2 falls back to image-only context

@@ -53,7 +53,7 @@ The validator fails CI when `license` is missing. `name` and `description` follo
 ```yaml
 compatibility: Requires docker + nvidia-container-toolkit + NGC API key.
 metadata:
-  author: Xiaolong Li, Paris Zhang
+  author: NVIDIA Corporation
   version: "1.0"
 allowed-tools: Read Bash
 ```
@@ -72,7 +72,7 @@ allowed-tools: Read Bash
 | Local Python script (no container) | `Requires Python 3.8+ and Pillow.` (or whatever) |
 | Agent-prompt-driven | `Standalone — no external runtime requirements.` or omit the field. |
 
-**`metadata.author`** — comma-separated list of human contributors. Used for attribution.
+**`metadata.author`** — must be exactly `NVIDIA Corporation`. The validator fails CI on any other value (including personal names or all-caps variants).
 
 **`metadata.version`** — skill version (NOT tool/model version). Start at `"0.1"` for new skills; bump when the SKILL.md materially changes (new actions, schema changes, etc.).
 
@@ -185,12 +185,14 @@ Most skills run with just docker (no Python SDK). A few skills are SDK-orchestra
 ````markdown
 ## Preflight
 
-This skill needs the TAO SDK. Check before proceeding:
+This skill needs the TAO SDK. `nvidia-tao-sdk` is not on public PyPI yet — Preflight blocks use a `pip` direct-URL form:
 
 ```bash
+REPO='git+https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-sdk.git'
 python -c "import tao_sdk" 2>/dev/null || {
   echo "MISSING: nvidia-tao-sdk not installed. Run:"
-  echo "  pip install nvidia-tao-sdk[lepton]"   # or [brev], [all]
+  echo "  pip install \"nvidia-tao-sdk[lepton] @ \$REPO\"      # or [brev], [docker], [slurm], [kubernetes], [all]"
+  echo "  REPO=$REPO"
   exit 1
 }
 ```
@@ -337,3 +339,11 @@ Start a session, ask the agent to exercise the skill. Verify the agent reads it,
 **Assuming the SDK is available.** Write the skill to be runnable with just docker. SDK usage should be in an "Optional: via TAO SDK" section, not the primary path.
 
 **Stale `references/skill_info.yaml`.** When you change the docker command in `SKILL.md`, update the YAML too. The SDK reads the YAML; if they drift, agent and SDK diverge.
+
+## Agent identity (cross-cutting)
+
+The agent's identity — who it is, the discovery flow, what it must never do — lives in **`AGENTS.md`** at the repo root. This is the cross-runtime instruction-loading file per the [agents.md](https://agents.md/) spec. Codex auto-loads `AGENTS.md` from the project root (and from `~/.codex/AGENTS.md`). Claude Code reads the same file via the plugin's `hooks/session_start.sh` (which `cat`s `${CLAUDE_PLUGIN_ROOT}/AGENTS.md`). One file drives both runtimes.
+
+**Edit `AGENTS.md`, not the hooks or plugin manifests.** When you add a new runtime (e.g., once Codex's plugin-bundled `SessionStart` hook is wired up — see [openai/codex#16430](https://github.com/openai/codex/issues/16430)), make it `cat AGENTS.md` from `${<RUNTIME>_PLUGIN_ROOT}/AGENTS.md`. Do not duplicate the prompt inline in a hook or in a plugin manifest's `description` / `longDescription` / `defaultPrompt` field — duplicating means future drift across runtimes.
+
+This is distinct from individual `SKILL.md` files, which describe one skill. `AGENTS.md` is the cross-cutting "what is this agent" prompt.

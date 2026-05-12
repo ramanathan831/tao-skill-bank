@@ -24,10 +24,14 @@ The SDK is the **optional** Python layer for users who need job handles, S3 I/O 
 
 ## Preflight
 
+`nvidia-tao-sdk` is not on public PyPI yet — install from the GitLab repo via `pip` direct-URL, pinning the platform extra you'll use:
+
 ```bash
+REPO='git+https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-sdk.git'
 python -c "import tao_sdk" 2>/dev/null || {
   echo "MISSING: nvidia-tao-sdk not installed. Run:"
-  echo "  pip install nvidia-tao-sdk[lepton]   # or [brev], [all]"
+  echo "  pip install \"nvidia-tao-sdk[lepton] @ \$REPO\"      # or [brev], [docker], [slurm], [kubernetes], [all]"
+  echo "  REPO=$REPO"
   exit 1
 }
 ```
