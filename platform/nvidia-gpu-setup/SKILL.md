@@ -1,5 +1,8 @@
 ---
 name: nvidia-gpu-setup
+version: "0.1.0"
+author: NVIDIA Corporation
+tools: Read Bash
 description: >-
   Host setup for TAO GPU backends. Checks and, after user approval, installs
   NVIDIA driver branch 580, CUDA Toolkit 13.0, and NVIDIA Container Toolkit

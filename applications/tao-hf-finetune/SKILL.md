@@ -1,35 +1,28 @@
 ---
 name: tao-hf-finetune
-description: >
-  End-to-end fine-tune, evaluation, inference, and HF Hub push for any HuggingFace
-  CV or VLM model on local NVIDIA GPUs using an NGC PyTorch container.
-  Research-first: fetch the model card, author's finetune example, and HF task
-  docs live before generating any code. References under references/ act as a
-  fallback safety net when live research is silent or a known-issue is detected.
-  Six-step workflow: inspect & qualify, hardware & NGC image, research, generate
-  & smoke, train + eval + infer, push & emit rerun skill. Produces a trained
-  checkpoint, baseline + post-train eval JSON, 5 inference samples, a HuggingFace
-  Hub push with a model card, and a self-contained rerun skill. Optional
-  deliverables (PROGRESS.md log, PDF/HTML report, fake-data unit tests) opt in
-  via config flags. Supported tasks: image-classification, object-detection,
-  semantic-segmentation, instance-segmentation, depth-estimation,
-  image-text-to-text (VLM SFT / LoRA), LLM SFT / DPO / GRPO.
-  Rejects models whose AutoConfig fails to load.
-license: Apache-2.0
 version: "0.1.0"
-author: NVIDIA CORPORATION
+author: NVIDIA Corporation
+tools: Read Bash Write WebFetch
+description: >
+  Fine-tune any HuggingFace CV / VLM / LLM model on local NVIDIA GPUs inside an
+  NGC PyTorch container. Use when the user wants to fine-tune a HuggingFace
+  model (full or LoRA), train a vision / VLM / LLM model end-to-end, generate a
+  reproducible HF training pipeline, smoke-test a HuggingFace model locally
+  before scale-up, push a fine-tuned model to the HF Hub with a model card, or
+  emit a self-contained rerun skill for an existing HuggingFace finetune.
+  Supports image classification, object detection, semantic / instance /
+  panoptic segmentation, depth estimation, image-text-to-text VLM (SFT / LoRA),
+  and LLM SFT / DPO / GRPO. Six-step workflow: inspect and qualify, hardware
+  and NGC image, research, generate and smoke, train + eval + infer, push and
+  emit rerun skill.
+license: Apache-2.0
 tags:
   - finetuning
   - huggingface
   - nvidia-tao
   - computer-vision
   - training
-tools:
-  - Read
-  - Bash
-  - Write
-  - WebFetch
-compatibility: Requires docker + nvidia-container-toolkit, NVIDIA GPU (driver ≥ 545, ≥ 24 GB VRAM for ≤3B models), ~40 GB free disk. Optional credentials (loaded from `~/.config/tao/.env` by the SessionStart hook): HF_TOKEN — only when the model/dataset is gated or `push_to_hub` is on; WANDB_API_KEY/WANDB_PROJECT — only when WandB logging is enabled.
+compatibility: Requires docker + nvidia-container-toolkit, NVIDIA GPU (driver ≥ 545, ≥ 24 GB VRAM for ≤3B models), ~40 GB free disk. Optional credentials (loaded from `~/.config/tao/.env` by the SessionStart hook) — HF_TOKEN is read only when the model/dataset is gated or `push_to_hub` is on; WANDB_API_KEY and WANDB_PROJECT only when WandB logging is enabled.
 metadata:
   author: NVIDIA Corporation
   version: '0.1'
@@ -161,6 +154,8 @@ docs always win for the specific model and current API.
 
 | File | Step | Role |
 |---|---|---|
+| `core-rules.md` | all | Non-negotiable agent behaviours — full enumeration of the rules summarised in SKILL.md |
+| `error-playbook.md` | 4, 5 | Runtime-error symptom → minimal-fix table (consulted on every failure) |
 | `compat-workarounds.md` | 1 | Known-issue registry; auto-applied via `detect` rules |
 | `model-discovery.md` | 1 | `model_type` → AutoModel/processor mapping (when card silent) |
 | `dataset-recommendations.md` | 1 | Vetted datasets for `source = recommend` |
@@ -194,83 +189,29 @@ finding, refetch the listed URL.
 
 ## Core rules
 
-### Your knowledge of HF libraries is outdated
+The non-negotiable behaviors the agent must follow across the workflow. Full
+text in `references/core-rules.md`. **Short version:**
 
-You do not know current APIs for `transformers`, `trl`, `datasets`, `peft`, or
-`accelerate`. Your internal knowledge WILL produce wrong imports, wrong trainer
-arguments, wrong collator constructors, and hallucinated config fields. Before
-writing any ML code, fetch the live sources listed in
-`references/research-priorities.md`. Never generate training code from memory
-alone.
+- **Your HF-library knowledge is outdated.** Fetch live docs (model card, HF
+  repo example, task doc) before writing any ML code. Don't generate trainer
+  args / collator / transforms from memory — see Step 3.
+- **Smoke-test on real data with `--max_steps 1`** before any full run. No
+  batch launches without a verified smoke.
+- **Never silently substitute** model_id, dataset_id, or training_method. If
+  what the user asked for doesn't load, stop and ask.
+- **Error recovery is minimal-change.** OOM → halve batch, double grad_accum,
+  enable gradient checkpointing — don't switch to LoRA without approval. NaN
+  → reduce LR 10×. Flat loss → inspect collator. Same error 3× → stop and
+  ask. Don't loop.
+- **Dataset columns verified BEFORE writing the collator.** Mismatch +
+  rename → fix in `prepare_data.py`; restructuring needed → stop and ask.
+- **Hardware-sizing rule of thumb (bf16):** ≤3B → 24 GB, 7–13B → 80 GB, 30B+ →
+  multi-GPU or LoRA on 1× 80 GB, 70B+ → 8× 80 GB or LoRA. If a full finetune
+  won't fit and the user didn't ask for LoRA, ask before switching.
 
-### Mistakes you WILL make without research
-
-- **HALLUCINATED IMPORTS** — modules renamed or removed. Read one current
-  example script first.
-- **WRONG TRAINER ARGUMENTS** — args that don't exist in the installed
-  `transformers`/`trl`. Fetch the docs for `TrainingArguments` / `SFTConfig`.
-- **WRONG DATASET FORMAT** — assuming columns. Stream 20 rows, print columns
-  *before* writing the collator.
-- **BATCH FAILURES** — launching multiple runs before verifying one. Smoke-test
-  (`--max_steps 1`) on real data before the full run.
-- **SILENT DATASET SUBSTITUTION** — requested dataset fails, you quietly switch.
-  Stop. Tell the user. Ask.
-- **SCOPE-CHANGING FIXES** — on OOM you switch SFT→LoRA, shrink `max_length`,
-  disable monitoring. Don't. Fix with the minimal change that preserves the
-  request.
-- **LOST MODELS** — local disk can be cleared. `push_to_hub=True` always unless
-  user explicitly says `False`.
-- **HIDDEN LOSS** — `tqdm` bars hide loss. In `TrainingArguments`:
-  `disable_tqdm=True`, `logging_strategy="steps"`, `logging_first_step=True`,
-  `logging_steps=10`.
-- **NO AUGMENTATION (CV)** — `AutoImageProcessor` only resizes+normalizes.
-  Without `RandomResizedCrop` + `RandomHorizontalFlip` you can drop ~30-40 points
-  on small datasets. Always fetch training transforms from the HF task doc or
-  author's script — not memory.
-
-### Never without user approval
-
-- Change `model_id`, `dataset_id`, or `training_method`.
-- Change task type mid-run (e.g. full → LoRA, classification → detection).
-- Skip the smoke test or preflight check.
-- Disable monitoring to "fix" an error.
-
-### Error recovery — minimal change, same approach
-
-- **OOM**: halve `per_device_train_batch_size`, double
-  `gradient_accumulation_steps` (effective batch unchanged), enable
-  `gradient_checkpointing=True`. Still OOM → ask user for bigger GPU.
-- **NaN loss**: reduce LR 10×, set `max_grad_norm=1.0`.
-- **Flat loss**: inspect label masking and LR. Usually a collator bug.
-- **Same error 3× in a row**: stop, summarize, ask. Do not loop.
-- **Import/API error**: refetch the relevant doc page — the API moved.
-
-### Dataset format by task
-
-Verify columns BEFORE writing the collator:
-
-- `image-classification` — `image` + `label` (or `labels`)
-- `object-detection` — `image` + `objects` with `bbox` + `category` (or `label`)
-- `semantic-segmentation` — `image` + `segmentation` (or `label`, or `mask`)
-- `depth-estimation` — `image` + `depth_map`
-- `image-text-to-text` (VLM SFT) — `image` + `messages` (conversation), or
-  `image` + `text` / `question` + `answer`
-
-Mismatch + rename fixes it → do it in `prepare_data.py`. Restructuring needed →
-stop and ask.
-
-### Hardware sizing (bf16)
-
-| Model size | GPU |
-|---|---|
-| ≤3B | 24 GB (A10, L4, T4-medium) |
-| 7-13B | 80 GB (A100-80, H100) |
-| 30B+ | multi-GPU (2-4× 80 GB) or LoRA on 1× 80 GB |
-| 70B+ | 8× 80 GB or LoRA |
-
-Rule of thumb: bf16 weights ≈ 2 B/param; optimizer states add ≈ 3-4× weights for
-full finetune, ~0 for LoRA. If full won't fit and user didn't ask for LoRA, ask
-before switching.
+Consult `references/core-rules.md` for the full enumeration (hallucinated
+imports list, never-without-approval list, full error-recovery table, full
+hardware sizing table) before training-time decisions.
 
 ---
 
@@ -777,38 +718,16 @@ the closing `---`, as in that template. If you generate an emitter script, make 
 
 ## Error playbook
 
-When you hit an error, consult this table before redesigning anything. Apply the
-minimal fix that keeps the user's original request intact.
+When you hit a known runtime error, consult `references/error-playbook.md`
+before redesigning anything — it carries the symptom → minimal-fix table
+(NGC ENTRYPOINT, PyTorch 2.5 SDPA+GQA bug, `transformers>=4.51`
+`@check_model_inputs` regression, numpy 2.x ABI break, Albumentations
+degenerate bbox, PEFT + gradient_checkpointing, Idefics3 / SmolVLM SDPA,
+LoRA target-regex breadth, missing CV augmentation, OOM at step 0, …).
 
-The compat-workarounds registry at `references/compat-workarounds.md` is the
-durable form of this table — entries there are auto-detected at Step 1d, before
-the error has a chance to fire. **When the same row in this table fires twice
-across runs, lift it into `compat-workarounds.md` with a `detect` rule.** Tell
-the user when you do.
-
-| Symptom | Fix |
-|---|---|
-| `DataLoader worker ... Bus error` | Add `--shm-size=16g` to `docker run`. |
-| Container starts then hangs | NGC ENTRYPOINT. Use `--rm` for one-shots; `ENTRYPOINT ["/bin/bash","-c"]` in Dockerfile. |
-| `ImportError: cannot import name 'main' from 'evaluate'` | Script named `evaluate.py`. Rename to `run_eval.py` — HF `evaluate` lib shadows it. |
-| `pip cache purge` fails in build | NGC disables pip cache. Remove the line. |
-| `TypeError: ... enable_gqa` at step 0 | PyTorch 2.5.0 SDPA+GQA bug (NGC 24.09). Set `attn_implementation: "eager"`. |
-| `TypeError: Missing **kwargs in ... @check_model_inputs` (Idefics3 / Llava / Mllama) | `transformers>=4.51` regression. Pin `transformers==4.49.0 tokenizers==0.21.0`. |
-| `trl>=1.0` breaking API on import | Pin `trl>=0.18.0,<1.0.0`. |
-| `ValueError: ... CVE-2025-32434` torch.load | NGC 25.01 PyTorch 2.6.0a + `transformers>=4.51` refuses `.bin` checkpoints. If model ships only `pytorch_model.bin`, pin `transformers==4.49.0 tokenizers==0.21.0`. Safetensors models unaffected. |
-| `ImportError: numpy.core.multiarray failed to import` | numpy 2.x ABI break. Pin `numpy<2`. |
-| Albumentations `y_max <= y_min for bbox` | Degenerate bboxes. Add `filter_invalid_bboxes=True`, `min_area=1` to `A.BboxParams`. |
-| Detection: `'list' object has no attribute 'logits'` in `compute_metrics` | Trainer with `eval_do_concat_batches=False`. Drop in-trainer metric, use `metric_for_best_model=eval_loss`, run mAP via `run_eval.py` post-training. |
-| PEFT + `gradient_checkpointing`: `element 0 ... does not require grad` | After `get_peft_model(...)`, call `model.enable_input_require_grads()`. |
-| Idefics3/SmolVLM: vision tower SDPA error | Set `_attn_implementation="eager"` on every model load. Store in `config.yaml: attn_implementation:`. |
-| Model barely learns, loss ≈ random | Don't set `torch_dtype=torch.bfloat16`. Load fp32, set `bf16=True` in `TrainingArguments`. |
-| Labels saved as `LABEL_0/1` not class names | Pass `id2label=` from `ClassLabel.names` to `from_pretrained`. |
-| Arrow drops `PIL.Image` after `load_from_disk` | `ds.cast_column("image", datasets.Image())`. |
-| LoRA reports 5-10% trainable (expected 0.1-1%) | Target regex too broad. VLMs: `target_modules=".*language_model.*"`. |
-| UCX segfault on container exit | Harmless NCCL cleanup. Check `checkpoints/final/` exists. |
-| Step 0 hangs for minutes | Streaming dataset. Run `prepare_data.py` first. |
-| CV: ~57% accuracy where SOTA is 94%+ | Missing augmentation. Add `RandomResizedCrop` + `RandomHorizontalFlip`. |
-| OOM at step 0 | Halve `per_device_train_batch_size`, double `gradient_accumulation_steps`, enable `gradient_checkpointing`. |
+When a row in that table fires twice across runs, lift it into
+`compat-workarounds.md` with a `detect` rule — that registry is the
+durable form, auto-applied in Step 1d before the error has a chance to fire.
 
 ---
 

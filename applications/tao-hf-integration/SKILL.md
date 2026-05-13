@@ -1,5 +1,8 @@
 ---
 name: tao-hf-integration
+version: "0.1.0"
+author: NVIDIA Corporation
+tools: Read Bash Write Edit Grep Glob WebFetch
 description: >
   Integrate a HuggingFace Computer Vision model into the NVIDIA TAO Toolkit
   ecosystem (tao-core config, tao-pytorch trainer, tao-deploy TensorRT
@@ -8,9 +11,9 @@ description: >
   SegFormer into tao-pytorch", "build a TAO trainer + deploy pipeline for an
   HF CV model", or pastes a HuggingFace model URL/ID and wants it turned
   into a TAO model. Covers the full 7-phase loop: prerequisites check,
-  HuggingFace inspection & validation, codebase exploration, tao-core
-  configuration & native trainer implementation, ONNX export + TensorRT
-  deploy integration, packaging & L0 testing, container-based end-to-end
+  HuggingFace inspection and validation, codebase exploration, tao-core
+  configuration and native trainer implementation, ONNX export plus TensorRT
+  deploy integration, packaging and L0 testing, container-based end-to-end
   validation, and (conditional) accuracy/latency tuning. Supports
   classification, object detection, semantic / instance / panoptic
   segmentation, zero-shot detection, and depth estimation.

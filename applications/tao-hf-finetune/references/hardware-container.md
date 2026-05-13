@@ -183,11 +183,11 @@ HF Trainer auto-detects torchrun environment via `LOCAL_RANK` env var. No manual
 
 ## Environment Variables for docker run
 
-The canonical training-time flag set lives in
-[`docker-runs.md`](docker-runs.md). The conventions there assume the
-container runs as the host user (`--user $(id -u):$(id -g)`) with the HF
-cache pinned into the bind-mounted `/workspace`, so file ownership in
-`checkpoints/`, `reports/`, and `logs/` stays clean on the host.
+The canonical training-time flag set lives in `docker-runs.md` (sibling
+reference). The conventions there assume the container runs as the host user
+(`--user $(id -u):$(id -g)`) with the HF cache pinned into the bind-mounted
+`/workspace`, so file ownership in `checkpoints/`, `reports/`, and `logs/`
+stays clean on the host.
 
 Always pass:
 ```bash
@@ -197,7 +197,7 @@ Always pass:
 ```
 
 If you're following the alternate `run.sh` named-volume layout described
-in [`deliverables.md`](deliverables.md) (root-inside-container plus
+in `deliverables.md` (sibling reference — root-inside-container plus
 shared docker volumes at `/root/.cache/*`) instead, mirror that
 file's `HF_HOME=/root/.cache/huggingface`. Pick one pattern per project
 and stay consistent — mixing them produces both a host-user-owned cache
