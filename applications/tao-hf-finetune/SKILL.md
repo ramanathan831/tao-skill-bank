@@ -283,16 +283,63 @@ Single pass, sequential. Each step has a clear gate before the next begins.
 **Goal:** decide whether to proceed at all. Probe model, probe dataset, apply
 accept/reject, register applicable compat fixes, write the initial `config.yaml`.
 
-**1a. Probe model:**
+**Prerequisites (assumed set by the calling agent):**
+- `MODEL_ID`, optional `DATASET_ID`, optional `HF_TOKEN` (loaded from the
+  SessionStart hook when present).
+- `OUTPUT_DIR` — defaults to `./output/<model_short_name>`. Same variable
+  Steps 4–5 bind-mount into the training container, so any HF/pip cache the
+  probe leaves behind under `$OUTPUT_DIR/.probe/.cache` survives for later
+  inspection but is gitignored.
+
+**Preflight — Docker must be installed.** Step 1's probes run inside Docker
+(no host venv / pip needed), so Docker has to exist on the host before
+Step 1a. The full GPU-runtime preflight still happens in Step 2a — this
+just covers the Docker-daemon prereq earlier so the probe's `docker run`
+doesn't fail with a bare `docker: command not found`:
 
 ```bash
-python3 -m venv /tmp/hf-inspect-venv && source /tmp/hf-inspect-venv/bin/activate
-pip install -q transformers huggingface_hub datasets Pillow
-python - <<'PY'
+TAO_SKILL_BANK_ROOT="${TAO_SKILL_BANK_PATH:-${TAO_SKILL_BANK_ROOT:-$PWD}}"
+SETUP_SCRIPT="${TAO_SKILL_BANK_ROOT}/platform/nvidia-gpu-setup/scripts/setup-nvidia-gpu-host.sh"
+[ -x "$SETUP_SCRIPT" ] || SETUP_SCRIPT="${TAO_SKILL_BANK_ROOT}/skills/nvidia-gpu-setup/scripts/setup-nvidia-gpu-host.sh"
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo "MISSING: docker is required for Step 1's containerized probe."
+  echo "After user approval, run the platform installer (same one Step 2a uses):"
+  echo "  bash \"$SETUP_SCRIPT\" --backend docker --install --yes"
+  echo "Then re-source your shell or 'newgrp docker' so the new group membership applies."
+  exit 1
+fi
+```
+
+If you'd rather front-load the full driver/CUDA/NCT preflight (recommended
+on a fresh host), just call `bash "$SETUP_SCRIPT" --backend docker --check-only`
+here — same invocation Step 2a uses, repeated calls are cheap.
+
+**1a. Probe model:**
+
+The probe runs inside a small CPU-only `python:3.12-slim` container so the
+host needs no Python prereqs (`python3-pip`, `python3-venv`, distro-managed
+Python). Save the script to `$OUTPUT_DIR/.probe/model_probe.py` first so
+it's diff-able, then run it with a bind-mounted scratch dir for cache reuse.
+
+Docker rejects relative paths in `-v` (anything not starting with `/` is
+parsed as a named-volume name and fails for `./output/...`). The snippet
+normalizes `$OUTPUT_DIR` to an absolute path with a single bash case
+before any `mkdir` / `cat` / `docker run`, so both the default
+relative `./output/<short>` and an explicit absolute override resolve
+correctly:
+
+```bash
+case "$OUTPUT_DIR" in
+  /*) ;;
+  *) OUTPUT_DIR="$(pwd)/$OUTPUT_DIR" ;;
+esac
+mkdir -p "$OUTPUT_DIR/.probe/.cache"
+cat > "$OUTPUT_DIR/.probe/model_probe.py" <<'PY'
 import os, sys
 from transformers import AutoConfig
 from huggingface_hub import model_info
-mid = os.environ["MODEL_ID"]; tok = os.environ.get("HF_TOKEN")  # optional — public models work without it
+mid = os.environ["MODEL_ID"]; tok = os.environ.get("HF_TOKEN") or None  # optional — public models work without it
 try:
     cfg = AutoConfig.from_pretrained(mid, token=tok, trust_remote_code=True)
 except Exception as e:
@@ -307,7 +354,33 @@ print("hidden_size:", getattr(cfg, "hidden_size", None))
 print("num_kv_heads:", getattr(cfg, "num_key_value_heads", None))
 print("num_attn_heads:", getattr(cfg, "num_attention_heads", None))
 PY
+
+docker run --rm \
+  --user $(id -u):$(id -g) \
+  -e HOME=/probe -e PIP_USER=1 \
+  -e MODEL_ID="$MODEL_ID" -e HF_TOKEN \
+  -e HF_HOME=/probe/.cache -e PIP_CACHE_DIR=/probe/.cache/pip \
+  -v "$OUTPUT_DIR/.probe":/probe -w /probe \
+  python:3.12-slim \
+  bash -c "pip install -q transformers huggingface_hub datasets Pillow && python model_probe.py"
 ```
+
+Notes:
+- `--user $(id -u):$(id -g)` keeps any cached files in `.probe/.cache`
+  owned by the host user. Without it the cache ends up `root:root` and
+  cleanup needs sudo.
+- `HOME=/probe` + `PIP_USER=1` makes `pip install` resolve to
+  `--user` mode (installing into `/probe/.local/lib/python3.12/site-packages`
+  inside the bind mount). System `/usr/local/lib/python3.12/site-packages`
+  in `python:3.12-slim` is root-owned, so without these env vars the pip
+  install would fail with `PermissionError` once `--user $(id -u):$(id -g)`
+  drops root. Python picks up the user-site automatically via `site.py`.
+- The first invocation downloads `python:3.12-slim` (~50 MB) and a fresh set
+  of HF wheels (~150 MB) into `.probe/.cache/pip` plus
+  `.probe/.local/lib/python3.12/site-packages/`; subsequent probes reuse
+  both.
+- The probe never installs anything on the host — Docker is the only
+  host-side prereq, and the Step 1 preflight above verifies it.
 
 Detect `task` from `architectures` + `tags` + model-card body. If the card
 doesn't show `from transformers import AutoModelFor...`, fall back to
@@ -319,11 +392,21 @@ For `source = recommend`, present 3–5 picks from
 `references/dataset-recommendations.md` to the user, then re-run with the chosen
 `dataset_id` / `local_dataset_path`.
 
-```python
-# HF source — loadability + schema probe (catches gated / script-based / missing)
-from datasets import load_dataset, load_dataset_builder
+Same in-container pattern as 1a — write the script to `.probe/dataset_probe.py`
+first, then run it under `python:3.12-slim` with the bind-mounted cache.
+Step 1b is a separate bash invocation, so it repeats the `$OUTPUT_DIR`
+normalization (the variable doesn't survive across `bash -c` calls):
+
+```bash
+case "$OUTPUT_DIR" in
+  /*) ;;
+  *) OUTPUT_DIR="$(pwd)/$OUTPUT_DIR" ;;
+esac
+cat > "$OUTPUT_DIR/.probe/dataset_probe.py" <<'PY'
+# HF source loadability + schema probe (catches gated / script-based / missing)
 import os
-DID = os.environ["DATASET_ID"]; TOK = os.environ.get("HF_TOKEN")  # optional — public datasets work without it
+from datasets import load_dataset, load_dataset_builder
+DID = os.environ["DATASET_ID"]; TOK = os.environ.get("HF_TOKEN") or None  # optional — public datasets work without it
 try:
     load_dataset_builder(DID, token=TOK)
     ds = load_dataset(DID, split="train[:20]", token=TOK)
@@ -333,10 +416,27 @@ rows = list(ds)
 print("columns:", list(rows[0].keys()))
 for col, val in rows[0].items():
     print(f"  {col}: {type(val).__name__}")
+PY
+
+docker run --rm \
+  --user $(id -u):$(id -g) \
+  -e HOME=/probe -e PIP_USER=1 \
+  -e DATASET_ID="$DATASET_ID" -e HF_TOKEN \
+  -e HF_HOME=/probe/.cache -e PIP_CACHE_DIR=/probe/.cache/pip \
+  -v "$OUTPUT_DIR/.probe":/probe -w /probe \
+  python:3.12-slim \
+  bash -c "pip install -q transformers huggingface_hub datasets Pillow && python dataset_probe.py"
 ```
 
+Same `HOME=/probe` + `PIP_USER=1` rationale as 1a — the install lands in
+`.probe/.local/lib/python3.12/site-packages` and survives between probes
+under the bind mount.
+
 For `source = local`, see `references/dataset-sources.md` for format detection
-and loaders.
+and loaders. Bind-mount the local dataset path with an additional
+`-v "<local_dataset_path>":"<local_dataset_path>":ro` so the container can
+read it, and adapt `dataset_probe.py` to use the local loader instead of
+`load_dataset(DID, …)`.
 
 Verify columns match the task schema (Core rules → Dataset format). Mismatch +
 rename fixes it → write the rename into `prepare_data.py`. Otherwise stop.
@@ -375,7 +475,15 @@ notes: []                    # log any reference fallback
 push_to_hub: true            # default
 ```
 
-deactivate; rm -rf /tmp/hf-inspect-venv
+Optionally clean up the probe scratch dir once the gate is met:
+
+```bash
+rm -rf "$OUTPUT_DIR/.probe"
+```
+
+Keeping it around between reruns is fine — it caches `python:3.12-slim`
+layers, pip wheels, and any HF model/dataset files already pulled, so a
+re-probe is fast. Add `.probe/` to `.gitignore` (covered in Step 4a).
 
 **Gate:** `config.yaml` exists with model, dataset, task, applicable_workarounds.
 Do not proceed if any field is missing.
@@ -511,7 +619,7 @@ on real data. One `docker build`, two `docker run`s.
 | `run_eval.py` | scaffold + Step 3 | **MUST** be `run_eval.py` (collides with HF `evaluate` lib if named `evaluate.py`) |
 | `infer.py` | scaffold + Step 3 | writes `reports/inference_samples/<i>_input.jpg`, `_pred.jpg`, `_meta.json` |
 | `merge_lora.py` | scaffold | only for VLM with LoRA |
-| `.gitignore` | `data/`, `checkpoints/`, `logs/`, `wandb/`, `reports/inference_samples/`, `.env`, `__pycache__/`, `*.pyc` | |
+| `.gitignore` | `data/`, `checkpoints/`, `logs/`, `wandb/`, `reports/inference_samples/`, `.env`, `__pycache__/`, `*.pyc`, `.cache/`, `.probe/` | |
 
 Authority order while writing: live research from Step 3 → scaffold reference
 (`cv-scripts.md` / `vlm-scripts.md`) for **structure only**, never their

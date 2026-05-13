@@ -137,7 +137,7 @@ docker platform skill — do not fork them inside this skill.
 | Phase | Goal | Reference |
 |---|---|---|
 | 0 | Verify prerequisites + ask user for TAO Toolkit images + prepare local image tags | [phase-0-prereqs.md](references/phase-0-prereqs.md) |
-| 1 | Gather inputs, isolate venv, validate HF model + dataset | [phase-1-inspection.md](references/phase-1-inspection.md), [hf-inspection.md](references/hf-inspection.md) |
+| 1 | Gather inputs, launch the containerized HF-inspection environment, validate HF model + dataset | [phase-1-inspection.md](references/phase-1-inspection.md), [hf-inspection.md](references/hf-inspection.md) |
 | 2 | Find the closest existing TAO reference model | [phase-2-codebase.md](references/phase-2-codebase.md), [task-type-guide.md](references/task-type-guide.md) |
 | 3 | tao-core config + tao-pytorch trainer / native eval / inference | [phase-3-implementation.md](references/phase-3-implementation.md), [tao-patterns.md](references/tao-patterns.md), [repo-structure.md](references/repo-structure.md) |
 | 4 | ONNX export + tao-deploy TRT engine, inference, evaluation | [phase-4-deploy.md](references/phase-4-deploy.md) |
@@ -191,18 +191,56 @@ When something fails, consult this before trying random fixes:
 
 ## Environment Isolation Strategy
 
-Non-Docker Python work must use an isolated environment, then be cleaned up.
+All Python work runs **inside Docker containers** — no host venvs, no
+`pip install`s into host Python. The same `tao-pytorch-base:latest` image
+that Phases 3/4/6 use is also used for Phase 1's HF inspection, so the host
+needs only Docker (provided by `nvidia-gpu-setup`) and never needs
+`python3-pip` / `python3-venv` / a particular Python version.
 
-- **Context A — HF model inspection (Phase 1):** create `/tmp/tao-hf-inspect-venv`, `pip install transformers huggingface_hub torch onnx timm`, run inspection, then `deactivate && rm -rf /tmp/tao-hf-inspect-venv`. Full commands in `phase-1-inspection.md`.
-- **Context B — Incremental smoke tests (Phase 3/4):** prefer running inside the prepared TAO Toolkit container (`docker run ... tao-pytorch-base:latest`). A fallback temp venv (`/tmp/tao-smoke-venv` with editable installs) is documented in `phase-1-inspection.md`.
-- **Context C — Temporary files:** clean up `/tmp/tao_hf_test.onnx`, `~/.cache/huggingface/hub/models--<org>--<name>`, and any temp venvs after the phase that created them.
+- **Context A — HF model inspection (Phase 1):** launch a long-lived
+  `tao-pytorch-base:latest` container named `tao-hf-inspect`, bind-mount a
+  host scratch dir at `/workspace`, and run each probe step via `docker
+  exec`. A `python:3.12-slim` fallback is documented for environments where
+  Phase 0 hasn't been run yet. Full commands in `phase-1-inspection.md`.
+- **Context B — Incremental smoke tests (Phase 3/4):** run inside the
+  prepared TAO Toolkit container (`docker run ... tao-pytorch-base:latest`)
+  with the local source bind-mounted and installed via `pip install
+  /workspace/tao-core && python setup.py develop`.
+- **Context C — Temporary files:** scratch lives under the host bind-mount
+  (e.g. `./.phase1`) so files end up host-user-owned (`--user $(id -u):$(id -g)`).
+  Remove the scratch dir after the phase that created it, or keep it
+  between runs to skip model redownloads.
 
 Rules:
 
-1. `pip install` — NEVER into the host/system Python. Always into a task-specific venv or inside Docker.
-2. `apt install` — OK on the host (system packages are fine).
-3. Always `deactivate` and `rm -rf` the venv when done.
-4. Prefer Docker containers for anything beyond Phase 1 — they already have all dependencies.
+1. `pip install` — NEVER into the host/system Python. Always inside a
+   container.
+2. Host-level system packages (`docker`, `git`, kernel headers, NVIDIA
+   Container Toolkit) are owned by the `nvidia-gpu-setup` skill, which
+   handles the distro-specific package manager (`apt-get` on Debian/Ubuntu
+   and derivatives, `dnf` / `yum` on Fedora/RHEL/Rocky/Alma, `zypper` on
+   openSUSE/SLES, manual instructions for other distros). This skill never
+   issues `apt`/`dnf`/`zypper` commands directly — it only invokes
+   `nvidia-gpu-setup --check-only` and surfaces the error.
+3. **Container UID convention — depends on the workload:**
+   - Phase 1 inspection (Context A) — runs `python -c "..."` against
+     pre-installed wheels in `tao-pytorch-base:latest`. **Pass
+     `--user $(id -u):$(id -g)`**; HF cache + the `tao_hf_test.onnx`
+     scratch file end up host-user-owned. The fallback path on
+     `python:3.12-slim` does pip-install-at-startup, so it also sets
+     `HOME=/workspace` + `PIP_USER=1` to route the install into a
+     bind-mounted user-site instead of the root-owned system
+     `site-packages`.
+   - Phase 3 / 4 / 6 (Context B) — every smoke test, L0 test, and the
+     end-to-end pipeline run `pip install /workspace/tao-core && python
+     setup.py develop` against the container's **system** site-packages
+     (root-owned). These invocations therefore run **as root** (no
+     `--user`) and accept the trade-off that `*.egg-info/`, `build/`,
+     `.pytest_cache/`, `dist/`, and `__pycache__/` left in
+     `/workspace/tao-*` end up `root:root`. `sudo rm -rf` them or leave
+     them between iterations — none of them is a source artifact.
+4. Remove the long-lived inspection container (`docker rm -f
+   tao-hf-inspect`) at the end of Phase 1.
 
 ---
 
@@ -229,9 +267,9 @@ Full commands, the user-prompt wording, and the per-image preparation `Dockerfil
 
 ## Phase 1 — Information Gathering & Validation
 
-**Goal:** decide whether to proceed at all. Gather credentials, locate (or clone) the four TAO repos, create a consistent local working branch across all of them, isolate a venv, validate that the HF model is a CV model with a supported `pipeline_tag`, extract config + state-dict schema, sanity-check ONNX export, and clean up.
+**Goal:** decide whether to proceed at all. Gather credentials, locate (or clone) the four TAO repos, create a consistent local working branch across all of them, launch the long-lived `tao-hf-inspect` container (Context A in the Environment Isolation Strategy above), validate that the HF model is a CV model with a supported `pipeline_tag`, extract config + state-dict schema, sanity-check ONNX export, and clean up.
 
-Full step-by-step (1.1–1.7) including the AutoConfig probe, dataset loadability probe, ONNX sanity export, and venv cleanup: see [phase-1-inspection.md](references/phase-1-inspection.md). Generic HF-inspection patterns: [hf-inspection.md](references/hf-inspection.md).
+Full step-by-step (1.1–1.7) including the AutoConfig probe, dataset loadability probe, ONNX sanity export, and container cleanup: see [phase-1-inspection.md](references/phase-1-inspection.md). Generic HF-inspection patterns: [hf-inspection.md](references/hf-inspection.md).
 
 **Reject if:**
 

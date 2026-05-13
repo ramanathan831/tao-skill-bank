@@ -147,12 +147,12 @@ dummy = torch.randn(1, 3, 224, 224)
 full_model.eval()
 
 torch.onnx.export(
-    full_model, dummy, "/tmp/tao_hf_test.onnx",
+    full_model, dummy, "/workspace/tao_hf_test.onnx",
     input_names=["input"], output_names=["output"],
     dynamic_axes={"input": {0: "batch"}, "output": {0: "batch"}},
     opset_version=17,
 )
-onnx.checker.check_model("/tmp/tao_hf_test.onnx")
+onnx.checker.check_model("/workspace/tao_hf_test.onnx")
 print("ONNX export OK")
 ```
 

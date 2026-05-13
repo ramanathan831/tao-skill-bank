@@ -92,7 +92,9 @@ REJECT_IF = [
 
 ## Transformers Integration Check Procedure
 
-Run this full check in the inspection venv:
+Run this full check inside the Step 1 probe container (`docker run … python:3.12-slim …`
+with the bind-mounted `.probe/` scratch dir — same invocation as Step 1a in the
+SKILL.md, no host Python needed):
 
 ```python
 from transformers import AutoConfig, AutoImageProcessor, AutoProcessor

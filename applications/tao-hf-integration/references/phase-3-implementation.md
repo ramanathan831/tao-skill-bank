@@ -297,7 +297,8 @@ def forward(self, x):
 
 **Finding feature pyramid tapping points** (for detection/segmentation):
 ```python
-# Run this in the inspection venv or container to discover intermediate feature shapes:
+# Run this inside the long-lived Phase 1 `tao-hf-inspect` container (docker exec)
+# to discover intermediate feature shapes:
 model = ...  # instantiate the backbone
 hooks, features = [], {}
 for name, module in model.named_modules():
@@ -358,7 +359,7 @@ def convert_hf_state_dict(hf_state_dict, tao_model):
 
 Download HF weights once and save as `.pth` for use with `pretrained_backbone_path`:
 ```python
-# In the Phase 1 inspection venv:
+# Inside the long-lived Phase 1 `tao-hf-inspect` container:
 from transformers import AutoModel
 model = AutoModel.from_pretrained("acme/newarch-base")
 torch.save(model.state_dict(), "/path/to/newarch_hf_weights.pth")
@@ -650,10 +651,18 @@ gen_trt_engine:
 - All `???` fields are MISSING (required) — user must supply them via YAML or CLI override
 
 **Incremental test checkpoint — verify before proceeding.**
-Run these inside the Docker container (preferred) or a temp venv. Do NOT install into the host Python:
+Run these inside the prepared TAO Toolkit container. Do NOT install into the
+host Python.
+
+This smoke test does `pip install /workspace/tao-core && python setup.py develop`
+at runtime — both write to the container's system site-packages (root-owned),
+so we deliberately run the container as root (no `--user $(id -u):$(id -g)`).
+Side-effects in the bind mount (`*.egg-info/`, `build/`) end up root-owned;
+clean them with `sudo rm -rf` if needed, or skip cleanup since they're
+regenerated on every re-test.
 
 ```bash
-# Preferred: run via Docker (image tag prepared in Phase 0)
+# Run via Docker (image tag prepared in Phase 0)
 docker run --rm --gpus all \
   -v $(pwd):/workspace \
   -w /workspace/tao-pytorch \
