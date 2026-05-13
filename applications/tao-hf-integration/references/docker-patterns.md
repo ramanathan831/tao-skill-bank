@@ -20,6 +20,16 @@ Concrete patterns extracted from the TAO repos for running tests in containers, 
 
 > **Note:** For testing, we run directly inside the prepared TAO Toolkit containers (image tags built in Phase 0) — no Docker build is involved in the test loop. Release Docker images are optional and only for distribution validation. All work must be **local only** (`--load`, not `--push`). Do NOT push images to any registry.
 
+> **Authority for generic flags:** the `--gpus`, `--ipc=host` / `--shm-size`,
+> `-v host:container`, `-e VAR` passthrough, container-name reuse, and
+> `docker inspect` / `docker logs` patterns are owned by
+> [`tao-skill-bank:docker`](../../../platform/docker/SKILL.md). The host GPU
+> runtime (driver 580 / CUDA 13.0 / NVIDIA Container Toolkit 1.19.0) is owned
+> by [`tao-skill-bank:nvidia-gpu-setup`](../../../platform/nvidia-gpu-setup/SKILL.md).
+> Patterns in this file only layer on the TAO-Toolkit-specific bits — image
+> preparation, `pip install /workspace/tao-core`, `setup.py develop`, the
+> per-repo `pytest` / lint / wheel invocations.
+
 ---
 
 ## 1. Dockerfile Locations

@@ -29,7 +29,7 @@ tools:
   - Bash
   - Write
   - WebFetch
-compatibility: Requires docker + nvidia-container-toolkit, NVIDIA GPU (driver ≥ 545, ≥ 24 GB VRAM for ≤3B models), ~40 GB free disk, HF_TOKEN, and WANDB_API_KEY/WANDB_PROJECT.
+compatibility: Requires docker + nvidia-container-toolkit, NVIDIA GPU (driver ≥ 545, ≥ 24 GB VRAM for ≤3B models), ~40 GB free disk. Optional credentials (loaded from `~/.config/tao/.env` by the SessionStart hook): HF_TOKEN — only when the model/dataset is gated or `push_to_hub` is on; WANDB_API_KEY/WANDB_PROJECT — only when WandB logging is enabled.
 metadata:
   author: NVIDIA Corporation
   version: '0.1'
@@ -77,8 +77,10 @@ line.
 
 **Required:**
 - `model_id` — HuggingFace model ID, e.g. `google/vit-base-patch16-224`
-- `HF_TOKEN` — read access to the model; write access if `push_to_hub` is on
-- `WANDB_API_KEY`, `WANDB_PROJECT` — monitoring
+
+**Conditional credentials (loaded by the SessionStart hook from `~/.config/tao/.env` when present):**
+- `HF_TOKEN` — required only when the model or dataset is **gated** (read access) or `push_to_hub` is on (write access). Public model + public dataset + `push_to_hub: false` runs do not need it. The agent never reads the value — only checks presence with `[ -n "$HF_TOKEN" ]`.
+- `WANDB_API_KEY`, `WANDB_PROJECT` — required only when WandB monitoring is enabled. Set `WANDB_MODE=disabled` to opt out.
 
 **Dataset — exactly one:**
 - `dataset_id` — HuggingFace dataset ID *(source: `hf`)*
@@ -104,6 +106,49 @@ emit_unit_tests:   false   # tests/ with fake-data heterogeneous-batch tests
 ```
 
 All values live in `output_dir/config.yaml`. Never hardcode in Python.
+
+---
+
+## Execution platform
+
+This skill orchestrates *what* to run; the platform skills own *how* to run it
+on a GPU host. Read those skills first and do not redraft their conventions
+here.
+
+| Concern | Authoritative skill |
+|---|---|
+| GPU host runtime — NVIDIA driver 580, CUDA Toolkit 13.0, NVIDIA Container Toolkit 1.19.0 | [`tao-skill-bank:nvidia-gpu-setup`](../../platform/nvidia-gpu-setup/SKILL.md) |
+| `docker run` flags, NGC auth, `--gpus`, mounts, env passthrough, `--ipc=host`/`--shm-size`, common error modes | [`tao-skill-bank:docker`](../../platform/docker/SKILL.md) |
+| Local Docker job preflight (daemon reachable, GPU smoke) | [`tao-skill-bank:local-docker`](../../platform/local-docker/SKILL.md) |
+
+**Default platform:** `local-docker`. This workflow builds a one-off image
+(`run-<short>:latest`) and runs it on the local Docker daemon — the same
+pattern documented in `platform/local-docker/SKILL.md`. Ask the user only when
+they explicitly need a different backend (Brev for a remote GPU instance,
+Lepton/SLURM/Kubernetes for managed scheduling); in that case run the chosen
+platform's Preflight section first, generate the choices via
+`${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/list_tao_platforms.py
+--format text`, then route the `docker run` commands in Steps 4–5 through that
+platform's execution pattern.
+
+**GPU runtime preflight:** Step 2a runs the `nvidia-gpu-setup` skill's
+`--check-only` mode. Do not duplicate the NCT / driver / `--gpus all` smoke
+logic here — if it needs to change, change it in `nvidia-gpu-setup`.
+
+**Credentials preflight:** the SessionStart hook
+(`hooks/session_start.sh`) loads `~/.config/tao/.env` into the session
+env and lists the variable names (never values) in the session banner.
+Step 2a only confirms presence of credentials that the current run
+*actually* needs — `HF_TOKEN` for gated downloads or `push_to_hub`,
+`WANDB_API_KEY`/`WANDB_PROJECT` if WandB is enabled — instead of hard-
+requiring them up front.
+
+**Docker run conventions:** every `docker run` invocation in
+`references/docker-runs.md` follows the canonical flag set from
+`platform/docker/SKILL.md` (`--gpus all`, `--ipc=host` or `--shm-size=…`,
+`-e VAR` passthrough, bind mounts, `--rm` for one-shots). Treat that skill as
+the spec; this one only adds workflow-specific flags
+(`--entrypoint /bin/bash -lc`, `PYTORCH_CUDA_ALLOC_CONF`, `--name hft_train`).
 
 ---
 
@@ -247,10 +292,12 @@ python - <<'PY'
 import os, sys
 from transformers import AutoConfig
 from huggingface_hub import model_info
-mid = os.environ["MODEL_ID"]; tok = os.environ["HF_TOKEN"]
+mid = os.environ["MODEL_ID"]; tok = os.environ.get("HF_TOKEN")  # optional — public models work without it
 try:
     cfg = AutoConfig.from_pretrained(mid, token=tok, trust_remote_code=True)
 except Exception as e:
+    # If this is a gated model, the error message will name 401/access-denied;
+    # tell the user to export HF_TOKEN and retry.
     print(f"REJECT: AutoConfig failed — {e}"); sys.exit(1)
 info = model_info(mid, token=tok)
 print("model_type:", cfg.model_type)
@@ -276,7 +323,7 @@ For `source = recommend`, present 3–5 picks from
 # HF source — loadability + schema probe (catches gated / script-based / missing)
 from datasets import load_dataset, load_dataset_builder
 import os
-DID = os.environ["DATASET_ID"]; TOK = os.environ["HF_TOKEN"]
+DID = os.environ["DATASET_ID"]; TOK = os.environ.get("HF_TOKEN")  # optional — public datasets work without it
 try:
     load_dataset_builder(DID, token=TOK)
     ds = load_dataset(DID, split="train[:20]", token=TOK)
@@ -340,20 +387,41 @@ Do not proceed if any field is missing.
 **Goal:** verify Docker + GPU + disk, pick the NGC PyTorch image live, finalize
 hardware-dependent compat rules.
 
-**2a. Audit (hard gate):** run the preflight script. It hard-fails on missing
-driver, docker daemon, `nvidia-container-toolkit` registration, `--gpus all`
-smoke (against a CUDA tag derived from the driver's max supported CUDA), or
-missing `HF_TOKEN`. Free-disk on `/` is a **soft warn** at 100 GB (override via
-`MIN_DISK_GB`); the script continues so the user can decide. On hard-fail it
-prints a distro-aware install hint parsed from `/etc/os-release` and exits
-non-zero. **Do not proceed to Step 4 on a hard-fail** — Step 4's `docker build`
-pulls a 20+ GB NGC base image, and a missing `nvidia-container-toolkit` only
-surfaces at `prepare_data.py` time as the cryptic
-`could not select device driver "" with capabilities: [[gpu]]`.
+**2a. Audit (hard gate):** the GPU host runtime check is owned by the
+`nvidia-gpu-setup` skill (driver branch 580, CUDA Toolkit 13.0, NVIDIA
+Container Toolkit 1.19.0). Invoke it in `--check-only` mode; on failure, ask
+the user to authorize the install, then re-run. Credentials come from the
+SessionStart hook (`~/.config/tao/.env`) — only check the ones the current
+run actually needs.
 
 ```bash
-bash scripts/preflight.sh    # see scripts/preflight.sh — all 6 checks live there
+# 1) GPU host runtime — delegated to nvidia-gpu-setup
+TAO_SKILL_BANK_ROOT="${TAO_SKILL_BANK_PATH:-${TAO_SKILL_BANK_ROOT:-$PWD}}"
+SETUP_SCRIPT="${TAO_SKILL_BANK_ROOT}/platform/nvidia-gpu-setup/scripts/setup-nvidia-gpu-host.sh"
+[ -x "$SETUP_SCRIPT" ] || SETUP_SCRIPT="${TAO_SKILL_BANK_ROOT}/skills/nvidia-gpu-setup/scripts/setup-nvidia-gpu-host.sh"
+
+bash "$SETUP_SCRIPT" --backend docker --check-only || {
+  echo "MISSING: TAO GPU host runtime not ready."
+  echo "After user approval, run: bash \"$SETUP_SCRIPT\" --backend docker --install --yes"
+  exit 1
+}
+
+# 2) Free-disk soft-warn (override via MIN_DISK_GB; default 100 GB)
+min_disk_gb="${MIN_DISK_GB:-100}"
+disk_free_gb=$(df -BG / | awk 'NR==2 {print $4}' | tr -d G)
+if [ "${disk_free_gb:-0}" -lt "$min_disk_gb" ]; then
+  echo "WARN: only ${disk_free_gb}G free on /; recommend ≥ ${min_disk_gb}G for NGC base (~20G) + HF cache + checkpoints + dataset." >&2
+fi
+
+# 3) Conditional credential presence checks (no values are read)
+#    HF_TOKEN: only when the model/dataset is gated, or push_to_hub is on.
+#    WANDB_*:  only when WandB logging is enabled in config.yaml.
 ```
+
+**Do not proceed to Step 4 on a hard-fail** — Step 4's `docker build` pulls a
+20+ GB NGC base image, and a missing `nvidia-container-toolkit` only surfaces
+at `prepare_data.py` time as the cryptic `could not select device driver ""
+with capabilities: [[gpu]]`.
 
 Record `gpu_count`, `gpu_name`, `driver_major`, `vram_gb_per_gpu` in
 `config.yaml`.
@@ -367,7 +435,18 @@ WebFetch https://docs.nvidia.com/deeplearning/frameworks/support-matrix/index.ht
 Find the **PyTorch NGC container** section. Pick the highest-versioned image
 where:
 - `Min driver ≤ detected driver_major`
-- PyTorch is a **stable release** (not `aN` / `rcN`)
+- Container CUDA is `≤` host CUDA Toolkit version (drivers are forward-
+  compatible, but match closely so cuDNN / TensorRT versions line up with
+  the host toolchain).
+
+Do **not** reject an image because its PyTorch version carries an `aN` /
+`bN` / `rcN` suffix. Every recent NGC PyTorch image ships a near-head
+PyTorch build (`2.10.0a0`, `2.11.0a0`, …) — NVIDIA validates the full image
+end-to-end (CUDA / cuDNN / TensorRT / NCCL / drivers / Python stack), so
+the `aN` reflects upstream PyTorch's tag, not NGC instability. Treating
+`aN` as disqualifying would force every run onto a ~year-old image. Pick
+the newest CUDA-aligned image and let real compat workarounds
+(`compat-workarounds.md`) handle any per-version issue.
 
 If WebFetch fails: fallback rules in `references/hardware-container.md`. Default
 fallback: `nvcr.io/nvidia/pytorch:24.09-py3` (driver ≥ 545; SDPA+GQA bug — if

@@ -93,6 +93,45 @@ Using the nested submodule silently ignores all modifications — model configs,
 
 ---
 
+## Execution platform
+
+This skill executes every test, smoke run, and end-to-end validation inside a
+locally prepared TAO Toolkit container (`tao-pytorch-base:latest`,
+`tao-deploy-base:latest`, optionally `tao-dataservices-base:latest` — all
+prepared in Phase 0). The platform skills own the *how* of running those
+containers; this skill only specifies *what* to run inside them.
+
+| Concern | Authoritative skill |
+|---|---|
+| GPU host runtime — NVIDIA driver 580, CUDA Toolkit 13.0, NVIDIA Container Toolkit 1.19.0 | [`tao-skill-bank:nvidia-gpu-setup`](../../platform/nvidia-gpu-setup/SKILL.md) |
+| `docker run` flags, NGC auth, `--gpus`, mounts, env passthrough, `--ipc=host`/`--shm-size`, container inspection, common error modes | [`tao-skill-bank:docker`](../../platform/docker/SKILL.md) |
+| Local Docker daemon preflight + per-job invocation | [`tao-skill-bank:local-docker`](../../platform/local-docker/SKILL.md) |
+
+**Default platform:** `local-docker`. This workflow requires bind-mounting
+your local clones of `tao-core`, `tao-pytorch`, `tao-deploy`, and
+`tao-dataservices` into the container at `/workspace`, then installing the
+modified source via `pip install /workspace/tao-core` and `setup.py develop`.
+That layout only makes sense against a Docker daemon you control. The Local
+Only Rule above is the corollary: no remote registry pushes, no remote job
+submissions.
+
+**GPU runtime preflight:** Phase 0 delegates the driver / CUDA / NCT checks
+to the `nvidia-gpu-setup` skill rather than duplicating them here. NGC
+`docker login`, image pulls, and the published-image preparation step remain
+in Phase 0 — those are the only TAO-Toolkit-specific bits.
+
+**Docker run conventions:** every `docker run` invocation in Phases 3 / 4 /
+6 follows the canonical flag set from `platform/docker/SKILL.md` (`--gpus
+all`, `-v` bind mounts, `-e VAR` passthrough, `--shm-size=16G` for
+DataLoader-heavy pytest, `--rm` for one-shots). The phase reference files
+only specify the *workflow-specific* additions (`-w /workspace/<repo>`,
+`PYTHONPATH=/workspace/tao-core:/workspace/<repo>`, the inner
+`pip install /workspace/tao-core && python setup.py develop && pytest ...`
+shell). If anything about the generic conventions changes, change it in the
+docker platform skill — do not fork them inside this skill.
+
+---
+
 ## Phase Map
 
 | Phase | Goal | Reference |
@@ -169,7 +208,14 @@ Rules:
 
 ## Phase 0 — Prerequisites Check
 
-**Goal:** verify Python 3.10+, NVIDIA driver, CUDA ≥ 13.0, Docker + NVIDIA Container Toolkit, NGC `docker login`, and `git`. Then **ask the user** for the TAO Toolkit container image references (tao-pytorch, tao-deploy, optionally tao-dataservices), pull them, and prepare them as local image tags `tao-pytorch-base:latest`, `tao-deploy-base:latest`, and `tao-dataservices-base:latest` for use by Phases 3–6.
+**Goal:** verify Python 3.10+ and `git`; delegate the NVIDIA driver / CUDA /
+Docker / NVIDIA Container Toolkit host check to the `nvidia-gpu-setup` skill
+(see the Execution platform section above); verify NGC `docker login` for
+`nvcr.io`. Then **ask the user** for the TAO Toolkit container image
+references (tao-pytorch, tao-deploy, optionally tao-dataservices), pull them,
+and prepare them as local image tags `tao-pytorch-base:latest`,
+`tao-deploy-base:latest`, and `tao-dataservices-base:latest` for use by
+Phases 3–6.
 
 The TAO Toolkit images come with the released TAO Python packages already installed; the preparation step removes those pre-installed packages so the user's local clones (mounted at `/workspace/...` in later phases) can be installed and picked up at run time. After preparation, `pip install /workspace/tao-core && python setup.py develop` cleanly registers the local source and its `console_scripts` inside the container.
 

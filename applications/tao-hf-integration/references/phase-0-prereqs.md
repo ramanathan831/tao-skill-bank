@@ -20,23 +20,45 @@ Full Phase 0 commands and content for the `tao-hf-integration` skill — system 
 
 Before starting any work, verify the system has all required infrastructure. **Hard stop if any check fails — resolve before proceeding.**
 
+### Workflow-specific checks
+
 ```bash
 # Python 3.10+
 python3 --version
 
-# NVIDIA driver
-nvidia-smi
+# git
+git --version
+```
 
-# CUDA (must be >= 13.0)
-nvcc --version
+### GPU host runtime — delegate to nvidia-gpu-setup
 
-# Docker
-docker --version
+The NVIDIA driver (branch 580), CUDA Toolkit 13.0, and NVIDIA Container
+Toolkit 1.19.0 are owned by the `tao-skill-bank:nvidia-gpu-setup` skill, not
+by this workflow. Invoke its `--check-only` mode; on failure, ask the user to
+authorize the install, then re-run.
 
-# NVIDIA Container Toolkit (docker GPU runtime)
-docker run --rm --gpus all nvidia/cuda:12.0.0-base-ubuntu22.04 nvidia-smi
+```bash
+TAO_SKILL_BANK_ROOT="${TAO_SKILL_BANK_PATH:-${TAO_SKILL_BANK_ROOT:-$PWD}}"
+SETUP_SCRIPT="${TAO_SKILL_BANK_ROOT}/platform/nvidia-gpu-setup/scripts/setup-nvidia-gpu-host.sh"
+[ -x "$SETUP_SCRIPT" ] || SETUP_SCRIPT="${TAO_SKILL_BANK_ROOT}/skills/nvidia-gpu-setup/scripts/setup-nvidia-gpu-host.sh"
 
-# NGC Docker registry authentication (required to pull TAO Toolkit container images from nvcr.io)
+bash "$SETUP_SCRIPT" --backend docker --check-only || {
+  echo "MISSING: TAO GPU host runtime not ready."
+  echo "After user approval, run: bash \"$SETUP_SCRIPT\" --backend docker --install --yes"
+  exit 1
+}
+```
+
+This single delegation covers `nvidia-smi`, `nvcc`, the Docker daemon, the
+NVIDIA Container Toolkit runtime registration, and the `docker run --gpus
+all` smoke test. Do not re-implement those checks here — they live in
+`nvidia-gpu-setup` so every TAO skill picks up version pin changes the
+moment that skill bumps.
+
+### NGC registry login (TAO-Toolkit-specific)
+
+```bash
+# NGC Docker registry authentication (required to pull the TAO Toolkit container images from nvcr.io)
 docker login nvcr.io
 # Username: $oauthtoken
 # Password: <NGC API Key>
@@ -47,12 +69,9 @@ docker login nvcr.io
 
 **Checklist:**
 - [ ] Python >= 3.10 installed
-- [ ] NVIDIA driver installed and `nvidia-smi` shows GPU(s)
-- [ ] CUDA >= 13.0 (`nvcc --version` or check `nvidia-smi` CUDA version)
-- [ ] Docker installed and running
-- [ ] NVIDIA Container Toolkit installed (`docker run --gpus all` works)
-- [ ] NGC Docker registry authenticated (`docker login nvcr.io` succeeds)
 - [ ] `git` installed
+- [ ] `nvidia-gpu-setup --check-only` passes (driver 580, CUDA 13.0, NCT 1.19.0, `docker run --gpus all` smoke)
+- [ ] NGC Docker registry authenticated (`docker login nvcr.io` succeeds)
 
 If anything is missing, inform the user with the specific failure and what needs to be installed. Do NOT proceed until all checks pass.
 

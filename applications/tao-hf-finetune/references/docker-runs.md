@@ -23,6 +23,17 @@ mount `$OUTPUT_DIR` (or `$(pwd)` when invoked from a generated rerun skill) at
 
 `<short>` = `model_short_name` from `config.yaml`.
 
+**Authority:** the generic flag conventions — `--gpus`, `-e VAR` passthrough,
+`--ipc=host`, `-v host:container`, NGC auth, container-name reuse, common
+error modes — are owned by [`tao-skill-bank:docker`](../../../platform/docker/SKILL.md).
+This catalog only adds workflow-specific flags on top: `--entrypoint /bin/bash
+-lc` (to wrap commands around NGC's `nvidia_entrypoint.sh`), `--shm-size=16g`
+(DataLoader workers), `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`
+(fragmentation under variable shapes), and `--name hft_train` (for the
+detached training container). If anything about the generic conventions
+changes, change it in the docker platform skill and rebase here — do not
+fork the conventions.
+
 ---
 
 ## Why `--entrypoint /bin/bash -lc "..."`
