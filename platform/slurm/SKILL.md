@@ -37,9 +37,38 @@ python -c "import tao_sdk" 2>/dev/null || {
   echo "  pip install \"nvidia-tao-sdk[slurm] @ $REPO\""
   exit 1
 }
+
+# 3. Enroot credentials on the cluster for private nvcr.io images.
+# Pyxis on the compute nodes invokes enroot to import the Docker image. Enroot
+# does NOT read NGC_KEY from the SLURM job env — it requires persistent
+# credentials in ~/.config/enroot/.credentials on the login/compute nodes.
+# Without this, anonymous pulls of nvcr.io/nvstaging/* (or any auth-gated
+# repo) fail with "Could not process JSON input" at job startup. Skip if the
+# image is from a public repo.
+if [ -n "$NGC_KEY" ]; then
+  REMOTE_CRED_OK=$(ssh -o BatchMode=yes "${SLURM_USER}@${SLURM_HOST}" \
+    'test -s ~/.config/enroot/.credentials && echo OK || echo MISSING' 2>/dev/null)
+  if [ "$REMOTE_CRED_OK" != "OK" ]; then
+    echo "MISSING: ~/.config/enroot/.credentials not set on ${SLURM_HOST}."
+    echo "After user approval, install it from NGC_KEY (no value echoed):"
+    echo "  printf 'machine nvcr.io login \$oauthtoken password %s\\nmachine authn.nvidia.com login \$oauthtoken password %s\\n' \"\$NGC_KEY\" \"\$NGC_KEY\" \\"
+    echo "    | ssh -o BatchMode=yes \"\${SLURM_USER}@\${SLURM_HOST}\" '"
+    echo "        mkdir -p ~/.config/enroot && umask 077 && cat > ~/.config/enroot/.credentials && chmod 600 ~/.config/enroot/.credentials"
+    echo "      '"
+    exit 1
+  fi
+fi
 ```
 
 If a check fails, the agent prompts the user to authorize the install/fix via Bash.
+
+The enroot-credentials step (#3) only needs to run **once per (cluster, user)** —
+subsequent SLURM sessions inherit the file. Use the `printf | ssh` heredoc
+pattern above so the `NGC_KEY` value never lands in shell history, intermediate
+files, or chat output. Do not `cat` or `echo` the value at any step. After the
+file is in place, both the SDK's SQSH pre-conversion job (which runs on
+`sqsh_conversion_partition`) and the actual training job's Pyxis pull will
+authenticate as `$oauthtoken` against `nvcr.io`.
 
 # SLURM
 
