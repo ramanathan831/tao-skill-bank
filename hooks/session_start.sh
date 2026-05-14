@@ -84,7 +84,9 @@ if ! command -v docker >/dev/null 2>&1; then
   echo "- CUDA Toolkit 13.0"
   echo "- NVIDIA Container Toolkit 1.19.0"
   echo
-  echo "Use the \`nvidia-gpu-setup\` skill to check or install the NVIDIA pieces, and install Docker separately:"
-  echo "- Docker: https://docs.docker.com/engine/install/"
+  echo "Use the \`nvidia-gpu-setup\` skill to check / install the NVIDIA pieces;"
+  echo "its \`--backend docker --install --yes\` path also installs Docker on"
+  echo "Debian/RHEL/SUSE-family hosts and adds you to the \`docker\` group."
+  echo "Manual install reference: https://docs.docker.com/engine/install/"
   echo
 fi

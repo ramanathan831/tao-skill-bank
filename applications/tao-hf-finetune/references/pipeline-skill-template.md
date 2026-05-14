@@ -109,6 +109,13 @@ export WANDB_PROJECT=<project>
 
 ## Run
 
+All runtime invocations below carry `--user $(id -u):$(id -g)` plus
+`-e HF_HOME=/workspace/.cache/huggingface`. The image was already built with
+all Python deps installed (no runtime `pip install`), so dropping root
+inside the container is safe and keeps outputs in `checkpoints/`, `logs/`,
+`reports/`, and `wandb/` host-user-owned instead of `root:root`. Same
+convention as `tao-hf-finetune/references/docker-runs.md`.
+
 ```bash
 source .env
 
@@ -117,27 +124,38 @@ docker build -t run-<model_short_name>:latest .
 
 # 2. Prepare data
 docker run --rm --gpus all --shm-size=16g --entrypoint /bin/bash \
-  -e HF_TOKEN=$HF_TOKEN -v $(pwd):/workspace \
+  --user $(id -u):$(id -g) \
+  -e HF_TOKEN=$HF_TOKEN \
+  -e HF_HOME=/workspace/.cache/huggingface \
+  -v $(pwd):/workspace \
   run-<model_short_name>:latest \
   -lc "cd /workspace && python prepare_data.py --config config.yaml"
 
 # 3. Smoke test (1 step on real data)
 docker run --rm --gpus all --shm-size=16g --entrypoint /bin/bash \
-  -e HF_TOKEN=$HF_TOKEN -e WANDB_MODE=disabled -v $(pwd):/workspace \
+  --user $(id -u):$(id -g) \
+  -e HF_TOKEN=$HF_TOKEN -e WANDB_MODE=disabled \
+  -e HF_HOME=/workspace/.cache/huggingface \
+  -v $(pwd):/workspace \
   run-<model_short_name>:latest \
   -lc "cd /workspace && python train.py --config config.yaml --smoke --max_steps 1"
 
 # 4. Baseline (zero-shot) eval
 docker run --rm --gpus all --shm-size=16g --entrypoint /bin/bash \
-  -e HF_TOKEN=$HF_TOKEN -v $(pwd):/workspace \
+  --user $(id -u):$(id -g) \
+  -e HF_TOKEN=$HF_TOKEN \
+  -e HF_HOME=/workspace/.cache/huggingface \
+  -v $(pwd):/workspace \
   run-<model_short_name>:latest \
   -lc "cd /workspace && python run_eval.py --config config.yaml \
        --checkpoint <model_id> --output reports/baseline_results.json"
 
 # 5. Full training
 docker run -d --name run_train --gpus all --shm-size=16g --entrypoint /bin/bash \
+  --user $(id -u):$(id -g) \
   -e HF_TOKEN=$HF_TOKEN \
   -e WANDB_API_KEY=$WANDB_API_KEY -e WANDB_PROJECT=$WANDB_PROJECT \
+  -e HF_HOME=/workspace/.cache/huggingface \
   -v $(pwd):/workspace \
   run-<model_short_name>:latest \
   -lc "set -o pipefail; cd /workspace && python train.py --config config.yaml 2>&1 | tee logs/train.log"
@@ -145,7 +163,10 @@ docker logs -f run_train
 
 # 6. Post-train eval + 5 inference samples
 docker run --rm --gpus all --shm-size=16g --entrypoint /bin/bash \
-  -e HF_TOKEN=$HF_TOKEN -v $(pwd):/workspace \
+  --user $(id -u):$(id -g) \
+  -e HF_TOKEN=$HF_TOKEN \
+  -e HF_HOME=/workspace/.cache/huggingface \
+  -v $(pwd):/workspace \
   run-<model_short_name>:latest \
   -lc "cd /workspace && \
        python run_eval.py --config config.yaml --checkpoint checkpoints/final \
@@ -157,7 +178,11 @@ docker run --rm --gpus all --shm-size=16g --entrypoint /bin/bash \
 (LoRA only — insert between steps 5 and 6:)
 
 ```bash
-docker run --rm --gpus all --entrypoint /bin/bash -v $(pwd):/workspace \
+docker run --rm --gpus all --entrypoint /bin/bash \
+  --user $(id -u):$(id -g) \
+  -e HF_TOKEN=$HF_TOKEN \
+  -e HF_HOME=/workspace/.cache/huggingface \
+  -v $(pwd):/workspace \
   run-<model_short_name>:latest \
   -lc "cd /workspace && python merge_lora.py --base_model <model_id> \
        --adapter checkpoints/final --output checkpoints/merged"

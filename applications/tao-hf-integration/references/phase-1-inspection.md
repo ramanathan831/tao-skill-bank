@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-Full Phase 1 walkthrough for the `tao-hf-integration` skill — credential gathering, branch creation, isolated venv setup, model/dataset inspection, and the Phase 1 gate. See `hf-inspection.md` for a generic HF-inspection cheat sheet.
+Full Phase 1 walkthrough for the `tao-hf-integration` skill — credential gathering, branch creation, launching the long-lived `tao-hf-inspect` Docker container (no host venv), model/dataset inspection via `docker exec`, and the Phase 1 gate. See `hf-inspection.md` for a generic HF-inspection cheat sheet.
 
 ## Phase 1 — Information Gathering & Validation
 
@@ -57,31 +57,88 @@ done
 
 **Important:** This branch is local only — it will NOT be pushed. It just keeps changes organized and makes it easy to diff against the base branch.
 
-### 1.3 Set up isolated environment for HF inspection
+### 1.3 Set up an isolated environment for HF inspection
 
-All Phase 1 Python work runs in a temporary venv — do NOT install into the host Python:
+All Phase 1 Python work runs **inside the prepared `tao-pytorch-base:latest`
+container** (built in Phase 0) — do NOT install into the host Python. That
+image already ships `torch`, `transformers`, `onnx`, and `timm`, and is the
+same image used in Phases 3/4/6, so there is no need to maintain a separate
+host venv or to apt-install `python3-venv` / `python3-pip` on the host.
+
 ```bash
-python3 -m venv /tmp/tao-hf-inspect-venv
-source /tmp/tao-hf-inspect-venv/bin/activate
-pip install --quiet transformers huggingface_hub torch onnx timm
+# Scratch dir on the host, bind-mounted into the container as /workspace.
+# The directory is owned by the host user that created it, and we run the
+# container as that same UID/GID via --user below, so no further chmod is
+# needed.
+mkdir -p ./.phase1/cache
+
+# Launch a long-lived inspection container so each probe step is a quick `docker exec`.
+docker rm -f tao-hf-inspect 2>/dev/null || true
+docker run -d --name tao-hf-inspect \
+  --user $(id -u):$(id -g) \
+  -v "$(pwd)/.phase1":/workspace \
+  -e HF_HOME=/workspace/cache -e HF_TOKEN \
+  -w /workspace \
+  tao-pytorch-base:latest sleep infinity
+```
+
+`--user $(id -u):$(id -g)` keeps any files written under `./.phase1` (HF
+cache, the ONNX scratch file) owned by the host user. Use `--gpus all` only
+if a probe step needs GPU; AutoConfig / AutoModel / ONNX export are
+CPU-only.
+
+If `tao-pytorch-base:latest` is unavailable (e.g. Phase 0 was skipped on a
+machine that only has CPU), fall back to a small CPU-only image. Note the
+extra `HOME=/workspace` + `PIP_USER=1` env: `python:3.12-slim`'s system
+`site-packages` (`/usr/local/lib/python3.12/site-packages`) is root-owned,
+so the pip install would fail with `PermissionError` once
+`--user $(id -u):$(id -g)` drops root. Setting `HOME` + `PIP_USER` routes
+the install into `/workspace/.local/lib/python3.12/site-packages` inside
+the bind mount, which the host user can write to. Python's `site.py` then
+adds that user-site to `sys.path` automatically for subsequent `docker
+exec` probes:
+
+```bash
+docker run -d --name tao-hf-inspect \
+  --user $(id -u):$(id -g) \
+  -v "$(pwd)/.phase1":/workspace \
+  -e HOME=/workspace -e PIP_USER=1 \
+  -e HF_HOME=/workspace/cache -e HF_TOKEN \
+  -e PIP_CACHE_DIR=/workspace/cache/pip \
+  -w /workspace \
+  python:3.12-slim \
+  bash -c "pip install -q transformers huggingface_hub torch onnx timm && sleep infinity"
 ```
 
 ### 1.4 Validate that the model is a Computer Vision model
-```python
+
+Run the probe via `docker exec`:
+
+```bash
+docker exec -e MODEL_ID="$MODEL_ID" tao-hf-inspect python - <<'PY'
+import os
 from huggingface_hub import model_info
-info = model_info("<MODEL_ID>", token="<HF_TOKEN>")
+mid = os.environ["MODEL_ID"]; tok = os.environ.get("HF_TOKEN") or None
+info = model_info(mid, token=tok)
 print(info.pipeline_tag)   # must be: image-classification, object-detection, image-segmentation, etc.
+PY
 ```
 **Hard stop:** If `pipeline_tag` is an NLP, audio, or LLM task, halt and inform the user. TAO Toolkit currently supports Computer Vision models only.
 
 ### 1.5 Fetch the model architecture and checkpoint
-```python
-from transformers import AutoModel, AutoConfig
-import torch
 
-config = AutoConfig.from_pretrained("<MODEL_ID>", token="<HF_TOKEN>")
-model  = AutoModel.from_pretrained("<MODEL_ID>", token="<HF_TOKEN>")
+```bash
+docker exec -e MODEL_ID="$MODEL_ID" tao-hf-inspect python - <<'PY'
+import os
+from transformers import AutoModel, AutoConfig
+mid = os.environ["MODEL_ID"]; tok = os.environ.get("HF_TOKEN") or None
+config = AutoConfig.from_pretrained(mid, token=tok)
+model  = AutoModel.from_pretrained(mid, token=tok)
 state_dict = model.state_dict()
+print(config)
+for k, v in list(state_dict.items())[:30]:
+    print(k, tuple(v.shape))
+PY
 ```
 - Print `config` to extract: `model_type`, `image_size`, `hidden_size`, `num_labels`, `num_hidden_layers`, `patch_size`
 - Print the top-level `state_dict` keys and shapes to understand HF naming conventions
@@ -89,17 +146,24 @@ state_dict = model.state_dict()
 - Draft a key-name remapping plan for the HF-to-TAO `state_dict` conversion
 
 ### 1.6 Verify ONNX exportability
-```python
-# Use the model's native image_size (extracted in 1.5), not a hardcoded value
+
+```bash
+docker exec -e MODEL_ID="$MODEL_ID" tao-hf-inspect python - <<'PY'
+import os, torch
+from transformers import AutoConfig, AutoModel
+mid = os.environ["MODEL_ID"]; tok = os.environ.get("HF_TOKEN") or None
+config = AutoConfig.from_pretrained(mid, token=tok)
+model  = AutoModel.from_pretrained(mid, token=tok).eval()
 img_size = getattr(config, "image_size", 224)
 if isinstance(img_size, int):
     img_size = (img_size, img_size)
 dummy = torch.randn(1, 3, *img_size)
-model.eval()
-torch.onnx.export(model, dummy, "/tmp/tao_hf_test.onnx",
+torch.onnx.export(model, dummy, "/workspace/tao_hf_test.onnx",
     input_names=["input"], output_names=["output"],
     dynamic_axes={"input": {0: "batch"}, "output": {0: "batch"}},
     opset_version=17)
+print("ONNX export OK")
+PY
 ```
 If this fails, identify the problematic ops and apply workarounds **before** starting TAO integration:
 - **Unsupported op** → Replace with ONNX-compatible equivalent (e.g., replace `torch.einsum` with explicit `matmul`/`permute`, replace custom CUDA kernels with pure PyTorch ops)
@@ -108,7 +172,12 @@ If this fails, identify the problematic ops and apply workarounds **before** sta
 - **Try higher opset** → `opset_version=17` or `18` supports more ops than older versions
 - **TensorRT compatibility** → After ONNX export succeeds, test with `trtexec` inside the prepared tao-deploy container (the host does not have TensorRT):
   ```bash
-  docker run --rm --gpus all -v /tmp:/tmp tao-deploy-base:latest trtexec --onnx=/tmp/tao_hf_test.onnx --buildOnly
+  docker run --rm --gpus all \
+    --user $(id -u):$(id -g) \
+    -v "$(pwd)/.phase1":/workspace \
+    -w /workspace \
+    tao-deploy-base:latest \
+    trtexec --onnx=/workspace/tao_hf_test.onnx --buildOnly
   ```
   If TRT fails on specific layers, those ops will need to be rewritten in the TAO implementation — record them now
 - **If export fundamentally cannot work** (e.g., architecture uses dynamic shapes that vary per-input), inform the user — the model may not be suitable for TensorRT deployment
@@ -117,17 +186,11 @@ If this fails, identify the problematic ops and apply workarounds **before** sta
 
 After all inspection is complete and findings are recorded:
 ```bash
-deactivate
+docker rm -f tao-hf-inspect
 
-# Remove the venv
-rm -rf /tmp/tao-hf-inspect-venv
-
-# Remove temp ONNX file
-rm -f /tmp/tao_hf_test.onnx
-
-# Optionally remove the cached HF model (can be multi-GB)
-# Only do this if you've saved the state_dict keys and config — you won't need the raw HF weights again
-rm -rf ~/.cache/huggingface/hub/models--<org>--<model_name>
+# Remove the host scratch dir (HF cache + tao_hf_test.onnx + pip cache).
+# Keep .phase1 around between reruns if you want to skip the model redownload.
+rm -rf ./.phase1
 ```
 
 ### Phase 1 Gate — Confirm before proceeding:

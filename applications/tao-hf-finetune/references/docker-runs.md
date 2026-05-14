@@ -23,6 +23,18 @@ mount `$OUTPUT_DIR` (or `$(pwd)` when invoked from a generated rerun skill) at
 
 `<short>` = `model_short_name` from `config.yaml`.
 
+**Authority:** the generic flag conventions — `--gpus`, `-e VAR` passthrough,
+`--ipc=host`, `-v host:container`, NGC auth, container-name reuse, common
+error modes — are owned by [`tao-skill-bank:docker`](../../../platform/docker/SKILL.md).
+This catalog only adds workflow-specific flags on top: `--entrypoint /bin/bash
+-lc` (to wrap commands around NGC's `nvidia_entrypoint.sh`), `--shm-size=16g`
+(DataLoader workers), `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`
+(fragmentation under variable shapes), `--user $(id -u):$(id -g)` + a
+writable `HF_HOME` (so checkpoints, reports, logs, and the HF cache end up
+host-user-owned), and `--name hft_train` (for the detached training
+container). If anything about the generic conventions changes, change it
+in the docker platform skill and rebase here — do not fork the conventions.
+
 ---
 
 ## Why `--entrypoint /bin/bash -lc "..."`
@@ -53,6 +65,30 @@ Bump higher for very large batch sizes.
 Reduces fragmentation under variable-shape inputs (detection, VLM). Always pass
 on training runs.
 
+## Why `--user $(id -u):$(id -g)` (and a writable HF_HOME)
+
+NGC images run as `root` by default. Without `--user`, every file the
+container writes into the bind-mounted `/workspace` — `data/Arrow`,
+`checkpoints/`, `reports/`, `logs/`, `wandb/`, the rerun skill, …  — ends
+up owned by `root:root` on the host, and the user has to `sudo chown -R`
+to clean up, retry, or even `rm` a failed run.
+
+`--user $(id -u):$(id -g)` runs the container as the invoking host user.
+That requires a writable HF cache: the default `HF_HOME=/root/.cache/...`
+is read-only when the container UID is not `0`. Point `HF_HOME` (and
+`PIP_CACHE_DIR` when any runtime pip install happens) into the bind
+mount instead:
+
+```
+-e HF_HOME=/workspace/.cache/huggingface
+```
+
+Pin a known UID + GID in the Dockerfile if you also want files copied in
+at build time (`COPY *.py ./`) to be readable — the default `COPY` of
+mode `0644` is already world-readable, so this is rarely needed in
+practice. Image build itself still runs as root; only the **runtime**
+invocations get `--user`.
+
 ---
 
 ## 1. Build image (once)
@@ -65,7 +101,9 @@ docker build -t run-<short>:latest .
 
 ```bash
 docker run --rm --gpus all --shm-size=16g --entrypoint /bin/bash \
+  --user $(id -u):$(id -g) \
   -e HF_TOKEN=$HF_TOKEN \
+  -e HF_HOME=/workspace/.cache/huggingface \
   -v $(pwd)/$OUTPUT_DIR:/workspace \
   run-<short>:latest \
   -lc "cd /workspace && python prepare_data.py --config config.yaml"
@@ -81,7 +119,9 @@ For `source = local`, also bind-mount the dataset path read-only:
 
 ```bash
 docker run --rm --gpus all --shm-size=16g --entrypoint /bin/bash \
+  --user $(id -u):$(id -g) \
   -e HF_TOKEN=$HF_TOKEN -e WANDB_MODE=disabled \
+  -e HF_HOME=/workspace/.cache/huggingface \
   -e PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
   -v $(pwd)/$OUTPUT_DIR:/workspace \
   run-<short>:latest \
@@ -99,7 +139,9 @@ Any failure → STOP. Do not launch full training.
 
 ```bash
 docker run --rm --gpus all --shm-size=16g --entrypoint /bin/bash \
+  --user $(id -u):$(id -g) \
   -e HF_TOKEN=$HF_TOKEN \
+  -e HF_HOME=/workspace/.cache/huggingface \
   -v $(pwd)/$OUTPUT_DIR:/workspace \
   run-<short>:latest \
   -lc "cd /workspace && python run_eval.py --config config.yaml \
@@ -112,9 +154,11 @@ Skip if `skip_baseline: true` in `config.yaml`.
 
 ```bash
 docker run -d --name hft_train --gpus all --shm-size=16g --entrypoint /bin/bash \
+  --user $(id -u):$(id -g) \
   -e HF_TOKEN=$HF_TOKEN \
   -e WANDB_API_KEY=$WANDB_API_KEY -e WANDB_PROJECT=$WANDB_PROJECT \
   -e WANDB_RUN_NAME=$WANDB_RUN_NAME \
+  -e HF_HOME=/workspace/.cache/huggingface \
   -e PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
   -v $(pwd)/$OUTPUT_DIR:/workspace \
   run-<short>:latest \
@@ -129,7 +173,9 @@ Multi-GPU: prepend `torchrun --nproc_per_node=$gpu_count` to `python train.py`.
 
 ```bash
 docker run --rm --gpus all --entrypoint /bin/bash \
+  --user $(id -u):$(id -g) \
   -e HF_TOKEN=$HF_TOKEN \
+  -e HF_HOME=/workspace/.cache/huggingface \
   -v $(pwd)/$OUTPUT_DIR:/workspace \
   run-<short>:latest \
   -lc "cd /workspace && python merge_lora.py --base_model $MODEL_ID \
@@ -143,7 +189,9 @@ Subsequent eval / infer / push must use `checkpoints/merged` instead of
 
 ```bash
 docker run --rm --gpus all --shm-size=16g --entrypoint /bin/bash \
+  --user $(id -u):$(id -g) \
   -e HF_TOKEN=$HF_TOKEN \
+  -e HF_HOME=/workspace/.cache/huggingface \
   -v $(pwd)/$OUTPUT_DIR:/workspace \
   run-<short>:latest \
   -lc "cd /workspace && python run_eval.py --config config.yaml \
@@ -156,7 +204,9 @@ For LoRA, replace `checkpoints/final` → `checkpoints/merged`.
 
 ```bash
 docker run --rm --gpus all --shm-size=16g --entrypoint /bin/bash \
+  --user $(id -u):$(id -g) \
   -e HF_TOKEN=$HF_TOKEN \
+  -e HF_HOME=/workspace/.cache/huggingface \
   -v $(pwd)/$OUTPUT_DIR:/workspace \
   run-<short>:latest \
   -lc "cd /workspace && python infer.py --config config.yaml \
@@ -175,6 +225,8 @@ Each sample writes: input image, overlay (bbox / mask / depth / caption),
 | `--gpus all` | every GPU command | passes through host GPUs |
 | `--shm-size=16g` | DataLoader workers | avoid Bus error on collate |
 | `--entrypoint /bin/bash` + `-lc` | every command | bypass NGC entrypoint |
+| `--user $(id -u):$(id -g)` | every runtime command (sections 2-8); NOT build | files in `/workspace` end up host-user-owned, not root |
+| `-e HF_HOME=/workspace/.cache/huggingface` | every runtime command | container UID is the host user; default `/root/.cache` is not writable |
 | `-e HF_TOKEN` | data, train, eval, infer, merge | HF Hub auth |
 | `-e WANDB_*` | training only | metrics logging |
 | `-e WANDB_MODE=disabled` | smoke only | no run pollution |

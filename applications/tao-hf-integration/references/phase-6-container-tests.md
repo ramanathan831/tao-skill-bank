@@ -28,7 +28,7 @@ TAO testing does NOT build Docker images. Instead, it:
 4. Builds wheels inside the same container
 5. Builds release Docker images separately (using `release/docker/Dockerfile`) only for distribution — NOT for testing
 
-The local flow is therefore: mount the source, `pip install /workspace/tao-core`, `python setup.py develop`, run `pytest`. See [docker-patterns.md](docker-patterns.md) for Docker build scripts, runner commands, and related patterns.
+The local flow is therefore: mount the source, `pip install /workspace/tao-core`, `python setup.py develop`, run `pytest`. See `docker-patterns.md` (sibling reference) for Docker build scripts, runner commands, and related patterns.
 
 > **Public repos and the `ci/` directory:** NVIDIA's internal TAO mirrors carry helper scripts under `ci/` (e.g. `ci/run_functional_tests.py`, `ci/run_static_tests.py`, `ci/utils.py`) that wrap pytest with testmon, pylint with module discovery, and Docker prefix generation. These scripts are **NOT** present in the public github mirrors at `github.com/NVIDIA-TAO/` — do not invoke them. Use the vanilla `pytest` + lint commands shown below instead; they produce equivalent output and work on either mirror.
 
@@ -59,7 +59,7 @@ docker run --rm tao-deploy-base:latest \
   bash -c "pip show nvidia_tao_deploy nvidia_tao_core 2>&1 | grep -E '(Name|not installed)'"
 ```
 
-If any tag is missing or any pre-installed `nvidia_tao_*` package still shows up, re-run the pull + preparation commands from Phase 0 ([phase-0-prereqs.md](phase-0-prereqs.md)). If the user has not yet supplied an image reference for one of the components, ask them now — same prompt wording Phase 0 uses.
+If any tag is missing or any pre-installed `nvidia_tao_*` package still shows up, re-run the pull + preparation commands from Phase 0 (`phase-0-prereqs.md`, sibling reference). If the user has not yet supplied an image reference for one of the components, ask them now — same prompt wording Phase 0 uses.
 
 ### Step 17 — Test tao-core
 
