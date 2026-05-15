@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 """Merge per-split video generation outputs into a single parquet and video directory.
 
 Collects the per-split parquet files (updated with generated_video_path)

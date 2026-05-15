@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 """Build SDG JSONL by pairing AMP-placed masks with their clean images.
 
 Allocation dictates N per defect_type (from allocate_samples.py). The AMP

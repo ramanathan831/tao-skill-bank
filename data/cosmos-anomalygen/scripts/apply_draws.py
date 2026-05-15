@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 """Overwrite guidance/crop_ratio per sample in a JSONL using a draws file.
 
 Draws JSON shape: {"<sample_index>": {"guidance": <f>, "crop_ratio": <f>}, ...}

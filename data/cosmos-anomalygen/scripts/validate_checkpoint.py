@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 """Validate an AnomalyGen SDG checkpoint directory and print supported anomaly types.
 
 Fails fast (non-zero exit) if the checkpoint is missing required files.

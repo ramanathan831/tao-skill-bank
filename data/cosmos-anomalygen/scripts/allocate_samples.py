@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 """Distribute num_SDG across defect types proportionally to training mask counts.
 
 Scans `<mask_path>/<TEXTURE>/mask/<ANOMALY>/` per `TEXTURE+ANOMALY` type and

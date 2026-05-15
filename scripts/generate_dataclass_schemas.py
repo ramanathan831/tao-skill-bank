@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 """Maintenance tool: generate TAO Core dataclass schemas into model packages.
 
 The skill bank treats these schemas as the source of truth for AutoML

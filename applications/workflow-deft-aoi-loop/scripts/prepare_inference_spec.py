@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 """Prepare inference handoff artifacts at loop end.
 
 Produces two files under ``${RESULTS_DIR}/`` so downstream inference skills can

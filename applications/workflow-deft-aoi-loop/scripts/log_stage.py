@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 """Append a stage entry to results/loop_log.jsonl.
 
 Disk-truth invariant: never trust in-memory seq across turns. Always re-read

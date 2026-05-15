@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 """Build the per-sample JSON consumed by scripts/run_auto_roi_amp.py.
 
 Pair budget is **1 clean per submask** (not the clean × submask cartesian).

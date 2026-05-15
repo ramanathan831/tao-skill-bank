@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 """Cross-check the AMP input triple (dataset_dir, clean_dir, defect_spec).
 
 Fails fast with an itemised report of every problem, so prep-testcase doesn't

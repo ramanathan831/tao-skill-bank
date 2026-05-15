@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 """Identify FP/FN cases by comparing model predictions to ground truth.
 
 Reads the evaluation ``results.json`` (searched recursively under

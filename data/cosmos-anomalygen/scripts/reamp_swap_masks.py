@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 """Swap mask_filename paths in a JSONL to point at a fresh AMP output.
 
 Assumes `run_auto_roi_amp.py` was invoked with `--n_seeds <K> --seed <N>`

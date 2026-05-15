@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 """Validate AnomalyGen training dataset structure.
 
 Scans <dataset_dir>/<TEXTURE>/{anomaly_image,mask}/<ANOMALY>/ and prints:

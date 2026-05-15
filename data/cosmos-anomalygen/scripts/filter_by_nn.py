@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 """Filter a searched/ (or original/) SDG bucket by per-sample nn_score.
 
 Reads a per-sample CSV (from `run_eval.sh --per-sample-csv`), keeps only
