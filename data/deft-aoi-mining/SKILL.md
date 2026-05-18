@@ -22,7 +22,7 @@ You are the operator of the DEFT embed-then-mine workflow for VCN AOI. Your job 
 
 The workflow is fixed and deterministic: **embed the targets, embed the source pool, then mine nearest neighbours.** Each step's output parquet is the next step's input. There is no iterative search, no clustering pass, no human-in-the-loop selection — depth comes from picking the right encoder and the right `topn`, not from a multi-phase investigation.
 
-The whole skill is a thin wrapper around three direct `docker run` invocations against `nvcr.io/nvidian/iva/tao-toolkit-ds:aoi`. The container's entrypoint takes `<category> <action> <args>` — pass `embedding image_embeddings …` for embedding and `tmm nearest_neighbors …` for mining. (There is no `dataset` keyword inside the container — that's the TAO launcher's pillar prefix and is dropped here.) Pull the image once if it isn't cached: `docker pull nvcr.io/nvidian/iva/tao-toolkit-ds:aoi`.
+The whole skill is a thin wrapper around three direct `docker run` invocations against `nvcr.io/nvidian/iva/tao-toolkit-ds:aoi`. The container's entrypoint takes `<category> <action> -e <spec.yaml> [hydra overrides...]` — pass `embedding image_embeddings -e <embedding_spec.yaml> …` for embedding and `tmm nearest_neighbors -e <mining_spec.yaml> …` for mining. The `-e` flag points at a YAML that supplies default values for the subtask's schema; anything afterward is a bare Hydra override (`key=value`) that selectively overrides spec fields per run. (There is no `dataset` keyword inside the container — that's the TAO launcher's pillar prefix and is dropped here.) Pull the image once if it isn't cached: `docker pull nvcr.io/nvidian/iva/tao-toolkit-ds:aoi`.
 
 ---
 
@@ -30,10 +30,8 @@ The whole skill is a thin wrapper around three direct `docker run` invocations a
 
 1. **Target parquet** — the gap-analysis output, typically `mining_gaps.parquet` from `deft-aoi-routing-vcn` (or `gaps.parquet` from `deft-aoi-rca-vcn` if routing was skipped). Required column: `filepath`. If `label` is also present, label-aware filtering during mining is available; otherwise the mining task silently no-ops the filter.
 2. **Source pool** — a parquet of candidate images to mine against, with a `filepath` column. If the user only has a CSV, convert it to a parquet **with the same columns** before Step 2. For label-aware filtering, the pool must also carry a `label` column.
-3. **Embedding model choice** — one of `CLIP`, `SigLIP`, or a TAO checkpoint. The **same** `model` and `model_path` MUST be used for both embedding steps. Embeddings from different encoders are not comparable — mismatched encoders are the most common cause of "the mined images look unrelated" reports.
-4. **`topn`** *(optional)* — number of nearest source neighbours to pull per target embedding. Default 5.
-5. **`knn_metric`** *(optional)* — `cosine`, `euclidean`, or `manhattan`. Default `cosine`. SigLIP and CLIP embeddings should use `cosine`.
-6. **`filter_by_label`** *(optional)* — `true` or `false`. Default `false`. When `true`, source-target pairs whose labels disagree are dropped. Requires both embedding parquets to carry a `label` column; if either is missing, the container logs a warning and proceeds **without** filtering.
+3. **Embedding spec file** — a YAML containing `model`, `model_path`, `batch_size`, and (only when `model_path` is a TAO `.pth`/`.ckpt`) `model_config_path`. Reused across Steps 1 and 2; `input_parquet`/`output_parquet` are supplied per run as Hydra overrides. The **same** spec MUST drive both embedding steps — embeddings from different encoders are not comparable, and mismatched encoders are the most common cause of "the mined images look unrelated" reports.
+4. **Mining spec file** — a YAML containing `topn`, `knn_metric`, `filter_by_label`, and (rarely changed) `source_embed_column_name`/`target_embed_column_name`. `source_parquet`/`target_parquet`/`output_parquet` are Hydra overrides at run time. SigLIP and CLIP embeddings should use `knn_metric: cosine`. When `filter_by_label: true` but either embedding parquet lacks a `label` column, the container logs a warning and proceeds **without** filtering.
 
 ---
 
@@ -68,51 +66,66 @@ pd.read_csv(source_pool_csv).to_parquet(source_pool_parquet, index=False)
 
 The conversion must preserve the `filepath` column verbatim (and `label` if present). Do not add a path prefix — the container reads input parquets as-is, and the `$WORKSPACE` mount keeps host and container paths identical.
 
+**Author the two spec files once per iteration.** Both files live under `$WORKSPACE` so the `-e` argument resolves on both sides of the mount. Per-run values stay out of the spec and are passed as Hydra overrides at invocation time.
+
+```bash
+cat > "$WORKSPACE/embedding_spec.yaml" <<'EOF'
+model: SigLIP                                # CLIP, SigLIP, or a TAO checkpoint
+model_path: google/siglip-base-patch16-224   # HF id, local HF dir, or .pth/.ckpt
+# model_config_path: <train_spec.yaml>       # required only when model_path is a TAO checkpoint
+batch_size: 64
+EOF
+
+cat > "$WORKSPACE/mining_spec.yaml" <<'EOF'
+topn: 5
+knn_metric: cosine                           # cosine for SigLIP/CLIP; euclidean/manhattan otherwise
+filter_by_label: "false"                     # quoted — the schema reads it as a string
+EOF
+```
+
+Any field in either spec can still be overridden inline at the CLI (e.g. `topn=10`) — Hydra applies CLI overrides on top of the spec.
+
 ---
 
 ## Method
 
-Three commands, in order. Each command's output parquet is the next command's input. Run them as plain Bash; the `$DOCKER` alias from the Setup section handles the container, GPU, and mounts.
+Three commands, in order. Each command's output parquet is the next command's input. Run them as plain Bash; the `$DOCKER` alias from the Setup section handles the container, GPU, and mounts. Every invocation follows the same shape: `-e <spec>` for the baked-in defaults, then a handful of Hydra overrides for the run-specific paths.
 
 ### Step 1 — Embed the target images
 
 ```bash
 $DOCKER embedding image_embeddings \
+    -e <embedding_spec.yaml> \
     input_parquet=<target_parquet> \
-    output_parquet=<target_embeddings_parquet> \
-    model=<CLIP|SigLIP> \
-    model_path=<hf-model-id-or-checkpoint-path>
+    output_parquet=<target_embeddings_parquet>
 ```
 
 Reads the gap-analysis / routing output and writes a parquet with `filepath`, `embedding`, and any extra metadata columns (e.g. `label`, `siamese_score`, `weakness`) carried forward verbatim from the input. Print the output schema (`pd.read_parquet(...).columns`) to stdout so the script-check hook can confirm the embedding column exists.
 
-If `model` points at a TAO `.pth` / `.ckpt` rather than a HuggingFace ID, also pass `model_config_path=<spec.yaml>` — the encoder cannot be reconstructed without the train spec.
+If you need to override `model` / `model_path` / `batch_size` for one run without editing the spec, append them as Hydra overrides (e.g. `model_path=...`).
 
 ### Step 2 — Embed the source pool
 
 ```bash
 $DOCKER embedding image_embeddings \
+    -e <embedding_spec.yaml> \
     input_parquet=<source_pool_parquet> \
-    output_parquet=<source_embeddings_parquet> \
-    model=<CLIP|SigLIP> \
-    model_path=<hf-model-id-or-checkpoint-path>
+    output_parquet=<source_embeddings_parquet>
 ```
 
-Same command shape as Step 1, applied to the source pool. Use the **identical** `model` and `model_path` as Step 1. If you used a TAO checkpoint with `model_config_path`, pass the same `model_config_path` here too.
+Same command shape as Step 1, applied to the source pool. Use the **identical** `embedding_spec.yaml` as Step 1, and do not override `model` / `model_path` / `batch_size` differently here — mismatched encoder configs across the two steps produce non-comparable embeddings.
 
 ### Step 3 — Mine nearest neighbours
 
 ```bash
 $DOCKER tmm nearest_neighbors \
+    -e <mining_spec.yaml> \
     source_parquet=<source_embeddings_parquet> \
     target_parquet=<target_embeddings_parquet> \
-    output_parquet=<mined_parquet> \
-    topn=<int> \
-    knn_metric=<cosine|euclidean|manhattan> \
-    filter_by_label=<true|false>
+    output_parquet=<mined_parquet>
 ```
 
-For each target embedding, finds the `topn` closest source embeddings under the chosen metric, deduplicates across targets, and writes a single-column (`filepath`) parquet of unique mined source paths. The container also drops a `mining_summary.txt` next to the output parquet with: query count, neighbour count, duplicates removed, and (when label filtering is on) kept-vs-dropped pair counts.
+For each target embedding, finds the `topn` closest source embeddings under the chosen metric, deduplicates across targets, and writes a single-column (`filepath`) parquet of unique mined source paths. The container also drops a `mining_summary.txt` next to the output parquet with: query count, neighbour count, duplicates removed, and (when label filtering is on) kept-vs-dropped pair counts. Tweak `topn`, `knn_metric`, or `filter_by_label` via inline Hydra override when sweeping (e.g. `topn=10`) — no need to rewrite the spec.
 
 When `filter_by_label=true` but one of the embedding parquets is missing the `label` column, the container logs a warning and proceeds without filtering. If the mined output looks larger than expected or contains cross-label pairs, scan the docker log for that warning before assuming the task did the right thing.
 
@@ -127,6 +140,8 @@ WORKSPACE=<absolute path>           # mounted identically inside the container
 TARGETS=<target_parquet>            # e.g. .../routing_results/<ts>/mining_gaps.parquet
 SOURCE_POOL=<source_pool_parquet>   # parquet with `filepath` (and optional `label`)
 OUT="$WORKSPACE/mining_results/$(date +%Y-%m-%d_%H%M%S)"
+EMBED_SPEC="$OUT/embedding_spec.yaml"
+MINE_SPEC="$OUT/mining_spec.yaml"
 MODEL=SigLIP                        # or CLIP, or a TAO checkpoint name
 MODEL_PATH=google/siglip-base-patch16-224  # or a local checkpoint path
 TOPN=5
@@ -136,34 +151,43 @@ IMG=nvcr.io/nvidian/iva/tao-toolkit-ds:aoi
 
 mkdir -p "$OUT"
 
+# Write the two spec files for this iteration
+cat > "$EMBED_SPEC" <<EOF
+model: $MODEL
+model_path: $MODEL_PATH
+batch_size: 64
+EOF
+
+cat > "$MINE_SPEC" <<EOF
+topn: $TOPN
+knn_metric: $METRIC
+filter_by_label: "$FILTER_BY_LABEL"
+EOF
+
 # Step 1: embed targets
 docker run --gpus all --rm --ipc=host \
     -v "$WORKSPACE:$WORKSPACE" -w "$WORKSPACE" \
     "$IMG" embedding image_embeddings \
+    -e "$EMBED_SPEC" \
     input_parquet="$TARGETS" \
-    output_parquet="$OUT/target_embeddings.parquet" \
-    model="$MODEL" \
-    model_path="$MODEL_PATH"
+    output_parquet="$OUT/target_embeddings.parquet"
 
-# Step 2: embed source pool (SAME model + model_path as Step 1)
+# Step 2: embed source pool (SAME embedding spec as Step 1)
 docker run --gpus all --rm --ipc=host \
     -v "$WORKSPACE:$WORKSPACE" -w "$WORKSPACE" \
     "$IMG" embedding image_embeddings \
+    -e "$EMBED_SPEC" \
     input_parquet="$SOURCE_POOL" \
-    output_parquet="$OUT/source_embeddings.parquet" \
-    model="$MODEL" \
-    model_path="$MODEL_PATH"
+    output_parquet="$OUT/source_embeddings.parquet"
 
 # Step 3: mine nearest neighbours
 docker run --gpus all --rm --ipc=host \
     -v "$WORKSPACE:$WORKSPACE" -w "$WORKSPACE" \
     "$IMG" tmm nearest_neighbors \
+    -e "$MINE_SPEC" \
     source_parquet="$OUT/source_embeddings.parquet" \
     target_parquet="$OUT/target_embeddings.parquet" \
-    output_parquet="$OUT/mined.parquet" \
-    topn="$TOPN" \
-    knn_metric="$METRIC" \
-    filter_by_label="$FILTER_BY_LABEL"
+    output_parquet="$OUT/mined.parquet"
 
 # Sanity print so the script-check hook sees row counts
 python3 -c "
@@ -189,6 +213,8 @@ Write everything into a timestamped folder under the experiment / iteration dire
 ```
 <output_dir>/mining_results/YYYY-MM-DD_HHMMSS/
 ├── Mining_Report.md            # Full mining report
+├── embedding_spec.yaml         # The -e spec used for Steps 1 and 2
+├── mining_spec.yaml            # The -e spec used for Step 3
 ├── target_embeddings.parquet   # Step 1 output (filepath, embedding, + carried metadata)
 ├── source_embeddings.parquet   # Step 2 output (filepath, embedding, + carried metadata)
 ├── mined.parquet               # Step 3 output — unique mined source filepaths
@@ -205,10 +231,12 @@ The mined parquet is the artifact downstream training consumes. The two embeddin
 
 ## Common pitfalls
 
-- **Mismatched encoders between target and source embeddings** — the single most common cause of garbage mining output. Always run Steps 1 and 2 with identical `model` *and* `model_path`. The hook checks for this.
+- **Mismatched encoders between target and source embeddings** — the single most common cause of garbage mining output. Both embedding steps must consume the **same** `embedding_spec.yaml`, and any Hydra override that changes `model` / `model_path` / `batch_size` must be applied to *both* invocations or to neither. The hook checks for this.
 - **Skipping an embedding step** — the mining task requires both inputs to contain an embedding column; the raw filepath parquets cannot be fed to it directly.
 - **Missing `label` column with `filter_by_label=true`** — the filter silently no-ops with a warning rather than erroring. If the mined output looks too large or contains cross-label pairs, grep the docker log for the warning and confirm both embedding parquets carry `label`.
-- **TAO checkpoint without `model_config_path`** — when `model` points at a TAO `.pth` / `.ckpt`, the entrypoint cannot reconstruct the encoder without the matching train-spec YAML. Pass `model_config_path` in both Step 1 and Step 2.
+- **Spec file outside `$WORKSPACE`** — `-e <path>` is resolved inside the container, so the spec must live under the bind-mounted workspace. Place `embedding_spec.yaml` and `mining_spec.yaml` next to the other run artifacts and pass absolute paths.
+- **Spec file with unresolved `???` sentinels** — the bundled defaults under `experiment_specs/` mark required fields with `???`. Replace every `???` (e.g. `model`, `model_path`) before the run, or supply that field as a Hydra override on the CLI. Hydra rejects unresolved sentinels with a clear `MissingMandatoryValue` error.
+- **TAO checkpoint without `model_config_path`** — when `model_path` points at a TAO `.pth` / `.ckpt`, the entrypoint cannot reconstruct the encoder without the matching train-spec YAML. Add `model_config_path: <spec.yaml>` to `embedding_spec.yaml` (it'll apply to both embedding steps).
 - **Source pool provided as CSV** — convert to parquet **before** Step 2; the entrypoint only reads parquet. The conversion must preserve `filepath` (and `label` if present).
 - **Path resolution mismatch between host and container** — every parquet path passed in args must be readable inside the container. The simplest fix is the `-v $WORKSPACE:$WORKSPACE` pattern from Setup so paths resolve identically on both sides. If you mount `<host>:<other-path>`, pass the in-container path in the args, not the host one.
 - **No GPU available** — both steps need CUDA. Check `nvidia-smi` once at the top; the entrypoint's error is clear but it surfaces late in a long run.
@@ -285,9 +313,10 @@ Keep the report tight (600–1200 words). Mining is a deterministic pipeline; th
 
 1. Run `docker info`, `nvidia-smi`, and `docker image inspect nvcr.io/nvidian/iva/tao-toolkit-ds:aoi` (pulling if missing) once to confirm the environment. Abort with a clear message if any fail.
 2. Run `date +%Y-%m-%d_%H%M%S` to get the timestamp; create `<output_dir>/mining_results/<timestamp>/`.
-3. If the source pool is a CSV, convert to parquet first (preserve `filepath` and `label`).
-4. Run Step 1 (embed targets) via `docker run … embedding image_embeddings`. Print the output parquet's row count and columns to stdout.
-5. Run Step 2 (embed source pool) with the **identical** `model` / `model_path` as Step 1. Print output row count and columns.
-6. Run Step 3 (mine nearest neighbours) via `docker run … tmm nearest_neighbors`. Confirm `mining_summary.txt` was written next to `mined.parquet`.
-7. Compute the per-label breakdown (Section 5) by joining the target embeddings parquet with the mined output on filepath, if both carry `label`.
-8. Write `Mining_Report.md` last — writing it triggers the packaging hook, which copies session logs and skill config alongside.
+3. Write `embedding_spec.yaml` and `mining_spec.yaml` into the timestamped dir, filling in the encoder choice and mining knobs. Keep these under `$WORKSPACE` so the `-e` path resolves inside the container.
+4. If the source pool is a CSV, convert to parquet first (preserve `filepath` and `label`).
+5. Run Step 1 (embed targets) via `docker run … embedding image_embeddings -e embedding_spec.yaml input_parquet=… output_parquet=…`. Print the output parquet's row count and columns to stdout.
+6. Run Step 2 (embed source pool) with the **identical** `embedding_spec.yaml` as Step 1. Print output row count and columns.
+7. Run Step 3 (mine nearest neighbours) via `docker run … tmm nearest_neighbors -e mining_spec.yaml source_parquet=… target_parquet=… output_parquet=…`. Confirm `mining_summary.txt` was written next to `mined.parquet`.
+8. Compute the per-label breakdown (Section 5) by joining the target embeddings parquet with the mined output on filepath, if both carry `label`.
+9. Write `Mining_Report.md` last — writing it triggers the packaging hook, which copies session logs and skill config alongside.
