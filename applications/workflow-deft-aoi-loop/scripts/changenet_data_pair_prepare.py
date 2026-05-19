@@ -36,6 +36,21 @@ def parse_label_from_filename(filename: str) -> str | None:
     return label_part if label_part else None
 
 
+def normalize_label(label: str) -> str:
+    """Preserve 'PASS' verbatim; lowercase + strip every other label.
+
+    ChangeNet's classify dataloader does case-sensitive equality against the
+    literal string 'PASS' to detect class 0. Lowercasing it puts every row
+    into class 1, after which the fpratio_sampling weighted sampler fails at
+    training start with 'RuntimeError: invalid multinomial distribution
+    (sum of probabilities <= 0)'. See workflow-deft-aoi-loop SKILL.md
+    'Pipeline → step 6' for the original incident.
+    """
+    if label == "PASS":
+        return label
+    return label.lower().strip()
+
+
 def convert_to_jpg(src: str, dst: str) -> None:
     """Convert an image to JPEG format."""
     img = Image.open(src).convert("RGB")
@@ -59,7 +74,9 @@ def generate_csv(
             print(f"WARN: no golden match for {fname}, skipping")
             continue
 
-        row_label = label or parse_label_from_filename(fname) or default_label
+        row_label = normalize_label(
+            label or parse_label_from_filename(fname) or default_label
+        )
         rows.append(
             (
                 os.path.join(input_dir, fname),
@@ -113,7 +130,9 @@ def generate_csv_siamese(
             print(f"WARN: no golden match for {fname}, skipping")
             continue
 
-        row_label = label or parse_label_from_filename(fname) or default_label
+        row_label = normalize_label(
+            label or parse_label_from_filename(fname) or default_label
+        )
         stem = Path(fname).stem
         # Use the stem as object_name (e.g., PCB+bridge_00000)
         object_name = stem

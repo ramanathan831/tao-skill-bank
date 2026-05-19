@@ -86,7 +86,7 @@ training validation to drift from the trained defect set silently.
 ### Step 3: Config template and critical flags
 
 `generate_config.py` uses the FSDP template from
-`.claude/skills/cosmos-anomalygen/assets/ag_config.yaml`. Key flags:
+`.agents/skills/cosmos-anomalygen/assets/ag_config.yaml`. Key flags:
 
 | Flag | Default | Note |
 |---|---|---|

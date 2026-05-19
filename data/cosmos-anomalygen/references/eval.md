@@ -13,7 +13,7 @@ interpreting output format, or running eval for the first time.
 | `generated_path` | Yes | — | SDG output directory (must contain `reconstructed_image/` and `original_mask/`). |
 | `anomaly_types` | Yes | Auto-detect | `TEXTURE+TYPE` list. If omitted, auto-detect from generated filenames (see below). |
 | `backbone` | No | `cradio_v3_base` | Feature extractor for **FID only**. Correspondence (`nn_score` / `mnn_score`) is locked to `dinov2-large` regardless of this flag. |
-| `per_sample_csv` | No | `<generated_path>/per_sample.csv` | Always emitted. Override path with `--per-sample-csv <path>`. Columns: `anomaly_type`, `path`, `nn_score`, `mnn_score`. Consumed by `sdg-refine` and `filter_by_nn.py`. |
+| `per_sample_csv` | No | `<generated_path>/per_sample.csv` | Always emitted. Override path with `--per-sample-csv <path>`. Columns: `anomaly_type`, `path`, `nn_score`, `mnn_score`. Consumed by `sdg-refine` and `filter_with_regen.py`. |
 
 **Top-K averaging:** `compute_correspondence_kpi(top_k=3)` — each generated
 image is scored against every real reference of its type and the three
@@ -69,7 +69,7 @@ Backbone:        cradio_v3_base
 ## Invocation
 
 ```bash
-.claude/skills/cosmos-anomalygen/scripts/run_eval.sh \
+${ANOMALYGEN_SCRIPTS}/run_eval.sh \
     --real-path <real_path> \
     --generated-path <generated_path> \
     --anomaly-types <TEXTURE+TYPE> [<TEXTURE+TYPE> ...] \

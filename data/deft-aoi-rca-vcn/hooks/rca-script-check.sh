@@ -44,13 +44,13 @@ warnings = []
 
 # Check 0a: docker run failure modes specific to this skill
 import re
-if re.search(r'\bdocker\s+run\b.*tao-toolkit-ds:aoi.*gap_analysis\s+vcn_aoi', command, re.DOTALL):
+if re.search(r'\bdocker\s+run\b.*tao-toolkit-ds.*gap_analysis\s+vcn_aoi', command, re.DOTALL):
     if 'docker: command not found' in combined or re.search(r'docker:\s*command not found', combined):
         warnings.append("`docker` not found on PATH. Install Docker (and the NVIDIA container toolkit) before re-running.")
-    if re.search(r'(unable to find image|pull access denied|manifest unknown|repository does not exist).*tao-toolkit-ds:aoi', combined, re.IGNORECASE):
-        warnings.append("Container `nvcr.io/nvidian/iva/tao-toolkit-ds:aoi` is missing or unreachable. Pre-pull with `docker pull nvcr.io/nvidian/iva/tao-toolkit-ds:aoi` and confirm registry credentials. The `:aoi` tag is required — `:latest` does not contain the gap-analysis entrypoint.")
+    if re.search(r'(unable to find image|pull access denied|manifest unknown|repository does not exist).*tao-toolkit-ds', combined, re.IGNORECASE):
+        warnings.append("The `tao_toolkit.data_services` container (resolved from `versions.yaml`) is missing or unreachable. Resolve `DS_IMAGE` from `versions.yaml` (`images.tao_toolkit.data_services`), pre-pull with `docker pull \"$DS_IMAGE\"`, and confirm registry credentials. The data-services tag declared in versions.yaml is required — the generic `:latest` does not contain the gap-analysis entrypoint.")
     if re.search(r'(action not found|unknown action|invalid action).*gap_analysis|gap_analysis.*not (found|recognized)', combined, re.IGNORECASE):
-        warnings.append("Container did not recognize the `gap_analysis vcn_aoi` action. Confirm the image is actually the `:aoi` tag (not `:latest`) and that the args are passed without a leading `dataset` keyword — the entrypoint takes `<category> <action> <args>` directly.")
+        warnings.append("Container did not recognize the `gap_analysis vcn_aoi` action. Confirm the image actually resolves from `tao_toolkit.data_services` in `versions.yaml` (not `:latest`) and that the args are passed without a leading `dataset` keyword — the entrypoint takes `<category> <action> <args>` directly.")
     if re.search(r'(FileNotFoundError|No such file or directory).*\.(csv|yaml|parquet)', combined):
         warnings.append("Container reported a missing input file. Most likely the host path was not mounted into the container. Use `-v $WORKSPACE:$WORKSPACE` so host and container paths match exactly, and confirm `inference_csv`, `train_config`, and `kpi_media_path` all live under $WORKSPACE.")
     if re.search(r'(could not select device driver.*gpu|no CUDA-capable device)', combined, re.IGNORECASE):

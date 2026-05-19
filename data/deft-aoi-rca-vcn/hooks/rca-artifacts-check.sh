@@ -26,7 +26,7 @@ if [[ "$CLAUDE_FILE_PATH" == *RCA_Report.md ]]; then
 
   for required in gaps.parquet threshold.txt metrics.json weak_samples_breakdown.txt; do
     if [ ! -f "$report_dir/$required" ]; then
-      warnings="${warnings}\n- MISSING ARTIFACT: $required not found next to RCA_Report.md. The container run (`docker run … nvcr.io/nvidian/iva/tao-toolkit-ds:aoi gap_analysis vcn_aoi …`) must write it before the report is produced."
+      warnings="${warnings}\n- MISSING ARTIFACT: $required not found next to RCA_Report.md. The container run (docker run ... \$DS_IMAGE gap_analysis vcn_aoi ..., where DS_IMAGE = tao_toolkit.data_services from versions.yaml) must write it before the report is produced."
     fi
   done
 

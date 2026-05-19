@@ -1,109 +1,161 @@
 # Cosmos AnomalyGen — DEFT Loop Reference
 
 Read this when the parent runs the `anomalygen` stage. The underlying skill
-`tao-skill-bank:cosmos-anomalygen` (`data/cosmos-anomalygen/SKILL.md`) owns the
-docker invocation, phase descriptions, parameter reference, and error patterns —
-use `mode=inference_only` for DEFT loop iterations (checkpoint already exists).
-This file only covers the DEFT-loop-specific overlay: pool layout, input hygiene,
-required mounts/env, container-script substitutions, and logging.
+`tao-skill-bank:cosmos-anomalygen` (`data/cosmos-anomalygen/SKILL.md`) owns
+the standalone 8-phase pipeline and parameter reference. This file is the
+DEFT-loop overlay: what to pass, how mounts resolve, the few invariants
+that gate the run, and the failure mode the loop has actually hit.
 
-## Dataset Layout
+The DEFT loop only needs Phases 2 (`prep_testcase.sh`) and 3 (`run_sdg.sh`).
+Phases 4–7 (eval / search / filter+regen) are SDG-quality optimization and
+do not contribute to the loop's training pairs. Skip them by setting
+`num_search_run=0` and `nn_threshold=0`, or invoke the two wrappers
+directly (see *Direct invocation* below).
 
-All reference data lives under `augmentation/anomalygen/checkpoints/<project>/dataset/`:
+## Workspace Inputs
+
+Three independent inputs under `<workspace>/augmentation/anomalygen/` plus
+the Cosmos base-checkpoints root.
+
+| Input | Path (this workspace; `<project>=UC1`) | Holds |
+|---|---|---|
+| `checkpoint_dir` | `augmentation/anomalygen/checkpoints/<project>/` | `ag_config.yaml` + `checkpoints/{latest_checkpoint.txt, model/iter_<step>.pt, …}` |
+| `dataset_dir` | `augmentation/anomalygen/datasets/<project>/` | Per-defect reference data + `semantic_segmentation_labels.json`. Sibling to `checkpoints/`. |
+| `defect_spec` | `augmentation/anomalygen/datasets/<project>/defect_spec.jsonl` | One entry per defect_type (`<T>+<A>`); `spatial_dependency ∈ {free, text, cad}` |
+| `cosmos_models_dir` | `${COSMOS_MODELS_DIR}` (resolved by Pre-Flight) | Cosmos base checkpoints — `nvidia/Cosmos-Predict2-2B-Text2Image/`, `google-t5/`, `NVDINOV2/`, … |
+
+`dataset_dir` and `clean_dir` resolve to the same path on this workspace —
+clean images live under `<dataset_dir>/<T>/clean_image/` which is the
+container's first probe hit. The container handles both flat and
+split-by-texture layouts transparently via `validate_amp_inputs.py`; the
+loop passes the workspace dir verbatim, no pre-staging.
+
+## Invariants
+
+Verify these before invoking; the rest is up to the container.
+
+1. **`cad_mask` preserves per-class RGB.** `cad2roi` looks up each pixel's
+   RGB tuple in `semantic_segmentation_labels.json`. A flattened binary
+   `(0,0,0)`/`(255,255,255)` cad_mask yields zero ROIs everywhere (see
+   *AMP no-ROI failure mode* below). Verify with
+   `Image.open(cad_mask).convert('RGB').getcolors(maxcolors=64)` —
+   unique tuples must overlap the labels file.
+2. **`defect_spec.jsonl` `text` entries have non-empty
+   `roi_prompt_defect_location`.** `cad` and `free` entries don't need it.
+3. **`<T>/cad_mask/` and `<T>/clean_image/` are non-empty and paired by
+   stem.** Missing pair → record dropped silently.
+4. **`semantic_segmentation_labels.json` exists at `datasets/<project>/`.**
+
+Mask file format, image-size agreement, and channel mode do **not** gate
+`mode=inference_only` — AMP processes each record at its native size. See
+the underlying skill's `references/inference.md` if you need the full
+list for `mode=full` / `mode=finetune_only`.
+
+## AMP "no ROI candidates" failure mode
+
+`run_auto_roi_amp.py` silently skips a sample when the cad_mask doesn't
+have enough free area for the requested anomaly mask shape. The wrapper
+does **not** propagate this — `num_SDG=N` quietly degrades to whatever
+AMP could allocate, and the loop only notices via a smaller
+`SDG_result.csv`.
+
+Symptoms:
 
 ```
-dataset/
-├── semantic_segmentation_labels.json
-└── <defect_type>/                          # folder name == defect_type from defect_spec.jsonl (e.g. IC+bridge)
-    ├── anomaly_image/                      # defect reference images — primary source for pool staging
-    ├── mask/                               # per-sample defect masks (paired 1-to-1 with anomaly_image/)
-    ├── cad_mask/                           # CAD component masks — required for cad spatial_dependency
-    └── clean_image/                        # clean reference images (AMP inpainting targets)
+WARNING ... <stem>/<T>+<A>: no ROI candidates, skipping
+INFO ... <T>+<A>: 0/N with ROI, 0/0 seeds OK
+wrote 4 entries to testcase.jsonl       # <-- expected 20
 ```
 
-One folder per `defect_type` entry in `defect_spec.jsonl` — the folder name IS the `defect_type` string verbatim.
-No sub-grouping by component type.
+Diagnose in this order:
 
-For `cad` spatial_dependency, AMP uses `cad_mask/<stem>.png` (same stem as the clean/anomaly image) to
-locate the component ROI — no text prompt or SAM2 pass is needed.
+1. **cad_mask class mapping** — invariant #1 above. Most common cause.
+2. **Anomaly mask shape vs cad free area** — if the anomaly mask's
+   bounding box exceeds every connected component in the cad_mask, AMP
+   can't place it. Provide smaller anomaly masks or switch
+   `spatial_dependency: free` to skip ROI placement entirely.
+3. **Isolate the failing defect** — filter `defect_spec.jsonl` to just
+   `<T>+<A>` and re-run `prep_testcase.sh --num-sdg 1`.
 
-## Pool Layout
-
-> **Source of truth — single, fixed.** All pool inputs are copied **only** from
-> `augmentation/anomalygen/checkpoints/<project>/`, namely:
-> - `<project>/dataset/` (per-defect `mask/`, `cad_mask/`, `clean_image/` and `semantic_segmentation_labels.json`)
-> - `<project>/defect_spec.jsonl`
-> - `<project>/ag_config.yaml` (read for `texture`; not copied)
->
-> **Nothing else is ever read or injected** — no `train/base/training_set.csv`,
-> no KPI images, no prior-iteration SDG outputs, no real-sample injection from
-> `routing_*_parquet`, no other PASS/NG sources. If a required subdirectory
-> under `dataset/<T>+<A>/` is empty, **hard stop** — never substitute.
-
-The parent stages a pool at `results/iter${N}/pool_anomalygen/inputs/` by mechanically restructuring the canonical input. `<T>` = `ag_config.yaml.texture` (e.g. `PCB`); `<A>` = anomaly suffix from `defect_type` (`<T>+<A>`).
-
-| Source (under `<project>/`) | Pool destination (under `pool_anomalygen/inputs/`) |
-|---|---|
-| `dataset/semantic_segmentation_labels.json` | `masks_structured/semantic_segmentation_labels.json` |
-| `dataset/<T>+<A>/mask/*.png` | `masks_structured/<T>/mask/<A>/*.png` |
-| `dataset/<T>+<A>/cad_mask/*.png` | `masks_structured/<T>/cad_mask/*.png` (deduped across `<A>`) |
-| `dataset/<T>+<A>/clean_image/*` | `clean/train_set/*` (flat) |
-| `defect_spec.jsonl` | `defect_spec.jsonl` (verbatim; if any `defect_type` prefix differs from `<T>`, remap during copy — e.g. `IC+bridge` → `PCB+bridge`) |
-
-`anomaly_image/` is **not** staged. AnomalyGen at inference time generates new defects from `mask/` + `clean_image/` + the fine-tuned checkpoint; it does not consume `anomaly_image/`.
-
-`masks_structured/` is what `prep_testcase.sh` consumes as `--dataset-dir` — the underlying skill expects the `<T>/mask/<A>/` split, while the canonical dataset stores masks flat under `<T>+<A>/mask/`. The table above is the only bridge.
-
-**Mask format.** `mask/` and `cad_mask/` files must be binary 0/255 PNG. JPEG fails SDG's binary check (`ValueError: Mask is not binary`). The canonical dataset is expected to comply.
-
-**`cosmos_models_dir`** — absolute host path to the directory containing `Cosmos-Predict2-2B-Text2Image/`. Resolved by Pre-Flight as `COSMOS_MODELS_DIR`. Required mount; the AnomalyGen container does not bundle these weights (missing → `FileNotFoundError: ... tokenizer.pth`).
-
-## Input hygiene (parent must do before invoking the skill)
-
-- **Resize OK images and masks to `ag_config.yaml.dataloader_train.dataset.image_size`** (e.g. `512×512`). Mismatched pair sizes raise `AssertionError: Image filename ... 's size with mask filename ...` at `_prepare_diffusion_inference_data_batches`.
-- **Masks must be binary PNG (0/255)**. JPEG masks fail with `ValueError: Mask is not binary` (raised in `mask_augmentation.augment_binary_mask` and again in `_load_image_and_mask`) because JPEG compression smears pixel values. Threshold at 128 and re-save as PNG.
-- **Smoke-test with a 1-row JSONL before scaling.** Model load is ~5 min and the 2B diffusion holds ~50 GB VRAM — per-row failures after a successful load are cheap, but per-row failures during a fresh load are expensive. Validate JSONL fields, image/mask sizes, and mask binarity on one row first; only then submit the full `num_SDG`-row batch.
-- **Strip training-only keys from `ag_config.yaml`** before pointing the SDG script at it: drop `scheduler`, `trainer`, `checkpoint`, `dataloader_train`, `dataloader_val`. The omegaconf struct under `cosmos_predict2/configs/base/ag_config.py` rejects unknown keys (e.g. `scheduler.warm_up_steps` exists in the lambdalinear scheduler config but the default is `constant`, which doesn't have it). Symlink the rest of the checkpoint dir into a shim and write the sanitized `ag_config.yaml` next to the symlinks.
+After Phase 2, parse `<output_dir>/allocation.json` to confirm per-defect
+counts before launching Phase 3 — GPU + model load cost is fixed, so a
+4-of-20 yield is worth aborting on.
 
 ## DEFT-Loop Parameters
 
-```
-mode=inference_only
-checkpoint_dir=<workspace>/augmentation/anomalygen/checkpoints/<project>
-step=<from checkpoints/latest_checkpoint.txt>
-num_SDG=<per-iter budget>
-num_gpus=1
-cosmos_models_dir=<COSMOS_MODELS_DIR>   # resolved by parent in Pre-Flight
-```
+The parent invokes `tao-skill-bank:cosmos-anomalygen` (or the wrappers
+directly) with:
 
-**Required docker mount for Cosmos base weights:**
+| Param | Value | Notes |
+|---|---|---|
+| `mode` | `inference_only` (or omit when calling wrappers directly) | DEFT loop never runs Phase 1 |
+| `checkpoint_dir` | `<workspace>/augmentation/anomalygen/checkpoints/<project>` | |
+| `step` | int parsed from `checkpoint_dir/checkpoints/latest_checkpoint.txt` | strip `iter_` prefix and `.pt` suffix |
+| `dataset_dir` | `<workspace>/augmentation/anomalygen/datasets/<project>/` | passed verbatim |
+| `clean_dir` | same as `dataset_dir` | |
+| `defect_spec` | `${dataset_dir}/defect_spec.jsonl` | |
+| `num_SDG` | per-iter budget from `deft_state.json` | proportionally allocated across defect types by mask count |
+| `num_gpus` | `1` | |
+| `model_size` | from `ag_config.yaml` (`2b` or `14b`) | |
+| `output_dir` | `${RESULTS_DIR}/iter${N}/anomalygen/sdg/` | receives `reconstructed_image/`, `original_image/`, `SDG_result.csv` |
+| `cosmos_models_dir` | `${COSMOS_MODELS_DIR}` | resolved in Pre-Flight |
+| `num_search_run` | `0` | skip Phase 5 search rounds |
+| `nn_threshold` | `0` | skip Phase 7 filter+regen |
+
+## Direct invocation (the actual two-step path)
+
+The whole loop-relevant pipeline is two `docker run` calls. Use this
+form when invoking the skill via the orchestrator is overkill.
 
 ```bash
--v <cosmos_models_dir>:/workspace/cosmos-anomalygen/checkpoints:ro
+set -a; source <workspace>/.env; set +a
+WS=<workspace>
+DS=$WS/augmentation/anomalygen/datasets/<project>
+CKPT=$WS/augmentation/anomalygen/checkpoints/<project>
+COSMOS=$WS/augmentation/anomalygen/base_checkpoints
+RUN_DIR=$WS/results/run_<TS>/iter${N}/anomalygen
+STEP=$(sed 's/^iter_0*\([0-9]*\)\.pt$/\1/' $CKPT/checkpoints/latest_checkpoint.txt)
+: "${AG_IMAGE:=$(${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/resolve_versions_key.py images.metropolis_sdg.cosmos_anomalygen)}"  # reuses Pre-Flight export if set; resolves on demand otherwise
+
+mkdir -p $RUN_DIR/amp $RUN_DIR/sdg
+
+# Phase 2: AMP routing → testcase.jsonl  (~10s, no GPU)
+docker run --rm --gpus all --ipc=host --shm-size=16g \
+  -e HF_TOKEN -e HF_HUB_DISABLE_XET=1 -e PYTHONPATH=/workspace/cosmos-anomalygen \
+  -v $WS:$WS -v $COSMOS:/workspace/cosmos-anomalygen/checkpoints:ro \
+  -w /workspace/cosmos-anomalygen $AG_IMAGE \
+  bash -lc "\${ANOMALYGEN_SCRIPTS}/prep_testcase.sh \
+    --name iter${N} --num-sdg $NUM_SDG \
+    --dataset-dir $DS --clean-dir $DS --defect-spec $DS/defect_spec.jsonl \
+    --amp-output-dir $RUN_DIR/amp --output-jsonl $RUN_DIR/testcase.jsonl"
+
+# Phase 3: SDG diffusion → reconstructed_image/ + original_image/  (1-3 min on Blackwell)
+docker run --rm --gpus all --ipc=host --shm-size=16g \
+  -e HF_TOKEN -e HF_HUB_DISABLE_XET=1 -e PYTHONPATH=/workspace/cosmos-anomalygen \
+  -v $WS:$WS -v $COSMOS:/workspace/cosmos-anomalygen/checkpoints:ro \
+  -w /workspace/cosmos-anomalygen $AG_IMAGE \
+  bash -lc "\${ANOMALYGEN_SCRIPTS}/run_sdg.sh \
+    --checkpoint_dir $CKPT --step $STEP \
+    --input_jsonl $RUN_DIR/testcase.jsonl --output_dir $RUN_DIR/sdg \
+    --model_size 2b --num_gpus 1"
 ```
 
-The container expects `Cosmos-Predict2-2B-Text2Image/` (and sibling model dirs) at `/workspace/cosmos-anomalygen/checkpoints/`. Without this mount, SDG exits with `FileNotFoundError: checkpoints/nvidia/Cosmos-Predict2-2B-Text2Image/tokenizer/tokenizer.pth`.
+Required mounts: `<workspace>:<workspace>` (same path) +
+`<cosmos_models_dir>:/workspace/cosmos-anomalygen/checkpoints:ro`.
+Required env: `HF_TOKEN`, `HF_HUB_DISABLE_XET=1`,
+`PYTHONPATH=/workspace/cosmos-anomalygen`. Required workdir:
+`/workspace/cosmos-anomalygen` (the `-m scripts.…` invocation needs CWD).
 
-**Required docker env:**
+## Output layout
 
-```bash
--e PYTHONPATH=/workspace/cosmos-anomalygen   # imaginaire/cosmos_predict2 import from CWD; not pip-installed
--e HF_HUB_DISABLE_XET=1                       # xet downloader hits permission errors when downloading missing weights
 ```
-
-Without `PYTHONPATH`, SDG fails immediately with `ModuleNotFoundError: No module named 'imaginaire'`.
-
-## Container script paths (note for `data/cosmos-anomalygen/SKILL.md` readers)
-
-In container image `1.0.3-006434bb.main`, the shell wrappers `scripts/run_sdg.sh`, `scripts/prep_testcase.sh`, and `scripts/validate_checkpoint.py` referenced by the skill **do not exist**. The actual entry points are (`validate_jsonl.py` / `verify_output.sh` have no equivalent — rely on the smoke-test row and on the SDG script's own row-level errors):
-
-| SKILL.md says | Actual script in container |
-|---|---|
-| `scripts/run_sdg.sh` | `torchrun --nproc_per_node=<N> scripts/anomaly_gen/synthetic_dataset_generation.py --ag_checkpoint_dir <CKPT> --step <STEP> --input_data_path <JSONL> --output_image_path <OUT>` |
-| `scripts/prep_testcase.sh` | `scripts/anomaly_gen/create_testcase.py` (different flag set; takes `--OK_image_path`, `--NG_mask_path`, `--name`, `--SDG_RATIO`, etc.). Produces `ag_inference/<testcase>.jsonl`, which `synthetic_dataset_generation.py` consumes as `--input_data_path`. |
-| `scripts/validate_checkpoint.py` | (no equivalent — verify `ag_config.yaml` and `checkpoints/model/iter_<step>.pt` exist manually) |
-
-Output layout for `synthetic_dataset_generation.py`: `<output_image_path>/{reconstructed_image,original_image,cropped_image,annotated_image,original_mask,cropped_mask}/<anomaly_type>_<index>.png` plus `SDG_result.csv`. `reconstructed_image/` holds the synthetic NG output; `original_image/` is the OK input.
+<output_dir>/
+├── SDG_result.csv                          # one row per generated sample (image, mask, params, PSNR)
+├── reconstructed_image/<T>+<A>_<idx>.png   # synthetic NG — ChangeNet input_path
+├── original_image/<T>+<A>_<idx>.png        # paired OK — ChangeNet golden_path
+├── original_mask/, cropped_image/, cropped_mask/, annotated_image/   # intermediates
+└── timing_summary.json
+```
 
 ## Log Stage
 
@@ -112,5 +164,9 @@ python3 <skill_root>/scripts/log_stage.py \
     --log-path results/loop_log.jsonl \
     --iter-label iter${N} \
     --stage anomalygen --status ok \
-    --summary "SDG: N samples by type; gates passed"
+    --summary "SDG: requested=N, AMP-allocated=M, generated=K by type"
 ```
+
+When `M < N` (AMP yield gap), include both requested and allocated counts
+— that's the signal a reviewer needs to spot allocation-vs-generation
+bottlenecks.

@@ -40,9 +40,9 @@ warnings = []
 if re.search(r'\bdocker\s+run\b', command) and ('docker: command not found' in combined or re.search(r'docker:\s*command not found', combined)):
     warnings.append("`docker` not found on PATH. Install Docker (and the NVIDIA container toolkit) before re-running this skill.")
 
-# 1b. tao-toolkit-ds:aoi image missing or unreachable
-if re.search(r'(unable to find image|pull access denied|manifest unknown|repository does not exist).*tao-toolkit-ds:aoi', combined, re.IGNORECASE):
-    warnings.append("Container image `nvcr.io/nvidian/iva/tao-toolkit-ds:aoi` is missing or unreachable. Pre-pull with `docker pull nvcr.io/nvidian/iva/tao-toolkit-ds:aoi` and confirm registry credentials. The `:aoi` tag is required — the generic `:latest` does not contain the embedding/mining entrypoints.")
+# 1b. tao-toolkit-ds image missing or unreachable
+if re.search(r'(unable to find image|pull access denied|manifest unknown|repository does not exist).*tao-toolkit-ds', combined, re.IGNORECASE):
+    warnings.append("The `tao_toolkit.data_services` container image (resolved from `versions.yaml`) is missing or unreachable. Resolve `DS_IMAGE` from `versions.yaml` (`images.tao_toolkit.data_services`), pre-pull with `docker pull \"$DS_IMAGE\"`, and confirm registry credentials. The data-services tag declared in versions.yaml is required — the generic `:latest` does not contain the embedding/mining entrypoints.")
 
 # 1c. Path-mount mismatch — entrypoint reports a parquet path it cannot find that exists on the host
 if re.search(r'(FileNotFoundError|No such file or directory).*\.parquet', combined):

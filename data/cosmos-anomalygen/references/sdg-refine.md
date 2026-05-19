@@ -17,7 +17,7 @@ per-sample search, draws.json alignment, or re-AMP augmentation.
 | `searched_dir` | Final output bucket (same layout as SDG). |
 | `rounds_dir` | Working dir for per-round artifacts + `search_summary.csv`. |
 | `checkpoint_dir` / `step` | Model checkpoint used for rounds. |
-| `num_search_run` | Number of rounds. `0` → skip search; `searched/` equals `original/`. |
+| `num_search_run` | Number of rounds (default `3` in the pipeline). `0` → skip search; assemble still runs and clones `original/` into `searched/`, so the downstream contract holds. |
 
 ---
 
@@ -33,7 +33,7 @@ For `r` in `1..num_search_run`:
 2. **Run the round:**
 
    ```bash
-   .claude/skills/cosmos-anomalygen/scripts/run_round.sh \
+   ${ANOMALYGEN_SCRIPTS}/run_round.sh \
        --base-jsonl ${JSONL} \
        --draws ${ROUNDS}/round_${r}/draws.json \
        --output-dir ${ROUNDS}/round_${r} \
@@ -50,7 +50,7 @@ For `r` in `1..num_search_run`:
 After all rounds:
 
 ```bash
-.claude/skills/cosmos-anomalygen/scripts/assemble_searched.py \
+python3 -m scripts.utilities.assemble_searched \
     --original-dir ${ORIGINAL} \
     --original-csv ${ORIGINAL}/per_sample.csv \
     --rounds-dir ${ROUNDS} \
@@ -99,7 +99,7 @@ be the blocker. Add `--reamp-seed` to re-run AMP with a fresh base seed on the
 same `(clean, submask)` records:
 
 ```bash
-.claude/skills/cosmos-anomalygen/scripts/run_round.sh \
+${ANOMALYGEN_SCRIPTS}/run_round.sh \
     ...standard args... \
     --reamp-seed $((1000 + r)) \
     --defect-spec ${DEFECT_DESC}
@@ -116,8 +116,9 @@ Each re-AMP is one extra `run_auto_roi_amp.py` pass.
 
 ## Notes
 
-- `num_search_run = 0` is valid: skip `run_round.sh` entirely; run
-  `assemble_searched.py` with an empty rounds dir — `searched/` equals `original/`.
+- `num_search_run = 0` is valid: skip `run_round.sh` entirely; still run
+  `assemble_searched.py` with an empty rounds dir — it clones `original/`
+  into `searched/`, preserving the "final is always `searched/`" invariant.
 - You can retry any subset of samples per round — the draws JSON is the selector.
 - `run_round.sh` intentionally runs SDG single-GPU: per-round sample count is
   small, and `torchrun` init overhead would dominate. Bulk generation in Phase 3

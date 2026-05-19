@@ -4,7 +4,7 @@ Detailed examples live here so `SKILL.md` stays focused on trigger behavior, wor
 
 ## `run_script()` Invocation
 
-Use `run_script()` when the harness provides it. Resolve every path argument to an absolute host path before calling.
+`run_script()` is a Claude Code plugin runtime helper — it is **not defined in this repo**, and importing it from any of the bundled scripts will fail. Use it only when the harness exposes it in the current execution context (check `globals()` for the name, or feature-detect with a try/except `NameError` wrapper). When the harness does not provide it, fall back to **Direct Python Invocation** below; both reach the same scripts. Resolve every path argument to an absolute host path before calling.
 
 ```python
 run_script(
@@ -16,10 +16,11 @@ run_script(
         "--status", "ok",
         "--summary", "generated 1024 triplets, 8 defect types",
         "--duration-sec", str(duration_sec),
-        "--context-tokens", str(context_tokens),
     ],
 )
 ```
+
+`--context-tokens` is optional and defaults to `0`. Bash and `run_script()` callers cannot measure LLM context, so they should omit it; real per-stage usage is filled in by `align_token_usage.py` after the loop (see below).
 
 ## Direct Python Invocation
 
@@ -32,8 +33,7 @@ python scripts/log_stage.py \
   --stage anomalygen \
   --status ok \
   --summary "generated 1024 triplets, 8 defect types" \
-  --duration-sec 612 \
-  --context-tokens 18432
+  --duration-sec 612
 ```
 
 ## In-Process Library Use
@@ -51,8 +51,21 @@ append_stage(
     status="ok",
     summary="best_ckpt=ep049 FAR=0.42% threshold=0.31",
     duration_sec=duration_sec,
-    context_tokens=context_tokens,
 )
 ```
 
 Never write `loop_log.jsonl` with `echo`, heredocs, or inline `jq`. The writer must compute `seq` from the live tail through `next_seq()`.
+
+## Aligning Per-Stage Token Usage (Post-Loop)
+
+`log_stage.py` cannot measure LLM token usage at write time. Run `align_token_usage.py` after the loop (or on demand) to backfill real per-stage numbers from the Claude Code transcript JSONL:
+
+```bash
+python scripts/align_token_usage.py \
+  --log-path /abs/path/results/loop_log.jsonl \
+  --cwd /abs/path/to/project-root
+```
+
+The script reads `~/.claude/projects/<slug>/*.jsonl` (slug derived from `--cwd`), attributes each assistant message's `usage` to the stage whose `(prev.ts, this.ts]` window contains it, and rewrites `loop_log.jsonl` atomically with a per-entry `tokens` field plus a refreshed `context_tokens`. The `tokens` field exposes `input`, `output`, `cache_read`, `cache_create` (and its `5m`/`1h` breakdown), `context_size_end`, and the list of `models` seen.
+
+Pass `--transcript PATH` (repeatable) or `--project-dir PATH` if you need to override the auto-discovered location. Use `--dry-run` to inspect output without rewriting the log.

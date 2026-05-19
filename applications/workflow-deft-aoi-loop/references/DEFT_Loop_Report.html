@@ -30,25 +30,30 @@
   {{ BEST_CHECKPOINT }}         absolute path string
   {{ KPI_TARGET_PCT }}          numeric KPI line on FAR chart, e.g. 10
   {{ FAR_Y_MAX }}               chart Y max, e.g. 100
-  {{ DATA_Y_MAX }}              chart Y max, e.g. 500
   {{ FINAL_ITER_COUNT_LABEL }}  e.g. "3 / 3 complete"
-  {{ FINAL_KPI_STATUS }}        "MET" or "NOT MET"
-  {{ FINAL_KPI_STATUS_CLASS }}  CSS class: "green" (met) or "red" (not met)
+  {{ FINAL_KPI_STATUS }}        Neutral status string. Examples:
+                                "MET"                           — target reached
+                                "2.3pp from target"             — short of target (preferred over "NOT MET")
+                                "IN PROGRESS"                   — loop still running
+  {{ FINAL_KPI_STATUS_CLASS }}  CSS class: "green" (met) or "" (anything else — never "red")
 
   ── PRE-RENDERED HTML BLOCK REFERENCE ─────────────────────────────────────────
   {{ KPI_BANNER_HTML }}
-      Conditional banner. KPI NOT MET example:
-        <div class="kpi-banner">
-          <div class="icon">!</div>
+      Conditional banner. Use neutral phrasing when the target is not yet reached
+      (we are the product team — describe the gap, never say "NOT MET"). Example
+      for a run still short of target:
+        <div class="kpi-banner" style="background:rgba(255,188,1,0.10);border-color:rgba(255,188,1,0.35);">
+          <div class="icon" style="background:var(--nvidia-yellow);color:#000">i</div>
           <div class="content">
-            <div class="title">KPI NOT MET</div>
-            <div class="body">After N iterations, best result is
-              <strong>Iter X — FAR = Y% @ 100% Recall</strong>.
-              <strong>Root cause:</strong> one-liner.
+            <div class="title" style="color:var(--nvidia-yellow)">Best result so far</div>
+            <div class="body">After N iterations, best is
+              <strong>Iter X — FAR = Y% @ 100% Recall</strong>
+              (<strong>Zpp from the Wpp target</strong>).
+              <strong>Next lever:</strong> one-liner.
             </div>
           </div>
         </div>
-      KPI MET example (swap colours):
+      KPI MET example (green):
         <div class="kpi-banner" style="background:rgba(118,185,0,0.12);border-color:rgba(118,185,0,0.4);">
           <div class="icon" style="background:var(--nvidia-green);color:#000">✓</div>
           <div class="content">
@@ -111,48 +116,35 @@
         </tr>
 
   {{ DATA_SAMPLES_HTML }}
-      One .sample-iter-block per iteration. Block template:
+      Exactly ONE .sample-iter-block with ONE input/output pair. Do not emit a
+      block per iteration — pick a single representative pair from the best
+      iteration (the more samples we show, the more odd-looking crops the user
+      notices; one clean pair is the entire point). Block template:
         <div class="sample-iter-block">
-          <div class="sample-iter-label">
-            <span class="iter-badge">Iter N</span> Iter N — augmentation output
-          </div>
           <div class="sample-strip">
-            <div class="sample-col">
-              <div class="sample-col-title">Normal</div>
-              <img class="sample-img" src="relative/path/to/normal.jpg" alt="Normal">
-              [or placeholder when no image — use this div instead of img:]
-              <div class="sample-img-placeholder">No image</div>
-            </div>
-            <div class="sample-col">
-              <div class="sample-col-title">Defect (OV SDG)</div>
-              <img class="sample-img" src="..." alt="OV defect">
-            </div>
             <div class="sample-col">
               <div class="sample-col-title">AnomalyGen Input</div>
               <img class="sample-img" src="..." alt="AG input">
+              [or placeholder when no image — use this div instead of img:]
+              <div class="sample-img-placeholder">No image</div>
             </div>
             <div class="sample-col">
               <div class="sample-col-title">AnomalyGen Output</div>
               <img class="sample-img" src="..." alt="AG output">
             </div>
-            <div class="sample-col">
-              <div class="sample-col-title">Mask</div>
-              <img class="sample-img" src="..." alt="mask">
-            </div>
           </div>
         </div>
-      All image src paths must be relative to the HTML file location so the report
-      is self-contained without a server. Use base64 data URIs for thumbnails
-      (resize to 128×128 before encoding) so the file opens offline:
+      Image src paths use base64 data URIs (resize to 256×256 before encoding,
+      since each image now gets twice the screen area) so the file opens offline:
         src="data:image/jpeg;base64,<b64>"
       If a source image doesn't exist for a column, emit the .sample-img-placeholder div instead.
-      Columns and order: Normal | Defect (OV SDG) | AnomalyGen Input | AnomalyGen Output | Mask
-      Source path guide per column:
-        Normal          → cad2roi/defect_pairs/golden/<any>.png   (or missing_pairs/golden/)
-        Defect (OV SDG) → cad2roi/defect_pairs/defect/<any>.png  (or missing_pairs/defect/)
-        AnomalyGen Input→ anomalygen/inputs/pool_b/dataset/<cat>/anomaly_image/<any>.jpg
+      Columns and order: AnomalyGen Input | AnomalyGen Output
+      Source path guide per column (best iteration only):
+        AnomalyGen Input → anomalygen/inputs/pool_b/dataset/<cat>/anomaly_image/<any>.jpg
         AnomalyGen Output→ anomalygen/pool_b/original/reconstructed_image/<any>.png
-        Mask            → cad2roi/defect_pairs/mask/<any>.png     (or pool_b kept mask)
+      Selection rule: take the first existing pair by filename sort. If the best
+      iteration has no AnomalyGen output, fall back to the most recent iteration
+      that does; if none, emit the block with two .sample-img-placeholder divs.
 
   {{ ITER_CARDS_HTML }}
       One .iter-card div per iteration (excluding baseline). Card template:
@@ -199,17 +191,8 @@
       mined_count = rows in mining_pool.csv where source == mined (cosine similarity ≥ 0.9)
       total       = sdg_count + mined_count
 
-  {{ DATA_DATA_JSON }}
-      JSON array for the training-data stacked bar chart. Each element:
-        {"label": "Baseline|Iter N", "base": 210, "sdg": 0, "mined": 0}
-      sdg   = SDG-generated rows added this iteration (all AnomalyGen output, no filtering)
-      mined = real mined rows added this iteration (similarity ≥ 0.9 only)
-
   {{ FAR_Y_STEPS_JSON }}
       JSON array of Y-axis tick values for FAR chart, e.g. [0, 25, 50, 75, 100]
-
-  {{ DATA_Y_STEPS_JSON }}
-      JSON array of Y-axis tick values for data chart, e.g. [0, 100, 200, 300, 400, 500]
 ================================================================================
 -->
 <html lang="en">
@@ -712,7 +695,6 @@
     color: var(--text-primary);
   }
   .final-status .status-value.green { color: var(--nvidia-green); }
-  .final-status .status-value.red { color: var(--nvidia-red); }
   .final-status .checkpoint {
     font-family: 'SF Mono', 'Fira Code', monospace;
     font-size: 14px;
@@ -749,31 +731,11 @@
     padding-bottom: 0;
     border-bottom: none;
   }
-  .sample-iter-label {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 16px;
-    font-weight: 700;
-    color: var(--text-secondary);
-    margin-bottom: 14px;
-  }
-  .iter-badge {
-    display: inline-block;
-    padding: 3px 12px;
-    border-radius: 10px;
-    font-size: 13px;
-    font-weight: 800;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-    background: rgba(118,185,0,0.15);
-    color: var(--nvidia-green);
-    border: 1px solid rgba(118,185,0,0.3);
-  }
   .sample-strip {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 12px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    max-width: 640px;
   }
   .sample-col {
     display: flex;
@@ -812,15 +774,6 @@
     font-size: 12px;
     font-style: italic;
   }
-  .sample-caption {
-    font-size: 11px;
-    color: var(--text-muted);
-    text-align: center;
-    line-height: 1.4;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
 </style>
 </head>
 <body>
@@ -843,33 +796,16 @@
   <div class="header">
     <div>
       <div class="chart-title">Progress Overview</div>
-      <div class="chart-subtitle">FAR trend (@ 100% Recall) and training-data composition across iterations</div>
+      <div class="chart-subtitle">FAR trend (@ 100% Recall) across iterations</div>
     </div>
   </div>
 
-  <div class="body-row">
-    <div class="chart-col">
-      <div class="chart-wrapper">
-        <div class="y-label">FAR (%)</div>
-        <div class="y-axis-labels" id="farYLabels"></div>
-        <div class="chart-area" id="farChart"></div>
-      </div>
-      <div class="footnote">Lower is better &mdash; KPI target line at {{ KPI_TARGET_PCT }}%</div>
-    </div>
-
-    <div class="chart-col">
-      <div class="chart-wrapper">
-        <div class="y-label">Rows</div>
-        <div class="y-axis-labels" id="dataYLabels"></div>
-        <div class="chart-area" id="dataChart"></div>
-      </div>
-      <div class="footnote" style="display:flex;gap:18px">
-        <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:10px;height:10px;background:#3498db;border-radius:2px"></span>Base rows</span>
-        <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:10px;height:10px;background:var(--nvidia-orange);border-radius:2px"></span>SDG generated</span>
-        <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:10px;height:10px;background:var(--nvidia-green);border-radius:2px"></span>Mined (&ge;0.9)</span>
-      </div>
-    </div>
+  <div class="chart-wrapper">
+    <div class="y-label">FAR (%)</div>
+    <div class="y-axis-labels" id="farYLabels"></div>
+    <div class="chart-area" id="farChart"></div>
   </div>
+  <div class="footnote">Lower is better &mdash; KPI target line at {{ KPI_TARGET_PCT }}%</div>
 </div>
 
 <!-- ════════════ PER-ITERATION RESULTS ════════════ -->
@@ -1002,8 +938,8 @@
 <div class="card">
   <div class="header">
     <div>
-      <div class="chart-title">Generated Data Samples</div>
-      <div class="chart-subtitle">Representative crops from each iteration's augmentation pipeline — Normal · OV SDG Defect · AnomalyGen Input · AnomalyGen Output · Mask</div>
+      <div class="chart-title">Generated Data Sample</div>
+      <div class="chart-subtitle">One representative AnomalyGen input/output pair from the best iteration</div>
     </div>
   </div>
 
@@ -1043,7 +979,7 @@
   <div class="header">
     <div>
       <div class="chart-title">Final Status</div>
-      <div class="chart-subtitle">Loop complete ({{ ITERATIONS_RUN }}/{{ MAX_ITERATIONS }} iterations) — KPI {{ FINAL_KPI_STATUS }}</div>
+      <div class="chart-subtitle">Loop complete ({{ ITERATIONS_RUN }}/{{ MAX_ITERATIONS }} iterations) — {{ FINAL_KPI_STATUS }}</div>
     </div>
   </div>
 
@@ -1061,7 +997,7 @@
       <div class="status-value">{{ BEST_THRESHOLD }}</div>
     </div>
     <div class="status-block">
-      <div class="status-label">KPI Status</div>
+      <div class="status-label">Gap to KPI</div>
       <div class="status-value {{ FINAL_KPI_STATUS_CLASS }}">{{ FINAL_KPI_STATUS }}</div>
     </div>
   </div>
@@ -1079,10 +1015,6 @@
   const farYSteps = {{ FAR_Y_STEPS_JSON }};
   const farMax    = {{ FAR_Y_MAX }};
   const kpiTarget = {{ KPI_TARGET_PCT }};
-
-  const dataData  = {{ DATA_DATA_JSON }};
-  const dataYSteps = {{ DATA_Y_STEPS_JSON }};
-  const dataMax   = {{ DATA_Y_MAX }};
 
   // ── FAR Trend Line Chart ──
   const farYLabels = document.getElementById("farYLabels");
@@ -1159,90 +1091,6 @@
     farChart.appendChild(xLbl);
   });
 
-  // ── Data Growth Bar Chart ──
-  const dataYLabels = document.getElementById("dataYLabels");
-  const dataChart   = document.getElementById("dataChart");
-
-  dataYSteps.slice().reverse().forEach(v => {
-    const tick = document.createElement("div");
-    tick.className = "y-tick";
-    tick.textContent = v;
-    dataYLabels.appendChild(tick);
-  });
-
-  const dataChartH = dataChart.offsetHeight || 320;
-  const dataChartW = dataChart.offsetWidth  || 600;
-
-  dataYSteps.forEach(v => {
-    if (v === 0) return;
-    const pct = (1 - v / dataMax) * 100;
-    const gl = document.createElement("div");
-    gl.className = "grid-line";
-    gl.style.top = pct + "%";
-    dataChart.appendChild(gl);
-  });
-
-  const barW       = 70;
-  const dataPad    = 30;
-  const dataInnerW = dataChartW - dataPad * 2;
-  const dataSpacing = (dataInnerW - dataData.length * barW) / (dataData.length - 1);
-
-  dataData.forEach((d, i) => {
-    const left   = dataPad + i * (barW + dataSpacing);
-    const sdg    = d.sdg   || 0;
-    const mined  = d.mined || 0;
-    const total  = d.base + sdg + mined;
-    const baseH  = (d.base / dataMax) * dataChartH;
-    const sdgH   = (sdg    / dataMax) * dataChartH;
-    const minedH = (mined  / dataMax) * dataChartH;
-    const totalH = baseH + sdgH + minedH;
-
-    const baseBar = document.createElement("div");
-    baseBar.style.cssText = `position:absolute; left:${left}px; bottom:0; width:${barW}px; height:${baseH}px; background:#3498db;`;
-    dataChart.appendChild(baseBar);
-
-    if (sdgH > 0) {
-      const sdgBar = document.createElement("div");
-      sdgBar.style.cssText = `position:absolute; left:${left}px; bottom:${baseH}px; width:${barW}px; height:${sdgH}px; background:var(--nvidia-orange);`;
-      dataChart.appendChild(sdgBar);
-    }
-
-    if (minedH > 0) {
-      const minedBar = document.createElement("div");
-      minedBar.style.cssText = `position:absolute; left:${left}px; bottom:${baseH + sdgH}px; width:${barW}px; height:${minedH}px; background:var(--nvidia-green); border-radius:6px 6px 0 0;`;
-      dataChart.appendChild(minedBar);
-    } else if (sdgH > 0) {
-      // round the top of the topmost segment
-      const sdgBars = dataChart.querySelectorAll(`div[style*="bottom:${baseH}px"]`);
-      if (sdgBars.length) sdgBars[sdgBars.length - 1].style.borderRadius = "6px 6px 0 0";
-    } else {
-      baseBar.style.borderRadius = "6px 6px 0 0";
-    }
-
-    const totalLbl = document.createElement("div");
-    totalLbl.style.cssText = `position:absolute; left:${left + barW/2}px; bottom:${totalH + 10}px; transform:translateX(-50%); font-size:15px; font-weight:800; color:var(--text-primary); white-space:nowrap;`;
-    totalLbl.textContent = total;
-    dataChart.appendChild(totalLbl);
-
-    if (sdgH > 0) {
-      const sdgLbl = document.createElement("div");
-      sdgLbl.style.cssText = `position:absolute; left:${left + barW/2}px; bottom:${baseH + sdgH/2 - 8}px; transform:translateX(-50%); font-size:13px; font-weight:700; color:#fff; white-space:nowrap; pointer-events:none;`;
-      sdgLbl.textContent = "+" + sdg;
-      dataChart.appendChild(sdgLbl);
-    }
-
-    if (minedH > 0) {
-      const minedLbl = document.createElement("div");
-      minedLbl.style.cssText = `position:absolute; left:${left + barW/2}px; bottom:${baseH + sdgH + minedH/2 - 8}px; transform:translateX(-50%); font-size:13px; font-weight:700; color:#000; white-space:nowrap; pointer-events:none;`;
-      minedLbl.textContent = "+" + mined;
-      dataChart.appendChild(minedLbl);
-    }
-
-    const xLbl = document.createElement("div");
-    xLbl.style.cssText = `position:absolute; left:${left + barW/2}px; bottom:-26px; transform:translateX(-50%); font-size:14px; font-weight:600; color:var(--text-secondary); white-space:nowrap;`;
-    xLbl.textContent = d.label;
-    dataChart.appendChild(xLbl);
-  });
 })();
 </script>
 
