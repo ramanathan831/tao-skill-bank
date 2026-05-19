@@ -196,6 +196,7 @@ Resolve everything possible before asking the user. In order:
    ```bash
    mkdir -p <workspace>/augmentation/cosmos_models
    docker run --rm \
+       --user "$(id -u):$(id -g)" \
        -e HF_TOKEN \
        -v <workspace>/augmentation/cosmos_models:/cosmos_models \
        -w /workspace/cosmos-anomalygen \
