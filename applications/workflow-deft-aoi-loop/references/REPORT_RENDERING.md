@@ -24,12 +24,31 @@ Stub values for data not yet available:
 
 While the loop has not stopped:
 
-- `{{ FINAL_KPI_STATUS }}` → `"IN PROGRESS"`, class → `""` (no green/red).
+- `{{ FINAL_KPI_STATUS }}` → `"IN PROGRESS"`, class → `""` (no green).
 - `{{ ITERATIONS_RUN }}` → count of iterations with `status == "complete"` at render time.
 - Iteration table rows → only completed iterations; omit rows for unstarted iterations.
 - `{{ ITER_CARDS_HTML }}` → only emit cards for completed iterations.
 - KPI banner → empty string while running; inject it only on loop stop.
-- Charts (`FAR_DATA_JSON`, `DATA_DATA_JSON`) → include only data points from completed iterations.
+- `{{ FAR_DATA_JSON }}` → include only data points from completed iterations.
+
+## KPI status phrasing — be neutral, never say "NOT MET"
+
+We are the product team. When the target is not yet reached, describe the **gap**
+instead of stamping a failure label. Phrasing rules for `{{ FINAL_KPI_STATUS }}`
+and any KPI banner copy:
+
+| Condition | `FINAL_KPI_STATUS` | `FINAL_KPI_STATUS_CLASS` |
+|---|---|---|
+| `best_far <= kpi_target` | `"MET"` | `"green"` |
+| `best_far > kpi_target` | `"{gap:.1f}pp from target"` (e.g. `"2.3pp from target"`) | `""` |
+| Loop still running | `"IN PROGRESS"` | `""` |
+
+Where `gap = best_far - kpi_target` (always positive in the not-met case).
+
+Do **not** emit `"NOT MET"`, `"FAILED"`, the `red` CSS class, or red banner styling
+even when the target is missed. The KPI banner in this case should use the neutral
+yellow "Best result so far" treatment shown in the template doc-comment, not the
+red "KPI NOT MET" treatment. Reporting the gap factually is the entire ask.
 
 ## Minimal render pattern
 
@@ -93,16 +112,26 @@ template    = template[:doc_start] + template[outer_close + 3:]
 
 ### Image embedding
 
-Embed all sample images as base64 JPEG data URIs (`data:image/jpeg;base64,...`)
-resized to 128×128 with `PIL.Image.thumbnail`. Source columns per strip:
+Embed sample images as base64 JPEG data URIs (`data:image/jpeg;base64,...`)
+resized to **256×256** with `PIL.Image.thumbnail` (each image now occupies twice
+the screen area as before, so the previous 128px thumbnails look soft). The
+sample strip is **2 columns only** — Input and Output — matching
+`.sample-strip { grid-template-columns: repeat(2, 1fr); max-width: 640px }`
+in the template:
 
 | Strip | Source path |
 |---|---|
-| Normal | `sdg/original_image/` |
-| Defect SDG | `sdg/cropped_image/` |
 | AnomalyGen Input | `inputs/dataset/<cat>/anomaly_image/` |
 | AnomalyGen Output | `sdg/reconstructed_image/` |
-| Mask | `sdg/cropped_mask/` |
+
+Emit **exactly one** `.sample-iter-block` containing **one** pair — not one per
+iteration. Selection rule: pick the first existing pair (sorted by filename)
+from the best iteration. If the best iteration has no AnomalyGen output, fall
+back to the most recent iteration that does; if none, emit two
+`<div class="sample-img-placeholder">No image</div>` cells. The earlier `Normal`,
+`OV SDG Defect`, and `Mask` columns were removed and the per-iteration loop was
+collapsed — do not emit any of them. Rationale: every extra sample is one more
+crop the reader can complain about; one clean pair is the deliverable.
 
 ### Chart data field names (must match the template's JavaScript)
 
@@ -112,9 +141,13 @@ blank charts with no error. Confirmed correct schemas from the template source:
 | Placeholder | Required JSON schema | JS field accessed |
 |---|---|---|
 | `{{ FAR_DATA_JSON }}` | `[{"label": "Baseline", "value": 48.16, "color": "#c2262d"}, ...]` | `d.value`, `d.color`, `d.label` |
-| `{{ DATA_DATA_JSON }}` | `[{"label": "Baseline", "base": 211, "syn": 0}, ...]` | `d.base`, `d.syn`, `d.label` |
 
-Common mistakes: using `far` instead of `value`, or `rows` instead of `base`/`syn`.
+Common mistake: using `far` instead of `value`.
+
+The training-data stacked bar chart (`DATA_DATA_JSON`, `DATA_Y_MAX`,
+`DATA_Y_STEPS_JSON`) was removed from the Progress Overview. The Augmentation
+Pool table below the FAR chart now carries that information instead — do not
+attempt to render the old chart.
 
 ### Table row schemas (must match template `<thead>` column counts)
 

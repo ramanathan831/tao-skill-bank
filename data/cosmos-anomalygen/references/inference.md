@@ -11,7 +11,8 @@ When updating, keep those files in sync.
 - [Phase 3: SDG Inference](#phase-3-sdg-inference)
 - [Eval (Phases 4 and 6)](#eval-phases-4-and-6)
 - [Phase 5: Per-Sample Search](#phase-5-per-sample-search)
-- [Phase 7: Threshold Filter](#phase-7-threshold-filter)
+- [Phase 6: Assemble (stitch only)](#phase-6-assemble-searched-stitch-only)
+- [Phase 7: Filter + Regen + Eval](#phase-7-filter--regen--eval)
 
 ---
 
@@ -57,9 +58,8 @@ inference), and AMP error diagnosis.
 | `text` | text2roi (Qwen VL + SAM2) | `roi_prompt_defect_location` in `defect_spec` |
 | `cad` | cad2roi | `<dataset>/<TEXTURE>/cad_mask/<stem>.png` + `<dataset>/semantic_segmentation_labels.json` |
 
-Unrecognized values (including legacy `"roi"`) default to `text`. Auto-cad
-routing fires whenever a record has a non-null `cad_mask` regardless of
-`spatial_dependency`.
+Unrecognized values default to `text`. Auto-cad routing fires whenever a
+record has a non-null `cad_mask` regardless of `spatial_dependency`.
 
 ### Clean image discovery
 
@@ -132,7 +132,7 @@ before burning GPU time.
 ### run_sdg.sh flags
 
 ```bash
-.claude/skills/cosmos-anomalygen/scripts/run_sdg.sh \
+${ANOMALYGEN_SCRIPTS}/run_sdg.sh \
     --checkpoint_dir <CKPT> \
     --step <STEP> \
     --input_jsonl <JSONL> \
@@ -175,7 +175,7 @@ NCCL hang controls (set as env vars before `run_sdg.sh` if needed):
 ### Verify before eval
 
 ```bash
-.claude/skills/cosmos-anomalygen/scripts/verify_output.sh ${JSONL} ${OUTPUT_DIR}
+${ANOMALYGEN_SCRIPTS}/verify_output.sh ${JSONL} ${OUTPUT_DIR}
 ```
 
 Counts in `reconstructed_image/` must match JSONL entry count. If SDG was
@@ -191,7 +191,7 @@ interrupted, do NOT eval the partial output — re-run SDG first.
 
 ---
 
-## Eval (Phases 4 and 6)
+## Eval (`run_eval.sh` — used by Phase 4, search rounds, and Phase 7)
 
 Read `references/eval.md` for the full parameter reference, example output
 table (FID column comes first — surprises people), detailed pre-flight, and
@@ -200,7 +200,7 @@ all error cases. Summary of the essentials below.
 ### run_eval.sh flags
 
 ```bash
-.claude/skills/cosmos-anomalygen/scripts/run_eval.sh \
+${ANOMALYGEN_SCRIPTS}/run_eval.sh \
     --real-path <real_path> \
     --generated-path <generated_path> \
     --anomaly-types <TEXTURE+TYPE> [<TEXTURE+TYPE> ...] \
@@ -210,7 +210,7 @@ all error cases. Summary of the essentials below.
 
 `per_sample.csv` is always emitted to `<generated_path>/per_sample.csv` by
 default. Columns: `anomaly_type`, `path`, `nn_score`, `mnn_score`.
-`sdg-refine` and `filter_by_nn.py` both consume this file.
+`sdg-refine` and `filter_with_regen.py` both consume this file.
 
 ### Score interpretation
 
@@ -295,7 +295,7 @@ be the blocker. Add `--reamp-seed` to re-run AMP
 with a fresh base seed on the same `(clean, submask)` pairs:
 
 ```bash
-.claude/skills/cosmos-anomalygen/scripts/run_round.sh \
+${ANOMALYGEN_SCRIPTS}/run_round.sh \
     ...standard args... \
     --reamp-seed $((1000 + r)) \
     --defect-spec ${DEFECT_DESC}
@@ -306,22 +306,84 @@ text2roi ROI cache is reused, so Qwen VL + SAM2 are not re-run.
 
 ### num_search_run = 0
 
-Valid. Skip `run_round.sh` entirely; run `assemble_searched.py` with an empty
-rounds dir — `searched/` will equal `original/`.
+Valid. Skip `run_round.sh` entirely; Phase 6 (`assemble_searched.py`) still
+runs with an empty rounds dir and clones `original/` into `searched/`,
+preserving the downstream invariant that the final SDG bucket is always
+`searched/`.
 
 ### search_summary.csv
 
-After `assemble_searched.py`: `rounds_dir/search_summary.csv` has one row per
+After Phase 6 assemble: `rounds_dir/search_summary.csv` has one row per
 sample with `best_round`, `best_guidance`, `best_crop_ratio`, `best_nn_score`,
 `attempts`.
 
 ---
 
-## Phase 7: Threshold Filter
+## Phase 6: Assemble `searched/` (stitch only)
 
-`filter_by_nn.py` reads `per_sample.csv` from the source bucket and copies
-samples with `nn_score >= threshold` into `filtered/`. Samples below threshold
-go to `filtered/drop/` (kept for audit, not included in the main output).
+Runs `assemble_searched.py` to pick best-of-rounds (or clone `original/`
+when `num_search_run=0`) into `searched/`. **No eval runs here.** The
+script copies each picked sample's images into `searched/` and stitches
+`searched/per_sample.csv` by carrying over per-sample `nn_score` and
+`mnn_score` from the picked sample's source round `per_sample.csv` —
+correspondence-to-real-set scoring is per-sample-independent (one
+generated image against the real set, no sibling-generation coupling),
+so the stitched values are exact, not approximate. The same `nn_score`
+gets merged into `searched/SDG_result.csv`. Phase 7 owns the canonical
+post-pipeline eval against the final regen-aware bucket.
 
-After filtering, `eval_filtered.log` provides the final quality report on
-the kept set. The count in `filtered/reconstructed_image/` will be ≤ `num_SDG`.
+---
+
+## Phase 7: Filter + Regen + Eval
+
+Runs by default (`nn_threshold=0.4`). Set `nn_threshold=0` to disable.
+
+Updates `searched/` **in place** — downstream always reads `searched/`
+as the final SDG bucket regardless of whether Phase 7 ran or whether
+`num_search_run` was 0.
+
+`filter_with_regen.py` orchestrates a **re-AMP + re-pair** regen flow:
+
+1. **Initial filter** — partition source bucket into `passing_per_defect`
+   and `dropped_per_defect`. Read target allocation (per-defect count)
+   from the source bucket.
+2. **Regen loop** — for each attempt up to **5**:
+   * Compute `needed_per_defect = target_alloc - kept_per_defect`. If
+     zero everywhere, stop.
+   * Write a subset `allocation.json` for the still-needed defects.
+   * Run `build_amp_samples.py --seed=attempt_seed` — per-defect
+     `(clean, submask)` lists get shuffled before round-robin, so each
+     attempt's pairings are distinct.
+   * Run `run_auto_roi_amp.py --seed=attempt_seed` (new placement).
+   * Run `build_jsonl.py`, then overwrite each row's `seed` field with
+     `attempt_seed` (so diffusion noise via `AnomalyInpaintCondition.seed`
+     → `misc.arch_invariant_rand` also varies).
+   * Run SDG into `regens/regen_NN/sdg/`, eval.
+   * Admit new samples scoring ≥ `threshold` into `admitted_regens_by_defect`,
+     greedy by nn descending up to the defect's quota.
+3. **Per-defect fallback fill** — if a defect is still short of its
+   target, top up with the best non-admitted regens for that defect,
+   then with the highest-scoring dropped originals (last resort).
+4. **Atomic-ish in-place swap** — stage to `searched.staging/`, rename
+   over `searched/`. Atomic on same filesystem.
+
+`regens/` (sibling of `rounds/`) holds Phase 7 artifacts:
+`regens/regen_NN/{allocation.json, amp_samples.json, amp/, testcase.jsonl,
+sdg/}` per attempt, plus `regens/regen_summary.csv` with columns
+`sample_index` (`-1` for regen), `source`, `clean_image`, `mask_filename`,
+`prev_nn`, `nn_score`, `passed_threshold`, `output_filename`.
+
+For at-a-glance tracing, `searched/SDG_result.csv` carries a `source`
+column:
+
+- `original` — survived Phase 5 assemble straight from Phase 3 SDG
+- `round_<N>` — Phase 5 search round `N` produced this sample's best attempt
+- `regen_<k>` — Phase 7 regen attempt `k` produced this sample
+
+`searched/SDG_result.csv` alone suffices for most tracing (it has
+`image_filename`, `mask_filename`, `nn_score`, `source`). `regen_summary.csv`
+adds `prev_nn` and `passed_threshold` for deeper audit.
+
+Per-attempt eval is invoked with only the anomaly types present in that
+attempt's subset, suppressing harmless "No generated defect patches"
+warnings for types absent from the subset.

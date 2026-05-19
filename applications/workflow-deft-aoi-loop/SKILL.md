@@ -33,6 +33,10 @@ Use this skill when the user wants an agent to run the full DEFT AOI improvement
 
 Do not use this skill for a single standalone TAO training run, one-off inference, generic anomaly generation, or RCA-only analysis. Use the relevant agent directly when the user asks for only that step.
 
+## Base Model
+
+The loop operates on **NVIDIA TAO Visual ChangeNet** classify with the **NVIDIA C-RADIOv2-B** backbone, fine-tuned end-to-end. The architecture is defined in `specs/baseline_spec.yaml` — that file is the source of truth. All pretrained weights come from HuggingFace (`HF_TOKEN` required); `NGC_API_KEY_*` only gate container pulls. ChangeNet backbone resolution + the staged-file/HF-URL fallback for `model.backbone.pretrained_backbone_path` are owned by `references/visual-changenet.md`. SigLIP for k-NN mining is owned by `references/deft-aoi-mining.md`. AnomalyGen-side checkpoints (Cosmos-Predict2, T5, NVDINOV2, C-RADIO-V3, DINOv2-large, SAM2, Qwen3-VL — ~22 GB for 2B-only, ~80 GB with 14B) live under `<workspace>/augmentation/anomalygen/base_checkpoints/`; see `references/cosmos-anomalygen.md`.
+
 ## Launch Intake
 
 After the user confirms they want to run this workflow, ask which supported
@@ -56,11 +60,20 @@ credentials required by the selected workflow.
 
 ## Agent Behavior
 
-> **This is a fully autonomous skill.** After the pre-flight summary is confirmed, run the entire loop
-> without asking for confirmation. Do not pause between steps. Do not ask "want me to
-> continue?" — just continue. Only stop if a step fails with an unrecoverable error or a
-> hard-stop gate fires. Print a one-line status update at each step milestone so the user
-> can follow progress.
+> **There is exactly one user gate: pre-flight confirmation.** Print the Pre-Flight Summary
+> (see `## Pre-Flight Summary`), then STOP and wait for the user to type "go", "yes",
+> "looks good", or similar explicit approval. Do not launch any side-effecting step
+> (`docker run`, training, SDG, mutations under `${RESULTS_DIR}/`) before that approval —
+> reading specs, listing files, `docker image inspect`, and populating the summary table
+> are fine. **"Autonomous" describes behavior *after* this gate, not before it.** Do not
+> skip the gate even if the user's original prompt sounded urgent ("just run it", "go
+> ahead") — the summary itself is the artifact they need to see before approving.
+>
+> **After the gate, the skill is fully autonomous.** Run the entire loop without asking
+> for confirmation. Do not pause between steps. Do not ask "want me to continue?" — just
+> continue. Only stop if a step fails with an unrecoverable error or a hard-stop gate
+> fires. Print a one-line status update at each step milestone so the user can follow
+> progress.
 
 ## Workflow
 
@@ -70,13 +83,13 @@ Execute the loop in this order (full detail in `## Pipeline` and `## Stage Execu
 2. **Baseline.** Run `train -> inference -> evaluate` by invoking the `tao-skill-bank:visual-changenet` skill, then `rca` by invoking `tao-skill-bank:deft-aoi-rca-vcn`. Read `references/visual-changenet.md` and `references/deft-aoi-rca-vcn.md` first for DEFT-loop-specific args (mounts, output dirs, `deft_state.json` updates).
 3. **Iterate.** For each iteration up to `max_iterations`, execute Pipeline steps 1-7. Between every step, re-read `results/loop_log.jsonl` tail + `results/deft_state.json` from disk — disk is canonical.
 4. **Stop** when the KPI target is met, `max_iterations` is reached, or a hard-stop gate fires (silent-drop, AMP allocation mismatch, train/val leakage). Never auto-retry hard stops.
-5. **Render** `results/DEFT_Loop_Report.html` after every stage and at loop end.
+5. **Render** `results/DEFT_Loop_Report.html` after each completed iteration (and once more at loop end) by spawning the `reporter` subagent (`agents/reporter.md`). Per-stage renders are not done — every stage already appends one line to `loop_log.jsonl`, which is enough for a tail-watching user; the HTML render carries an iteration's worth of state and one render per iteration keeps the per-loop token cost roughly linear in iteration count, not in stage count. Do not render inline.
 
-All stages run inline in the parent context. There are no subagents — the parent invokes the underlying `tao-skill-bank:*` skills directly via the Skill tool, layering DEFT-loop conventions on top via the matching `references/*.md` file.
+All pipeline stages run inline in the parent context — the parent invokes the underlying `tao-skill-bank:*` skills directly via the Skill tool, layering DEFT-loop conventions on top via the matching `references/*.md` file. The **only** delegated work is HTML report rendering, handled by the `reporter` subagent in a fresh context so an end-of-loop render is never silently dropped when the parent's context is saturated. See `## Agents` below.
 
 ### Using Bundled Scripts
 
-Run bundled scripts from `scripts/` via `run_script()` or direct `python` when `run_script()` is unavailable. Resolve every path argument to an absolute host path before calling. For invocation examples, see `references/SCRIPT_USAGE.md`.
+Run bundled scripts from `scripts/` via `run_script()` when the harness provides it (it is a Claude Code plugin runtime helper, not a function defined in this repo); otherwise fall back to direct `python` invocation. Resolve every path argument to an absolute host path before calling. For invocation examples, see `references/SCRIPT_USAGE.md`.
 
 Never write `loop_log.jsonl` via `echo` or inline `jq` — the `seq` invariant requires reading the live tail through `next_seq()`.
 
@@ -84,10 +97,37 @@ Never write `loop_log.jsonl` via `echo` or inline `jq` — the `seq` invariant r
 
 | Script | Purpose | Arguments |
 |---|---|---|
-| `scripts/log_stage.py` | Append a stage event to `results/loop_log.jsonl` (computes `seq` from disk; guarantees valid JSON). | `--log-path PATH --iter-label STR --stage {evaluate,rca,anomalygen,data_mining,train,loop_stop} --status {ok,error} --summary STR --duration-sec INT --context-tokens INT` |
+| `scripts/log_stage.py` | Append a stage event to `results/loop_log.jsonl` (computes `seq` from disk; guarantees valid JSON). `--context-tokens` is an optional placeholder; real values come from `align_token_usage.py`. | `--log-path PATH --iter-label STR --stage {evaluate,rca,anomalygen,data_mining,train,loop_stop} --status {ok,error} --summary STR --duration-sec INT [--context-tokens INT]` |
+| `scripts/align_token_usage.py` | Backfill per-stage LLM token usage into `results/loop_log.jsonl` by parsing the Claude Code transcript JSONL. Run after the loop (or any time). Adds a `tokens` field per entry and refreshes `context_tokens`. | `--log-path PATH [--cwd PATH \| --project-dir PATH \| --transcript PATH ...] [--dry-run]` |
 | `scripts/analyze_kpi.py` | Compute FAR / threshold sweep on a ChangeNet inference CSV and pick the FAR @ 100%-recall operating point. | `csv_path` (positional) `[--output-dir PATH]` `[--label-column NAME=label]` `[--score-column NAME=siamese_score]` `[--pass-label NAME=PASS]` `[--bins INT=40]` |
+| `scripts/validate_training_csv.py` | Validate an assembled ChangeNet training CSV before launching training. Checks required columns and that every `input_path` / `golden_path` exists on disk. Stdlib only — no pandas required. | `--csv PATH --workspace-root PATH` |
+| `scripts/init_deft_state.py` | Write a fresh `${RESULTS_DIR}/deft_state.json` from CLI args. Guarantees unique top-level keys. Atomic write; refuses to overwrite without `--force`. Use only on fresh runs; never on resume. | `--results-dir PATH --workspace PATH --kpi-target STR --max-iterations INT --num-gpus INT --num-epochs INT --num-sdg INT --project STR --step INT [--batch-size INT] [--top-k-per-target INT] [--knn-metric STR] [--min-similarity FLOAT] [--train-container STR] [--ag-container STR] [--force]` |
 | `scripts/changenet_data_pair_prepare.py` | Build the ChangeNet `(input, golden, label, object_name)` CSV from `_ng/` + `_ok/` image directories. NV_PCB_Siamese mode (`--images-dir`) emits the 14-column siamese CSV and copies images into the staged tree. | `--input-dir PATH --golden-dir PATH` `[--output PATH=dataset.csv]` `[--label STR]` `[--images-dir PATH]` `[--subdir NAME=sdg]` `[--light NAME=SolderLight]` `[--image-ext EXT=.jpg]` |
 | `scripts/prepare_inference_spec.py` | Write `best_model.json` + `best_model_inference_spec.yaml` from `deft_state.json` + the training spec. Run once at loop end. See `references/prepare-for-inference.md`. | `--results-dir PATH` |
+
+## Agents
+
+| Agent | Purpose | Invoke when |
+|---|---|---|
+| `agents/reporter.md` | Render `results/DEFT_Loop_Report.html` from disk state (`deft_state.json` + `loop_log.jsonl` + iter summaries + RCA artifacts) following `references/REPORT_RENDERING.md`. Atomic write; verifies all placeholders filled. | After each iteration completes (with `trigger="after-iteration"`) and once more at loop end (with `trigger="loop-end"`). Note: a per-stage trigger existed in earlier revisions and is no longer recommended — the spawn cost dominated for short stages. |
+
+Spawn via the Task tool. Pass paths only, never values — the agent reads disk as the single source of truth:
+
+```
+Task(
+  description="Render DEFT report",
+  subagent_type="general-purpose",
+  prompt=(
+    f"Read {skill_root}/agents/reporter.md and follow its instructions exactly.\n"
+    f"Inputs:\n"
+    f"  results_dir = {RESULTS_DIR}\n"
+    f"  skill_root  = {skill_root}\n"
+    f"  trigger     = after-stage   # or 'loop-end' at the very end\n"
+  ),
+)
+```
+
+The agent prints one status line and exits. Never render `DEFT_Loop_Report.html` inline in the parent — the whole point of this agent is to keep rendering alive when the parent's context is saturated.
 
 ## Stage Reference Modules
 
@@ -100,7 +140,7 @@ ask the user to reinstall the plugin.
 
 | Stage(s) | Reference file | Underlying skill | Owns |
 |---|---|---|---|
-| `train`, `evaluate` | `references/visual-changenet.md` | `tao-skill-bank:visual-changenet` | TAO training, inference, evaluation, checkpoint discovery, TAO spec edits, two-checkpoint compare, `nvcr.io/nvidia/tao/tao-toolkit` invocation. |
+| `train`, `evaluate` | `references/visual-changenet.md` | `tao-skill-bank:visual-changenet` | TAO training, inference, evaluation, checkpoint discovery, TAO spec edits, two-checkpoint compare, `${TAO_PYT_IMAGE}` (resolved from `tao_toolkit.pyt` in `versions.yaml`) invocation. |
 | `anomalygen` | `references/cosmos-anomalygen.md` | `tao-skill-bank:cosmos-anomalygen` | AMP / AnomalyGen synthetic defect generation, `defect_spec.jsonl` routing, testcase prep, allocation recovery, and SDG output schema. |
 | `rca` (VCN Classify) | `references/deft-aoi-rca-vcn.md` | `tao-skill-bank:deft-aoi-rca-vcn` | Threshold sweep, per-label weakness ranking, per-lighting expansion, `gaps.parquet` schema, and `deft_state.json` output for VCN Classify models. |
 | `routing` | `references/deft-aoi-routing-vcn.md` | `tao-skill-bank:deft-aoi-routing-vcn` | VCN weak-sample routing to mining and/or AnomalyGen, `mining_gaps.parquet` + `anomalygen_gaps.parquet` outputs, dropped-label warnings. |
@@ -116,173 +156,228 @@ Inputs (all paths under `<workspace>` unless absolute):
 
 ```text
 <workspace>/
+├── .env                                     # NGC_API_KEY_TAO (nvcr.io/nvstaging/tao/*), NGC_API_KEY_METROPOLIS_DEV (nvcr.io/nv-metropolis-dev/*), HF_TOKEN (HuggingFace pre-flight pulls); NGC_API_KEY is the optional fallback
 ├── specs/baseline_spec.yaml                 # ChangeNet train/eval spec
 ├── train/base/
-│   ├── training_set.csv                     # seed training rows
-│   └── validation_set.csv                   # held-out rows; never appears in any training_set
+│   ├── training_set.csv                     # seed training rows; ChangeNet 14-column siamese schema
+│   └── validation_set.csv                   # held-out rows; checked for leakage against every train CSV
 ├── kpi/
 │   ├── images/                              # KPI test images (real data only — no generated images here)
 │   └── testing_set.csv                      # labels live in the CSV
-├── augmentation/mining_pool/
-│   └── mining_pool.csv                      # mining pool — append-only; production line contributes new samples each day (Day 1 → Day N)
-├── augmentation/anomalygen/checkpoints/<project>/
-│   ├── defect_spec.jsonl
-│   ├── checkpoints/
-│   │   └── latest_checkpoint.txt
-│   └── dataset/                             # reference data — one folder per defect_type
-│       ├── semantic_segmentation_labels.json
-│       └── <defect_type>/                   # folder name == defect_type from defect_spec.jsonl
-│           ├── anomaly_image/               # defect reference images
-│           ├── mask/                        # paired defect masks
-│           ├── cad_mask/                    # CAD component masks (cad spatial_dependency)
-│           └── clean_image/                 # clean reference images for AMP inpainting
-└── results/run_<YYYYMMDD_HHMMSS>/            # created/resumed by this workflow (= ${RESULTS_DIR})
+├── augmentation/
+│   ├── mining_pool/
+│   │   ├── mining_pool.csv                  # append-only production-line samples; paths relative to this dir
+│   │   └── images/                          # source images referenced by mining_pool.csv (e.g. *_SolderLight.jpg)
+│   └── anomalygen/                          # current project on this workspace: <project>=UC1
+│       ├── checkpoints/<project>/
+│       │   ├── ag_config.yaml               # read by Pre-Flight for dataloader_train.dataset.image_size and anomaly_types
+│       │   ├── config.yaml                  # training-time config snapshot (informational; not consumed by SDG)
+│       │   ├── config.pkl                   # training-time config snapshot (informational; not consumed by SDG)
+│       │   ├── stdout.log                   # training log (informational; not consumed by SDG)
+│       │   └── checkpoints/
+│       │       ├── latest_checkpoint.txt    # contents like "iter_000028000.pt"
+│       │       ├── model/iter_<step>.pt     # weights consumed by SDG
+│       │       ├── optim/                   # training-only; not read at SDG time
+│       │       ├── scheduler/               # training-only
+│       │       └── trainer/                 # training-only
+│       ├── base_checkpoints/                # OPTIONAL — Cosmos base models cache (~80 GB).
+│       │                                    # Auto-downloaded on first AnomalyGen run when missing; persist this
+│       │                                    # dir between runs so the ~80 GB pull only happens once per host.
+│       │                                    # Mounted into the SDG container at /workspace/cosmos-anomalygen/checkpoints
+│       │                                    # and surfaced to the loop as `${COSMOS_MODELS_DIR}` (resolved in Pre-Flight).
+│       │                                    # If absent, the SDG container's `scripts/download_checkpoints.py` populates
+│       │                                    # it from HuggingFace + NGC + facebook public CDN — requires HF_TOKEN.
+│       │                                    # HF_TOKEN required for the one-time pull.
+│       │   ├── nvidia/Cosmos-Predict2-2B-Text2Image/  # ~18 GB; SDG diffusion (`model_size=2b`)
+│       │   ├── nvidia/Cosmos-Predict2-14B-Text2Image/ # ~64 GB; SDG diffusion (`model_size=14b`) — skip when only 2B is used
+│       │   ├── nvidia/C-RADIO-V3/                     # ~375 MB; eval embeddings
+│       │   ├── google-t5/{t5-large,t5-11b}/           # ~3 GB + ~45 GB; T5 text encoder (one variant suffices)
+│       │   ├── NVDINOV2/                              # ~1.2 GB; SDG mid-layer features
+│       │   ├── facebook/dinov2-large/                 # ~1.2 GB; nn_score / mnn_score eval
+│       │   ├── sam2/                                  # ~857 MB; AMP segmentation
+│       │   └── Qwen/Qwen3-VL-4B-Instruct/             # ~9 GB; AMP captioning
+│       └── datasets/<project>/              # reference data — sibling to checkpoints/; see references/cosmos-anomalygen.md for the canonical <T>+<A> layout
+│           ├── defect_spec.jsonl            # one entry per defect_type ("<T>+<A>"); spatial_dependency ∈ {free, text, cad}
+│           ├── semantic_segmentation_labels.json
+│           └── <defect_type>/               # canonical: datasets/<project>/<T>+<A>/{mask,cad_mask,clean_image,anomaly_image}/
+│                                            # this workspace uses: datasets/<project>/<T>/{mask,anomaly_image}/<A>/ with <T>/{cad_mask,clean_image}/ flat
+│                                            # (e.g. UC1/IC/{cad_mask,clean_image}/ + UC1/IC/{mask,anomaly_image}/bridge/)
+│                                            # both shapes match the container's per-texture probe order — see references/cosmos-anomalygen.md → Dataset Layout
+└── results/run_<YYYYMMDD_HHMMSS>/           # created/resumed by this workflow (= ${RESULTS_DIR})
 ```
 
-**ChangeNet CSV schema (VCN).** Mandatory columns: `input_path`, `golden_path`, `label`, `object_name` (siamese change-detector — a row without `golden_path` is unusable). Preserve `boardname`, scores, and provenance fields when present.
+**ChangeNet CSV schema (VCN).** Mandatory columns: `input_path`, `golden_path`, `label`, `object_name` (siamese change-detector — a row without `golden_path` is unusable). Preserve `boardname`, scores, and provenance fields when present. TAO builds the full image path as `{images_dir}/{input_path}/{object_name}_{light}{image_ext}` — `input_path` is a directory, not a file.
 
 ## Output Layout
 
 Relative to `<workspace>`:
 
 ```text
-results/
+results/run_<YYYYMMDD_HHMMSS>/               # = ${RESULTS_DIR}
 ├── deft_state.json                          # current resume snapshot (schema: references/deft_state.json)
 ├── loop_log.jsonl                           # append-only stage log; single source of truth
-├── DEFT_Loop_Report.html                    # re-rendered after every stage
+├── DEFT_Loop_Report.html                    # re-rendered after every stage by agents/reporter.md
 ├── best_model.json                          # inference handoff metadata (see references/prepare-for-inference.md)
 ├── best_model_inference_spec.yaml           # ready-to-run TAO inference spec built from training config
 ├── iter${ITER}_summary.md                   # ≤300-word per-iteration summary
-├── baseline/{train,inference,evaluate,rca_results}/
+├── baseline/
+│   ├── train/                               # TAO train output: model_epoch_<EEE>_step_<SSS>.pth × N, status.json, experiment.yaml, train.log
+│   ├── inference/{best_val,latest}/         # per-checkpoint inference.csv + KPI plots from scripts/analyze_kpi.py
+│   └── rca_results/<TS>/                    # kpi_gaps.parquet, threshold.txt, weak_samples_breakdown.txt
 └── iter${ITER}/
-    ├── rca_results/
-    ├── pool_anomalygen/                     # inputs/ — see references/cosmos-anomalygen.md → Pool Layout
-    │   └── outputs/                         # AMP / AnomalyGen output — masks synthesized here
-    │       ├── amp/                         # optional; present when AMP is invoked
-    │       └── sdg/                         # SDG generation output
-    │           ├── SDG_result.csv
-    │           └── ...
+    ├── routing_results/<TS>/                # mining_gaps.parquet, anomalygen_gaps.parquet, routing_summary.txt
+    ├── anomalygen/
+    │   ├── amp/                             # AMP testcase intermediates (one subdir per sample row in testcase.jsonl)
+    │   ├── testcase.jsonl                   # built by prep_testcase.sh; consumed by run_sdg.sh
+    │   └── sdg/                             # `synthetic_dataset_generation.py` output (= cosmos-anomalygen `output_dir`)
+    │       ├── SDG_result.csv               # one row per generated sample with params + PSNR
+    │       ├── reconstructed_image/         # NG outputs (used as ChangeNet input_path)
+    │       ├── original_image/              # OK inputs paired 1-to-1 (used as ChangeNet golden_path)
+    │       ├── original_mask/
+    │       ├── cropped_image/
+    │       ├── cropped_mask/
+    │       └── annotated_image/
+    ├── ag_config_sdg.yaml                   # sanitized config (job + model only); bind-mounted at SDG launch onto the real checkpoint's ag_config.yaml
     ├── mining_filter/
     │   ├── mining_pool.csv                  # combined SDG rows + real mined rows (similarity ≥ 0.9); used for training
+    │   ├── sdg_rows.csv                     # raw output of scripts/changenet_data_pair_prepare.py before path rewriting
     │   ├── knn_summary.csv                  # candidate_count, kept_count, rejected_count, similarity_threshold=0.9
     │   ├── source_embeddings.parquet        # embeddings of mining_pool candidates
     │   ├── target_embeddings.parquet        # embeddings of weak-target images
     │   └── mining_summary.txt               # per-label breakdown emitted by mining container
     ├── dataset/
     │   ├── train_combined_iter${ITER}.csv
-    │   ├── train_combined_iter${ITER}_provenance.csv  # source ∈ {base_train, previous_iter_train, generated_kept}
-    │   └── images/synthetic_iter${ITER}_{ng,ok}/  # staged synthetic images for ChangeNet dataloader
-    └── {train,inference,export,evaluate}/
+    │   ├── train_combined_iter${ITER}_provenance.csv  # source ∈ {base_train, previous_iter_train, mining_pool}
+    │   └── images/synthetic_iter${ITER}_{ng,ok}/      # ChangeNet-ready synthetic image staging
+    ├── train/                               # TAO train output for iter${ITER}
+    ├── inference/{best_val,latest}/
+    └── rca_results/<TS>/                    # next iteration's RCA reads inference/{best_val|latest}/inference.csv
 ```
 
-Never feed a previous combined CSV's rows back into training — `train_combined_iter${N-1}.csv` already contains all prior contributions.
+A previous combined CSV's rows already include every prior contribution — assemble iter N+1 from `train_combined_iter${N}.csv` plus the new `mining_filter/mining_pool.csv`, not from `train/base/training_set.csv` again.
 
 ## Pre-Flight
 
 Resolve everything possible before asking the user. In order:
 
 1. Locate workspace root, specs, CSVs, checkpoints, augmentation assets. Derive a timestamped run directory: `RESULTS_DIR=<workspace>/results/run_$(date +%Y%m%d_%H%M%S)`. If resuming an existing run, set `RESULTS_DIR` to the existing run directory instead (detect by checking for `results/run_*/deft_state.json`). All references to `results/` throughout this skill mean `${RESULTS_DIR}/`.
-2. Read the relevant `references/*.md` files for command syntax and output contracts. See `## Stage Execution` for the stage routing table.
-3. Source `<workspace>/.env` if it exists (`set -a; source <workspace>/.env; set +a`). Then verify `NGC_API_KEY` and `HF_TOKEN` are set. If either is missing, show the user `.env.example` (next to this skill) and ask them to copy it to `<workspace>/.env` and fill in the values — do not proceed until both are confirmed set.
-4. `docker login nvcr.io`. Do not fall back to host-side TAO wrappers.
-5. Verify every image in **Container Inventory** is present locally (`docker image inspect <ref>`).
-6. Apply Path rule: pre-create iter dirs world-writable; verify a container can write to the exact output root.
-7. Verify `augmentation/anomalygen/checkpoints/<project>/` (checkpoint + `latest_checkpoint.txt` + `defect_spec.jsonl`), backbone weights, GPU count. **Skip mask checks** (Mask rule: no masks on disk).
 
-   **AnomalyGen texture** — Read `ag_config.yaml` from `augmentation/anomalygen/checkpoints/<project>/` and extract the top-level `texture` key (e.g., `PCB`). Compare it against the texture prefix encoded in each `defect_type` entry of `defect_spec.jsonl` (format: `<texture>+<anomaly>`). If they differ, note the mismatch and carry `ANOMALYGEN_TEXTURE=<value from ag_config.yaml>` as a resolved variable — Pipeline step 3 will auto-correct the staged copy. No hard stop here.
+   **Host Python deps.** `scripts/analyze_kpi.py` needs `pandas`, `numpy`, `matplotlib`. Verify with `python3 -c "import pandas, numpy, matplotlib"`. If missing, set up a venv (`python3 -m venv ~/.venvs/deft && ~/.venvs/deft/bin/pip install pandas numpy matplotlib`) and invoke via that interpreter — on Ubuntu 24.04+ / fresh Brev boxes a bare `pip3 install --user` hits PEP 668. Alternatively run analysis inside the TAO toolkit image. Do not silently skip — KPI plots are part of every loop's output.
+2. Read the relevant `references/*.md` files for command syntax and output contracts. See `## Stage Reference Modules` for the stage→skill mapping.
+3. Source `<workspace>/.env` if it exists (`set -a; source <workspace>/.env; set +a`). Then verify the credentials the workflow actually consumes:
 
-   **Cosmos base models** — Locate the directory that contains `Cosmos-Predict2-2B-Text2Image/` (the base diffusion model weights required by the AnomalyGen container at `/workspace/cosmos-anomalygen/checkpoints`). Search in order: (1) `$COSMOS_MODELS_DIR` env var if set, (2) `<workspace>/augmentation/cosmos_models/`, (3) sibling workspace directories. If found, carry the resolved path as `COSMOS_MODELS_DIR`. If not found, download them using `download_checkpoints.sh` inside the AnomalyGen container — target directory defaults to `<workspace>/augmentation/cosmos_models/` (~140 GB, idempotent):
+   | Variable | Required for | Image prefix it gates |
+   |---|---|---|
+   | `NGC_API_KEY_TAO` | TAO toolkit images (training, inference, deploy, data services, cosmos-rl/predict/embed) | `nvcr.io/nvstaging/tao/*` |
+   | `NGC_API_KEY_METROPOLIS_DEV` | AnomalyGen container | `nvcr.io/nv-metropolis-dev/*` |
+   | `HF_TOKEN` | Pre-Flight HuggingFace model downloads (ChangeNet backbone, Cosmos diffusion, T5, C-RADIO-V3, DINOv2, SAM2, Qwen-VL, SigLIP) — cached under `augmentation/anomalygen/base_checkpoints/` | huggingface.co |
+   | `NGC_API_KEY` (optional) | Fallback for any nvcr.io org without a dedicated key | `nvcr.io/*` |
+
+   For each row whose image prefix appears in this run, the matching key must be non-empty. If any required key is missing, show the user `.env.example` (next to this skill), ask them to copy it to `<workspace>/.env` and fill in values, and do not proceed until set.
+4. `docker login nvcr.io` once per *required* key (username `$oauthtoken`, password = the key). nvcr.io stores one credential per host, so log in with the key for the prefix you are about to pull from before running `docker pull`/`docker image inspect` against that prefix; re-login when switching prefixes within Pre-Flight. Do not fall back to host-side TAO wrappers.
+5. **Resolve container image refs from `versions.yaml`.** The rest of this skill — including the Pre-Flight Summary's `docker image inspect` line, every stage launch, and the `references/*.md` files — references three env vars. They are **not** defined elsewhere; resolve them here using `scripts/resolve_versions_key.py` (the single owner of `versions.yaml` schema knowledge) and `export` them so all downstream commands see them:
 
    ```bash
-   mkdir -p <workspace>/augmentation/cosmos_models
-   docker run --rm \
-       -e HF_TOKEN \
-       -v <workspace>/augmentation/cosmos_models:/cosmos_models \
-       -w /workspace/cosmos-anomalygen \
-       nvcr.io/nv-metropolis-dev/metropolis-sdg/cosmos-anomalygen:1.0.3-006434bb.main \
-       conda run -n cosmos-predict2 \
-           bash scripts/download_checkpoints.sh --checkpoint-dir /cosmos_models
+   SB=${TAO_SKILL_BANK_PATH:-~/tao-skills-external}
+   export TAO_PYT_IMAGE=$($SB/scripts/resolve_versions_key.py images.tao_toolkit.pyt)
+   export TAO_DS_IMAGE=$($SB/scripts/resolve_versions_key.py  images.tao_toolkit.data_services)
+   export AG_IMAGE=$($SB/scripts/resolve_versions_key.py      images.metropolis_sdg.cosmos_anomalygen)
    ```
 
-   After download, set `COSMOS_MODELS_DIR=<workspace>/augmentation/cosmos_models`. Hard stop only if `HF_TOKEN` is unset (cannot download) — in that case ask the user to add it to `<workspace>/.env` or point `COSMOS_MODELS_DIR` to an existing local copy.
+   | Env var | `versions.yaml` key | Used by |
+   |---|---|---|
+   | `TAO_PYT_IMAGE` | `images.tao_toolkit.pyt` | `train`, `evaluate`, `rca` (TAO toolkit pyt container) |
+   | `TAO_DS_IMAGE` | `images.tao_toolkit.data_services` | `data_mining` (TAO data services container) |
+   | `AG_IMAGE` | `images.metropolis_sdg.cosmos_anomalygen` | `anomalygen` (cosmos-anomalygen container) |
 
-   **SigLIP model** — Resolve the embedding model used for k-NN mining. Default is `google/siglip-base-patch16-224` (HuggingFace). Check in order: (1) `$SIGLIP_MODEL_PATH` env var — if it points to a local `.pth`/`.ckpt` or a HuggingFace cache dir, use it directly; (2) HuggingFace local cache at `~/.cache/huggingface/hub/models--google--siglip-base-patch16-224/`; (3) online download — only viable if network is available and `HF_TOKEN` is confirmed set. If none of the above apply (local path set but file missing, or HF_TOKEN unset with no cache), hard stop. Carry the resolved value as `SIGLIP_MODEL_PATH`; pass it to the mining stage so it does not re-resolve at runtime.
+   The script exits non-zero (with a diagnostic on stderr) if a key is missing or empty. Hard stop here — without the export, bash silently substitutes `""`, the next step's `docker image inspect` reports `0` MISSING for every image, and the failure mode points at the wrong root cause.
+6. Verify every image resolved in step 5 is present locally (`docker image inspect "$TAO_PYT_IMAGE" "$AG_IMAGE" "$TAO_DS_IMAGE"`).
+7. Apply the path rule: pre-create iter dirs under `${RESULTS_DIR}/iter${ITER}/` and mount `<workspace>` into containers at the same absolute path. Sub-skills enforce their own container-level invariants (entrypoints, env vars); the loop just supplies the workspace mount and the resolved image URI.
+8. Verify `augmentation/anomalygen/checkpoints/<project>/` (checkpoint + `latest_checkpoint.txt` + `ag_config.yaml`) **and** the sibling `augmentation/anomalygen/datasets/<project>/defect_spec.jsonl`, and GPU count. Resolve the ChangeNet pretrained backbone per `references/visual-changenet.md` → *ChangeNet backbone resolution* (rewrite `specs/baseline_spec.yaml::model.backbone.pretrained_backbone_path` to either the staged file or the HF URL); do not halt on a missing staged file.
 
-8. Run train/validation leakage check before resuming any prior run.
+   **Resolve `COSMOS_MODELS_DIR`.** Set it to `<workspace>/augmentation/anomalygen/base_checkpoints/` when that directory exists with the required `nvidia/Cosmos-Predict2-2B-Text2Image/model.pt`, `google-t5/`, `NVDINOV2/`, `nvidia/C-RADIO-V3/`, `facebook/dinov2-large/`, `sam2/`, and `Qwen/Qwen3-VL-4B-Instruct/` subtrees (see **Data Contract** for the size table). When the directory is missing or incomplete, do **not** halt — let the AnomalyGen container's `scripts/download_checkpoints.py` populate it on first use (HF_TOKEN required; one-time ~80 GB pull). Either way the value is exported into the SDG invocation as `COSMOS_MODELS_DIR` and bind-mounted into the container at `/workspace/cosmos-anomalygen/checkpoints` per `references/cosmos-anomalygen.md`. Confirm the path in the Pre-Flight Summary's `Cosmos base models` row (`FOUND` / `will download ~80GB`).
+9. Run train/validation leakage check before resuming any prior run.
 
 Ask one consolidated question only for missing required inputs. Never ask about a parameter with a default.
 
 **Defaults:**
 
-- `max_iterations`: 1
+- `max_iterations`: 3 (the loop's value emerges only across multiple iterations; 1 disables convergence detection entirely)
 - `training_epochs`: `num_epochs` from `specs/baseline_spec.yaml`, else 20
 - `num_SDG`: 20 (per-iteration AnomalyGen output budget; raise explicitly when more synthetic coverage is needed)
+- `min_similarity` (mining cosine cutoff): 0.9 — read from `config.mining_filter.min_similarity` in `deft_state.json`; the literal `0.9` referenced in Pipeline step 4 below is just the fallback default.
 - workspace root: user prompt, else `~/workspace`
-- baseline checkpoint: first `*.pth` or `*.ckpt` under `augmentation/backbone/`
+- pretrained backbone: first `*.pth` or `*.ckpt` under `augmentation/backbone/`; if absent, fall through to `https://huggingface.co/nvidia/C-RADIOv2-B` (HF_TOKEN required)
 
 ### Pre-Flight Summary
 
-Once all checks pass, print this summary and **wait for the user to confirm before starting**. This is the last thing the user sees before the loop runs autonomously.
+Once all checks pass, print this summary and **STOP — wait for explicit user approval before launching anything**. This is the one user gate in the entire workflow (see `## Agent Behavior`); the loop is autonomous *after* this point, never before.
 
 ```
-╔══════════════════════════════════════════════════════════╗
-║              DEFT Loop — Pre-Flight Summary              ║
-╠══════════════════════════════════════════════════════════╣
-║                                                          ║
-║  KPI Target:        FAR < X% at Recall=100%              ║
-║  Max Iterations:    N                                    ║
-║  Training Epochs:   N per iteration                      ║
-║  Num SDG:           N synthetic samples per iteration    ║
-║  GPUs:              N                                    ║
-║                                                          ║
-╠══════════════════════════════════════════════════════════╣
-║  Dataset                                                 ║
-║    Training CSV:    <path> (N rows)                      ║
-║    Validation CSV:  <path> (N rows)                      ║
-║    KPI test CSV:    <path> (N rows, X defect types)      ║
-║    Images dir:      <path>                               ║
-║                                                          ║
-╠══════════════════════════════════════════════════════════╣
-║  Augmentation                                            ║
-║    AnomalyGen ckpt: <path> (step N)                      ║
-║    Defect spec:     <N types: type1, type2, ...>         ║
-║    Texture (ag_config.yaml): <value> (matches / REMAPPED)║
-║    Cosmos base models: <path> (FOUND / will download ~140GB)║
-║    SigLIP model:    <cached / download / local path>     ║
-║    Clean images:    N SolderLight images staged          ║
-║    Backbone:        <path> (FOUND / MISSING)             ║
-║                                                          ║
-╠══════════════════════════════════════════════════════════╣
-║  Docker Images                                           ║
-║    TAO toolkit:     ✅ / ❌                               ║
-║    AnomalyGen:      ✅ / ❌                               ║
-║    TAO DS (RCA/route/embed/mine): ✅ / ❌                 ║
-║                                                          ║
-║  Resuming:          <yes — iter N complete> / no         ║
-╚══════════════════════════════════════════════════════════╝
+## DEFT Loop — Pre-Flight Summary
+
+### Run config
+| Field                          | Value                                                                          |
+| ------------------------------ | ------------------------------------------------------------------------------ |
+| KPI Target                     | FAR < X% at Recall=100%                                                        |
+| Max Iterations                 | N                                                                              |
+| Training Epochs                | N per iteration                                                                |
+| Num SDG                        | N synthetic samples per iteration                                              |
+| Mining cutoff                  | cosine ≥ <min_similarity> (default 0.9)                                        |
+| GPUs                           | N                                                                              |
+| Resuming                       | yes — iter N complete / no                                                     |
+
+### Dataset
+| Field                          | Value                                                                          |
+| ------------------------------ | ------------------------------------------------------------------------------ |
+| Training CSV                   | <path> (N rows)                                                                |
+| Validation CSV                 | <path> (N rows)                                                                |
+| KPI test CSV                   | <path> (N rows, X defect types)                                                |
+| Images dir                     | <path>                                                                         |
+
+### Augmentation
+| Field                          | Value                                                                          |
+| ------------------------------ | ------------------------------------------------------------------------------ |
+| AnomalyGen ckpt                | <path> (step N)                                                                |
+| Defect spec                    | <N types: type1, type2, ...>                                                   |
+| Cosmos base models             | <path> (FOUND / will auto-download ~80 GB for 2B, ~140 GB if 14B is included)  |
+| SigLIP model                   | <cached / download / local path>                                               |
+| Backbone                       | <path> (FOUND / will auto-download from HF ~393 MB)                            |
+
+### Docker Images
+Fill the `Image` column with the actual URI resolved in Pre-Flight step 5
+(i.e. the value of the env var), not the literal `${VAR}` placeholder.
+Print one row per env var so the audit trail shows exactly which tag will run.
+
+| Env var          | Image (resolved from `versions.yaml`)                                          | Status     |
+| ---------------- | ------------------------------------------------------------------------------ | ---------- |
+| `TAO_PYT_IMAGE`  | `<$TAO_PYT_IMAGE>` (key: `images.tao_toolkit.pyt`)                             | OK/MISSING |
+| `AG_IMAGE`       | `<$AG_IMAGE>` (key: `images.metropolis_sdg.cosmos_anomalygen`)                 | OK/MISSING |
+| `TAO_DS_IMAGE`   | `<$TAO_DS_IMAGE>` (key: `images.tao_toolkit.data_services`)                    | OK/MISSING |
 ```
 
 To populate the summary, run:
 ```bash
 wc -l <training_csv> <validation_csv> <kpi_testing_csv>
 python3 -c "import pandas as pd; df=pd.read_csv('<kpi_testing_csv>'); print(df['label'].value_counts().to_string())"
-cat <workspace>/augmentation/anomalygen/checkpoints/<project>/latest_checkpoint.txt
-cat <workspace>/augmentation/anomalygen/checkpoints/<project>/defect_spec.jsonl | python3 -c "import sys,json; [print(json.loads(l)['defect_type']) for l in sys.stdin]"
+cat <workspace>/augmentation/anomalygen/checkpoints/<project>/checkpoints/latest_checkpoint.txt
+cat <workspace>/augmentation/anomalygen/datasets/<project>/defect_spec.jsonl | python3 -c "import sys,json; [print(json.loads(l)['defect_type']) for l in sys.stdin]"
 nvidia-smi --list-gpus | wc -l
-docker image inspect nvcr.io/nvidia/tao/tao-toolkit:6.26.3-pyt nvcr.io/nv-metropolis-dev/metropolis-sdg/cosmos-anomalygen:1.0.3-006434bb.main nvcr.io/nvidian/iva/tao-toolkit-ds:aoi --format '{{.Id}}' 2>&1 | grep -c "sha256"
+# ${TAO_PYT_IMAGE}, ${AG_IMAGE}, ${TAO_DS_IMAGE} are exported by Pre-Flight step 5
+# from versions.yaml via scripts/resolve_versions_key.py. Loop per-image so the
+# output maps 1:1 to the Docker Images table rows above (you can't fill a
+# per-row Status column from a single aggregate "grep -c sha256" count).
+for var in TAO_PYT_IMAGE AG_IMAGE TAO_DS_IMAGE; do
+  ref="${!var:?$var unset — re-run Pre-Flight step 5}"
+  if docker image inspect "$ref" --format '{{.Id}}' >/dev/null 2>&1; then
+    printf '%-14s OK       %s\n' "$var" "$ref"
+  else
+    printf '%-14s MISSING  %s\n' "$var" "$ref"
+  fi
+done
 ```
 
 **Ask the user to confirm before proceeding.** Wait for explicit approval ("looks good", "go", "yes"). Do not start the loop until the user confirms.
-
-### Container Inventory
-
-Every container the loop touches, pinned to the version this orchestrator has been validated against. Sub-skills may reference `versions.yaml` keys; this table is the **application-level** truth — drift here is a hard failure.
-
-| Stage | Image | Tag | Reference file |
-|---|---|---|---|
-| Train / inference / evaluate | `nvcr.io/nvidia/tao/tao-toolkit` | `6.26.3-pyt` | `references/visual-changenet.md` |
-| AnomalyGen / AMP / SDG | `nvcr.io/nv-metropolis-dev/metropolis-sdg/cosmos-anomalygen` | `1.0.3-006434bb.main` | `references/cosmos-anomalygen.md` |
-| VCN gap analysis / routing / embedding / mining | `nvcr.io/nvidian/iva/tao-toolkit-ds` | `aoi` | `references/deft-aoi-rca-vcn.md`, `references/deft-aoi-routing-vcn.md`, `references/deft-aoi-mining.md` |
 
 ## Augmentation Pool
 
@@ -290,8 +385,8 @@ Each iteration builds one **mining pool** from two complementary sources:
 
 | Source | Selection | Contribution |
 |---|---|---|
-| AnomalyGen synthetic generation (step 3) | All generated images — no filtering | Defect-type diversity |
-| Real images from `augmentation/mining_pool/` (step 4) | k-NN cosine similarity ≥ 0.9 to weak-target embeddings | Real-distribution anchor |
+| AnomalyGen synthetic generation (Pipeline step 3) | All generated images — no filtering | Defect-type diversity |
+| Real images from `augmentation/mining_pool/` (Pipeline step 4) | k-NN cosine similarity ≥ 0.9 to weak-target embeddings | Real-distribution anchor |
 
 Both sources are appended into a single `mining_filter/mining_pool.csv` before fine-tuning. `train_combined_iter${N}.csv` = base training rows + mining pool rows.
 
@@ -307,31 +402,34 @@ Baseline runs once before the loop: `train` → `inference` → `evaluate` (skil
 
 2. **[SKILL — `tao-skill-bank:deft-aoi-routing-vcn`] Route weak samples.** Split `rca_gaps_parquet` into `routing_mining_parquet` and `routing_anomalygen_parquet` in `deft_state.json`. Downstream mining and AnomalyGen stages read those paths from disk. See `references/deft-aoi-routing-vcn.md`.
 
-3. **[INLINE] Stage the AnomalyGen pool.** Produce the canonical layout per `references/cosmos-anomalygen.md` → **Pool Layout** at `pool_anomalygen/inputs/`. **The pool's only source is `augmentation/anomalygen/checkpoints/<project>/`** — its `dataset/` (per-defect `mask/`, `cad_mask/`, `clean_image/`, `semantic_segmentation_labels.json`), `defect_spec.jsonl`, and `ag_config.yaml`. **No real-sample injection from routing parquets, no fallback to `train/base/`, no KPI images, no prior-iteration SDG outputs, no other sources.** The reference owns the mechanical mapping table, mask format, and the texture-remap one-liner; do not duplicate or override here.
+3. **[SKILL — `tao-skill-bank:cosmos-anomalygen`] Run AMP + SDG.** Pass `dataset_dir` verbatim — no pool-staging, no parallel cache. Pre-create only `${RESULTS_DIR}/iter${N}/anomalygen/sdg/`. The four invariants that actually gate the run (cad_mask RGB preserved, `text` entries have prompts, clean+cad pairs by stem, `semantic_segmentation_labels.json` present) and the full parameter mapping live in `references/cosmos-anomalygen.md`. Read it before invoking. Set `num_search_run=0` and `nn_threshold=0` to skip the SDG-quality phases (4–7) — the DEFT loop only needs the NG/OK pairs from Phase 3.
 
-   Hard stops: `text` `spatial_dependency` with empty `roi_prompt_defect_location` in `defect_spec.jsonl`; any staged `defect_type` that fails the layout invariants in `references/cosmos-anomalygen.md`; required subdir under `<project>/dataset/<T>+<A>/` is empty (do not substitute).
+   **SDG training contribution (INLINE).** Convert returned AnomalyGen outputs into ChangeNet paired training rows. Stage NG/OK image pairs under `results/iter${N}/dataset/images/synthetic_iter${N}_{ng,ok}/`, run `scripts/changenet_data_pair_prepare.py` with `--input-dir ${RESULTS_DIR}/iter${N}/anomalygen/sdg/reconstructed_image`, `--golden-dir ${RESULTS_DIR}/iter${N}/anomalygen/sdg/original_image`, `--images-dir`, `--subdir synthetic_iter${N}`. Rewrite the script's bare `synthetic_iter${N}_ng/` paths to workspace-root-relative form (`results/run_<TS>/iter${N}/dataset/images/synthetic_iter${N}_ng`) before appending into `mining_filter/mining_pool.csv`, since the per-iter training spec sets `images_dir=/data/workspace`. SDG rows skip k-NN filtering; only real-image mining applies the cosine threshold.
 
-4. **[SKILL — `tao-skill-bank:cosmos-anomalygen`] Run AMP / AnomalyGen** once. Invoke with `mode=inference_only`, `num_SDG=<per-iter budget>`, `num_gpus=1`, and absolute paths under `pool_anomalygen/{inputs,outputs}/`. Discover `<project>` and `step` from `latest_checkpoint.txt`. Pass `cosmos_models_dir=<COSMOS_MODELS_DIR>` (resolved in Pre-Flight step 7) so the Cosmos base weights are mounted into the container. See `references/cosmos-anomalygen.md` for the full param list, mount contract, and input hygiene.
+4. **[SKILL — `tao-skill-bank:deft-aoi-mining`] Mining pool — real-image contribution.** Mine real images from `augmentation/mining_pool/mining_pool.csv` against the current iteration's weak samples (`routing_mining_parquet` from `deft_state.json`) using SigLIP k-NN embeddings. **Retain only entries with cosine similarity ≥ `state.config.mining_filter.min_similarity`** (default `0.9` when unset). Lower-similarity candidates are rejected. Append the retained rows into `mining_filter/mining_pool.csv` (same file as the SDG contribution above). Output: updated `mining_filter/mining_pool.csv` and `mining_filter/knn_summary.csv` (`candidate_count`, `kept_count`, `rejected_count`, `similarity_threshold=<value>`). See `references/deft-aoi-mining.md`.
 
-   **SDG training contribution (INLINE).** Convert passed AnomalyGen outputs into ChangeNet paired training rows. Stage generated NG/OK image pairs under `results/iter${N}/dataset/images/synthetic_iter${N}_{ng,ok}/`, run `scripts/changenet_data_pair_prepare.py` with explicit `--input-dir`, `--golden-dir`, `--output`, `--images-dir`, and `--subdir synthetic_iter${N}`, then append the resulting rows to `mining_filter/mining_pool.csv`. SDG rows are included without k-NN filtering; only real-image mining applies the cosine threshold.
+   **Mid-iteration leakage check.** Right after the mining stage finishes — before any further CSV assembly — diff `mining_filter/mining_pool.csv` against `train/base/validation_set.csv` on `(input_path, golden_path, label, object_name, boardname)` (use `scripts/validate_training_csv.py --csv <mining_pool.csv> --workspace-root <ws> --validation-csv <validation_set.csv>`). Hard-stop on any hit. Catching leakage here, with only the new rows in scope, is cheap and isolates the offending source. The post-assembly leakage check in step 6b stays as a defence-in-depth backstop.
 
-5. **[SKILL — `tao-skill-bank:deft-aoi-mining`] Mining pool — real-image contribution.** Mine real images from `augmentation/mining_pool/mining_pool.csv` against the current iteration's weak samples (`routing_mining_parquet` from `deft_state.json`) using SigLIP k-NN embeddings. **Retain only entries with cosine similarity ≥ 0.9** — lower-similarity candidates are rejected. Append the retained rows into `mining_filter/mining_pool.csv` (same file as the SDG contribution above). Output: updated `mining_filter/mining_pool.csv` and `mining_filter/knn_summary.csv` (`candidate_count`, `kept_count`, `rejected_count`, `similarity_threshold=0.9`). See `references/deft-aoi-mining.md`.
-
-6. **[INLINE] Assemble training CSV** with monotonic growth:
+5. **[INLINE] Assemble training CSV** with monotonic growth:
    - Iter 1: `train/base/training_set.csv` + `mining_filter/mining_pool.csv`.
    - Iter N/resume: previous `train_combined_iter${N-1}.csv` + current `mining_filter/mining_pool.csv`. Never re-add `base_train` when using a previous combined CSV.
    - Write a sibling `_provenance.csv` for every output row; `source ∈ {base_train, previous_iter_train, mining_pool}`.
    - **`images_dir` for the iteration training spec** must be set to the workspace root (e.g. `/data/workspace/`), not `kpi/images/`. SDG rows already carry workspace-root-relative paths. Base training rows carry paths relative to `kpi/images/` — prepend `kpi/images/` to their `input_path` and `golden_path` so all rows share the same coordinate space.
+   - **Normalize `label` case — preserve `PASS` uppercase, lowercase+strip everything else.** See `references/visual-changenet.md` for the dataloader rule and the failure mode if you violate it.
 
-7. **[INLINE] Train/validation leakage check.** Diff `train_combined_iter${ITER}.csv` (step 6 output) against `train/base/validation_set.csv` on `(input_path, golden_path, label, object_name, boardname)` where present. Hard stop on any validation row appearing in training.
+6. **[INLINE] Pre-train CSV validation** — run **both** checks below; hard stop on either failure. Both must pass before launching the training container; an invalid CSV burns a full GPU run before the container surfaces the root cause.
 
-8. **[SKILL — `tao-skill-bank:visual-changenet`] Fine-tune + evaluate.** Invoke the skill for the `train` and `evaluate` tasks. It owns TAO training, checkpoint discovery, inference, KPI analysis, and best-checkpoint selection. Write the selected checkpoint and KPI metrics into `deft_state.json`. Stop the loop if KPI met or `max_iterations` reached. See `references/visual-changenet.md`.
+   a. **Existence check.** Run `scripts/validate_training_csv.py --csv ${RESULTS_DIR}/iter${ITER}/dataset/train_combined_iter${ITER}.csv --workspace-root <workspace>`. It hard-stops if any `input_path` / `golden_path` refers to a file missing on disk or if a required column is missing.
+
+   b. **Train/validation leakage check.** `scripts/validate_training_csv.py` accepts `--validation-csv`; pass `train/base/validation_set.csv` so the diff on `(input_path, golden_path, label, object_name, boardname)` runs as part of the single validation pass. Hard stop on any validation row appearing in training. (Step 4 already runs the mid-iteration variant on `mining_filter/mining_pool.csv`; this check is the defence-in-depth backstop against leakage introduced by base-CSV reassembly.)
+
+7. **[SKILL — `tao-skill-bank:visual-changenet`] Fine-tune + evaluate.** Invoke the skill for the `train` and `evaluate` tasks. It owns TAO training, checkpoint discovery, inference, KPI analysis, and best-checkpoint selection. Write the selected checkpoint and KPI metrics into `deft_state.json`. Stop the loop if KPI met or `max_iterations` reached. See `references/visual-changenet.md`.
 
 ## State & Logging
 
 Two artifacts persist loop state:
 
-- `results/deft_state.json` — current resume snapshot. Schema: `references/deft_state.json`. Write with Python/jq (never `echo`) after every step.
+- `results/deft_state.json` — current resume snapshot. Schema: `references/deft_state.json`. **Initialize once on a fresh run via `scripts/init_deft_state.py`** — the script builds the dict with literal-once keys so duplicates are impossible. After initialization, update with Python/jq (never `echo`) after every step; never re-init on resume.
 - `results/loop_log.jsonl` — append-only event stream, one JSON line per stage:
 
 ```json
@@ -343,9 +441,12 @@ Two artifacts persist loop state:
   "status":         "ok|error",
   "summary":        "<one-line outcome, e.g. 'FAR=52.0% threshold=0.31'>",
   "duration_sec":   <int seconds from stage start to end>,
-  "context_tokens": <approximate current context size at write time, integer>
+  "context_tokens": <0 at write time; backfilled at loop end by align_token_usage.py>,
+  "tokens":         <object added at loop end: input, output, cache_read, cache_create, n_messages, models>
 }
 ```
+
+`context_tokens` is a placeholder written as 0 by `scripts/log_stage.py` (the bash caller cannot measure LLM context size in-flight). The loop-end sequence runs `scripts/align_token_usage.py` to read the Claude Code transcript at `~/.claude/projects/<slug>/<session-id>.jsonl`, attribute each assistant message to the stage whose timestamp window it falls in, and rewrite the file with real `context_tokens` plus a per-stage `tokens` object.
 
 **Disk is the source of truth.** Before every stage, *unconditionally* re-read the last line of `loop_log.jsonl` and the full `deft_state.json`; overwrite any in-memory state. Compaction is invisible — there is nothing to detect. `seq` is always `last_seq + 1` from disk; `seq = 1` if the file does not exist.
 
@@ -359,61 +460,54 @@ Every stage runs in the parent's context. The disk contracts
 (`deft_state.json` + `loop_log.jsonl` + `results/iter${ITER}/`) are the
 canonical interface between stages — never assume in-memory state survives.
 
-Two stage types:
+Three stage types:
 
-- **SKILL stages** — read `references/<stage>.md` first, then invoke the
-  matching `tao-skill-bank:*` skill via the Skill tool with DEFT-loop args.
-  When the skill returns, update `deft_state.json` per the reference file
-  and append a `loop_log.jsonl` entry via `scripts/log_stage.py`.
-- **INLINE stages** — parent does the work directly (pre-flight, pool
-  staging, CSV assembly, leakage check, report render). Reasons a stage
-  stays INLINE: decision-dense, may need user interaction (hard stops in
-  pool staging), trivial output, or meta-logic over disk state.
+- **SKILL** — read `references/<stage>.md` first, then invoke the matching `tao-skill-bank:*` skill via the Skill tool. Stage→skill mapping is the **Stage Reference Modules** table above.
+- **INLINE** — parent does the work directly (pre-flight, CSV assembly, leakage check).
+- **AGENT** — parent spawns a subagent. The only AGENT stage is `agents/reporter.md` for HTML rendering.
 
-If the matching `references/*.md` file is missing or cannot be read, stop.
-Do not replace it with generic shell commands.
+For `tao-skill-bank:visual-changenet`, pass a separate task name (`train`, `inference`, or `evaluate`); the `stage` value in `loop_log.jsonl` is still only `train` or `evaluate`.
 
-### Stage Routing
-
-Every stage uses a real `stage` value from `scripts/log_stage.py` / `references/deft_state.json::_completed_step_values`.
-
-| Stage key | Task | Type | Skill | Required stage output |
-|---|---|---|---|---|
-| pre-flight / pool / CSV / resume / report | same as parent step | INLINE | — | Parent-owned artifacts only. |
-| `anomalygen` | `anomalygen` | SKILL | `tao-skill-bank:cosmos-anomalygen` | `pool_anomalygen/outputs/`, generation summary, one `loop_log.jsonl` entry. |
-| `train` | `train` | SKILL | `tao-skill-bank:visual-changenet` | Train artifacts and checkpoint files, one `loop_log.jsonl` entry. |
-| `evaluate` | `inference` + `evaluate` | SKILL | `tao-skill-bank:visual-changenet` | Inference CSVs, KPI analysis, FAR/threshold metrics in `deft_state.json`, one `loop_log.jsonl` entry. |
-| `rca` (VCN Classify) | `rca` | SKILL | `tao-skill-bank:deft-aoi-rca-vcn` | `rca_results/` with `gaps.parquet`, RCA target defects + `rca_gaps_parquet` path in `deft_state.json`, one `loop_log.jsonl` entry. |
-| `routing` | `routing` | SKILL | `tao-skill-bank:deft-aoi-routing-vcn` | `routing_results/` with `mining_gaps.parquet` + `anomalygen_gaps.parquet`, routing paths in `deft_state.json`, one `loop_log.jsonl` entry. |
-| `data_mining` (VCN path) | `data_mining` | SKILL | `tao-skill-bank:deft-aoi-mining` | `mining_results/` with `mined.parquet`, mining count in `deft_state.json`, one `loop_log.jsonl` entry. |
-
-For `tao-skill-bank:visual-changenet`, pass a separate task name: `train`, `inference`, or `evaluate`. `stage` is still only `train` or `evaluate`; `inference` is a task, not a `loop_log.jsonl` / `deft_state.json` stage.
-
-Artifacts must stay under the stage-specific output directory defined by the matching reference file. Do not invent a generic `results/iter${ITER}/<stage>/` layout.
+If the matching `references/*.md` file is missing, stop. Do not replace it with generic shell commands. Artifacts must stay under the stage-specific output directory defined by the reference file.
 
 ### Post-stage check
 
-After every stage finishes, before advancing to the next:
+After every stage finishes, before advancing:
 
-1. Re-read the last line of `loop_log.jsonl` and the full `deft_state.json` from disk. Trust the disk over any in-memory belief.
-2. If `status=error` — halt, surface the disk evidence verbatim to the user, **do not auto-retry**. Hard stops (silent-drop gate, AMP allocation mismatch, train/val leakage) must reach the user.
-3. If `status=ok` — re-render `DEFT_Loop_Report.html` and advance to the next stage per Pipeline order.
+1. Re-read the last line of `loop_log.jsonl` and the full `deft_state.json` from disk. Trust disk over in-memory.
+2. If `status=error` — halt, surface the disk evidence verbatim, **do not auto-retry**.
+3. If `status=ok` — print one status line and advance. Render `DEFT_Loop_Report.html` only at iteration end (`trigger="after-iteration"`) and at loop end (`trigger="loop-end"`); never inline.
 
 ## Reports
 
 - `results/iter${ITER}_summary.md` — ≤300 words; readable after context compaction.
 - `results/iter${ITER}/report.html` — RCA targets, branch outputs, filter decision, metric delta.
-- `results/DEFT_Loop_Report.html` — re-rendered **after every stage** and at loop end. Template, placeholder map, in-progress stub values, doc-comment stripping, base64 image embedding, and verification counts all live in `references/REPORT_RENDERING.md` next to the template.
+- `results/DEFT_Loop_Report.html` — re-rendered **after every stage** and at loop end by the `reporter` subagent (`agents/reporter.md`). The agent owns the entire render: it reads the template, the rendering protocol (`references/REPORT_RENDERING.md`), and disk state, then writes atomically. The parent's only responsibility is to spawn the agent — never render inline.
 
 ## Runtime Behavior
 
-Run without pausing. Between stages, follow `## Stage Execution`: re-read `loop_log.jsonl` tail + `deft_state.json` from disk, print a one-line status from the disk-loaded summary, re-render `DEFT_Loop_Report.html`. Append exactly one `loop_log.jsonl` entry per stage — never both before and after a skill invocation.
+Run without pausing. Between stages, follow `## Stage Execution`: re-read `loop_log.jsonl` tail + `deft_state.json` from disk, print a one-line status from the disk-loaded summary, then spawn the `reporter` subagent (`agents/reporter.md`, `trigger="after-stage"`) to re-render `DEFT_Loop_Report.html`. Append exactly one `loop_log.jsonl` entry per stage — never both before and after a skill invocation.
+
+**Loop-end sequence** (run in order, each step depends on the previous):
+
+1. Append the final `loop_stop` entry via `scripts/log_stage.py`.
+2. Backfill real per-stage token usage into `loop_log.jsonl` from the Claude Code transcript:
+
+   ```bash
+   python ${TAO_SKILL_BANK_PATH}/skills/workflow-deft-aoi-loop/scripts/align_token_usage.py \
+       --log-path ${RESULTS_DIR}/loop_log.jsonl \
+       --project-dir ~/.claude/projects/$(pwd | sed 's|/|-|g')
+   ```
+
+   This rewrites every entry's `context_tokens` field with the real context size at stage end and adds a `tokens` object (`input`, `output`, `cache_read`, `cache_create`, `n_messages`, `models`). The next step's report includes the numbers.
+3. Spawn `reporter` with `trigger="loop-end"` to re-render `DEFT_Loop_Report.html` against the now-aligned log.
+4. Run `scripts/prepare_inference_spec.py` (see below).
 
 **Stop conditions:**
 
-- KPI met → stop, write final report, run prepare-for-inference.
-- `max_iterations` reached → stop with best-iteration report + final RCA on the best checkpoint, run prepare-for-inference.
-- Unrecoverable gate failure → halt and report the exact missing artifact. Do not run a reduced loop. Do not fabricate CSVs. Skip prepare-for-inference (no valid checkpoint to hand off).
+- KPI met → run the loop-end sequence.
+- `max_iterations` reached → run the loop-end sequence with the best-iteration report + final RCA on the best checkpoint.
+- Unrecoverable gate failure → halt and report the exact missing artifact. Do not run a reduced loop. Do not fabricate CSVs. Skip prepare-for-inference (no valid checkpoint to hand off); steps 1–3 of the loop-end sequence still apply.
 
 **Prepare-for-inference (final step).** Run `scripts/prepare_inference_spec.py` to emit the inference handoff:
 

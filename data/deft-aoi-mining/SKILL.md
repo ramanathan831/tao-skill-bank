@@ -2,7 +2,7 @@
 name: deft-aoi-mining
 description: Runs the DEFT embed-then-mine workflow for VCN AOI iterations — embeds the gap-analysis target parquet, embeds a source pool, and mines nearest-neighbour source images for downstream augmentation. Use as the immediate next step after `deft-aoi-routing-vcn` when expanding a real-image augmentation queue from the mining subset.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit and a CUDA GPU. Pulls `nvcr.io/nvidian/iva/tao-toolkit-ds:aoi`.
+compatibility: Requires docker + nvidia-container-toolkit and a CUDA GPU. Pulls the `tao_toolkit.data_services` image declared in `versions.yaml` at the skill bank root.
 metadata:
   author: NVIDIA Corporation
   version: '0.2'
@@ -22,7 +22,7 @@ You are the operator of the DEFT embed-then-mine workflow for VCN AOI. Your job 
 
 The workflow is fixed and deterministic: **embed the targets, embed the source pool, then mine nearest neighbours.** Each step's output parquet is the next step's input. There is no iterative search, no clustering pass, no human-in-the-loop selection — depth comes from picking the right encoder and the right `topn`, not from a multi-phase investigation.
 
-The whole skill is a thin wrapper around three direct `docker run` invocations against `nvcr.io/nvidian/iva/tao-toolkit-ds:aoi`. The container's entrypoint takes `<category> <action> -e <spec.yaml> [hydra overrides...]` — pass `embedding image_embeddings -e <embedding_spec.yaml> …` for embedding and `tmm nearest_neighbors -e <mining_spec.yaml> …` for mining. The `-e` flag points at a YAML that supplies default values for the subtask's schema; anything afterward is a bare Hydra override (`key=value`) that selectively overrides spec fields per run. (There is no `dataset` keyword inside the container — that's the TAO launcher's pillar prefix and is dropped here.) Pull the image once if it isn't cached: `docker pull nvcr.io/nvidian/iva/tao-toolkit-ds:aoi`.
+The whole skill is a thin wrapper around three direct `docker run` invocations against the `tao_toolkit.data_services` image declared in `versions.yaml` (resolved at runtime — see Setup). The container's entrypoint takes `<category> <action> -e <spec.yaml> [hydra overrides...]` — pass `embedding image_embeddings -e <embedding_spec.yaml> …` for embedding and `tmm nearest_neighbors -e <mining_spec.yaml> …` for mining. The `-e` flag points at a YAML that supplies default values for the subtask's schema; anything afterward is a bare Hydra override (`key=value`) that selectively overrides spec fields per run. (There is no `dataset` keyword inside the container — that's the TAO launcher's pillar prefix and is dropped here.) Pull the image once if it isn't cached: `docker pull "$DS_IMAGE"` (after resolving `$DS_IMAGE` per Setup).
 
 ---
 
@@ -37,14 +37,20 @@ The whole skill is a thin wrapper around three direct `docker run` invocations a
 
 ## Setup
 
-The mining and embedding tasks live inside `nvcr.io/nvidian/iva/tao-toolkit-ds:aoi`. Confirm Docker, the NVIDIA container toolkit, and a GPU are present before doing anything else:
+The mining and embedding tasks live inside the `tao_toolkit.data_services` image declared in `versions.yaml`. Resolve the concrete URI once at the top of the run, then confirm Docker, the NVIDIA container toolkit, and a GPU are present before doing anything else:
 
 ```bash
+# Resolve tao_toolkit.data_services → concrete nvcr.io/... URI from versions.yaml
+DS_IMAGE=$(python3 -c "import yaml,os; print(yaml.safe_load(open(os.environ['TAO_SKILL_BANK_PATH']+'/versions.yaml'))['images']['tao_toolkit']['data_services'])")
+echo "DS_IMAGE=$DS_IMAGE"
+
 docker info > /dev/null && echo "OK: docker"
 nvidia-smi > /dev/null && echo "OK: GPU"
-docker image inspect nvcr.io/nvidian/iva/tao-toolkit-ds:aoi > /dev/null \
-  || docker pull nvcr.io/nvidian/iva/tao-toolkit-ds:aoi
+docker image inspect "$DS_IMAGE" > /dev/null \
+  || docker pull "$DS_IMAGE"
 ```
+
+`TAO_SKILL_BANK_PATH` is exported by the plugin's `session_start` hook. If it is unset (e.g. running outside the Claude Code plugin), point it at the skill-bank repo root before resolving.
 
 A GPU is required for both the encoder forward pass and the cuML/cuDF k-NN search; both steps will fail without CUDA.
 
@@ -52,7 +58,7 @@ A GPU is required for both the encoder forward pass and the cuML/cuDF k-NN searc
 
 ```bash
 WORKSPACE=<absolute path that contains all parquets, outputs, and the source-pool images>
-DOCKER="docker run --gpus all --rm --ipc=host -v $WORKSPACE:$WORKSPACE -w $WORKSPACE nvcr.io/nvidian/iva/tao-toolkit-ds:aoi"
+DOCKER="docker run --gpus all --rm --ipc=host -v $WORKSPACE:$WORKSPACE -w $WORKSPACE $DS_IMAGE"
 ```
 
 Reuse `$DOCKER` for the three invocations below.
@@ -147,7 +153,7 @@ MODEL_PATH=google/siglip-base-patch16-224  # or a local checkpoint path
 TOPN=5
 METRIC=cosine
 FILTER_BY_LABEL=false
-IMG=nvcr.io/nvidian/iva/tao-toolkit-ds:aoi
+IMG=$(python3 -c "import yaml,os; print(yaml.safe_load(open(os.environ['TAO_SKILL_BANK_PATH']+'/versions.yaml'))['images']['tao_toolkit']['data_services'])")
 
 mkdir -p "$OUT"
 
@@ -240,7 +246,7 @@ The mined parquet is the artifact downstream training consumes. The two embeddin
 - **Source pool provided as CSV** — convert to parquet **before** Step 2; the entrypoint only reads parquet. The conversion must preserve `filepath` (and `label` if present).
 - **Path resolution mismatch between host and container** — every parquet path passed in args must be readable inside the container. The simplest fix is the `-v $WORKSPACE:$WORKSPACE` pattern from Setup so paths resolve identically on both sides. If you mount `<host>:<other-path>`, pass the in-container path in the args, not the host one.
 - **No GPU available** — both steps need CUDA. Check `nvidia-smi` once at the top; the entrypoint's error is clear but it surfaces late in a long run.
-- **Image not pulled / wrong tag** — `docker pull nvcr.io/nvidian/iva/tao-toolkit-ds:aoi` before the run. The `:aoi` tag is required; the generic `:latest` tag does not contain the AOI-specific embedding/mining entrypoints.
+- **Image not pulled / wrong tag** — resolve `tao_toolkit.data_services` from `versions.yaml` and `docker pull "$DS_IMAGE"` before the run. The data-services tag declared there is required; the generic `:latest` tag does not contain the AOI-specific embedding/mining entrypoints.
 - **Output files owned by root** — the container runs as root by default. If subsequent host-side steps fail with `Permission denied`, `sudo chown -R $(id -u):$(id -g)` the output dir.
 - **`topn` × N_targets ≫ source size** — the dedup pass will run out of unique source images and the mined parquet will be much smaller than `topn × N_targets`. This is expected, not a bug; report the actual mined count, not the requested one.
 
@@ -274,7 +280,7 @@ Keep the report tight (600–1200 words). Mining is a deterministic pipeline; th
 - (If a TAO checkpoint:) model_config_path: …
 
 ## 4. Mining Run
-- Command: `docker run … nvcr.io/nvidian/iva/tao-toolkit-ds:aoi tmm nearest_neighbors …`
+- Command: `docker run … "$DS_IMAGE" tmm nearest_neighbors …` (where `DS_IMAGE` = `tao_toolkit.data_services` from `versions.yaml`)
 - topn=<topn>, knn_metric=<metric>, filter_by_label=<bool>
 - Reported by `mining_summary.txt`:
   - queries: <N>
@@ -311,7 +317,7 @@ Keep the report tight (600–1200 words). Mining is a deterministic pipeline; th
 
 ## Execution Order
 
-1. Run `docker info`, `nvidia-smi`, and `docker image inspect nvcr.io/nvidian/iva/tao-toolkit-ds:aoi` (pulling if missing) once to confirm the environment. Abort with a clear message if any fail.
+1. Resolve `DS_IMAGE` from `versions.yaml` (`images.tao_toolkit.data_services`), then run `docker info`, `nvidia-smi`, and `docker image inspect "$DS_IMAGE"` (pulling if missing) once to confirm the environment. Abort with a clear message if any fail.
 2. Run `date +%Y-%m-%d_%H%M%S` to get the timestamp; create `<output_dir>/mining_results/<timestamp>/`.
 3. Write `embedding_spec.yaml` and `mining_spec.yaml` into the timestamped dir, filling in the encoder choice and mining knobs. Keep these under `$WORKSPACE` so the `-e` path resolves inside the container.
 4. If the source pool is a CSV, convert to parquet first (preserve `filepath` and `label`).

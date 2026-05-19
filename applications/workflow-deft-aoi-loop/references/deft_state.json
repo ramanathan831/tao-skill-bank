@@ -10,6 +10,7 @@
     "specs_file": "/home/shadeform/workspace/specs/baseline_spec.yaml",
     "training_csv": "/home/shadeform/workspace/train/base/training_set.csv",
     "validation_csv": "/home/shadeform/workspace/train/base/validation_set.csv",
+    "kpi_test_csv": "/home/shadeform/workspace/kpi/testing_set.csv",
     "images_dir": "/home/shadeform/workspace/kpi/images",
     "backbone_weight_dir": "/home/shadeform/workspace/augmentation/backbone",
     "train_container": "nvcr.io/nvidia/tao/tao-toolkit:6.26.3-pyt",
@@ -20,11 +21,12 @@
       "sub_skill": "cosmos-anomalygen",
       "mode": "inference_only",
       "project": "nvpcb",
-      "defect_spec": "/home/shadeform/workspace/augmentation/anomalygen/checkpoints/nvpcb/defect_spec.jsonl",
-      "checkpoint_dir": "/home/shadeform/workspace/augmentation/anomalygen/checkpoints/nvpcb/checkpoints",
+      "defect_spec": "/home/shadeform/workspace/augmentation/anomalygen/datasets/nvpcb/defect_spec.jsonl",
+      "checkpoint_dir": "/home/shadeform/workspace/augmentation/anomalygen/checkpoints/nvpcb",
+      "dataset_dir_source": "/home/shadeform/workspace/augmentation/anomalygen/datasets/nvpcb",
       "step": 14000,
       "num_SDG": 20,
-      "container": "nvcr.io/nv-metropolis-dev/metropolis-sdg/cosmos-anomalygen:1.0.3-006434bb.main"
+      "container": "nvcr.io/nv-metropolis-dev/metropolis-sdg/cosmos-anomalygen:1.0.3-36cdfca9.main"
     },
     "mining_filter": {
       "sub_skill": "deft-aoi-mining",
@@ -37,6 +39,7 @@
   "_completed_step_values": [
     "evaluate",
     "rca",
+    "anomalygen_finetune",
     "anomalygen",
     "routing",
     "data_mining",

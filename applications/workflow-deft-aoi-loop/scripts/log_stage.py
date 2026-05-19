@@ -7,6 +7,11 @@ Disk-truth invariant: never trust in-memory seq across turns. Always re-read
 the last entry of the log to compute next_seq. Context compaction is invisible
 to this writer — there is no "compacted" flag and no detection branch.
 
+`context_tokens` is a placeholder field. This writer cannot measure LLM context
+size — bash and `run_script()` callers don't have access to it. Pass 0 (or omit
+the CLI flag) and run `scripts/align_token_usage.py` after the loop to backfill
+real per-stage usage from the Claude Code transcript.
+
 Library usage:
 
     from log_stage import append_stage
@@ -21,7 +26,6 @@ Library usage:
         status="ok",
         summary="generated 1024 triplets, 8 defect types",
         duration_sec=int(time.monotonic() - t0),
-        context_tokens=context_tokens_estimate,
     )
 
 CLI usage (for `run_script()` callers):
@@ -32,8 +36,7 @@ CLI usage (for `run_script()` callers):
         --stage anomalygen \
         --status ok \
         --summary "generated 1024 triplets, 8 defect types" \
-        --duration-sec 612 \
-        --context-tokens 18432
+        --duration-sec 612
 """
 
 from __future__ import annotations
@@ -48,6 +51,7 @@ _VALID_STATUSES = {"ok", "error"}
 _VALID_STAGES = {
     "evaluate",
     "rca",
+    "anomalygen_finetune",
     "anomalygen",
     "routing",
     "data_mining",
@@ -92,7 +96,7 @@ def append_stage(
     status: str,
     summary: str,
     duration_sec: int,
-    context_tokens: int,
+    context_tokens: int = 0,
 ) -> None:
     """Append one stage event. Caller is responsible for measuring duration.
 
@@ -187,9 +191,13 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--context-tokens",
-        required=True,
+        required=False,
+        default=0,
         type=int,
-        help="Approximate current context size at write time",
+        help=(
+            "Placeholder; defaults to 0. Real per-stage values are filled in by "
+            "scripts/align_token_usage.py after the loop."
+        ),
     )
     return parser
 

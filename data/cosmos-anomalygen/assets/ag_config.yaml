@@ -1,5 +1,5 @@
 # DDP config template (default, use with predict2_anomaly_gen_ddp_{2b,14b}).
-# Placeholders in <angle-brackets> are filled by scripts/generate_config.py.
+# Placeholders in <angle-brackets> are filled by scripts/utilities/generate_config.py.
 # Keep sections minimal — the experiment provides defaults for everything else.
 job:
   project: anomaly_gen

@@ -34,7 +34,7 @@ running setup for the first time.
 ## Step 1: Download
 
 ```bash
-.claude/skills/cosmos-anomalygen/scripts/download_checkpoints.sh \
+${ANOMALYGEN_SCRIPTS}/download_checkpoints.sh \
     [--checkpoint-dir checkpoints]
 ```
 
@@ -50,7 +50,7 @@ What the script does:
 ## Step 2: Verify
 
 ```bash
-.claude/skills/cosmos-anomalygen/scripts/check.sh \
+${ANOMALYGEN_SCRIPTS}/check.sh \
     [--checkpoint-dir checkpoints]
 ```
 

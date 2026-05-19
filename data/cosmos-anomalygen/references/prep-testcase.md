@@ -16,9 +16,9 @@ one of three AMP branches based on `spatial_dependency` in `defect_spec`:
 | `text` | text2roi (Qwen VL + SAM2) | `roi_prompt_defect_location` (text, required) |
 | `cad` | cad2roi | `<dataset>/<TEXTURE>/cad_mask/<stem>.png` + `<dataset>/semantic_segmentation_labels.json` |
 
-`run_auto_roi_amp.py` defaults unrecognized values (including legacy `"roi"`)
-to `text`; auto-cad routing fires whenever the per-sample record has a
-non-null `cad_mask` regardless of `spatial_dependency`.
+`run_auto_roi_amp.py` defaults unrecognized values to `text`; auto-cad
+routing fires whenever the per-sample record has a non-null `cad_mask`
+regardless of `spatial_dependency`.
 
 The JSONL contains no mask-augmentation fields — AMP handles placement.
 
@@ -65,7 +65,7 @@ num_SDG → allocation (proportional to mask counts)
 | `num_SDG` | yes | — | Total SDG entries across all defect types. `0` → stop. |
 | `dataset_dir` | yes | — | Training dataset root. Drives allocation, submask source, cad_mask lookup (`<dataset>/<TEXTURE>/cad_mask/<stem>.png`), and cad labels (`<dataset>/semantic_segmentation_labels.json`). |
 | `clean_dir` | no | `dataset_dir` | Clean images. Layouts probed in order: `<clean_dir>/<TEXTURE>/clean_image/*`, `<clean_dir>/<TEXTURE>/*`, flat `<clean_dir>/*`. Omit when clean images are at `<dataset_dir>/<TEXTURE>/clean_image/`. |
-| `defect_spec` | yes | — | JSONL tagging each defect `free`/`text`/`cad`. `text` entries need `roi_prompt_defect_location`. Template at `.claude/skills/cosmos-anomalygen/assets/defect_spec_template.jsonl`. |
+| `defect_spec` | yes | — | JSONL tagging each defect `free`/`text`/`cad`. `text` entries need `roi_prompt_defect_location`. Template at `.agents/skills/cosmos-anomalygen/assets/defect_spec_template.jsonl`. |
 | `guidance` | no | `7.0` | Default guidance written to each JSONL entry (overridden per-sample in Phase 5). |
 | `crop_ratio` | no | `2.0` | Default crop ratio. Matches `cosmos_predict2/data/anomaly_gen/anomaly_dataset.py` fallback. |
 | `seed` | no | `42` | Base random seed for `run_auto_roi_amp.py`. |
@@ -77,7 +77,7 @@ Defect types are derived from `defect_spec` — no separate `--defect-types` arg
 ## Invocation
 
 ```bash
-.claude/skills/cosmos-anomalygen/scripts/prep_testcase.sh \
+${ANOMALYGEN_SCRIPTS}/prep_testcase.sh \
     --name <name> \
     --num-sdg <N> \
     --dataset-dir <dataset_dir> \
@@ -103,7 +103,7 @@ halt with `unknown arg`. n_seeds is auto-computed internally.
 | `build_jsonl.py` | Scan AMP output, pair with clean images, honor allocation ceiling. |
 | `verify_jsonl.py` | Resize mismatched masks into `resized_masks/` cache; validate all paths. |
 
-The AMP branching lives in `scripts/run_auto_roi_amp.py` (repo root).
+The AMP branching lives in `scripts/anomaly_gen/run_auto_roi_amp.py` (repo root).
 
 ---
 

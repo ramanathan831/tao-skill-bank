@@ -16,7 +16,7 @@ multi-GPU NCCL issues, or SDG output completeness.
 | `model_size` | No | `2b` | `2b` or `14b` — must match checkpoint. |
 | `seed` | No | `0` | Random seed. |
 | `num_gpus` | No | `1` | DDP-style multi-GPU. |
-| `defect_spec` | Yes (if no JSONL) | — | JSONL tagging each defect `free`/`text`/`cad`. Template at `.claude/skills/cosmos-anomalygen/assets/defect_spec_template.jsonl`. |
+| `defect_spec` | Yes (if no JSONL) | — | JSONL tagging each defect `free`/`text`/`cad`. Template at `.agents/skills/cosmos-anomalygen/assets/defect_spec_template.jsonl`. |
 | `real_path` | No | `dataset_dir` | Real anomaly images for downstream eval. |
 
 ---
@@ -26,7 +26,7 @@ multi-GPU NCCL issues, or SDG output completeness.
 ### Step 1 — Validate the checkpoint
 
 ```bash
-.claude/skills/cosmos-anomalygen/scripts/validate_checkpoint.py <checkpoint_dir> --step <step>
+python3 -m scripts.utilities.validate_checkpoint <checkpoint_dir> --step <step>
 ```
 
 Exits non-zero if `ag_config.yaml` is missing or malformed. On success, prints
@@ -39,7 +39,7 @@ See `references/prep-testcase.md`. Output path becomes `input_jsonl`.
 ### Step 3 — Validate the JSONL against the checkpoint
 
 ```bash
-.claude/skills/cosmos-anomalygen/scripts/validate_jsonl.py <checkpoint_dir> <input_jsonl>
+python3 -m scripts.utilities.validate_jsonl <checkpoint_dir> <input_jsonl>
 ```
 
 Exits non-zero if the JSONL contains anomaly types the checkpoint cannot
@@ -49,7 +49,7 @@ If many paths are missing → stop; ask the user to verify before burning GPU ti
 ### Step 4 — Launch SDG
 
 ```bash
-.claude/skills/cosmos-anomalygen/scripts/run_sdg.sh \
+${ANOMALYGEN_SCRIPTS}/run_sdg.sh \
     --checkpoint_dir <checkpoint_dir> \
     --step <step> \
     --input_jsonl <input_jsonl> \
@@ -62,7 +62,7 @@ If many paths are missing → stop; ask the user to verify before burning GPU ti
 ### Step 5 — Verify completion before eval
 
 ```bash
-.claude/skills/cosmos-anomalygen/scripts/verify_output.sh <input_jsonl> <output_dir>
+${ANOMALYGEN_SCRIPTS}/verify_output.sh <input_jsonl> <output_dir>
 ```
 
 Non-zero if row or image counts don't match the JSONL. **Do not skip** — eval
@@ -101,7 +101,8 @@ After the full pipeline:
 - `<output_dir>/SDG_result.csv` exists.
 - `verify_output.sh` exits 0.
 - `nn_score` and `mnn_score` reported per anomaly type via eval.
-- Next steps: set `nn_threshold` to filter, or run Phase 5 per-sample search.
+- Next steps: pipeline default runs Phase 5 search (`num_search_run=3`) and
+  Phase 7 filter+regen (`nn_threshold=0.4`). Tune these to skip either.
 
 ---
 
