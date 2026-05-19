@@ -49,7 +49,7 @@ A GPU is required (the same image is used across the AOI loop and other actions 
 
 ```bash
 WORKSPACE=<absolute path that contains inference.csv, train YAML, dataset images, and the output dir>
-DOCKER="docker run --gpus all --rm --ipc=host -v $WORKSPACE:$WORKSPACE -w $WORKSPACE nvcr.io/nvidian/iva/tao-toolkit-ds:aoi"
+DOCKER="docker run --gpus all --rm --ipc=host --user $(id -u):$(id -g) -v $WORKSPACE:$WORKSPACE -w $WORKSPACE nvcr.io/nvidian/iva/tao-toolkit-ds:aoi"
 ```
 
 If `inference.csv`, the train YAML, and the dataset images live in different roots, pass multiple `-v` flags — but every absolute path you pass in args must resolve inside the container.
@@ -97,8 +97,6 @@ If **no** candidate threshold meets the recall target, the container exits non-z
 
 Print the container's stdout summary (chosen threshold, kept-row counts, per-label breakdown) to your own stdout so the script-check hook can verify the run produced output.
 
-> **About output ownership:** the container may run as root, leaving the artifacts owned by `root` on the host. After the docker call, run `sudo chown -R $(id -u):$(id -g) "$OUT"` if subsequent host-side steps (the visual spot-check copies, the report write) need to modify the directory.
-
 ### Step 5 — Visual spot check (small, fixed)
 
 Skip this step if `unreachable_kpi.txt` exists in `output_dir` — there is nothing meaningful to spot-check when the model can't reach the KPI at any threshold.
@@ -138,6 +136,7 @@ IMG=nvcr.io/nvidian/iva/tao-toolkit-ds:aoi
 mkdir -p "$OUT"
 
 docker run --gpus all --rm --ipc=host \
+    --user "$(id -u):$(id -g)" \
     -v "$WORKSPACE:$WORKSPACE" -w "$WORKSPACE" \
     "$IMG" gap_analysis vcn_aoi \
     inference_csv="$EXP_DIR/inference/inference.csv" \
@@ -146,9 +145,6 @@ docker run --gpus all --rm --ipc=host \
     min_recall="$MIN_RECALL" \
     top_k_per_label="$TOP_K" \
     output_dir="$OUT"
-
-# Reclaim ownership in case the container ran as root
-[ "$(stat -c %u "$OUT" 2>/dev/null)" = "0" ] && sudo chown -R "$(id -u):$(id -g)" "$OUT"
 
 # Sanity print so the script-check hook sees real numbers
 python3 - "$OUT" << 'PYEOF'
@@ -198,7 +194,6 @@ At the start of the run, get the real timestamp by running `date +%Y-%m-%d_%H%M%
 - **Forgetting `top_k_per_label` when `min_recall=1.0`** — the most consequential failure mode of this skill. At `min_recall=1.0` the chosen threshold sits at or below every NO_PASS sample's score (so recall=100% by construction means there are NO false negatives). Without `top_k_per_label`, the container falls back to a "samples below threshold" filter, which at this threshold matches ONLY misclassified PASS rows (false positives) — `gaps.parquet` ends up containing zero NO_PASS rows and the augmentation queue is broken. **Always pass an explicit positive `top_k_per_label`** (default 50) so the container ranks by signed weakness and returns the K weakest *per label*.
 - **Image not pulled / wrong tag** — `docker pull nvcr.io/nvidian/iva/tao-toolkit-ds:aoi` before the run. The `:aoi` tag is required; the generic `:latest` does not contain the AOI gap-analysis entrypoint, and the docker run will fail with `gap_analysis: action not found` or similar.
 - **Path-mount mismatch** — every absolute path passed in args (`inference_csv`, `train_config`, `kpi_media_path`, `output_dir`) must resolve inside the container. Use `-v $WORKSPACE:$WORKSPACE` so host and container paths match exactly. If you mount under a different in-container root, pass the in-container path in the args.
-- **Output files owned by root** — the container runs as root by default, so `gaps.parquet`, `threshold.txt`, etc. are written as `root` on the host. The visual spot-check copies files into `rca_images/` and writes `RCA_Report.md` from the host — these will fail with `Permission denied` unless you `sudo chown -R $(id -u):$(id -g) "$OUT"` after the docker call.
 - **`unreachable_kpi.txt` written** — the model fundamentally cannot reach the requested NO_PASS recall at any threshold. Do NOT proceed to the visual spot-check; write the abridged report and recommend retrain or relabeling.
 - **`inference.csv` missing required columns** — container fails fast with a column-name error. Required: `input_path`, `object_name`, `label`, `siamese_score`. Re-run TAO VCN Classify inference if columns are absent.
 - **Train YAML missing `dataset.classify.input_map` or `image_ext`** — per-lighting expansion fails. Confirm the train YAML actually came from the matching VCN Classify experiment.
@@ -271,7 +266,7 @@ When `unreachable_kpi.txt` exists, replace sections 3–6 with a single short se
 
 1. Run `docker info`, `nvidia-smi`, and `docker image inspect nvcr.io/nvidian/iva/tao-toolkit-ds:aoi` (pulling if missing) once to confirm the environment. Abort with a clear message if any fail.
 2. Run `date +%Y-%m-%d_%H%M%S` to get the timestamp; create `<experiment_result_dir>/rca_results/<timestamp>/`.
-3. Run `docker run … nvcr.io/nvidian/iva/tao-toolkit-ds:aoi gap_analysis vcn_aoi …` with the inputs above. The container writes `gaps.parquet`, `threshold.txt`, `metrics.json`, `weak_samples_breakdown.txt` into `output_dir`. Print the chosen threshold and kept-row counts to stdout so the script-check hook can verify the run produced output. If the output dir is owned by root, `sudo chown -R $(id -u):$(id -g)` it.
+3. Run `docker run … nvcr.io/nvidian/iva/tao-toolkit-ds:aoi gap_analysis vcn_aoi …` with the inputs above. The container writes `gaps.parquet`, `threshold.txt`, `metrics.json`, `weak_samples_breakdown.txt` into `output_dir`. Print the chosen threshold and kept-row counts to stdout so the script-check hook can verify the run produced output.
 4. If `unreachable_kpi.txt` exists, skip Step 5 and write the abridged report. Otherwise continue.
 5. Pick 10 weak samples (5 weakest PASS + 5 weakest NO_PASS) from `gaps.parquet`, view each test image with Read, classify, and copy each into `rca_images/`.
 6. Write `RCA_Report.md` last — writing it triggers the packaging hook, which copies session logs and skill config alongside.
