@@ -169,7 +169,7 @@ Inputs (all paths under `<workspace>` unless absolute):
 
 ```text
 <workspace>/
-├── .env                                     # HF_TOKEN (HuggingFace pre-flight pulls); NGC_API_KEY is the optional fallback. No AnomalyGen credentials required — this EA variant ingests pre-generated pairs.
+├── .env                                     # NGC_API_KEY (nvcr.io/* image pulls), HF_TOKEN (HuggingFace pre-flight pulls). No AnomalyGen credentials required — this EA variant ingests pre-generated pairs.
 ├── specs/baseline_spec.yaml                 # ChangeNet train/eval spec
 ├── train/base/
 │   ├── training_set.csv                     # seed training rows; ChangeNet 14-column siamese schema
@@ -245,13 +245,13 @@ Resolve everything possible before asking the user. In order:
 
    | Variable | Required for | Image prefix it gates |
    |---|---|---|
+   | `NGC_API_KEY` | All nvcr.io image pulls — TAO toolkit (training, inference, deploy, data services) | `nvcr.io/nvstaging/tao/*` |
    | `HF_TOKEN` | Pre-Flight HuggingFace model downloads (ChangeNet backbone, SigLIP for mining) | huggingface.co |
-   | `NGC_API_KEY` (optional) | Fallback for any nvcr.io org without a dedicated key | `nvcr.io/*` |
 
-   **Note (EA variant):** `NGC_API_KEY_METROPOLIS_DEV` is **not** required — this loop ingests pre-generated AnomalyGen output and never pulls the AnomalyGen container.
+   Both variables must be non-empty. If either is missing, show the user `.env.example` (next to this skill), ask them to copy it to `<workspace>/.env` and fill in values, and do not proceed until set.
 
-   For each row whose image prefix appears in this run, the matching key must be non-empty. If any required key is missing, show the user `.env.example` (next to this skill), ask them to copy it to `<workspace>/.env` and fill in values, and do not proceed until set.
-4. `docker login nvcr.io` once per *required* key (username `$oauthtoken`, password = the key). nvcr.io stores one credential per host, so log in with the key for the prefix you are about to pull from before running `docker pull`/`docker image inspect` against that prefix; re-login when switching prefixes within Pre-Flight. Do not fall back to host-side TAO wrappers.
+   **Note (EA variant):** `NGC_API_KEY_METROPOLIS_DEV` and the AnomalyGen container are **not** required — this loop ingests pre-generated AnomalyGen output.
+4. `docker login nvcr.io` once with `NGC_API_KEY` (username `$oauthtoken`, password = the key). nvcr.io stores one credential per host. Do not fall back to host-side TAO wrappers.
 5. **Resolve container image refs from `versions.yaml`.** The rest of this skill — including the Pre-Flight Summary's `docker image inspect` line, every stage launch, and the `references/*.md` files — references two env vars (this EA variant has no AnomalyGen container, so `AG_IMAGE` is intentionally absent). They are **not** defined elsewhere; resolve them here using `scripts/resolve_versions_key.py` (the single owner of `versions.yaml` schema knowledge) and `export` them so all downstream commands see them:
 
    ```bash
