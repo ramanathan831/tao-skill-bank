@@ -158,10 +158,12 @@ Each "trial" is called a **recommendation** (rec). One rec = one full training r
 
 ## Quick Support Queries
 
-When the user asks what models/networks are supported for AutoML, do not scan
-`models/` directories or inspect every model folder. Run the packaged model-list
-helper in AutoML mode. It reads packaged manifests and validates that each
-supported model has a packaged, parseable train dataclass schema:
+When the user asks what models/networks are supported for AutoML, run the
+packaged model-list helper in AutoML mode. AutoML enablement is **model-level**
+metadata (`models/<network>/references/skill_info.yaml` has
+`automl_enabled: true`), not workflow-level metadata. The helper reads that
+model metadata, then validates whether the model also has a packaged,
+parseable train dataclass schema:
 
 ```bash
 ${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/list_tao_models.py \
@@ -175,15 +177,23 @@ ${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/list_automl_support.py \
   --skill-bank ${TAO_SKILL_BANK_PATH:-~/tao-skills-external} --format text
 ```
 
-Return both sections from that output: supported models and unsupported models
-with reasons. The support rule is: AutoML is supported only when
-`models/<network>/schemas/train.schema.json` is packaged and valid.
+Return both sections from that output: runnable AutoML models and
+AutoML-enabled models still blocked on schema packaging. The support rule is:
+AutoML is enabled at model level; runnable AutoML also requires
+`models/<network>/schemas/train.schema.json` to be packaged and valid.
 
 ---
 
 ## Step 1: Parse User Intent
 
 Default to a quick-start run unless the user explicitly asks to customize AutoML or agrees to a customization offer. Do not present algorithm, budget, or search-space choices as required inputs for a normal "run AutoML" request.
+
+Any workflow/application that reaches a train-capable model skill must consult
+the selected model's `automl_enabled` metadata. If it is `true`, use this
+AutoML workflow as the default training path unless the run/workflow setting
+has `automl_policy: off` or the user explicitly asks for a plain single
+training run. This keeps AutoML enablement scalable across normal-train, DEFT,
+and future workflows without duplicating allowlists in each application skill.
 
 Extract these fields for a default run:
 
@@ -268,11 +278,12 @@ For the selected model/action, read:
 - `${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/models/<network>/schemas/train.schema.json`
 - `${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/models/<network>/schemas/manifest.json`
 
-AutoML can run only when `schemas/train.schema.json` is packaged with the
-plugin and valid for the selected model. Do not fall back to hand-written model
+AutoML is enabled by the model skill, but it can run only when
+`schemas/train.schema.json` is packaged with the plugin and valid for the
+selected model. Do not fall back to hand-written model
 notes, old runner scripts, or a local `~/tao-core` checkout for AutoML
 parameter metadata. If the train schema is missing, stop and report that AutoML
-is not currently supported for that model until the schema is generated and
+is enabled for that model but not runnable until the schema is generated and
 shipped in the skill bank.
 
 Use the schema JSON as the source of truth for `automl_default_parameters`,

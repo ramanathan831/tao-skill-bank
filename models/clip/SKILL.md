@@ -23,6 +23,12 @@ No default NGC pretrained checkpoint is required. When `train.pretrained_model_p
 
 Supported actions: `train`, `evaluate`, `inference`, `export`, `gen_trt_engine`.
 
+## Train Action Policy
+
+This model is AutoML-enabled at the model layer. Before handling any train-stage request, read `references/skill_info.yaml` and resolve the run override from either an explicit `automl_policy` value or the user's workflow request. Treat phrases like "turn off AutoML", "disable AutoML", "no HPO", or "plain training" as `automl_policy: off` for this run only; otherwise default to `auto`. When `automl_policy: auto`, `automl_enabled: true`, and both `schemas/train.schema.json` and `references/spec_template_train.yaml` are packaged, route the train action through `tao-skill-bank:tao-automl` by default with this model's `skill_dir`. Preserve workflow/application overrides for datasets, specs, output directories, GPU/platform settings, parent checkpoints, and `automl_policy`. Use direct model training only when `automl_policy: off` or the packaged train schema/template is missing; in the missing-schema case, report that AutoML is enabled but not runnable for this model until schemas are generated.
+
+Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows stay in this model skill. The per-run `automl_policy` override does not change model metadata.
+
 ## Instructions
 
 Use this skill for NVIDIA TAO CLIP jobs: training, evaluation, embedding inference, ONNX export, and TensorRT engine generation. Start by identifying the requested action, then load only the referenced files needed for that action: `defaults.json` for default parameters, `config.json` for action/data-source wiring, `references/spec_template.yaml` for full spec shape, and `references/model_info.yaml` for SDK metadata.

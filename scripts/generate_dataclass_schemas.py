@@ -233,6 +233,7 @@ def generate_for_model(model_dir: Path, clean: bool) -> dict[str, Any]:
         "schema_version": 1,
         "model": model_dir.name,
         "network_arch": skill_config.get("network_arch", model_dir.name),
+        "automl_enabled": True,
         "actions": {},
         "failures": {},
     }
@@ -273,6 +274,7 @@ def build_support_summary(manifests: list[dict[str, Any]]) -> dict[str, Any]:
                 {
                     "model": model,
                     "network_arch": manifest.get("network_arch", model),
+                    "automl_enabled": True,
                     "train_schema": actions["train"]["path"],
                     "train_spec_template": actions["train"].get("spec_template"),
                     "automl_default_parameters": actions["train"].get("automl_default_parameters", []),
@@ -284,13 +286,14 @@ def build_support_summary(manifests: list[dict[str, Any]]) -> dict[str, Any]:
                 {
                     "model": model,
                     "network_arch": manifest.get("network_arch", model),
+                    "automl_enabled": True,
                     "reason": reason,
                 }
             )
 
     return {
         "schema_version": 1,
-        "support_rule": "AutoML is supported only when models/<network>/schemas/train.schema.json is packaged and valid.",
+        "support_rule": "AutoML is enabled at model level; runnable AutoML also requires models/<network>/schemas/train.schema.json to be packaged and valid.",
         "supported": sorted(supported, key=lambda item: item["model"]),
         "unsupported": sorted(unsupported, key=lambda item: item["model"]),
     }
@@ -320,6 +323,7 @@ def main() -> int:
         "models": {
             manifest["model"]: {
                 "network_arch": manifest["network_arch"],
+                "automl_enabled": manifest.get("automl_enabled", True),
                 "actions": sorted(manifest["actions"].keys()),
                 "failures": manifest["failures"],
             }

@@ -649,6 +649,7 @@
       "spec_template": "references/spec_template_train.yaml"
     }
   },
+  "automl_enabled": true,
   "failures": {},
   "model": "segformer",
   "network_arch": "segformer",

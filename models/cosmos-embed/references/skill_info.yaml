@@ -1,4 +1,5 @@
 network_arch: cosmos-embed
+automl_enabled: true
 container_image: tao_toolkit.cosmos_embed
 required_credentials:
 - HF_TOKEN

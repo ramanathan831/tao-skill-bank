@@ -9,6 +9,11 @@ checkpoint/results_dir on the command line without editing the spec). This file 
 covers the DEFT-loop-specific overlay: mounts, spec paths, two-checkpoint compare,
 KPI sweep, and `deft_state.json` / `loop_log.jsonl` updates.
 
+DEFT AOI is intentionally plain-train for Visual ChangeNet. When invoking the
+underlying model skill for any train stage, pass `automl_policy: off` so this
+workflow bypasses model-level AutoML while leaving Visual ChangeNet metadata
+unchanged for other workflows.
+
 ## DEFT-Loop Mount Layout
 
 ```

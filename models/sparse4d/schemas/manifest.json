@@ -643,6 +643,7 @@
       "spec_template": "references/spec_template_train.yaml"
     }
   },
+  "automl_enabled": true,
   "failures": {},
   "model": "sparse4d",
   "network_arch": "sparse4d",

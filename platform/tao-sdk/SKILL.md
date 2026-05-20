@@ -92,6 +92,21 @@ ${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/resolve_tao_image.py \
   --model <network_arch> --action <action> --format text
 ```
 
+For train-capable model workflows, inspect model-level AutoML metadata before
+creating a plain training job:
+
+```bash
+${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/list_tao_models.py \
+  --skill-bank ${TAO_SKILL_BANK_PATH:-~/tao-skills-external} \
+  --scope automl --format json
+```
+
+If the selected model has `automl_enabled: true` and a valid train schema,
+route training through `applications/tao-automl` by default. A workflow should
+only bypass AutoML when its run settings include `automl_policy: off`, the user
+explicitly asks for a plain run, or the model metadata says AutoML is enabled
+but the train schema is not packaged yet.
+
 After the platform is selected, get the credential filter:
 
 ```bash
@@ -524,7 +539,11 @@ specs["dataset"]["train_csv"] = f"{base}/train.csv"   # nested — see "spec is 
 ## What the SDK does NOT do
 
 - It does **not** read or interpret skills. The agent reads `SKILL.md` and `references/skill_info.yaml`; the SDK just submits whatever command the agent constructs.
-- It does **not** do hyperparameter optimization. For HPO, use `applications/tao-automl` (which uses this SDK as a building block).
+- It does **not** do hyperparameter optimization by itself. The agent owns the
+  model-level AutoML policy: when model metadata has `automl_enabled: true`, use
+  `applications/tao-automl` (which uses this SDK as a building block) unless the
+  workflow passes `automl_policy: off` or the user explicitly asks for a plain
+  single training run.
 - It does **not** decide what goes in the spec. The agent constructs the spec dict (loading templates, applying overrides) and passes it to `build_entrypoint`, which serializes the spec and inlines the in-container runner that writes it to `{config_path}` at job start. The SDK has no opinion about which keys you set.
 - It does **not** select platforms automatically. Pick the SDK matching your target backend explicitly: `LeptonSDK`, `BrevSDK`, `DockerSDK`, `SlurmSDK`, or `KubernetesSDK`.
 - It does **not** orchestrate multi-step workflows. The agent chains jobs by polling and constructing the next command.

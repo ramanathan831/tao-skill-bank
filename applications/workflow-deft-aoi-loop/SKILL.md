@@ -39,6 +39,16 @@ Do not use this skill for a single standalone TAO training run, one-off inferenc
 
 The loop operates on **NVIDIA TAO Visual ChangeNet** classify with the **NVIDIA C-RADIOv2-B** backbone, fine-tuned end-to-end. The architecture is defined in `specs/baseline_spec.yaml` — that file is the source of truth. All pretrained weights come from HuggingFace (`HF_TOKEN` required); `NGC_API_KEY_*` only gate container pulls. ChangeNet backbone resolution + the staged-file/HF-URL fallback for `model.backbone.pretrained_backbone_path` are owned by `references/visual-changenet.md`. SigLIP for k-NN mining is owned by `references/deft-aoi-mining.md`. **No AnomalyGen-side checkpoints are required in this EA variant** — pre-generated synthetic pairs are ingested directly from `<workspace>/augmentation/anomalygen/{reconstructed_image,original_image}/`; see Pipeline step 3 below.
 
+## Train AutoML Policy
+
+DEFT AOI owns the iterative data-improvement loop, retraining cadence, and KPI
+checkpoint selection. For this workflow only, bypass model-level AutoML even
+when the underlying Visual ChangeNet model metadata has `automl_enabled: true`.
+Invoke every Visual ChangeNet train stage, including baseline and iteration
+retrain, with the run override `automl_policy: off` / plain training. This is a
+workflow-level override only; do not change model metadata, and do not apply this
+policy to other workflows.
+
 ## Launch Intake
 
 After the user confirms they want to run this workflow, ask which supported
@@ -455,7 +465,7 @@ Baseline runs once before the loop: `train` → `inference` → `evaluate` (skil
 
    b. **Train/validation leakage check.** `scripts/validate_training_csv.py` accepts `--validation-csv`; pass `train/base/validation_set.csv` so the diff on `(input_path, golden_path, label, object_name, boardname)` runs as part of the single validation pass. Hard stop on any validation row appearing in training. (Step 4 already runs the mid-iteration variant on `mining_filter/mining_pool.csv`; this check is the defence-in-depth backstop against leakage introduced by base-CSV reassembly.)
 
-7. **[SKILL — `tao-skill-bank:visual-changenet`] Fine-tune + evaluate.** Invoke the skill for the `train` and `evaluate` tasks. It owns TAO training, checkpoint discovery, inference, KPI analysis, and best-checkpoint selection. Write the selected checkpoint and KPI metrics into `deft_state.json`. Stop the loop if KPI met or `max_iterations` reached. See `references/visual-changenet.md`.
+7. **[SKILL — `tao-skill-bank:visual-changenet`] Fine-tune + evaluate.** Invoke the skill for the `train` and `evaluate` tasks. For the train task, pass the workflow override `automl_policy: off` so Visual ChangeNet runs plain training instead of model-level AutoML. It owns TAO training, checkpoint discovery, inference, KPI analysis, and best-checkpoint selection. Write the selected checkpoint and KPI metrics into `deft_state.json`. Stop the loop if KPI met or `max_iterations` reached. See `references/visual-changenet.md`.
 
 ## State & Logging
 

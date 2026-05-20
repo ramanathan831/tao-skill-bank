@@ -685,6 +685,7 @@
       "spec_template": "references/spec_template_train.yaml"
     }
   },
+  "automl_enabled": true,
   "failures": {},
   "model": "mask-grounding-dino",
   "network_arch": "mask_grounding_dino",

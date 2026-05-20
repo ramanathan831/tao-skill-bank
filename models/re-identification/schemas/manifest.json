@@ -281,6 +281,7 @@
       "spec_template": "references/spec_template_train.yaml"
     }
   },
+  "automl_enabled": true,
   "failures": {},
   "model": "re-identification",
   "network_arch": "re_identification",

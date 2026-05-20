@@ -1,5 +1,6 @@
 name: mask2former
 network_arch: mask2former
+automl_enabled: true
 container_image: tao_toolkit.pyt
 data_format: coco_panoptic
 gpu_spec_key: train.num_gpus
