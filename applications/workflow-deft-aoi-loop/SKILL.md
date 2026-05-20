@@ -169,7 +169,7 @@ Inputs (all paths under `<workspace>` unless absolute):
 
 ```text
 <workspace>/
-├── .env                                     # NGC_API_KEY_TAO (nvcr.io/nvstaging/tao/*), HF_TOKEN (HuggingFace pre-flight pulls); NGC_API_KEY is the optional fallback. No AnomalyGen credentials required — this EA variant ingests pre-generated pairs.
+├── .env                                     # HF_TOKEN (HuggingFace pre-flight pulls); NGC_API_KEY is the optional fallback. No AnomalyGen credentials required — this EA variant ingests pre-generated pairs.
 ├── specs/baseline_spec.yaml                 # ChangeNet train/eval spec
 ├── train/base/
 │   ├── training_set.csv                     # seed training rows; ChangeNet 14-column siamese schema
@@ -245,7 +245,6 @@ Resolve everything possible before asking the user. In order:
 
    | Variable | Required for | Image prefix it gates |
    |---|---|---|
-   | `NGC_API_KEY_TAO` | TAO toolkit images (training, inference, deploy, data services, cosmos-rl/predict/embed) | `nvcr.io/nvstaging/tao/*` |
    | `HF_TOKEN` | Pre-Flight HuggingFace model downloads (ChangeNet backbone, SigLIP for mining) | huggingface.co |
    | `NGC_API_KEY` (optional) | Fallback for any nvcr.io org without a dedicated key | `nvcr.io/*` |
 
