@@ -131,10 +131,18 @@ def validate(
     csv_path: pathlib.Path,
     workspace_root: pathlib.Path,
     validation_csv: pathlib.Path | None = None,
+    light: str = "SolderLight",
+    image_ext: str = ".jpg",
 ) -> list[str]:
     """Return a list of human-readable validation errors (empty == valid).
 
     Uses stdlib csv so the script runs on bare hosts without pandas.
+
+    Path resolution follows TAO ChangeNet's siamese dataloader convention
+    when `object_name` is present in the CSV:
+        <workspace_root>/<input_path>/<object_name>_<light><image_ext>
+    Falls back to flat-file resolution (<workspace_root>/<input_path>) when
+    `object_name` is absent.
     """
     errors: list[str] = []
 
@@ -156,6 +164,7 @@ def validate(
     if not rows:
         errors.append("CSV is empty (0 data rows)")
 
+    siamese_mode = "object_name" in columns
     for col in _PATH_COLUMNS:
         if col not in columns:
             continue
@@ -165,13 +174,22 @@ def validate(
             if not raw:
                 missing.append((i, f"<empty {col}>"))
                 continue
-            if not _resolve(raw, workspace_root).is_file():
-                missing.append((i, raw))
+            if siamese_mode:
+                obj = (row.get("object_name") or "").strip()
+                if not obj:
+                    missing.append((i, f"<empty object_name for siamese {col}>"))
+                    continue
+                # TAO siamese resolution: images_dir/input_path/object_name_light.ext
+                resolved = _resolve(raw, workspace_root) / f"{obj}_{light}{image_ext}"
+            else:
+                resolved = _resolve(raw, workspace_root)
+            if not resolved.is_file():
+                missing.append((i, f"{raw} -> {resolved}"))
         if missing:
             sample = ", ".join(f"row {i}: {p!r}" for i, p in missing[:5])
             errors.append(
                 f"{len(missing)} row(s) reference a missing {col} on disk "
-                f"(workspace_root={workspace_root}); first: {sample}"
+                f"(workspace_root={workspace_root}, siamese={siamese_mode}); first: {sample}"
             )
 
     if "label" in columns:
@@ -219,12 +237,31 @@ def _build_parser() -> argparse.ArgumentParser:
             "validation row that appears in training."
         ),
     )
+    parser.add_argument(
+        "--light",
+        default="SolderLight",
+        help=(
+            "Lighting suffix for TAO siamese path resolution: "
+            "<input_path>/<object_name>_<light><image_ext>. Default: SolderLight."
+        ),
+    )
+    parser.add_argument(
+        "--image-ext",
+        default=".jpg",
+        help="Image extension for siamese path resolution. Default: .jpg.",
+    )
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
-    errors = validate(args.csv, args.workspace_root, args.validation_csv)
+    errors = validate(
+        args.csv,
+        args.workspace_root,
+        args.validation_csv,
+        light=args.light,
+        image_ext=args.image_ext,
+    )
     if errors:
         print(
             f"validate_training_csv: FATAL — {len(errors)} issue(s) in {args.csv}",

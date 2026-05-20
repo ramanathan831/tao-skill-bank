@@ -125,8 +125,12 @@ def generate_csv_siamese(
     goldens = set(os.listdir(golden_dir))
 
     rows = []
+    label_counts: dict[str, int] = {}
+    skipped_unpaired: list[str] = []
+    converted = 0
     for fname in inputs:
         if fname not in goldens:
+            skipped_unpaired.append(fname)
             print(f"WARN: no golden match for {fname}, skipping")
             continue
 
@@ -150,6 +154,7 @@ def generate_csv_siamese(
         else:
             convert_to_jpg(src_ng, dst_ng)
             convert_to_jpg(src_ok, dst_ok)
+            converted += 1
 
         # CSV row: input_path and golden_path are relative to images_dir,
         # with trailing slash to match existing format
@@ -159,6 +164,7 @@ def generate_csv_siamese(
             row_label,
             object_name,
         ))
+        label_counts[row_label] = label_counts.get(row_label, 0) + 1
 
     with open(output_csv, "w") as f:
         f.write(HEADER_14 + "\n")
@@ -166,10 +172,35 @@ def generate_csv_siamese(
             # Pad columns 5-14 with empty values
             f.write(f"{input_path},{golden_path},{lbl},{obj}" + ",,,,,,,,,," + "\n")
 
+    # Emit ingest_summary.json next to the output CSV — per-label counts,
+    # extension conversions, and skip reasons. Reading the stdout one-liner
+    # is fine for happy paths but loses everything past N=1000.
+    summary = {
+        "input_count": len(inputs),
+        "paired_count": len(rows),
+        "skipped_unpaired_count": len(skipped_unpaired),
+        "skipped_unpaired_examples": skipped_unpaired[:10],
+        "converted_to_jpg_count": converted,
+        "labels": dict(sorted(label_counts.items())),
+        "ng_staging_dir": ng_absdir,
+        "ok_staging_dir": ok_absdir,
+        "output_csv": output_csv,
+    }
+    summary_path = os.path.join(os.path.dirname(output_csv) or ".", "ingest_summary.json")
+    with open(summary_path, "w") as f:
+        import json
+        json.dump(summary, f, indent=2)
+        f.write("\n")
+
     print(f"Copied {len(rows)} image pairs into {images_dir}")
     print(f"  NG: {ng_absdir}/")
     print(f"  OK: {ok_absdir}/")
     print(f"Written {len(rows)} rows to {output_csv}")
+    print(f"Wrote ingest_summary.json to {summary_path}")
+    if skipped_unpaired:
+        print(f"  WARN: {len(skipped_unpaired)} unpaired NG files skipped (see summary)")
+    if converted:
+        print(f"  converted {converted} files to {image_ext}")
 
 
 def main():

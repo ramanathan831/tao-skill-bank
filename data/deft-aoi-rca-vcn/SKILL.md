@@ -18,16 +18,18 @@ tags:
 
 You are an analyst for NVIDIA TAO VCN Classify (Visual Component Net) inference results. Your job is to identify the **weakest samples per ground-truth label** by measuring signed distance from the decision threshold *in the wrong direction*, then surface them for downstream augmentation or relabeling.
 
-This skill is intentionally lightweight. VCN's classify head is a single-score binary boundary (PASS vs NO_PASS by `siamese_score`), so the analysis is computational, not investigative. The whole computation lives behind one direct `docker run` invocation against the `tao_toolkit.data_services` image declared in `versions.yaml` (resolved at runtime — see Setup). The container's entrypoint takes `<category> <action> -e <spec.yaml> [hydra overrides...]`; we pass `gap_analysis vcn_aoi -e <vcn_aoi_spec.yaml> …`. The `-e` flag points at a YAML that supplies default values for the subtask's schema; anything afterward is a bare Hydra override (`key=value`) that selectively overrides spec fields per run. (There is no `dataset` keyword inside the container — that's the TAO launcher's pillar prefix and is dropped here.) You do **not** need subagents, multi-phase image audits, or component-type clustering — VCN does not expose those dimensions. View only a small set of representative weak samples to qualify the gaps after the container returns.
+This skill is intentionally lightweight. VCN's classify head is a single-score binary boundary (PASS vs NO_PASS by `siamese_score`), so the analysis is computational, not investigative. The whole computation lives behind one direct `docker run` invocation against the `tao_toolkit.data_services` image declared in `versions.yaml` (resolved at runtime — see Setup). The container's entrypoint takes `<category> <action> [hydra overrides...]`; we pass `gap_analysis vcn_aoi key=value …`. Each override is a bare Hydra `key=value` that selectively overrides the script's `GapAnalysisConfig` schema (defaults are baked into the container; introspect with `docker run ... gap_analysis vcn_aoi --cfg=job`). (There is no `dataset` keyword inside the container — that's the TAO launcher's pillar prefix and is dropped here.) You do **not** need subagents, multi-phase image audits, or component-type clustering — VCN does not expose those dimensions. View only a small set of representative weak samples to qualify the gaps after the container returns.
+
+> **Note (6.26.6-rc and later):** earlier releases accepted `-e <spec.yaml>` to load defaults from a YAML. That flag was removed; pass values as Hydra overrides directly. Also, two schema keys were renamed: the old `inference_csv` key is now `inference_results_dir` (points at the **directory** containing `inference.csv`, not the file), and the old `output_dir` key is now `results_dir`. The output parquet is `kpi_gaps.parquet` (older docs say `gaps.parquet`).
 
 ---
 
 ## Inputs
 
-1. **Experiment result directory** — contains `inference/inference.csv` from TAO VCN Classify inference. Required columns: `input_path`, `object_name`, `label`, `siamese_score`.
+1. **Experiment result directory** — contains `inference/inference.csv` from TAO VCN Classify inference. Required columns: `input_path`, `object_name`, `label`, `siamese_score`. Pass the **directory** (e.g. `inference/latest/`), not the CSV file — the container reads `inference_results_dir/inference.csv`.
 2. **Training code/config directory** — contains the VCN train YAML. The container reads `dataset.classify.input_map` (lighting condition list) and `dataset.classify.image_ext` from it to expand each weak sample into one row per lighting.
 3. **Dataset directory** — image root prepended to the relative `input_path` from each row (`kpi_media_path`).
-4. **Gap-analysis spec file** — a YAML containing the threshold-selection knobs `min_recall` and `top_k_per_label` (and optionally a hard-pinned `threshold`). Per-run paths (`inference_csv`, `train_config`, `kpi_media_path`, `output_dir`) stay out of the spec and are passed as Hydra overrides at invocation time so the same spec is reusable across experiments. **`top_k_per_label` must be a positive integer** — omitting it (or leaving the default behaviour off) flips the container into "below-threshold filter" mode, which at `min_recall=1.0` returns only PASS misclassifications and zero NO_PASS rows. See Common pitfalls.
+4. **Schema overrides** — `min_recall`, `top_k_per_label`, and optionally a hard-pinned `threshold` are passed as Hydra overrides (defaults: `min_recall=1.0`, `top_k_per_label=50`, `threshold=-1.0` meaning sweep). **`top_k_per_label` must be a positive integer** — omitting it flips the container into "below-threshold filter" mode, which at `min_recall=1.0` returns only PASS misclassifications and zero NO_PASS rows. See Common pitfalls.
 
 ---
 
@@ -59,17 +61,7 @@ DOCKER="docker run --gpus all --rm --ipc=host -v $WORKSPACE:$WORKSPACE -w $WORKS
 
 If `inference.csv`, the train YAML, and the dataset images live in different roots, pass multiple `-v` flags — but every absolute path you pass in args must resolve inside the container.
 
-**Author the gap-analysis spec file once per run.** The spec lives under `$WORKSPACE` so the `-e` argument resolves on both sides of the mount. Per-run paths stay out of the spec and are passed as Hydra overrides at invocation time.
-
-```bash
-cat > "$WORKSPACE/vcn_aoi_spec.yaml" <<'EOF'
-min_recall: 1.0          # zero-miss default; lower if KPI relaxes
-top_k_per_label: 50      # MUST be a positive int — see Common pitfalls
-# threshold: -1.0        # uncomment + set to pin a specific threshold instead of sweeping
-EOF
-```
-
-Any field in the spec can still be overridden inline at the CLI (e.g. `top_k_per_label=100`) — Hydra applies CLI overrides on top of the spec.
+**No spec file needed in 6.26.6-rc and later.** All knobs are CLI overrides — `min_recall`, `top_k_per_label`, and optionally `threshold`. Defaults baked into the container (`min_recall=1.0`, `top_k_per_label=50`, `threshold=-1.0` to sweep) cover the common case; override only what you need.
 
 ---
 
@@ -81,11 +73,11 @@ The whole skill is a single `docker run` invocation followed by a small visual s
 
 ```bash
 $DOCKER gap_analysis vcn_aoi \
-    -e <vcn_aoi_spec.yaml> \
-    inference_csv=<exp_dir>/inference/inference.csv \
+    inference_results_dir=<exp_dir>/inference/<label>/ \
     train_config=<exp_dir>/train.yaml \
     kpi_media_path=<dataset_root> \
-    output_dir=<rca_results_dir>
+    results_dir=<rca_results_dir> \
+    top_k_per_label=50
 ```
 
 > **Always pass `top_k_per_label`.** This is the argument that switches the container
@@ -100,13 +92,13 @@ $DOCKER gap_analysis vcn_aoi \
 
 Reads `inference.csv`, sweeps every unique `siamese_score` plus one value just below the minimum, keeps the candidates with NO_PASS-class recall ≥ `min_recall` (with `1e-12` tolerance), then picks the threshold with the best F1 (tie-break: precision, then threshold value). For every row, computes signed weakness from that threshold (positive = misclassified, negative = correct, magnitude = margin). Sorts by weakness descending and takes the top `top_k_per_label` per ground-truth label, then expands each weak row into one row per lighting condition using `dataset.classify.input_map` and `dataset.classify.image_ext` from the train YAML.
 
-If **no** candidate threshold meets the recall target, the container exits non-zero and writes `unreachable_kpi.txt` into `output_dir` explaining which recall the model can actually achieve. In that case, stop the analysis after the docker call, write a one-section report explaining the model fundamentally cannot reach the KPI at any operating point, and recommend retraining or relabeling — skip the visual spot-check.
+If **no** candidate threshold meets the recall target, the container exits non-zero and writes `unreachable_kpi.txt` into `results_dir` explaining which recall the model can actually achieve. In that case, stop the analysis after the docker call, write a one-section report explaining the model fundamentally cannot reach the KPI at any operating point, and recommend retraining or relabeling — skip the visual spot-check.
 
-**Container writes into `output_dir`:**
+**Container writes into `results_dir`:**
 
 | Artifact | Contents |
 |----------|----------|
-| `gaps.parquet` | Top-K weakest per label, expanded per lighting. Columns: `filepath`, `label`, `siamese_score`, `weakness`. |
+| `kpi_gaps.parquet` | Top-K weakest per label, expanded per lighting. Columns: `filepath`, `label`, `siamese_score`, `weakness`. |
 | `threshold.txt` | Chosen decision threshold (single float, plain text). |
 | `metrics.json` | At the chosen threshold: `precision`, `recall`, `f1`, confusion matrix `{tp, fp, tn, fn}`, plus per-label `{total, mean_weakness, median_weakness, max_weakness, n_misclassified}`. |
 | `weak_samples_breakdown.txt` | Per-label kept-row breakdown: `<count>` total, `<%>` of all kept rows, `N` misclassified (weakness > 0), `N` marginal (weakness ≤ 0). |
@@ -118,14 +110,14 @@ Print the container's stdout summary (chosen threshold, kept-row counts, per-lab
 
 ### Step 5 — Visual spot check (small, fixed)
 
-Skip this step if `unreachable_kpi.txt` exists in `output_dir` — there is nothing meaningful to spot-check when the model can't reach the KPI at any threshold.
+Skip this step if `unreachable_kpi.txt` exists in `results_dir` — there is nothing meaningful to spot-check when the model can't reach the KPI at any threshold.
 
 Otherwise, use the Read tool to **view** the test images for:
 
-- The 5 weakest PASS samples (the top of the "PASS misclassified as NO_PASS" pile) — pick by sorting `gaps.parquet` rows where `label == 'PASS'` by `weakness` descending.
+- The 5 weakest PASS samples (the top of the "PASS misclassified as NO_PASS" pile) — pick by sorting `kpi_gaps.parquet` rows where `label == 'PASS'` by `weakness` descending.
 - The 5 weakest NO_PASS samples (the top of the "NO_PASS misclassified as PASS" pile) — same, with `label != 'PASS'`.
 
-`gaps.parquet` is already expanded per-lighting (multiple rows per sample). For the spot check, deduplicate to one row per (input_path, object_name) — pick the row whose `filepath` uses the FIRST lighting from the train YAML (one image per sample is enough — VCN's classify head sees all lightings stacked, but for human spot-check one is representative).
+`kpi_gaps.parquet` is already expanded per-lighting (multiple rows per sample). For the spot check, deduplicate to one row per (input_path, object_name) — pick the row whose `filepath` uses the FIRST lighting from the train YAML (one image per sample is enough — VCN's classify head sees all lightings stacked, but for human spot-check one is representative).
 
 Classify each viewed sample as exactly one of:
 - **mislabeled** — visual content disagrees with the CSV label
@@ -133,7 +125,7 @@ Classify each viewed sample as exactly one of:
 - **data quality** — corrupted, dark, wrong crop, bad framing
 - **systematic** — model has learned the wrong feature (the image looks "obviously PASS/NO_PASS" but the model disagrees)
 
-Copy each viewed image (resized to 128×128 if PIL is available, otherwise just copy) into `<output_dir>/rca_images/` so it can be embedded inline in the report.
+Copy each viewed image (resized to 128×128 if PIL is available, otherwise just copy) into `<results_dir>/rca_images/` so it can be embedded inline in the report.
 
 This is the **only** image inspection required. Do not view dozens of images, do not run failure mode clustering, do not audit goldens — VCN does not have golden images.
 
@@ -165,10 +157,10 @@ docker run --gpus all --rm --ipc=host \
     -v "$WORKSPACE:$WORKSPACE" -w "$WORKSPACE" \
     "$IMG" gap_analysis vcn_aoi \
     -e "$SPEC" \
-    inference_csv="$EXP_DIR/inference/inference.csv" \
+    inference_results_dir="$EXP_DIR/inference/latest/" \
     train_config="$EXP_DIR/train.yaml" \
     kpi_media_path="$DATASET_ROOT" \
-    output_dir="$OUT"
+    results_dir="$OUT"
 
 # Reclaim ownership in case the container ran as root
 [ "$(stat -c %u "$OUT" 2>/dev/null)" = "0" ] && sudo chown -R "$(id -u):$(id -g)" "$OUT"
@@ -187,8 +179,8 @@ with open(os.path.join(out, "metrics.json")) as f:
     m = json.load(f)
 print(f"precision={m['precision']:.4f} recall={m['recall']:.4f} f1={m['f1']:.4f}")
 import pandas as pd
-df = pd.read_parquet(os.path.join(out, "gaps.parquet"))
-print(f"gaps.parquet: rows={len(df)}, cols={list(df.columns)}")
+df = pd.read_parquet(os.path.join(out, "kpi_gaps.parquet"))
+print(f"kpi_gaps.parquet: rows={len(df)}, cols={list(df.columns)}")
 print(df['label'].value_counts())
 PYEOF
 ```
@@ -202,8 +194,7 @@ Write everything into a timestamped folder under the experiment result directory
 ```
 <experiment_result_dir>/rca_results/YYYY-MM-DD_HHMMSS/
 ├── RCA_Report.md              # Full gap analysis report (you write this)
-├── vcn_aoi_spec.yaml          # The -e spec used for this run
-├── gaps.parquet               # Container: top-K weakest per label, expanded per lighting
+├── kpi_gaps.parquet           # Container: top-K weakest per label, expanded per lighting
 ├── threshold.txt              # Container: chosen decision threshold (single float)
 ├── metrics.json               # Container: confusion matrix + per-label distribution stats
 ├── weak_samples_breakdown.txt # Container: per-label count/misclassified/marginal counts
@@ -219,16 +210,16 @@ At the start of the run, get the real timestamp by running `date +%Y-%m-%d_%H%M%
 
 ## Common pitfalls
 
-- **Forgetting `top_k_per_label` when `min_recall=1.0`** — the most consequential failure mode of this skill. At `min_recall=1.0` the chosen threshold sits at or below every NO_PASS sample's score (so recall=100% by construction means there are NO false negatives). Without `top_k_per_label`, the container falls back to a "samples below threshold" filter, which at this threshold matches ONLY misclassified PASS rows (false positives) — `gaps.parquet` ends up containing zero NO_PASS rows and the augmentation queue is broken. **Always include an explicit positive `top_k_per_label`** in `vcn_aoi_spec.yaml` (default 50), or pass it as a Hydra override, so the container ranks by signed weakness and returns the K weakest *per label*.
+- **Forgetting `top_k_per_label` when `min_recall=1.0`** — the most consequential failure mode of this skill. At `min_recall=1.0` the chosen threshold sits at or below every NO_PASS sample's score (so recall=100% by construction means there are NO false negatives). Without `top_k_per_label`, the container falls back to a "samples below threshold" filter, which at this threshold matches ONLY misclassified PASS rows (false positives) — `kpi_gaps.parquet` ends up containing zero NO_PASS rows and the augmentation queue is broken. **Always include an explicit positive `top_k_per_label`** in `vcn_aoi_spec.yaml` (default 50), or pass it as a Hydra override, so the container ranks by signed weakness and returns the K weakest *per label*.
 - **Spec file outside `$WORKSPACE`** — `-e <path>` is resolved inside the container, so `vcn_aoi_spec.yaml` must live under the bind-mounted workspace. Place it next to the other run artifacts (the recipe puts it inside the timestamped output dir) and pass an absolute path.
 - **Spec file with unresolved `???` sentinels** — the bundled defaults under `experiment_specs/vcn_aoi.yaml` mark required fields with `???`. Replace every `???` before the run, or supply that field as a Hydra override on the CLI. Hydra rejects unresolved sentinels with a clear `MissingMandatoryValue` error.
 - **Image not pulled / wrong tag** — resolve `tao_toolkit.data_services` from `versions.yaml` and `docker pull "$DS_IMAGE"` before the run. The data-services tag declared there is required; the generic `:latest` does not contain the AOI gap-analysis entrypoint, and the docker run will fail with `gap_analysis: action not found` or similar.
-- **Path-mount mismatch** — every absolute path passed in args (`-e` spec, `inference_csv`, `train_config`, `kpi_media_path`, `output_dir`) must resolve inside the container. Use `-v $WORKSPACE:$WORKSPACE` so host and container paths match exactly. If you mount under a different in-container root, pass the in-container path in the args.
-- **Output files owned by root** — the container runs as root by default, so `gaps.parquet`, `threshold.txt`, etc. are written as `root` on the host. The visual spot-check copies files into `rca_images/` and writes `RCA_Report.md` from the host — these will fail with `Permission denied` unless you `sudo chown -R $(id -u):$(id -g) "$OUT"` after the docker call.
+- **Path-mount mismatch** — every absolute path passed in args (`-e` spec, `inference_csv`, `train_config`, `kpi_media_path`, `results_dir`) must resolve inside the container. Use `-v $WORKSPACE:$WORKSPACE` so host and container paths match exactly. If you mount under a different in-container root, pass the in-container path in the args.
+- **Output files owned by root** — the container runs as root by default, so `kpi_gaps.parquet`, `threshold.txt`, etc. are written as `root` on the host. The visual spot-check copies files into `rca_images/` and writes `RCA_Report.md` from the host — these will fail with `Permission denied` unless you `sudo chown -R $(id -u):$(id -g) "$OUT"` after the docker call.
 - **`unreachable_kpi.txt` written** — the model fundamentally cannot reach the requested NO_PASS recall at any threshold. Do NOT proceed to the visual spot-check; write the abridged report and recommend retrain or relabeling.
 - **`inference.csv` missing required columns** — container fails fast with a column-name error. Required: `input_path`, `object_name`, `label`, `siamese_score`. Re-run TAO VCN Classify inference if columns are absent.
 - **Train YAML missing `dataset.classify.input_map` or `image_ext`** — per-lighting expansion fails. Confirm the train YAML actually came from the matching VCN Classify experiment.
-- **`kpi_media_path` doesn't match `input_path` prefixes** — `gaps.parquet` ships with non-existent filepaths. Sanity-check a few rows on disk after the docker call returns and before the visual spot-check.
+- **`kpi_media_path` doesn't match `input_path` prefixes** — `kpi_gaps.parquet` ships with non-existent filepaths. Sanity-check a few rows on disk after the docker call returns and before the visual spot-check.
 - **No GPU detected from inside the container** — confirm `nvidia-smi` works on the host AND that `--gpus all` was passed to `docker run`. Without it, the container errors late.
 
 ---
@@ -284,7 +275,7 @@ is per-lighting, but the table is per-sample.)
 
 ## 7. Recommended Actions
 1. **Relabel** — list every sample tagged `mislabeled` in section 5. Path is `{input_path}/{object_name}` in `inference.csv`.
-2. **Augment** — `gaps.parquet` (`<K> rows × <L> lightings = <K*L> filepaths`) is the augmentation queue. Pass it to `deft-aoi-routing-vcn` next.
+2. **Augment** — `kpi_gaps.parquet` (`<K> rows × <L> lightings = <K*L> filepaths`) is the augmentation queue. Pass it to `deft-aoi-routing-vcn` next.
 3. **Threshold action** — recommend whether to (a) retrain with current data and re-run this skill, (b) lower the recall target if the visual spot check shows the misclassified samples are genuinely ambiguous, or (c) ship at the current threshold if KPI is met.
 4. **Systematic failures** — if any visual spot-check sample is tagged `systematic`, flag the failure mode (which lighting? which component family?) for model architecture review.
 ```
@@ -298,7 +289,7 @@ When `unreachable_kpi.txt` exists, replace sections 3–6 with a single short se
 1. Resolve `DS_IMAGE` from `versions.yaml` (`images.tao_toolkit.data_services`), then run `docker info`, `nvidia-smi`, and `docker image inspect "$DS_IMAGE"` (pulling if missing) once to confirm the environment. Abort with a clear message if any fail.
 2. Run `date +%Y-%m-%d_%H%M%S` to get the timestamp; create `<experiment_result_dir>/rca_results/<timestamp>/`.
 3. Write `vcn_aoi_spec.yaml` into the timestamped dir with `min_recall` and `top_k_per_label` filled in. Keep it under `$WORKSPACE` so the `-e` path resolves inside the container.
-4. Run `docker run … "$DS_IMAGE" gap_analysis vcn_aoi -e vcn_aoi_spec.yaml inference_csv=… train_config=… kpi_media_path=… output_dir=…`. The container writes `gaps.parquet`, `threshold.txt`, `metrics.json`, `weak_samples_breakdown.txt` into `output_dir`. Print the chosen threshold and kept-row counts to stdout so the script-check hook can verify the run produced output. If the output dir is owned by root, `sudo chown -R $(id -u):$(id -g)` it.
+4. Run `docker run … "$DS_IMAGE" gap_analysis vcn_aoi -e vcn_aoi_spec.yaml inference_results_dir=… train_config=… kpi_media_path=… output_dir=…`. The container writes `kpi_gaps.parquet`, `threshold.txt`, `metrics.json`, `weak_samples_breakdown.txt` into `results_dir`. Print the chosen threshold and kept-row counts to stdout so the script-check hook can verify the run produced output. If the output dir is owned by root, `sudo chown -R $(id -u):$(id -g)` it.
 5. If `unreachable_kpi.txt` exists, skip Step 6 and write the abridged report. Otherwise continue.
-6. Pick 10 weak samples (5 weakest PASS + 5 weakest NO_PASS) from `gaps.parquet`, view each test image with Read, classify, and copy each into `rca_images/`.
+6. Pick 10 weak samples (5 weakest PASS + 5 weakest NO_PASS) from `kpi_gaps.parquet`, view each test image with Read, classify, and copy each into `rca_images/`.
 7. Write `RCA_Report.md` last — writing it triggers the packaging hook, which copies session logs and skill config alongside.
