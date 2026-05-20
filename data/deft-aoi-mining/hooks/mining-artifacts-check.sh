@@ -1,4 +1,7 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 # Hook: Verify the DEFT mining run produced all required artifacts alongside the report.
 # The skill must write: target_embeddings.parquet, source_embeddings.parquet, mined.parquet,
 # and mining_summary.txt (the launcher emits this next to mined.parquet).

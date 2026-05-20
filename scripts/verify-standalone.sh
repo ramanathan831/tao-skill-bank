@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 # End-to-end verification: skill bank works standalone (no tao_sdk import required).
 #
 # Requires: NVIDIA driver 580 + CUDA 13.0 + docker + nvidia-container-toolkit 1.19.0 + NGC login + 24GB+ VRAM GPU.

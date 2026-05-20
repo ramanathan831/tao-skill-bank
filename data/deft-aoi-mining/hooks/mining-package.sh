@@ -1,4 +1,7 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 # Hook: Package mining output into timestamped folder with all artifacts
 # Trigger: PostToolUse on Write tool when file matches *Mining_Report.md
 # Toggle: export MINING_HOOKS=0 to disable

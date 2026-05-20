@@ -1,4 +1,7 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 # Shared helper: parse PostToolUse stdin JSON from Claude Code
 # Source this from hooks: source "$(dirname "$0")/_parse-stdin.sh"
 #

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 """Initialize ${RESULTS_DIR}/deft_state.json with a guaranteed-unique key set.
 
 Why this exists: earlier inline-dict writes drifted from the canonical schema

@@ -1,4 +1,7 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 # Hook: Verify every ground-truth label found in inference.csv shows up in the report's
 # Weakness Distribution and Top-K tables. VCN labels are typically PASS / NO_PASS but the
 # CSV may use any string convention — derive labels from the data, not from a hardcoded list.

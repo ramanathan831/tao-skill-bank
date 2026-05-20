@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 """Validate an assembled ChangeNet training CSV before launching training.
 
 Why this exists: `augmentation/mining_pool/mining_pool.csv` is

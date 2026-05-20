@@ -1,4 +1,7 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 # Hook: Catch silent failures in the embed/mine docker invocations and surface them.
 # Watches PostToolUse Bash output for the telltale failure modes:
 #   1. docker missing / image not pulled / wrong tag

@@ -1,4 +1,7 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 # Hook: Verify the VCN gap analysis docker run produced all required artifacts alongside the report.
 # The container writes: gaps.parquet, threshold.txt, metrics.json, weak_samples_breakdown.txt
 # (and unreachable_kpi.txt iff the recall target was not reachable). The skill itself writes rca_images/.

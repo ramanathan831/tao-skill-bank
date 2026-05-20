@@ -1,4 +1,7 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 # Hook: Deep quality and analytical rigor validation for RCA reports
 # Goes beyond word counts — validates analytical chain: evidence → finding → root cause → fix
 # Toggle: export RCA_HOOKS=0 to disable

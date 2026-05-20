@@ -1,4 +1,7 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 # Hook: Deep verification that every RCA phase has substantive content, not just headings
 # Checks section existence, minimum content depth, required analytical elements per section
 # Toggle: export RCA_HOOKS=0 to disable

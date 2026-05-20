@@ -1,4 +1,7 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 # Hook: Verify the VCN gap analysis report has all 7 required sections with substantive content.
 # Lighter than the ChangeNet equivalent — VCN does not have golden audits, defect types, or
 # component-type clustering, so we check only the sections defined in SKILL.md.

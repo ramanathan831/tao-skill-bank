@@ -1,4 +1,7 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 # Hook: Verify the Mining_Report.md has all 7 required sections with substantive content.
 # Toggle: export MINING_HOOKS=0 to disable
 

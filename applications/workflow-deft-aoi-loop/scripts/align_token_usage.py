@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 """Align Claude Code transcript token usage to loop_log stages (post-processing).
 
 Why this exists: `log_stage.py` is a passive writer. The bash orchestrator that

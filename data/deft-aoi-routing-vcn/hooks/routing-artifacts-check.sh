@@ -1,4 +1,7 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 # Hook: Verify the routing skill produced all three filtered parquets, the summary, and
 # that the parquets preserve the input schema. All three parquets must exist even if empty —
 # downstream modules expect a file.

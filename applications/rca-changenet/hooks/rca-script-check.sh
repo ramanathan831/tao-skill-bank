@@ -1,4 +1,7 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 # Hook: Catch silent Python script failures and validate analysis scripts produce output
 # Parses PostToolUse stdin JSON for exit code and stdout content
 # Toggle: export RCA_HOOKS=0 to disable, RCA_HOOKS=1 to enable (default: enabled)

@@ -1,4 +1,7 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 # Hook: Verify every label in the input gaps_parquet appears in the report's Per-Label
 # Routing table. A silently dropped label is the single most likely failure mode of this
 # skill, so we cross-check against the actual parquet rather than trusting the report.

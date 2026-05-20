@@ -1,4 +1,7 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 # Hook: Deep defect coverage validation — not just mentioned, but actually analyzed
 # Verifies each defect type has: score data, sample count, failure mode, visual description,
 # training coverage status, and appears in counterfactual analysis
