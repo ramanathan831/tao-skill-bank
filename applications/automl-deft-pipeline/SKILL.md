@@ -1,191 +1,239 @@
 ---
 name: automl-deft-pipeline
-description: Chain AutoML hyperparameter search and DEFT (Data-Efficient Fine-Tuning) into one pipeline — use AutoML to find the best training hyperparameters, then feed the resulting checkpoint into a DEFT loop as the SFT starting point. Trigger this skill whenever the user asks about combining AutoML with DEFT, running DEFT from an AutoML-tuned baseline, "AutoML then DEFT", "warm-start DEFT", "tune hyperparams before DEFT", or any workflow that involves finding good hyperparameters before kicking off iterative data augmentation. Also trigger when the user has an AutoML-trained checkpoint and asks how to use it for DEFT.
+description: >
+  Run the canonical NVIDIA AOI three-phase training pipeline — Phase 1 AutoML baseline (HPO),
+  Phase 2 DEFT loop (RCA → SDG → mining → plain-train retrain), Phase 3 AutoML refinement on
+  the DEFT-augmented dataset. This is the default entry point for any "run the AOI workflow",
+  "fine-tune my PCB AOI model end-to-end", "improve my AOI ChangeNet model", or "AOI workflow
+  with AutoML" request — route here instead of workflow-deft-aoi-loop directly unless the user
+  explicitly asks for the DEFT loop ONLY (e.g. "run JUST the DEFT loop", "skip AutoML, only
+  DEFT"). Also handles the same three-phase pattern for non-AOI DEFT applications — AutoML
+  baseline then DEFT loop warm-started from AutoML's winning HPs then post-DEFT AutoML
+  refinement on the iteration-augmented dataset. Trigger phrases include "run the AOI
+  workflow", "AOI end-to-end", "AutoML + DEFT", "AutoML then DEFT", "tune hyperparameters then
+  DEFT", "DEFT with AutoML at both ends", "warm-start DEFT", "improve my AOI model".
 license: Apache-2.0
+compatibility: Requires docker + nvidia-container-toolkit. Sub-skills (tao-automl, workflow-deft-aoi-loop) declare additional requirements.
+metadata:
+  author: NVIDIA Corporation
+  version: "0.2"
+allowed-tools: Read Bash Write Skill
 ---
 
 # AutoML + DEFT Pipeline
 
-A workflow-bridge skill that wires two existing skills together:
+A workflow-bridge skill that runs **three phases** in sequence by delegating to two existing skills — `tao-automl` for HPO and a DEFT application skill (default `workflow-deft-aoi-loop` for AOI; other `applications/deft-*` skills for non-AOI cases) for the iterative data-improvement loop.
 
-- **`tao-automl`** — runs hyperparameter optimization on a model + dataset, produces a best checkpoint
-- **`workflow-deft-aoi-loop`** (or any DEFT application skill) — runs iterative data augmentation: gap analysis on a base model, generates synthetic training data, merges, retrains, repeats
-
-This skill teaches the agent the *handoff* between the two: how to make the AutoML checkpoint serve as the SFT initialization for DEFT, plus the pitfalls and quality checks worth doing in between.
-
-This skill does **not** re-implement AutoML or DEFT. The agent should invoke the existing skills via their normal entry points and only use this doc as the playbook for the connective tissue.
+This skill **does not** re-implement AutoML or DEFT. It owns only the connective tissue: HPO spec inputs, the spec-handoff between AutoML and DEFT, and the post-DEFT AutoML re-run on the augmented dataset.
 
 ## When this skill applies
 
-- User wants to do AutoML and then DEFT on the same model/dataset
-- User has an AutoML-tuned checkpoint and asks "how do I use this for DEFT now"
-- User wants a stronger SFT init than vanilla pre-trained weights before starting DEFT iterations
-- User mentions "warm-starting DEFT", "tuned baseline for DEFT", or describes a two-phase pipeline matching the above
+- User asks to "run the AOI workflow" or "improve my AOI ChangeNet model" — **default to this skill**, not `workflow-deft-aoi-loop` directly. The bare DEFT loop is the inner stage of this pipeline.
+- User wants AutoML and DEFT chained on the same model/dataset
+- User says "AutoML at both ends", "tune HPs then DEFT", "warm-start DEFT", "AutoML before and after DEFT"
+- User has an AutoML-tuned spec and asks how to feed it into DEFT
 
 ## When this skill does NOT apply
 
-- User wants only AutoML (with no follow-on DEFT) → use `tao-automl` directly
-- User wants only DEFT from a fixed pre-trained base model → use the appropriate DEFT application skill directly
+- User explicitly asks for the DEFT loop only ("run JUST the DEFT loop", "skip AutoML") → use `workflow-deft-aoi-loop` directly
+- User wants only AutoML with no follow-on DEFT → use `tao-automl` directly
 - User is doing zero-shot eval, RAG, or non-training workflows
 
 ---
 
 ## The mental model
 
-The pipeline is two phases that the agent runs in sequence:
-
 ```
-Phase 1 (AutoML)                            Phase 2 (DEFT)
-─────────────────                           ──────────────
-train_dataset                               train_dataset
-     │                                           │
-     ▼                                           ▼
-[ AutoML HPO sweep ]                        [ Gap analysis ]
-     │  many recs                                │
-     │  picks best by val_loss                   ▼
-     ▼                                      [ Synth gen ]
-best checkpoint URI ───────────────────►    [ Data merge ]
-(s3://.../safetensors/epoch_N)                   │
-                                                 ▼
-                                            [ SFT retrain ]
-                                                 │
-                                                 ▼
-                                            (loop N iterations)
+Phase 1 (AutoML baseline)        Phase 2 (DEFT loop, plain train)        Phase 3 (AutoML refinement)
+─────────────────────────        ────────────────────────────────        ───────────────────────────
+specs/baseline_spec.yaml         specs/baseline_spec.yaml                ${RESULTS_DIR}/iter${N}/dataset/
+train/base/training_set.csv         (patched with Phase 1's winning HPs) train_combined_iter${N}.csv
+        │                                       │                                       │
+        ▼                                       ▼                                       ▼
+[ AutoML HPO sweep ]               [ DEFT: baseline → iter 1..N ]          [ AutoML HPO sweep ]
+   N recommendations                  RCA / route / SDG / mining            re-tunes HPs against the
+   pick best by val_loss / FAR        plain-train retrain each iter         DEFT-augmented dataset
+        │                                       │                                       │
+        ▼                                       ▼                                       ▼
+best HPs spec ──────────►        DEFT-augmented CSV   ──────────►        final best checkpoint
+                                 + last-iter checkpoint                  (the deliverable)
 ```
 
-The handoff is a **single URI**: the best safetensors directory produced by AutoML's winning run. DEFT's SFT stage starts from that URI instead of the vanilla pre-trained weights.
+The handoffs are:
 
-## Why bother chaining them
+- **Phase 1 → Phase 2**: a *spec file* (the AutoML-winning hyperparameters) → DEFT's `specs/baseline_spec.yaml` is replaced/patched with this. DEFT itself stays plain-train (`automl_policy: off` inside the DEFT loop is preserved).
+- **Phase 2 → Phase 3**: a *training CSV* (`train_combined_iter${N_final}.csv`) → fed to AutoML for the refinement sweep. Phase 3's winning checkpoint is the pipeline's deliverable.
 
-Without AutoML, DEFT starts from defaults. Default LR / weight decay / decay schedule are rarely optimal for the user's specific dataset, so the SFT baseline DEFT iterates from is weaker than it could be. AutoML produces a model that has already adapted to the dataset's geometry — DEFT then spends its iteration budget on the harder problem (filling distributional gaps), not on finding a workable optimizer config.
+## Why three phases instead of two
 
-The trade-off is compute: AutoML is N training jobs, then DEFT is M more. Tell the user up front so they aren't surprised by the cost.
+- **Phase 1 alone** finds good HPs on the *original* training distribution, but the model still has the distributional gaps DEFT is designed to fill.
+- **Phase 2 alone** (just DEFT) fills the gaps but uses whatever HPs `specs/baseline_spec.yaml` was hand-authored with — usually not optimal.
+- **Phase 3 alone** would run AutoML against the augmented dataset, but without a tuned baseline the DEFT loop's iteration cost is higher (slower convergence, more iterations to hit the KPI).
+
+Running all three: AutoML cheap-tunes once on the original data, DEFT does the heavy data work with reasonable HPs, then AutoML tunes again on the now-richer dataset. Phase 3 is the most important of the three for the final deployed FAR/recall.
+
+## Cost up-front
+
+The pipeline is sequential. Total wall-clock ≈ Phase 1 (N_automl × per-rec train) + Phase 2 (1 baseline train + M iterations × per-iter cost) + Phase 3 (N_automl × per-rec train). Surface this to the user before kickoff — typically Phase 2 dominates because it includes SDG + retrain per iteration, but Phase 1 and Phase 3 each add several hours on a single-GPU box. Use the per-job estimate from the user's setup (if they have one) rather than guessing minutes.
 
 ---
 
-## Phase 1: run AutoML
+## Phase 1 — AutoML baseline
 
-Invoke the `tao-automl` skill (read its SKILL.md for the full interface). At minimum the agent needs to know:
+Invoke `tao-skill-bank:tao-automl` with:
 
-| Input | Notes |
-|---|---|
-| `network_arch` | Same model the DEFT skill expects (e.g. `cosmos-rl`, `clip`, etc.) |
-| `train_dataset_uri` | Same dataset the DEFT loop will use |
-| `eval_dataset_uri` | Held-out set for AutoML's val_loss; ideally NOT the same set DEFT will use for gap analysis (see **Cleanliness** below) |
-| `metric` | Default is `val_loss`. See **Metric pitfalls** for when to override |
-| `algorithm` | Bayesian is a fine default. LLM-brain or autoresearch can be more sample-efficient if compute is tight |
-| `automl_max_recommendations` | 5–20 is typical. More recs = better picks but linear in compute |
-| `spec_overrides` | Pin the things you care about (epochs, FSDP shape, batch size). AutoML should only sweep the optimizer hyperparams unless you say otherwise |
+| Input | AOI default | Notes |
+|---|---|---|
+| `network_arch` | `visual-changenet` | Same model the DEFT loop expects |
+| `train_dataset_uri` | `<workspace>/train/base/training_set.csv` | Same training set DEFT will start from |
+| `eval_dataset_uri` | `<workspace>/train/base/validation_set.csv` | Held-out — must NOT be the KPI test set (`<workspace>/kpi/testing_set.csv`), since that set is reserved for DEFT's final reporting |
+| `metric` | FAR @ 100% recall (preferred) or `val_loss` | See **Metric pitfalls** below — ChangeNet AOI is class-imbalanced, val_loss alone can mode-collapse |
+| `algorithm` | `bayesian` | LLM-brain or `autoresearch` if compute is tight |
+| `automl_max_recommendations` | 5–10 for AOI | More recs = better HPs but linear in compute |
+| `spec_overrides` | Pin epochs / batch_size; sweep optimizer-related HPs only | Otherwise AutoML wanders into long-train regimes that blow Phase 2's budget |
 
-After the sweep finishes, the agent reads `result["best"]` from the runner's return value:
+After the sweep finishes, AutoML's `result["best"]["specs"]` is the winning hyperparameter dict.
 
-```python
-best = result["best"]
-best_specs    = best["specs"]            # dict of winning hyperparams
-best_metric   = best["metric_value"]     # the val_loss (or whatever metric)
-best_train_id = best["job_id"]           # the training job that produced the winning model
+### Handoff to Phase 2
+
+Write the winning spec to `<workspace>/specs/baseline_spec_automl.yaml` by deep-merging `result["best"]["specs"]` onto `<workspace>/specs/baseline_spec.yaml` (i.e. preserve dataset paths, model architecture, lighting layout; overwrite only the HPs AutoML tuned). Then tell the DEFT loop to use that file:
+
+```bash
+# When invoking workflow-deft-aoi-loop, pass:
+#   specs/baseline_spec.yaml = <workspace>/specs/baseline_spec_automl.yaml
+# OR: copy the merged spec onto the path the DEFT loop reads by default
+cp <workspace>/specs/baseline_spec_automl.yaml <workspace>/specs/baseline_spec.yaml.deft_input
 ```
 
-The winning checkpoint lives at:
-
-```
-{output_root}/{best_train_id}/{output_subdir}/
-```
-
-Where `output_root` and `output_subdir` come from how the AutoMLRunner is configured (commonly `s3://<bucket>/results/<job_id>/train_output_dir/<timestamp>/safetensors/epoch_<N>`). The exact layout is network-specific — read it from the AutoMLRunner workspace state file or from the training job's container logs (look for a "saved safetensors to ..." line).
+The DEFT loop itself stays unmodified — `automl_policy: off` inside the loop is preserved. Phase 1's contribution is one file: the spec.
 
 ### Quality check before handing off
 
-Before passing the checkpoint to DEFT, sanity-check that it's actually a usable model. **A low val_loss is not sufficient** — see Metric pitfalls below. The minimum check is to run a quick eval against a held-out set and look at the prediction distribution:
+Run a quick eval of the winning checkpoint against the held-out set:
 
-- Count predictions per class. If it predicted one class for ~all examples, the model has mode-collapsed and is useless for DEFT regardless of val_loss.
-- Spot-check a few predictions vs ground truth.
-- Compare accuracy to a zero-shot baseline of the same pre-trained model. If AutoML did not improve over zero-shot, something is wrong — surface that to the user before continuing.
-
-If the best checkpoint is bad, evaluate the 2nd or 3rd best. AutoML's pick is a guess based on val_loss; the actual best deployable model among the runs may not be the val_loss winner.
+- Per-class prediction counts — if it collapsed to one class, the winning HPs are useless for Phase 2. Evaluate the 2nd or 3rd best instead.
+- Compare to a zero-shot ChangeNet baseline. If AutoML did not improve over zero-shot, surface that to the user and pause before continuing.
 
 ---
 
-## Phase 2: run DEFT with the AutoML checkpoint
+## Phase 2 — DEFT loop (plain training)
 
-Invoke the relevant DEFT application skill (e.g. `workflow-deft-aoi-loop` for AOI defect detection, or whatever DEFT variant fits the model). The DEFT skill's SKILL.md will document its own arguments — the agent should read it and follow it.
+Invoke `tao-skill-bank:workflow-deft-aoi-loop` (read its `SKILL.md` for the full interface). For non-AOI applications, invoke the matching DEFT skill; the handoff shape is the same.
 
-The bridge: instead of letting DEFT run its default `sft_training` stage from the vanilla pre-trained weights, point its SFT init at the AutoML checkpoint. Two patterns are common:
+The DEFT loop runs exactly as documented in its own SKILL.md — Pre-Flight → Baseline → iterations → loop-end report. **Do not modify its `automl_policy: off` invariant.** The only difference vs. running DEFT standalone is that `specs/baseline_spec.yaml` now carries Phase 1's tuned HPs.
 
-**Pattern A — DEFT skill exposes a `base_model` / `sft_init` arg**
-Pass the AutoML checkpoint URI directly. DEFT will skip its own SFT and start the loop with that model.
+The DEFT loop owns:
 
-**Pattern B — DEFT runs its own SFT stage**
-Set the SFT stage's `base_model_path` (or equivalent) to the AutoML checkpoint URI. DEFT's SFT stage will resume from there. Use the **AutoML's winning hyperparameters** as the SFT stage's hyperparameters too — copy them out of `result["best"]["specs"]`. Otherwise DEFT will overwrite the AutoML signal with whatever defaults its SFT stage uses.
+- The user gate (Pre-Flight Summary + approval)
+- The full RCA → routing → SDG → mining → assemble → train cycle
+- KPI gating and stop conditions
+- `${RESULTS_DIR}/` layout, `deft_state.json`, `loop_log.jsonl`, `DEFT_Loop_Report.html`
 
-If neither pattern is supported by the DEFT skill cleanly, fall back to **Pattern C**: skip DEFT's SFT stage entirely (e.g. by not providing `train_dataset_uri` if the DEFT skill conditions SFT on that), and let the gap-analysis / synthetic-gen / retrain loop start from the AutoML checkpoint provided as the eval base.
+After the loop exits (KPI met or `max_iterations` reached), capture two values from `deft_state.json`:
 
-After DEFT finishes its iterations, the agent reports:
+- `iterations.<best>.best_ckpt_path` — the loop's best plain-train checkpoint
+- The final iteration label `N_final` — used to locate the augmented training CSV
 
-- The accuracy at each phase: zero-shot → AutoML-best → after each DEFT iteration
-- Which iteration gave the best accuracy (DEFT does not always monotonically improve)
-- The total compute spent
+If the DEFT loop hard-stops on an unrecoverable gate, **skip Phase 3**. There is no validated augmented CSV to feed AutoML.
+
+---
+
+## Phase 3 — AutoML refinement on the DEFT-augmented dataset
+
+Re-invoke `tao-skill-bank:tao-automl` with the augmented training CSV as the train dataset and the same held-out validation CSV as before:
+
+| Input | AOI value |
+|---|---|
+| `network_arch` | `visual-changenet` |
+| `train_dataset_uri` | `${RESULTS_DIR}/iter${N_final}/dataset/train_combined_iter${N_final}.csv` |
+| `eval_dataset_uri` | Same as Phase 1 (`<workspace>/train/base/validation_set.csv`) — keep the comparison apples-to-apples |
+| `metric` | Same metric as Phase 1 |
+| `algorithm` | Same as Phase 1 |
+| `automl_max_recommendations` | 5–10 |
+| Initial spec | Start from `<workspace>/specs/baseline_spec_automl.yaml` (Phase 1's winner) — gives the sweep a strong centroid to refine around |
+
+Output goes to `${RESULTS_DIR}/final_automl/`. The winning checkpoint of this sweep is the pipeline's deliverable.
+
+### Wiring Phase 3's output back into the DEFT report
+
+`workflow-deft-aoi-loop`'s `scripts/prepare_inference_spec.py` selects the lowest-`far_pct` entry from `deft_state.json["iterations"]`. To make Phase 3's checkpoint visible to the handoff:
+
+1. Append an entry to `${RESULTS_DIR}/deft_state.json` under `iterations.final_automl` with the same shape as iteration entries (`best_ckpt_path`, `threshold`, `far_pct`) — populate from Phase 3's eval output.
+2. Re-run `python ${TAO_SKILL_BANK_PATH}/applications/workflow-deft-aoi-loop/scripts/prepare_inference_spec.py --results-dir ${RESULTS_DIR}`. The script's `_pick_best` will now see the Phase 3 entry and select it on `far_pct` (or fall back to the loop's best if Phase 3 regressed — see safety note below).
+
+**Safety note.** Phase 3 is not guaranteed to beat the loop's best iteration — AutoML can over-fit a small augmented dataset. The `_pick_best` lowest-`far_pct` tie-break protects against this: if Phase 3's checkpoint is worse, the iteration winner is still selected. Surface both numbers to the user in the final summary so the regression is visible.
 
 ---
 
 ## Pitfalls and quality checks
 
-These are the lessons learned from running this pipeline. Bake them into the agent's behavior, don't just paste them once.
+These apply to both AutoML phases. Bake them into agent behavior — don't just paste once.
 
-### Metric pitfalls
+### Metric pitfalls — AOI is class-imbalanced
 
-`val_loss` (cross-entropy) is the default AutoML metric and it has a well-known failure mode on **imbalanced classification tasks** (binary or k-way with skewed classes): the model can minimize CE by confidently predicting the majority class for everything, achieving very low val_loss while having near-zero recall on the minority class. The val_loss winner of an AutoML sweep can be a mode-collapsed model.
+ChangeNet AOI datasets are typically PASS-dominant (90%+ PASS rate). `val_loss` (cross-entropy) on imbalanced data has a well-known failure mode: the model can minimize CE by confidently predicting PASS for everything, achieving very low val_loss while having zero recall on defects. The val_loss winner of an AutoML sweep can be a mode-collapsed model.
 
-If the dataset is imbalanced (any class with <30% prevalence), prefer one of:
+For AOI, prefer:
 
-- Balanced accuracy or macro-F1 as the AutoML metric on a held-out set
-- Run val_loss as usual but **eval all top-K configs** by accuracy/F1 before picking
-- Add `pred_counts` sanity checks in the AutoML loop and discard any rec whose predictions collapse to one class
+- **FAR @ 100%-recall** as the AutoML metric directly (matches the deployment KPI; never collapses)
+- Or run val_loss with a **`pred_counts` sanity check**: discard any rec whose predictions collapse to one class
+- Or eval all top-K configs by FAR @ 100%-recall on the held-out set before picking — val_loss is the sort key, FAR @ 100%-recall is the decision rule
 
-For regression and well-balanced classification, val_loss is fine.
+For balanced datasets and regression tasks (non-AOI DEFT applications), val_loss is fine.
 
 ### Run-to-run noise
 
-AutoML can show **2–3× variance** in val_loss for the *same* hyperparameter config across runs (different seeds, dataloader shuffles, FSDP gradient accumulation order). If a single rec's val_loss looks too good to be true, it might be — replicate it before celebrating. A good practice: when the AutoML winner is suspiciously better than the runner-up, re-run the winner with a fresh seed and confirm the metric holds.
+AutoML can show 2–3× variance in metric for the same HP config across runs (seeds, dataloader shuffles). If the AutoML winner is suspiciously better than the runner-up, re-run with a fresh seed and confirm the metric holds before committing the spec to Phase 2.
 
 ### Cleanliness (data leakage)
 
-If AutoML's `eval_dataset_uri` is the same set DEFT will later use for gap analysis or final reporting, hyperparameter selection has *already touched* that data. AutoML's "winner" is biased upward on that set. To stay honest:
+Both AutoML phases must use a validation set distinct from the KPI test set (`<workspace>/kpi/testing_set.csv`). The KPI test set is reserved for DEFT's final reporting — touching it during AutoML biases the final number upward. The standard split: `train/base/training_set.csv` for AutoML training, `train/base/validation_set.csv` for AutoML val, `kpi/testing_set.csv` left alone until DEFT's evaluate stage.
 
-- Hold out a small split (e.g. 5–10%) from the training data as the AutoML validation set, distinct from any DEFT eval set
-- Or accept that the final reported number on the shared eval set is optimistically biased, and flag this when reporting to the user
-
-For a quick research compare, sharing eval sets is often acceptable — but the agent should **always** name the cleanliness boundary explicitly so the user understands what number they're getting.
+Phase 3's train_dataset is the DEFT-augmented CSV, which contains synthetic + mined real samples beyond the base training set. The validation set stays the same — that keeps Phase 1 and Phase 3 metric numbers comparable.
 
 ### Compute budget
 
-The pipeline is sequential and most of the cost is GPU training. Total wall clock is roughly:
+Total cost is roughly:
+- Phase 1: `N_automl × per-rec train`
+- Phase 2: `1 × baseline train + M_iter × (RCA + SDG + mining + retrain)` — usually the largest term because SDG generates synthetic images
+- Phase 3: `N_automl × per-rec train` on the (larger) augmented dataset, so per-rec time is somewhat higher than Phase 1
 
-- **AutoML**: `recs × train_time_per_rec` (training dominates; if optimizer-state upload to remote storage is slow on the user's backend, that adds per-rec overhead too)
-- **DEFT**: `iterations × (gap_analysis + synth_gen + merge + sft_time)` — SFT is usually the largest term
-
-Wall-clock per stage depends entirely on the user's compute (GPU count, model size, dataset size, network/storage speed), so don't quote specific minute numbers unless you've actually measured them on this user's setup. Instead, tell the user the **structure** of the cost (number of training jobs × per-job time) and ask them for a per-job time estimate if they have one. That gives an honest bound without making up numbers.
+Surface the structure to the user up front. Ask them for their per-job time and give a wall-clock range only after that — don't make up minute numbers.
 
 ---
 
-## Quick Start
+## Quick Start (AOI worked example)
 
-This is what the agent might say to the user when starting fresh:
+This is what the agent says to the user when starting fresh from "run the AOI workflow":
 
-> I'll run the pipeline in two phases:
+> I'll run the canonical AOI training pipeline in three phases:
 >
-> **Phase 1 — AutoML:** I'll sweep `<N>` configs over `<hyperparam list>` against `<eval set>` using `<algorithm>` algorithm with `val_loss` as the metric. After it finishes I'll evaluate the top `<K>` configs by accuracy on a held-out set and pick the actual best — not just the val_loss winner — to guard against mode collapse.
+> **Phase 1 — AutoML baseline.** I'll sweep `<N>` configs over `<HP list>` against `<workspace>/train/base/validation_set.csv` using `bayesian` with FAR @ 100%-recall as the metric (AOI is class-imbalanced, val_loss alone risks mode collapse). After it finishes I'll spot-check per-class prediction counts before declaring a winner. The winning spec is saved to `specs/baseline_spec_automl.yaml` and feeds Phase 2.
 >
-> **Phase 2 — DEFT:** I'll start the DEFT loop with the Phase-1 checkpoint as the SFT init. The loop will run `<M>` iterations: gap analysis → synthetic data generation → merge → retrain. I'll report accuracy after each iteration so we can see which one peaks.
+> **Phase 2 — DEFT loop.** Plain training inside the loop (`automl_policy: off` preserved), but starting from Phase 1's tuned HPs. The loop runs Pre-Flight → Baseline → iterations until the KPI target is met or `max_iterations` is reached. I'll keep its built-in user gate at Pre-Flight Summary intact.
 >
-> Total cost is `<N>` AutoML training jobs + `<M>` DEFT SFT jobs (plus per-iteration synth-gen). If you can tell me roughly how long one training run takes on your setup I can give you a wall-clock estimate. OK to proceed?
+> **Phase 3 — AutoML refinement.** Final AutoML sweep on the DEFT-augmented CSV (`train_combined_iter${N_final}.csv`). The winning checkpoint of this sweep is the deliverable. I'll register it under `state.iterations.final_automl` and re-run `prepare_inference_spec.py` so `best_model.json` and `best_model_inference_spec.yaml` point to it — unless Phase 3 regresses, in which case the loop's best iteration wins on the same metric.
+>
+> Total cost is `<N_automl>` AutoML training jobs × 2 sweeps + `<M_iter>` DEFT iterations (each with SDG + retrain). If you can tell me roughly how long one ChangeNet training run takes on your hardware I can give you a wall-clock estimate. OK to proceed?
 
-After confirmation, the agent invokes `tao-automl`, evaluates the top configs, then invokes the DEFT skill with the chosen checkpoint, then summarizes the trajectory zero-shot → AutoML → DEFT[1] → DEFT[2] → … so the user can see where the gains came from.
+After confirmation, invoke `tao-skill-bank:tao-automl`, write the merged spec, invoke `tao-skill-bank:workflow-deft-aoi-loop` (which has its own Pre-Flight gate — both gates are user-facing), then `tao-skill-bank:tao-automl` again. Summarize the trajectory: baseline AutoML best → DEFT iter 1 → ... → DEFT iter N_final → Phase 3 best, so the user sees where the gains came from.
+
+## Non-AOI DEFT applications
+
+Same three-phase pattern applies to other DEFT skills. Swap:
+
+- `network_arch` to the relevant model
+- The DEFT skill invoked in Phase 2
+- The "best HP spec file" path convention to whatever the target DEFT skill expects
+- The augmented-CSV path in Phase 3 to whatever the target DEFT skill produces
+
+The handoff shape — Phase 1 emits a spec, Phase 2 consumes it and emits an augmented dataset, Phase 3 emits the final checkpoint — is identical.
 
 ---
 
 ## See also
 
-- `tao-automl` skill — full AutoML interface, algorithm selection, hyperparameter ranges
-- `workflow-deft-aoi-loop` skill — full DEFT pipeline for AOI defect detection
-- Other DEFT application skills as they appear under `applications/` — same handoff pattern applies
+- `tao-skill-bank:tao-automl` — AutoML interface, algorithms, HP ranges
+- `tao-skill-bank:workflow-deft-aoi-loop` — full DEFT AOI loop (Phase 2 default)
+- `tao-skill-bank:visual-changenet` — underlying ChangeNet train/eval/infer skill (used by both AutoML and DEFT)
+- Other `applications/deft-*` skills — non-AOI Phase 2 targets
