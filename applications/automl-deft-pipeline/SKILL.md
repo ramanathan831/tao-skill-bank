@@ -89,7 +89,7 @@ Note that **Phase 2 has no separate baseline train** — Phase 1's winning check
 
 ## Consolidated Pre-Flight — one gate, all three phases
 
-**The pipeline has exactly one user gate.** Before any side-effecting action (docker pull, docker login, `sdk.create_job`, file mutations under `${RESULTS_DIR}/`), the agent must produce a single consolidated Pre-Flight Summary that subsumes every downstream skill's preflight. Once the user approves, the run is autonomous through all three phases — no further interactive pauses.
+**The pipeline has exactly one user gate.** Before any side-effecting action (docker pull, docker login, any job-launch call delegated to a downstream skill, file mutations under `${RESULTS_DIR}/`), the agent must produce a single consolidated Pre-Flight Summary that subsumes every downstream skill's preflight. Once the user approves, the run is autonomous through all three phases — no further interactive pauses.
 
 The user explicitly does not want to be paged between phases. The DEFT loop's own inline `## Pre-Flight Summary` gate becomes a **zero-question display step** (every value pre-supplied from this consolidated gate) rather than a fresh interrogation. Same for `tao-automl`'s shared launch preflight in Phase 1 and Phase 3.
 
