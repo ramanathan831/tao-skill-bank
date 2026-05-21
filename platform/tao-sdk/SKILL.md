@@ -2,7 +2,7 @@
 name: tao-sdk
 description: TAO Execution SDK for submitting and monitoring GPU training jobs on supported platforms (Lepton, Brev, SLURM, local Docker, Kubernetes). Use when the user wants job tracking, S3 I/O wrapping, multi-node distributed training, or platform-specific features that docker-run can't provide.
 license: Apache-2.0
-compatibility: Requires Python 3.10+ and the nvidia-tao-sdk package (pip install nvidia-tao-sdk).
+compatibility: Requires Python 3.10+ and the nvidia-tao-sdk package (pip install nvidia-tao-sdk[all]).
 metadata:
   author: NVIDIA Corporation
   version: '0.2'
@@ -24,17 +24,17 @@ The SDK is the **optional** Python layer for users who need job handles, S3 I/O 
 
 ## Preflight
 
-`nvidia-tao-sdk` is not on public PyPI yet — install from the GitLab repo via `pip` direct-URL, pinning the platform extra you'll use:
+Install `nvidia-tao-sdk[all]` before using this platform — the `[all]` extra pulls in every platform-specific dependency (Lepton, Brev, S3 utilities, etc.):
 
 ```bash
-REPO='git+https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-sdk.git'
 python -c "import tao_sdk" 2>/dev/null || {
   echo "MISSING: nvidia-tao-sdk not installed. Run:"
-  echo "  pip install \"nvidia-tao-sdk[lepton] @ \$REPO\"      # or [brev], [docker], [slurm], [kubernetes], [all]"
-  echo "  REPO=$REPO"
+  echo "  pip install nvidia-tao-sdk[all]"
   exit 1
 }
 ```
+
+The package index is environment-specific — the runner/container is expected to have a working `pip` configuration (e.g. `~/.pip/pip.conf`, `PIP_INDEX_URL`, `PIP_EXTRA_INDEX_URL`, or proxy). If the install fails for index/network reasons, that's a runner setup issue; this skill stays agnostic to the registry.
 
 If missing, the agent prompts the user to authorize the install via Bash, then re-runs the preflight. Never auto-install silently.
 
