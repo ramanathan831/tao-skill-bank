@@ -25,7 +25,14 @@ Visual ChangeNet is a TAO Toolkit model for visual inspection and defect detecti
 - **Classify** — Binary image classification using a siamese-style architecture with a shared backbone (C-RADIO ViT) and a learnable difference module. Compares image pairs to classify defects as PASS/NO_PASS.
 - **Segment** — Pixel-level change segmentation using a ViT-Large NVDINOv2 backbone. Compares before/after image pairs to produce a binary change mask.
 
-The backbone weight (`c_radio_v2_vit_base_patch16_224`) is downloaded from Hugging Face at runtime: `https://huggingface.co/nvidia/C-RADIOv2-B`. Ensure the runtime has Hugging Face access when required. The default spec path `model.backbone.pretrained_backbone_path: /workspace/weights/backbone.pth` is resolved by the container infrastructure.
+The backbone weight (`c_radio_v2_vit_base_patch16_224`) is the `nvidia/C-RADIOv2-B` model from HuggingFace, distributed as `model.safetensors` (~393 MB). **The TAO 7.0.0-rc container does not auto-fetch from HF URLs** — `ptm_utils.load_pretrained_weights()` hands the `pretrained_backbone_path` value to `torch.load(path)` / `safetensors.torch.load_file(path)` directly. Passing an `https://huggingface.co/...` URL or a repo id produces `FileNotFoundError` and the run fails with `Execution status: FAIL` within a few seconds. Stage the file locally before launch:
+
+```bash
+python3 -c "from huggingface_hub import hf_hub_download; import shutil; \
+shutil.copy(hf_hub_download('nvidia/C-RADIOv2-B', 'model.safetensors'), '<workspace>/backbone/c_radio_v2_b.safetensors')"
+```
+
+Mount it into the container (`-v <workspace>/backbone/c_radio_v2_b.safetensors:/data/pretrained_models/C-RADIOv2_B.safetensors`) and set the spec `model.backbone.pretrained_backbone_path` to the container path. `HF_TOKEN` is only needed at staging time, not at training time.
 
 ## Dataclass Schemas
 

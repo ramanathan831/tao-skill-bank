@@ -26,7 +26,9 @@ results_dir: ''
 model:
   backbone:
     type: c_radio_v2_vit_base_patch16_224
-    pretrained_backbone_path: https://huggingface.co/nvidia/C-RADIOv2-B
+    # Must be a LOCAL file path the container can read (TAO does not dereference
+    # HTTPS URLs or HF repo ids). Stage from HF before launch — see SKILL.md.
+    pretrained_backbone_path: /data/pretrained_models/C-RADIOv2_B.safetensors
     freeze_backbone: false
   classify:
     train_margin_euclid: 2.0
