@@ -182,7 +182,7 @@ Append a matching `baseline.train` entry to `loop_log.jsonl` via `scripts/log_st
 
 **Step 4 — Invoke DEFT.** When the DEFT loop reads its state on startup it will see `iterations.baseline.stage_completed == "train"` and skip directly to baseline inference → evaluate → RCA → iter 1. `automl_policy: off` inside the loop is preserved.
 
-> **Compatibility note.** If the installed `workflow-deft-aoi-loop` skill version does not honour a pre-seeded `iterations.baseline.stage_completed`, fall back to the older behaviour (re-train baseline from the merged spec) and surface the wasted-compute caveat to the user. The skill is on track to support the seeded-baseline path in 0.2+.
+> **DEFT honors this handoff.** `workflow-deft-aoi-loop` checks `iterations.baseline.stage_completed == "train"` on startup (Workflow step 2 / Pipeline baseline block in its `SKILL.md`) and resumes at baseline inference against the pre-seeded checkpoint — no retrain.
 
 ### Quality check before handing off
 
