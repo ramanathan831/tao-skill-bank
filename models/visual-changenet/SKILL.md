@@ -42,7 +42,7 @@ Visual ChangeNet has two separate task modes with different dataset types and da
 - **Dataset type:** visual_changenet_classify
 - **Formats:** default
 - **Accepted dataset intents:** training, evaluation, testing, calibration
-- **Monitoring metric:** val_acc
+- **Monitoring metric:** val_loss
 
 #### Per-Action Dataset Requirements (Classify)
 
@@ -70,7 +70,7 @@ Visual ChangeNet has two separate task modes with different dataset types and da
 - **Dataset type:** visual_changenet_segment
 - **Formats:** default
 - **Accepted dataset intents:** training, calibration
-- **Monitoring metric:** val_acc
+- **Monitoring metric:** val_loss
 
 Segment uses a paired directory structure (`A/`, `B/`, `list/`, `label/`) instead of CSV + images. The `root_dir` spec key points to the top-level directory containing all four subdirectories.
 
