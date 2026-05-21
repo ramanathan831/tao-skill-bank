@@ -224,7 +224,7 @@ elif mode == "config":
 
 ### Spec-driven jobs
 
-The skill's action declares a config file (`config_format`, `command: ... {config_path} ...`). Covers TAO models (DINO, BEVFusion, classification-pyt, …), cosmos-rl, cosmos-predict-2-5's config-driven actions — anything whose container reads a spec file and writes outputs to declared spec keys. Use whichever platform SDK fits the target backend; the `build_entrypoint` call is identical across platforms.
+The skill's action declares a config file (`config_format`, `command: ... {config_path} ...`). Covers TAO models (DINO, BEVFusion, classification-pyt, …) and cosmos-rl — anything whose container reads a spec file and writes outputs to declared spec keys. Use whichever platform SDK fits the target backend; the `build_entrypoint` call is identical across platforms.
 
 ```python
 import yaml

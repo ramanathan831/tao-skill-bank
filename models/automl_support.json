@@ -573,11 +573,5 @@
       "train_spec_template": "references/spec_template_train.yaml"
     }
   ],
-  "unsupported": [
-    {
-      "model": "cosmos-predict-2-5",
-      "network_arch": "cosmos-predict-2-5",
-      "reason": "schemas/train.schema.json is not packaged"
-    }
-  ]
+  "unsupported": []
 }
