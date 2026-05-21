@@ -86,6 +86,8 @@ Run inference on both the best-val checkpoint (lowest `val_loss`) and the latest
 (highest epoch). `val_loss` and FAR@100%-recall can diverge — pick the checkpoint with
 **lower FAR@100%-recall**, not lower val_loss. See `scripts/analyze_kpi.py` for KPI sweep.
 
+**Wait for container exit before listing the output directory.** TAO ChangeNet's `inference` and `evaluate` actions emit their CSV (`inference.csv` / evaluate's per-sample CSV) atomically at `on_predict_epoch_end` / `on_test_epoch_end` — the very last step of the predict/test loop. A `find` or `ls` against `inference.results_dir` while the container is still mid-loop will return zero CSV files, which has previously sent agents down false debug paths (suspecting wandb init, `predict_step` returning `None`, `results_dir` mismatch, etc.). The `predict_step returned None if it was on purpose, ignore this warning` line in the inference log is a Lightning warning TAO intentionally suppresses — the writer callback emits the CSV from accumulated state, not from per-batch returns. Block on the docker invocation's exit (do not background-poll mid-run), then list outputs.
+
 ## analyze_kpi.py
 
 ```bash
@@ -116,14 +118,47 @@ Key output line: `100% recall threshold: <T> (FAR=<FAR>%, ...)` — this is the 
 
 ## ChangeNet backbone resolution
 
-`model.backbone.pretrained_backbone_path` must point to one of:
+`model.backbone.pretrained_backbone_path` must point to a **local file path inside the container** — `/data/pretrained_models/C-RADIOv2_B.pth`. There is no HF-URL fallback: TAO 7.0.0+ treats a URL value as a literal filesystem path and dies with `FileNotFoundError` ~30 s into training. Never leave the field `null` or empty either — FAR@R=100% degrades silently without the pretrained backbone and the failure mode looks like a training problem.
 
-1. `<workspace>/augmentation/backbone/c_radio_v2_b.{pth,ckpt}` if present — staged file, faster cold start, works air-gapped.
-2. `https://huggingface.co/nvidia/C-RADIOv2-B` otherwise — TAO container pulls at runtime with `HF_TOKEN` (~393 MB one-time, cached for the run).
+**Pre-Flight always stages the weights**, even on resume. Steps:
 
-Never leave the field `null` or empty — FAR@R=100% degrades silently without the pretrained backbone and the failure mode looks like a training problem.
+```bash
+STAGED="$WORKSPACE/augmentation/backbone/c_radio_v2_b.pth"
+if [ ! -f "$STAGED" ]; then
+  mkdir -p "$(dirname "$STAGED")"
+  # 1) Download nvidia/C-RADIOv2-B/model.safetensors (~375 MB) via huggingface_hub
+  python3 - <<PY
+import os
+from huggingface_hub import hf_hub_download
+hf_hub_download('nvidia/C-RADIOv2-B', 'model.safetensors',
+                local_dir='$(dirname "$STAGED")',
+                token=os.environ['HF_TOKEN'])
+PY
+  # 2) Convert safetensors -> .pth inside the TAO container so torch/safetensors versions match
+  docker run --rm \
+      -v "$(dirname "$STAGED"):/data/backbone" \
+      --entrypoint=python3 "$TAO_PYT_IMAGE" -c "
+from safetensors.torch import load_file
+import torch
+torch.save(load_file('/data/backbone/model.safetensors'), '/data/backbone/c_radio_v2_b.pth')"
+fi
+```
 
-Pre-Flight rewrites the spec to whichever option resolves; do not halt on a missing staged file (the HF URL is the fallback).
+Then rewrite the spec field and add the bind-mount to every training / inference / evaluate launch:
+
+```yaml
+# specs/baseline_spec.yaml
+model:
+  backbone:
+    pretrained_backbone_path: /data/pretrained_models/C-RADIOv2_B.pth
+```
+
+```bash
+# docker run ...
+-v "$STAGED":/data/pretrained_models/C-RADIOv2_B.pth
+```
+
+`HF_TOKEN` must be set in the workspace `.env` (the model gate is not closed but the HF Hub client expects it). The `~375 MB` download is a one-time cost per workspace; subsequent runs hit the staged `.pth` and skip the download branch.
 
 ## Label case rule (CSV assembly)
 
