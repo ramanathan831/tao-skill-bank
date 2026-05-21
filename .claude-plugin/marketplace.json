@@ -15,7 +15,6 @@
       "strict": true,
       "skills": [
         "./applications/automl-deft-pipeline",
-        "./applications/deft-cosmos-rl",
         "./applications/normal-train",
         "./applications/rca-changenet",
         "./applications/tao-automl",
@@ -27,7 +26,6 @@
         "./data/deft-aoi-mining",
         "./data/deft-aoi-rca-vcn",
         "./data/deft-aoi-routing-vcn",
-        "./data/qwen-caption",
         "./data/video-reasoning-annotation",
         "./models/action-recognition",
         "./models/bevfusion",
@@ -37,7 +35,6 @@
         "./models/classification-pyt/deploy",
         "./models/clip",
         "./models/clip/deploy",
-        "./models/cosmos-predict-2-5",
         "./models/cosmos-rl",
         "./models/deformable-detr",
         "./models/deformable-detr/deploy",

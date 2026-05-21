@@ -116,9 +116,9 @@ For more complex workflows (iterative fine-tuning with synthetic data augmentati
 | Layer | Purpose | Examples |
 |---|---|---|
 | `models/` | Network-centric skills: containers, commands, data formats, checkpoints | `cosmos-rl`, `visual-changenet`, `clip`, `vila`, `dino`, `segformer`, … |
-| `data/` | Data preparation, analysis, and enhancement | `knn-mining`, `siglip-embed`, `qwen-caption`, `nim-embedding`, `vcn-*`, `deft-aoi-*` |
+| `data/` | Data preparation, analysis, and enhancement | `knn-mining`, `siglip-embed`, `nim-embedding`, `vcn-*`, `deft-aoi-*` |
 | `platform/` | Where and how jobs run | `docker` (conventions), `brev` (instance-based GPU), `lepton` (DGX Cloud API), `slurm` (remote SLURM cluster), `local-docker` (local Docker daemon), `tao-sdk` (optional Python) |
-| `applications/` | End-to-end workflows composing the layers above | `workflow-deft-aoi-loop`, `deft-cosmos-rl`, `deft-vcn-aoi`, `rca-changenet`, `normal-train`, `tao-automl` |
+| `applications/` | End-to-end workflows composing the layers above | `workflow-deft-aoi-loop`, `deft-vcn-aoi`, `rca-changenet`, `normal-train`, `tao-automl` |
 
 Each skill is a directory with `SKILL.md` (agent-readable instructions). Optional `references/skill_info.yaml` provides structured metadata for SDK-orchestrated execution; optional `scripts/` bundles supporting code.
 

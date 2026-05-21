@@ -100,7 +100,6 @@ def compatibility_for(skill_path: str) -> str:
 # Most other skills only read inputs and shell out (Bash for docker / python / aws).
 _ORCHESTRATOR_PATHS = {
     "applications/workflow-deft-aoi-loop",
-    "applications/deft-cosmos-rl",
     "applications/deft-vcn-aoi",
     "applications/tao-automl",
     "applications/normal-train",

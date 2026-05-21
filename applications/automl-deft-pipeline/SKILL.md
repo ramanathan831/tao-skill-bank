@@ -9,7 +9,7 @@ license: Apache-2.0
 A workflow-bridge skill that wires two existing skills together:
 
 - **`tao-automl`** — runs hyperparameter optimization on a model + dataset, produces a best checkpoint
-- **`deft-cosmos-rl`** (or any DEFT application skill) — runs iterative data augmentation: gap analysis on a base model, generates synthetic training data, merges, retrains, repeats
+- **`workflow-deft-aoi-loop`** (or any DEFT application skill) — runs iterative data augmentation: gap analysis on a base model, generates synthetic training data, merges, retrains, repeats
 
 This skill teaches the agent the *handoff* between the two: how to make the AutoML checkpoint serve as the SFT initialization for DEFT, plus the pitfalls and quality checks worth doing in between.
 
@@ -108,7 +108,7 @@ If the best checkpoint is bad, evaluate the 2nd or 3rd best. AutoML's pick is a 
 
 ## Phase 2: run DEFT with the AutoML checkpoint
 
-Invoke the relevant DEFT application skill (e.g. `deft-cosmos-rl` for video-QA, or whatever DEFT variant fits the model). The DEFT skill's SKILL.md will document its own arguments — the agent should read it and follow it.
+Invoke the relevant DEFT application skill (e.g. `workflow-deft-aoi-loop` for AOI defect detection, or whatever DEFT variant fits the model). The DEFT skill's SKILL.md will document its own arguments — the agent should read it and follow it.
 
 The bridge: instead of letting DEFT run its default `sft_training` stage from the vanilla pre-trained weights, point its SFT init at the AutoML checkpoint. Two patterns are common:
 
@@ -187,5 +187,5 @@ After confirmation, the agent invokes `tao-automl`, evaluates the top configs, t
 ## See also
 
 - `tao-automl` skill — full AutoML interface, algorithm selection, hyperparameter ranges
-- `deft-cosmos-rl` skill — full DEFT pipeline for Cosmos-RL video QA
-- Other DEFT application skills as they appear under `applications/deft-*` — same handoff pattern applies
+- `workflow-deft-aoi-loop` skill — full DEFT pipeline for AOI defect detection
+- Other DEFT application skills as they appear under `applications/` — same handoff pattern applies

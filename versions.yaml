@@ -18,7 +18,6 @@ images:
     deploy:             nvcr.io/nvstaging/tao/tao-toolkit-deploy:7.0.0-rc-167-multiarch
     data_services:      nvcr.io/nvstaging/tao/tao-toolkit-ds:7.0.0-rc-178-multiarch
     cosmos_rl:          nvcr.io/nvstaging/tao/cosmos_rl:7.0.0-rc-170-multiarch
-    cosmos_predict_2_5: nvcr.io/nvstaging/tao/cosmos-predict:7.0.0-rc-54
     cosmos_embed:       nvcr.io/nvstaging/tao/cosmos-embed:7.0.0-rc-44
     vila:               nvcr.io/nvidia/tao/tao-toolkit:6.26.3-vila
 

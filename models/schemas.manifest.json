@@ -53,13 +53,6 @@
       "failures": {},
       "network_arch": "clip"
     },
-    "cosmos-predict-2-5": {
-      "actions": [],
-      "failures": {
-        "generate": "cosmos-predict-2-5: ModuleNotFoundError: No module named 'nvidia_tao_core.config.cosmos-predict-2-5'; cosmos_predict_2_5: ModuleNotFoundError: No module named 'nvidia_tao_core.config.cosmos_predict_2_5'"
-      },
-      "network_arch": "cosmos-predict-2-5"
-    },
     "cosmos-rl": {
       "actions": [
         "evaluate",
