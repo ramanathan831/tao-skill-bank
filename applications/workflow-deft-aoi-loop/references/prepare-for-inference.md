@@ -69,6 +69,7 @@ cp ${RESULTS_DIR}/best_model_inference_spec.yaml /tmp/my_inference.yaml
 
 # 3. Run inference. Mount paths from best_model.json into the container.
 docker run --rm --gpus all --shm-size=8g \
+    --user "$(id -u):$(id -g)" \
     -v <your_csv_dir>:/data/infer \
     -v $(jq -r .images_dir ${RESULTS_DIR}/best_model.json):/data/images \
     -v $(jq -r .checkpoint ${RESULTS_DIR}/best_model.json):/model/best.pth \

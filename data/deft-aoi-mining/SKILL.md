@@ -60,7 +60,7 @@ A GPU is required for both the encoder forward pass and the cuML/cuDF k-NN searc
 
 ```bash
 WORKSPACE=<absolute path that contains all parquets, outputs, and the source-pool images>
-DOCKER="docker run --gpus all --rm --ipc=host -v $WORKSPACE:$WORKSPACE -w $WORKSPACE $DS_IMAGE"
+DOCKER="docker run --gpus all --rm --ipc=host --user $(id -u):$(id -g) -v $WORKSPACE:$WORKSPACE -w $WORKSPACE $DS_IMAGE"
 ```
 
 Reuse `$DOCKER` for the three invocations below.
@@ -174,6 +174,7 @@ EOF
 
 # Step 1: embed targets
 docker run --gpus all --rm --ipc=host \
+    --user "$(id -u):$(id -g)" \
     -v "$WORKSPACE:$WORKSPACE" -w "$WORKSPACE" \
     "$IMG" embedding image_embeddings \
     -e "$EMBED_SPEC" \
@@ -182,6 +183,7 @@ docker run --gpus all --rm --ipc=host \
 
 # Step 2: embed source pool (SAME embedding spec as Step 1)
 docker run --gpus all --rm --ipc=host \
+    --user "$(id -u):$(id -g)" \
     -v "$WORKSPACE:$WORKSPACE" -w "$WORKSPACE" \
     "$IMG" embedding image_embeddings \
     -e "$EMBED_SPEC" \
@@ -190,6 +192,7 @@ docker run --gpus all --rm --ipc=host \
 
 # Step 3: mine nearest neighbours
 docker run --gpus all --rm --ipc=host \
+    --user "$(id -u):$(id -g)" \
     -v "$WORKSPACE:$WORKSPACE" -w "$WORKSPACE" \
     "$IMG" tmm nearest_neighbors \
     -e "$MINE_SPEC" \
@@ -209,8 +212,6 @@ for name, p in [('target_embeddings', '$OUT/target_embeddings.parquet'),
 ```
 
 Print the row counts and column lists at the end so the script-check hook can verify each step actually produced output.
-
-> **About output ownership:** the container may run as root, leaving output parquets owned by `root` on the host. If a later host-side step needs to write into the output dir, follow the docker block with `sudo chown -R $(id -u):$(id -g) "$OUT"`.
 
 ---
 
@@ -249,7 +250,6 @@ The mined parquet is the artifact downstream training consumes. The two embeddin
 - **Path resolution mismatch between host and container** — every parquet path passed in args must be readable inside the container. The simplest fix is the `-v $WORKSPACE:$WORKSPACE` pattern from Setup so paths resolve identically on both sides. If you mount `<host>:<other-path>`, pass the in-container path in the args, not the host one.
 - **No GPU available** — both steps need CUDA. Check `nvidia-smi` once at the top; the entrypoint's error is clear but it surfaces late in a long run.
 - **Image not pulled / wrong tag** — resolve `tao_toolkit.data_services` from `versions.yaml` and `docker pull "$DS_IMAGE"` before the run. The data-services tag declared there is required; the generic `:latest` tag does not contain the AOI-specific embedding/mining entrypoints.
-- **Output files owned by root** — the container runs as root by default. If subsequent host-side steps fail with `Permission denied`, `sudo chown -R $(id -u):$(id -g)` the output dir.
 - **`topn` × N_targets ≫ source size** — the dedup pass will run out of unique source images and the mined parquet will be much smaller than `topn × N_targets`. This is expected, not a bug; report the actual mined count, not the requested one.
 
 ---
