@@ -20,10 +20,7 @@ CLI:
         --kpi-target "FAR < 10% at recall=100%" \
         --max-iterations 2 \
         --num-gpus 4 \
-        --num-epochs 20 \
-        --num-sdg 20 \
-        --project nvpcb \
-        --step 14000
+        --num-epochs 20
 
 The output schema mirrors `references/deft_state.json` exactly.
 """
@@ -42,7 +39,6 @@ import tempfile
 _COMPLETED_STEP_VALUES = [
     "evaluate",
     "rca",
-    "anomalygen_finetune",
     "anomalygen",
     "routing",
     "data_mining",
@@ -50,9 +46,37 @@ _COMPLETED_STEP_VALUES = [
     "loop_stop",
 ]
 _STATUS_VALUES = ["pending", "in_progress", "complete", "failed"]
-_DEFAULT_TRAIN_CONTAINER = "nvcr.io/nvidia/tao/tao-toolkit:6.26.3-pyt"
-_DEFAULT_AG_CONTAINER = (
-    "nvcr.io/nv-metropolis-dev/metropolis-sdg/cosmos-anomalygen:1.0.3-36cdfca9.main"
+
+
+def _resolve_train_container_from_versions_yaml() -> str | None:
+    """Return the resolved tao_toolkit.pyt image URI from versions.yaml.
+
+    Looks at TAO_SKILL_BANK_PATH (exported by the plugin's session_start
+    hook). Returns None if the env var is unset, the file is missing, or the
+    key path is absent — caller falls back to --train-container or the legacy
+    default. Importing yaml is best-effort; failure on PyYAML missing returns
+    None too, so the script stays usable on minimal hosts.
+    """
+    sb = os.environ.get("TAO_SKILL_BANK_PATH")
+    if not sb:
+        return None
+    vy = pathlib.Path(sb) / "versions.yaml"
+    if not vy.is_file():
+        return None
+    try:
+        import yaml  # type: ignore[import-untyped]
+    except ImportError:
+        return None
+    try:
+        data = yaml.safe_load(vy.read_text())
+        return str(data["images"]["tao_toolkit"]["pyt"])
+    except (KeyError, TypeError, yaml.YAMLError):
+        return None
+
+
+_DEFAULT_TRAIN_CONTAINER = (
+    _resolve_train_container_from_versions_yaml()
+    or "nvcr.io/nvidia/tao/tao-toolkit:6.26.3-pyt"
 )
 
 
@@ -81,37 +105,22 @@ def build_state(args: argparse.Namespace) -> dict:
             "batch_size": args.batch_size,
             "num_epochs": args.num_epochs,
             "anomalygen": {
-                "sub_skill": "cosmos-anomalygen",
-                "mode": "inference_only",
-                "project": args.project,
-                # defect_spec lives under `datasets/<project>/` (sibling of
-                # `checkpoints/<project>/`), per references/cosmos-anomalygen.md.
+                # EA variant: ingest pre-generated NG/OK pairs from the
+                # customer-supplied directory every iter; synth and real are
+                # mined together via k-NN (no SDG bypass, no per-iter cap).
+                # See SKILL.md Pipeline step 3.
+                "sub_skill": None,
+                "mode": "pregen_ingest",
+                "pregen_dir": str(ws / "augmentation" / "anomalygen"),
+                "reconstructed_image_dir": str(
+                    ws / "augmentation" / "anomalygen" / "reconstructed_image"
+                ),
+                "original_image_dir": str(
+                    ws / "augmentation" / "anomalygen" / "original_image"
+                ),
                 "defect_spec": str(
-                    ws
-                    / "augmentation"
-                    / "anomalygen"
-                    / "datasets"
-                    / args.project
-                    / "defect_spec.jsonl"
+                    ws / "augmentation" / "anomalygen" / "defect_spec.jsonl"
                 ),
-                # ag_checkpoint_dir: the directory holding ag_config.yaml +
-                # checkpoints/{latest_checkpoint.txt, model/iter_<step>.pt, ...}.
-                # The underlying skill takes this as `ag_checkpoint_dir`.
-                "checkpoint_dir": str(
-                    ws
-                    / "augmentation"
-                    / "anomalygen"
-                    / "checkpoints"
-                    / args.project
-                ),
-                # dataset_dir: parent-staged pool root; not the raw datasets/.
-                # Resolved per-iteration to `${RESULTS_DIR}/iter${N}/pool_anomalygen/inputs/`.
-                "dataset_dir_source": str(
-                    ws / "augmentation" / "anomalygen" / "datasets" / args.project
-                ),
-                "step": args.step,
-                "num_SDG": args.num_sdg,
-                "container": args.ag_container,
             },
             "mining_filter": {
                 "sub_skill": "deft-aoi-mining",
@@ -160,9 +169,6 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-iterations", required=True, type=int)
     parser.add_argument("--num-gpus", required=True, type=int)
     parser.add_argument("--num-epochs", required=True, type=int)
-    parser.add_argument("--num-sdg", required=True, type=int)
-    parser.add_argument("--project", required=True, help="AnomalyGen project name (e.g. nvpcb)")
-    parser.add_argument("--step", required=True, type=int, help="AnomalyGen checkpoint step")
     parser.add_argument("--batch-size", default=16, type=int)
     parser.add_argument("--top-k-per-target", default=5, type=int)
     parser.add_argument(
@@ -177,7 +183,6 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Cosine similarity threshold for mining (e.g. 0.9). Omit for none.",
     )
     parser.add_argument("--train-container", default=_DEFAULT_TRAIN_CONTAINER)
-    parser.add_argument("--ag-container", default=_DEFAULT_AG_CONTAINER)
     parser.add_argument(
         "--force",
         action="store_true",

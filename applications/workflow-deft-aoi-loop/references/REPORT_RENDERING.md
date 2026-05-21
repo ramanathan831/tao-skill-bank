@@ -121,13 +121,17 @@ in the template:
 
 | Strip | Source path |
 |---|---|
-| AnomalyGen Input | `inputs/dataset/<cat>/anomaly_image/` |
-| AnomalyGen Output | `sdg/reconstructed_image/` |
+| AnomalyGen OK (golden) | `${RESULTS_DIR}/iter${N}/dataset/images/synthetic_iter${N}_ok/` |
+| AnomalyGen NG (input)  | `${RESULTS_DIR}/iter${N}/dataset/images/synthetic_iter${N}_ng/` |
+
+EA variant: these dirs are populated by the pre-gen ingest stage
+(`scripts/changenet_data_pair_prepare.py` staging output), not by an SDG
+container. Sample selection still works on the same iter-scoped staging tree.
 
 Emit **exactly one** `.sample-iter-block` containing **one** pair — not one per
 iteration. Selection rule: pick the first existing pair (sorted by filename)
-from the best iteration. If the best iteration has no AnomalyGen output, fall
-back to the most recent iteration that does; if none, emit two
+from the best iteration. If the best iteration has no staged synthetic pair,
+fall back to the most recent iteration that does; if none, emit two
 `<div class="sample-img-placeholder">No image</div>` cells. The earlier `Normal`,
 `OV SDG Defect`, and `Mask` columns were removed and the per-iteration loop was
 collapsed — do not emit any of them. Rationale: every extra sample is one more

@@ -49,6 +49,37 @@ which manifests as "checkpoint not found" downstream. Edit the spec to match
 the table above before launching; do not change the parent's pre-create
 convention.
 
+## DEFT Iter Training — Init Convention
+
+For every iteration N≥1, **init from the previous iter's best checkpoint via `train.pretrained_model_path`, not `train.resume_training_checkpoint_path`.**
+
+```bash
+# CORRECT for DEFT iter N (fresh epoch counter, weights from prev best)
+train.pretrained_model_path=${prev_best_ckpt}
+
+# WRONG for DEFT iter N — Lightning inherits current_epoch from the checkpoint,
+# sees current_epoch >= max_epochs (baseline already used up max_epochs),
+# and exits with `Trainer.fit stopped: max_epochs=N reached` after zero training steps.
+train.resume_training_checkpoint_path=${prev_best_ckpt}
+```
+
+`resume_training_checkpoint_path` is for **interrupted-run resumption** within the same iteration (preserves optimizer state, scheduler, epoch counter — semantics designed for "kill -9 → restart" cases). DEFT iters logically restart the trainer for a new dataset + epoch budget, so they need fresh `pretrained_model_path` init.
+
+Failure mode is silent: `Execution status: PASS` despite no training. Symptom: iter N's train output dir has no new `model_epoch_*.pth`. If you see this, switch the flag.
+
+## Per-Iter Spec `images_dir` — Asymmetric
+
+When deriving `iter${N}_spec.yaml` from `baseline_spec.yaml`, **only `train_dataset.images_dir` moves to the workspace root**; the other dataset blocks keep the kpi-images mount:
+
+| Dataset block | images_dir (container path) | Why |
+|---|---|---|
+| `train_dataset` | `/data/workspace` | iter combined CSV mixes base rows (`kpi/images/...`) and SDG rows (`results/run_<TS>/iter${N}/dataset/images/...`) — both are workspace-root-relative after assembly |
+| `validation_dataset` | `/data/datasets/NV_PCB_Siamese/images` | validation_set.csv carries paths relative to kpi/images/ (the kpi mount root); unchanged from baseline |
+| `test_dataset` | `/data/datasets/NV_PCB_Siamese/images` | same — usually points at validation_set.csv |
+| `infer_dataset` | `/data/datasets/NV_PCB_Siamese/images` | testing_set.csv carries paths relative to kpi/images/ |
+
+A bulk `sed 's|/data/datasets/NV_PCB_Siamese/images|/data/workspace|g'` on the spec catches all four and breaks the latter three. Edit `train_dataset.images_dir` surgically.
+
 ## Two-Checkpoint Compare
 
 Run inference on both the best-val checkpoint (lowest `val_loss`) and the latest checkpoint
