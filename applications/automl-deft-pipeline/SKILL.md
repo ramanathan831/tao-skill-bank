@@ -103,6 +103,10 @@ Before printing anything to the user, **open and read every downstream skill's p
 
 Then run **every read-only check** those preflight sections prescribe — image resolution, `docker image inspect`, file existence, basename pairing, row counts, value-count distributions, leakage diff, GPU memory query, host Python dependency check. The user should see the *outcome* of each check in the summary, not be asked to run it themselves.
 
+#### Required: run every step of the DEFT skill's `## Pre-Flight`
+
+Run **every check in `applications/workflow-deft-aoi-loop/SKILL.md` `## Pre-Flight`** (or, for non-AOI runs, the corresponding `applications/deft-*` SKILL.md `## Pre-Flight`) as part of the consolidated pre-flight, before printing the summary. If any step is skipped, the consolidated gate is invalid and the pipeline must not advance.
+
 ### Mandatory contents of the consolidated summary
 
 The summary must include, in this order:
