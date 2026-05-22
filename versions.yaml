@@ -21,9 +21,6 @@ images:
     cosmos_embed:       nvcr.io/nvstaging/tao/cosmos-embed:7.0.0-rc-44
     vila:               nvcr.io/nvidia/tao/tao-toolkit:6.26.3-vila
 
-  metropolis_sdg:
-    cosmos_anomalygen: nvcr.io/nv-metropolis-dev/metropolis-sdg/cosmos-anomalygen:1.0.3-36cdfca9.main
-    
 wheels:
   # Single SDK wheel with extras. The `nvidia-tao-sdk` package consolidates
   # what used to be three wheels (tao-sdk, tao-sdk-lepton, tao-sdk-brev).

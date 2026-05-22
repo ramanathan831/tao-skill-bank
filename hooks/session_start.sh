@@ -19,9 +19,7 @@
 
 set -u
 
-# Idempotency guard: both `tao-skills` and `deft-aoi-loop-plugin` share the
-# same source dir, so hook auto-discovery fires this script once per enabled
-# plugin. Emit the guidance only on the first invocation per session.
+# Idempotency guard: emit the guidance only on the first invocation per session.
 if [[ -n "${TAO_SESSION_INIT_DONE:-}" ]]; then
   exit 0
 fi

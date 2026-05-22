@@ -262,7 +262,7 @@ Rename the directory to your skill's kebab-case name. Fill in the placeholders.
 
 ## 7. Add to `marketplace.json`
 
-The marketplace (named `tao-skill-bank`) hosts two plugins. List your skill under `tao-skills` (the mega plugin) so it ships with the standard install. Add it to `deft-aoi-loop-plugin` too if it's part of that focused workflow.
+List your skill under `tao-skills` (the marketplace's main plugin) so it ships with the standard install.
 
 ```json
 {
