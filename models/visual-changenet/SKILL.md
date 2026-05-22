@@ -386,6 +386,8 @@ Set `dataset.classify.num_input` to match the number of lighting conditions. The
 
 **Low evaluation accuracy with correct training loss**: The `eval_margin` threshold may be miscalibrated for your data. After training, run inference on a validation set and inspect the embedding distance distribution to pick an appropriate threshold. The default 0.3 is tuned for the reference dataset and may not generalize.
 
+**`AssertionError: Contrastive loss only supports Euclidean distance module`** at evaluate/inference: the spec dropped the `train` subtree. Model `__init__` reads `train.classify.loss` regardless of action; omitting it falls back to contrastive loss, which then conflicts with non-default `model.classify.difference_module` (e.g. `learnable`) saved in the checkpoint. Keep `train.classify.loss` (and `train.classify.cls_weight`) in the spec for evaluate and inference too.
+
 **Training does not converge**: Check that `train.classify.cls_weight` is appropriate for your class distribution. If defects are very rare (<1% of samples), increase the defective class weight. Also verify that `fpratio_sampling` is not too low, which would under-sample the majority class.
 
 **OSError: Could not load MultiScaleDeformableAttention...so** (segment only): CUDA ops not compiled. The ViT adapter backbone requires custom CUDA kernels that must be compiled on first run. Run `python setup.py develop` inside the container (~5 min compilation). This only applies to the segmentation task.
