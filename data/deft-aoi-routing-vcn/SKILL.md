@@ -19,7 +19,7 @@ tags:
 
 You are the dispatcher between gap analysis and the augmentation modules in a VCN AOI SDA pipeline. Each augmentation module can only act on labels it knows how to handle:
 
-- **k-NN Mining** can only mine neighbors for labels that already exist in the **source pool CSV**. There is no point looking for `SHIFT` neighbors if the pool has no `SHIFT` rows. **When the upstream workflow ingests pre-generated synthetic pairs (e.g. EA pre-gen variant of `workflow-deft-aoi-loop`), the source pool passed here MUST be the post-ingest combined CSV (real + sdg rows)** — passing only the real-only `mining_pool.csv` causes routing to drop every label that exists in the SDG pool but not the real pool (e.g. defect classes like `bridge`, `missing`, `excess_solder` when the real pool is PASS-only), which silently defeats the SDG augmentation's purpose.
+- **k-NN Mining** can only mine real-image neighbors for labels that already exist in the **source pool CSV**. There is no point looking for `SHIFT` neighbors if the pool has no `SHIFT` rows.
 - **AnomalyGen** (Cosmos SDG) can only generate synthetic anomalies for the classes its inference pipeline supports: `PASS`, `EXCESS_SOLDER`, `MISSING`, `BRIDGE`. A weak sample with a label outside this set is unroutable to AnomalyGen.
 
 This skill runs **once per SDA iteration immediately after gap analysis**. It splits the gap-analysis parquet into one filtered parquet per module so each module operates on its own eligible subset, and it writes a human-readable summary of the per-label routing decisions.
@@ -31,7 +31,7 @@ The work is intentionally trivial: read a parquet, do two `.isin(...)` filters, 
 ## Inputs
 
 1. **`gaps_parquet`** — the gap-analysis output (typically `<exp_dir>/rca_results/<timestamp>/gaps.parquet` from `deft-aoi-rca-vcn`). Required columns: `filepath`, `label`. Other columns (`siamese_score`, `weakness`) are preserved verbatim.
-2. **`source_pool_csv`** — VCN-format mining source pool CSV with a `label` column. **In DEFT-style workflows with pre-gen / SDG augmentation, pass the post-ingest combined pool** (real + sdg, with a `provenance` column) — *not* the real-only `mining_pool.csv` — so labels present only in SDG rows still reach mining. Empty string or non-existent path is allowed; the mining subset will simply be empty in that case.
+2. **`source_pool_csv`** — VCN-format mining source pool CSV with a `label` column. Empty string or non-existent path is allowed; the mining subset will simply be empty in that case.
 3. **Output directory** — where the two routed parquets, the summary, and the report are written. Default: a timestamped folder under the gap-analysis result directory: `<rca_result_dir>/routing_results/<timestamp>/`.
 4. **`anomalygen_supported_labels`** *(optional)* — override the default AnomalyGen-eligible label set. Default: `{"PASS", "EXCESS_SOLDER", "MISSING", "BRIDGE"}`. **Warning:** This must stay in sync with `ANOMALYGEN_SUPPORTED_LABELS` in `mdo-kratos-workflows/pipelines/sda/routing.py` and the AnomalyGen integration's actual generator coverage. Adding a new defect class to AnomalyGen means adding it here too.
 
