@@ -207,8 +207,11 @@ pipeline {
                                     // Each key/value pair lives on its own indented line, e.g.
                                     //     pyt:                nvcr.io/nvidia/tao/tao-toolkit:6.26.3-pyt
                                     // The Python helper preserves the leading indent + key +
-                                    // intra-line spacing and replaces only the value. It fails
-                                    // loudly if a key is missing or matches multiple lines.
+                                    // intra-line spacing and replaces only the value. Missing
+                                    // keys are warned about (non-fatal) so this pipeline keeps
+                                    // working when versions.yaml temporarily drops a key we
+                                    // still try to patch. Multi-hit is still fatal — that's
+                                    // an ambiguity bug, not a transitional state.
                                     sh '''
                                         set -eu
                                         VERSIONS_FILE="versions.yaml"
@@ -228,7 +231,8 @@ for i, line in enumerate(lines):
         lines[i] = f"{m.group(1)}{value}\\n"
         hits += 1
 if hits == 0:
-    sys.exit(f"ERROR: key not found in {path}: {key}")
+    print(f"WARNING: key not found in {path}: {key} (skipping)", file=sys.stderr)
+    sys.exit(0)
 if hits > 1:
     sys.exit(f"ERROR: key matched {hits} times in {path}: {key}")
 with open(path, "w", encoding="utf-8") as fh:
