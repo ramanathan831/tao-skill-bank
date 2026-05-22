@@ -13,7 +13,7 @@
     "kpi_test_csv": "/home/shadeform/workspace/kpi/testing_set.csv",
     "images_dir": "/home/shadeform/workspace/kpi/images",
     "backbone_weight_dir": "/home/shadeform/workspace/augmentation/backbone",
-    "train_container": "nvcr.io/nvidia/tao/tao-toolkit:6.26.3-pyt",
+    "train_container": "<resolved from versions.yaml::images.tao_toolkit.pyt at init time>",
     "num_gpus": 4,
     "batch_size": 16,
     "num_epochs": 20,

@@ -20,7 +20,7 @@ You are an analyst for NVIDIA TAO VCN Classify (Visual Component Net) inference 
 
 This skill is intentionally lightweight. VCN's classify head is a single-score binary boundary (PASS vs NO_PASS by `siamese_score`), so the analysis is computational, not investigative. The whole computation lives behind one direct `docker run` invocation against the `tao_toolkit.data_services` image declared in `versions.yaml` (resolved at runtime — see Setup). The container's entrypoint takes `<category> <action> [hydra overrides...]`; we pass `gap_analysis vcn_aoi key=value …`. Each override is a bare Hydra `key=value` that selectively overrides the script's `GapAnalysisConfig` schema (defaults are baked into the container; introspect with `docker run ... gap_analysis vcn_aoi --cfg=job`). (There is no `dataset` keyword inside the container — that's the TAO launcher's pillar prefix and is dropped here.) You do **not** need subagents, multi-phase image audits, or component-type clustering — VCN does not expose those dimensions. View only a small set of representative weak samples to qualify the gaps after the container returns.
 
-> **Note (6.26.6-rc and later):** earlier releases accepted `-e <spec.yaml>` to load defaults from a YAML. That flag was removed; pass values as Hydra overrides directly. Also, two schema keys were renamed: the old `inference_csv` key is now `inference_results_dir` (points at the **directory** containing `inference.csv`, not the file), and the old `output_dir` key is now `results_dir`. The output parquet is `kpi_gaps.parquet` (older docs say `gaps.parquet`).
+CLI surface can shift between data-services container builds. If a `gap_analysis vcn_aoi` invocation fails on argument parsing, introspect the actual schema once per image with `docker run --rm "$DS_IMAGE" gap_analysis vcn_aoi --cfg=job` and reconcile any renamed keys (e.g. `inference_csv` vs `inference_results_dir`, `output_dir` vs `results_dir`) before retrying. Output parquet name is `kpi_gaps.parquet`.
 
 ---
 
@@ -61,7 +61,7 @@ DOCKER="docker run --gpus all --rm --ipc=host --user $(id -u):$(id -g) -v $WORKS
 
 If `inference.csv`, the train YAML, and the dataset images live in different roots, pass multiple `-v` flags — but every absolute path you pass in args must resolve inside the container.
 
-**No spec file needed in 6.26.6-rc and later.** All knobs are CLI overrides — `min_recall`, `top_k_per_label`, and optionally `threshold`. Defaults baked into the container (`min_recall=1.0`, `top_k_per_label=50`, `threshold=-1.0` to sweep) cover the common case; override only what you need.
+**CLI overrides cover the common case.** `min_recall`, `top_k_per_label`, and optionally `threshold` are passed as Hydra overrides on the command line; defaults baked into the container (`min_recall=1.0`, `top_k_per_label=50`, `threshold=-1.0` to sweep) handle most runs. If the container also accepts a spec file via `-e <spec>` (verify with `--cfg=job`), passing one is a convenience, not a requirement — override only what you need.
 
 ---
 

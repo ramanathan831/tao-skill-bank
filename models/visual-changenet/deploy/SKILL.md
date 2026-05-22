@@ -27,6 +27,14 @@ Direct TAO Deploy command name: `visual_changenet`.
 
 ## Quick Start
 
+Resolve the deploy container URI from `versions.yaml` once at the top of the session — that file is the single source of truth for image tags:
+
+```bash
+TAO_DEPLOY_IMAGE=$("${TAO_SKILL_BANK_PATH:?}/scripts/resolve_versions_key.py" images.tao_toolkit.deploy)
+```
+
+Every invocation below uses `"$TAO_DEPLOY_IMAGE"` in place of the literal image URI.
+
 ### Classify Variant
 
 #### Generate TensorRT Engine
@@ -36,7 +44,7 @@ docker run --gpus all --rm --shm-size=16g \
   -v /path/to/specs:/specs \
   -v /path/to/export:/models \
   -v /path/to/results:/results \
-  nvcr.io/nvidia/tao/tao-toolkit:6.26.3-deploy \
+  "$TAO_DEPLOY_IMAGE" \
   visual_changenet gen_trt_engine -e /specs/visual-changenet_deploy_classify_gen_trt_engine.yaml
 ```
 
@@ -47,7 +55,7 @@ docker run --gpus all --rm --shm-size=16g \
   -v /path/to/specs:/specs \
   -v /path/to/eval:/data \
   -v /path/to/results:/results \
-  nvcr.io/nvidia/tao/tao-toolkit:6.26.3-deploy \
+  "$TAO_DEPLOY_IMAGE" \
   visual_changenet evaluate -e /specs/visual-changenet_deploy_classify_evaluate.yaml
 ```
 
@@ -58,7 +66,7 @@ docker run --gpus all --rm --shm-size=16g \
   -v /path/to/specs:/specs \
   -v /path/to/inference:/data \
   -v /path/to/results:/results \
-  nvcr.io/nvidia/tao/tao-toolkit:6.26.3-deploy \
+  "$TAO_DEPLOY_IMAGE" \
   visual_changenet inference -e /specs/visual-changenet_deploy_classify_inference.yaml
 ```
 
@@ -71,7 +79,7 @@ docker run --gpus all --rm --shm-size=16g \
   -v /path/to/specs:/specs \
   -v /path/to/export:/models \
   -v /path/to/results:/results \
-  nvcr.io/nvidia/tao/tao-toolkit:6.26.3-deploy \
+  "$TAO_DEPLOY_IMAGE" \
   visual_changenet gen_trt_engine -e /specs/visual-changenet_deploy_segment_gen_trt_engine.yaml
 ```
 
@@ -82,7 +90,7 @@ docker run --gpus all --rm --shm-size=16g \
   -v /path/to/specs:/specs \
   -v /path/to/eval:/data \
   -v /path/to/results:/results \
-  nvcr.io/nvidia/tao/tao-toolkit:6.26.3-deploy \
+  "$TAO_DEPLOY_IMAGE" \
   visual_changenet evaluate -e /specs/visual-changenet_deploy_segment_evaluate.yaml
 ```
 
@@ -93,7 +101,7 @@ docker run --gpus all --rm --shm-size=16g \
   -v /path/to/specs:/specs \
   -v /path/to/inference:/data \
   -v /path/to/results:/results \
-  nvcr.io/nvidia/tao/tao-toolkit:6.26.3-deploy \
+  "$TAO_DEPLOY_IMAGE" \
   visual_changenet inference -e /specs/visual-changenet_deploy_segment_inference.yaml
 ```
 

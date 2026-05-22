@@ -67,7 +67,10 @@ jq . ${RESULTS_DIR}/best_model.json
 cp ${RESULTS_DIR}/best_model_inference_spec.yaml /tmp/my_inference.yaml
 # … set the four CONSUMER fields …
 
-# 3. Run inference. Mount paths from best_model.json into the container.
+# 3. Resolve the TAO pyt image URI from versions.yaml (single source of truth).
+TAO_PYT_IMAGE=$("${TAO_SKILL_BANK_PATH:?}/scripts/resolve_versions_key.py" images.tao_toolkit.pyt)
+
+# 4. Run inference. Mount paths from best_model.json into the container.
 docker run --rm --gpus all --shm-size=8g \
     --user "$(id -u):$(id -g)" \
     -v <your_csv_dir>:/data/infer \
@@ -76,7 +79,7 @@ docker run --rm --gpus all --shm-size=8g \
     -v $(jq -r .backbone ${RESULTS_DIR}/best_model.json):/data/pretrained_models/C-RADIOv2_B.pth \
     -v /tmp/my_inference.yaml:/specs/inference.yaml \
     -v <output_dir>:/results \
-    nvcr.io/nvidia/tao/tao-toolkit:6.26.3-pyt \
+    "$TAO_PYT_IMAGE" \
     visual_changenet inference -e /specs/inference.yaml
 ```
 
