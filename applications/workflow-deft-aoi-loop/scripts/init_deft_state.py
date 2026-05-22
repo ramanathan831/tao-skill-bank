@@ -52,10 +52,11 @@ def _resolve_train_container_from_versions_yaml() -> str | None:
     """Return the resolved tao_toolkit.pyt image URI from versions.yaml.
 
     Looks at TAO_SKILL_BANK_PATH (exported by the plugin's session_start
-    hook). Returns None if the env var is unset, the file is missing, or the
-    key path is absent — caller falls back to --train-container or the legacy
-    default. Importing yaml is best-effort; failure on PyYAML missing returns
-    None too, so the script stays usable on minimal hosts.
+    hook). Returns None if the env var is unset, the file is missing, the
+    key path is absent, or PyYAML is unavailable. In that case the caller
+    must pass --train-container explicitly; the script intentionally has no
+    hardcoded fallback tag so versions.yaml remains the single source of
+    truth.
     """
     sb = os.environ.get("TAO_SKILL_BANK_PATH")
     if not sb:
@@ -74,10 +75,7 @@ def _resolve_train_container_from_versions_yaml() -> str | None:
         return None
 
 
-_DEFAULT_TRAIN_CONTAINER = (
-    _resolve_train_container_from_versions_yaml()
-    or "nvcr.io/nvidia/tao/tao-toolkit:6.26.3-pyt"
-)
+_DEFAULT_TRAIN_CONTAINER = _resolve_train_container_from_versions_yaml()
 
 
 def build_state(args: argparse.Namespace) -> dict:
@@ -182,7 +180,14 @@ def _build_parser() -> argparse.ArgumentParser:
         type=float,
         help="Cosine similarity threshold for mining (e.g. 0.9). Omit for none.",
     )
-    parser.add_argument("--train-container", default=_DEFAULT_TRAIN_CONTAINER)
+    parser.add_argument(
+        "--train-container",
+        default=_DEFAULT_TRAIN_CONTAINER,
+        help=(
+            "TAO toolkit container URI. Defaults to versions.yaml::images.tao_toolkit.pyt "
+            "(resolved via TAO_SKILL_BANK_PATH). Required when versions.yaml is not reachable."
+        ),
+    )
     parser.add_argument(
         "--force",
         action="store_true",
@@ -193,6 +198,13 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
+    if not args.train_container:
+        print(
+            "init_deft_state: --train-container is required because versions.yaml "
+            "could not be resolved (set TAO_SKILL_BANK_PATH or pass --train-container).",
+            file=sys.stderr,
+        )
+        return 2
     out = args.results_dir / "deft_state.json"
     if out.exists() and not args.force:
         print(

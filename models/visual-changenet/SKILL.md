@@ -222,10 +222,13 @@ S3_EVAL = "s3://bucket/data/eval"
 ```
 ## Local Docker Invocation
 
-When running without the TAO SDK (local docker), use the `tao-toolkit:6.26.3-pyt` image directly:
+When running without the TAO SDK (local docker), resolve the TAO pyt image from `versions.yaml` and invoke directly:
 
 ```bash
 set -a; source <workspace>/.env; set +a
+
+# Resolve the TAO pyt container URI from versions.yaml (single source of truth).
+TAO_PYT_IMAGE=$("${TAO_SKILL_BANK_PATH:?}/scripts/resolve_versions_key.py" images.tao_toolkit.pyt)
 
 docker run --rm --gpus all --shm-size=8g \
     -e NGC_API_KEY="${NGC_API_KEY}" \
@@ -235,7 +238,7 @@ docker run --rm --gpus all --shm-size=8g \
     -v <workspace>/train/base:/data/datasets/NV_PCB_Siamese/csv \
     -v <workspace>/kpi:/data/datasets/NV_PCB_Siamese/kpi \
     -v <workspace>/augmentation/backbone/c_radio_v2_b.ckpt:/data/pretrained_models/C-RADIOv2_B.pth \
-    nvcr.io/nvidia/tao/tao-toolkit:6.26.3-pyt \
+    "$TAO_PYT_IMAGE" \
     visual_changenet <action> -e /data/workspace/specs/<spec>.yaml \
     [key=value overrides...]
 ```
@@ -394,7 +397,7 @@ Set `dataset.classify.num_input` to match the number of lighting conditions. The
 
 **MisconfigurationException: current_epoch=N, but max_epochs=M**: Old checkpoints in results directory. PyTorch Lightning auto-resumes from checkpoints and crashes if the new `max_epochs` is lower than a previous run's epoch. Fix: use a fresh results directory or unique run name.
 
-**PYTHONPATH / ModuleNotFoundError: nvidia_tao_pytorch**: The TAO entrypoint spawns subprocesses that don't source `.bashrc`. Pass `PYTHONPATH` explicitly via environment variables, not shell init files. For the toolkit image (`tao-toolkit:6.26.3-pyt`), PYTHONPATH is pre-configured.
+**PYTHONPATH / ModuleNotFoundError: nvidia_tao_pytorch**: The TAO entrypoint spawns subprocesses that don't source `.bashrc`. Pass `PYTHONPATH` explicitly via environment variables, not shell init files. The TAO pyt container resolved from `versions.yaml::images.tao_toolkit.pyt` has PYTHONPATH pre-configured.
 
 **Epoch defaults**: Classify training typically uses 100-2000 epochs depending on dataset size. Segmentation uses 200 epochs by default. For small datasets (<1k images), 100 epochs may suffice. For large production datasets, 2000 epochs with early stopping is common. Monitor validation metrics to determine convergence.
 
