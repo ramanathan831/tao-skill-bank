@@ -9,6 +9,11 @@ checkpoint/results_dir on the command line without editing the spec). This file 
 covers the DEFT-loop-specific overlay: mounts, spec paths, two-checkpoint compare,
 KPI sweep, and `deft_state.json` / `loop_log.jsonl` updates.
 
+DEFT AOI is intentionally plain-train for Visual ChangeNet. When invoking the
+underlying model skill for any train stage, pass `automl_policy: off` so this
+workflow bypasses model-level AutoML while leaving Visual ChangeNet metadata
+unchanged for other workflows.
+
 ## DEFT-Loop Mount Layout
 
 ```
@@ -86,8 +91,6 @@ Run inference on both the best-val checkpoint (lowest `val_loss`) and the latest
 (highest epoch). `val_loss` and FAR@100%-recall can diverge — pick the checkpoint with
 **lower FAR@100%-recall**, not lower val_loss. See `scripts/analyze_kpi.py` for KPI sweep.
 
-**Wait for container exit before listing the output directory.** TAO ChangeNet's `inference` and `evaluate` actions emit their CSV (`inference.csv` / evaluate's per-sample CSV) atomically at `on_predict_epoch_end` / `on_test_epoch_end` — the very last step of the predict/test loop. A `find` or `ls` against `inference.results_dir` while the container is still mid-loop will return zero CSV files, which has previously sent agents down false debug paths (suspecting wandb init, `predict_step` returning `None`, `results_dir` mismatch, etc.). The `predict_step returned None if it was on purpose, ignore this warning` line in the inference log is a Lightning warning TAO intentionally suppresses — the writer callback emits the CSV from accumulated state, not from per-batch returns. Block on the docker invocation's exit (do not background-poll mid-run), then list outputs.
-
 ## analyze_kpi.py
 
 ```bash
@@ -118,47 +121,48 @@ Key output line: `100% recall threshold: <T> (FAR=<FAR>%, ...)` — this is the 
 
 ## ChangeNet backbone resolution
 
-`model.backbone.pretrained_backbone_path` must point to a **local file path inside the container** — `/data/pretrained_models/C-RADIOv2_B.pth`. There is no HF-URL fallback: TAO 7.0.0+ treats a URL value as a literal filesystem path and dies with `FileNotFoundError` ~30 s into training. Never leave the field `null` or empty either — FAR@R=100% degrades silently without the pretrained backbone and the failure mode looks like a training problem.
+`model.backbone.pretrained_backbone_path` **must point to an existing local file on the host that is bind-mounted into the container.** TAO's `ptm_utils.load_pretrained_weights()` hands the string straight to `torch.load(path, ...)` (with a special-case branch when the suffix is `.safetensors`, calling `safetensors.torch.load_file`). It does **not** dereference `https://`, `hf://`, or HuggingFace repo IDs — passing a URL produces `FileNotFoundError: [Errno 2] No such file or directory: 'https://...'` and `Execution status: FAIL` within ~3 s.
 
-**Pre-Flight always stages the weights**, even on resume. Steps:
+Accepted forms:
+
+| Form | Status |
+|---|---|
+| Local path to `.pth` / `.ckpt` checkpoint | ✓ works (`torch.load`) |
+| Local path to `.safetensors` file | ✓ works (`safetensors.torch.load_file`) |
+| `https://huggingface.co/...` URL | ✗ FileNotFoundError |
+| HF repo id like `nvidia/C-RADIOv2-B` | ✗ FileNotFoundError |
+| `null` or empty | ✗ silently degrades FAR@R=100%; failure mode looks like a training bug |
+
+### Pre-Flight responsibility
+
+Pre-Flight **must stage the backbone locally** before launch. The HuggingFace repo `nvidia/C-RADIOv2-B` ships only `model.safetensors` (no `.pth`), so the canonical recipe is:
 
 ```bash
-STAGED="$WORKSPACE/augmentation/backbone/c_radio_v2_b.pth"
-if [ ! -f "$STAGED" ]; then
-  mkdir -p "$(dirname "$STAGED")"
-  # 1) Download nvidia/C-RADIOv2-B/model.safetensors (~375 MB) via huggingface_hub
-  python3 - <<PY
-import os
+python3 - <<'PY'
 from huggingface_hub import hf_hub_download
-hf_hub_download('nvidia/C-RADIOv2-B', 'model.safetensors',
-                local_dir='$(dirname "$STAGED")',
-                token=os.environ['HF_TOKEN'])
+import shutil, os
+src = hf_hub_download(repo_id="nvidia/C-RADIOv2-B", filename="model.safetensors")
+dst = "<workspace>/augmentation/backbone/c_radio_v2_b.safetensors"
+os.makedirs(os.path.dirname(dst), exist_ok=True)
+shutil.copy(src, dst)
 PY
-  # 2) Convert safetensors -> .pth inside the TAO container so torch/safetensors versions match
-  docker run --rm \
-      -v "$(dirname "$STAGED"):/data/backbone" \
-      --entrypoint=python3 "$TAO_PYT_IMAGE" -c "
-from safetensors.torch import load_file
-import torch
-torch.save(load_file('/data/backbone/model.safetensors'), '/data/backbone/c_radio_v2_b.pth')"
-fi
 ```
 
-Then rewrite the spec field and add the bind-mount to every training / inference / evaluate launch:
+Then mount as a single file in the train docker invocation:
+
+```bash
+-v <workspace>/augmentation/backbone/c_radio_v2_b.safetensors:/data/pretrained_models/C-RADIOv2_B.safetensors
+```
+
+And set the spec field to the container-side path:
 
 ```yaml
-# specs/baseline_spec.yaml
 model:
   backbone:
-    pretrained_backbone_path: /data/pretrained_models/C-RADIOv2_B.pth
+    pretrained_backbone_path: /data/pretrained_models/C-RADIOv2_B.safetensors
 ```
 
-```bash
-# docker run ...
--v "$STAGED":/data/pretrained_models/C-RADIOv2_B.pth
-```
-
-`HF_TOKEN` must be set in the workspace `.env` (the model gate is not closed but the HF Hub client expects it). The `~375 MB` download is a one-time cost per workspace; subsequent runs hit the staged `.pth` and skip the download branch.
+If `HF_TOKEN` is unset or the workspace already has a staged file, Pre-Flight uses the staged file as-is and skips the download. If neither is available, Pre-Flight **hard stops** — there is no working URL fallback in this TAO version, so silently falling through would just produce the FileNotFoundError above after the container starts.
 
 ## Label case rule (CSV assembly)
 

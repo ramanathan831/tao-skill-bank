@@ -23,6 +23,12 @@ The mono / stereo / fast-stereo skills share the unified TAO `depth_net` CLI; FF
 
 For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, TensorRT `inference`), read `deploy/SKILL.md` first. The deploy spec template lives at `references/spec_template_deploy.yaml`.
 
+## Train Action Policy
+
+This model is AutoML-enabled at the model layer. Before handling any train-stage request, read `references/skill_info.yaml` and resolve the run override from either an explicit `automl_policy` value or the user's workflow request. Treat phrases like "turn off AutoML", "disable AutoML", "no HPO", or "plain training" as `automl_policy: off` for this run only; otherwise default to `auto`. When `automl_policy: auto`, `automl_enabled: true`, and both `schemas/train.schema.json` and `references/spec_template_train.yaml` are packaged, route the train action through `tao-skill-bank:tao-automl` by default with this model's `skill_dir`. Preserve workflow/application overrides for datasets, specs, output directories, GPU/platform settings, parent checkpoints, and `automl_policy`. Use direct model training only when `automl_policy: off` or the packaged train schema/template is missing; in the missing-schema case, report that AutoML is enabled but not runnable for this model until schemas are generated.
+
+Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows stay in this model skill. The per-run `automl_policy` override does not change model metadata.
+
 ## Two Use Cases
 
 FFS ships with a pre-trained bp2 commercial checkpoint (`model_best_bp2_serialize.pth`).

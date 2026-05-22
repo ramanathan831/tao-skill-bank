@@ -1,5 +1,6 @@
 name: dino
 network_arch: dino
+automl_enabled: true
 container_image: tao_toolkit.pyt
 data_format: coco
 gpu_spec_key: train.num_gpus

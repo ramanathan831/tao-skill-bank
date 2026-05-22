@@ -1,5 +1,6 @@
 name: sparse4d
 network_arch: sparse4d
+automl_enabled: true
 container_image: tao_toolkit.pyt
 data_format: ovpkl
 gpu_spec_key: train.num_gpus

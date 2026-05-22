@@ -66,6 +66,16 @@ python -c "import docker" 2>/dev/null || {
   echo "  pip install \"nvidia-tao-sdk[docker] @ $REPO\""
   exit 1
 }
+
+# DockerSDK attaches every job container to ${DOCKER_NETWORK:-tao_default}. If
+# the network does not exist, container start fails instantly with
+# `network <name> not found` for every create_job.
+DOCKER_NETWORK_NAME="${DOCKER_NETWORK:-tao_default}"
+docker network ls --format '{{.Name}}' | grep -qx "$DOCKER_NETWORK_NAME" || {
+  echo "MISSING: docker network '$DOCKER_NETWORK_NAME' not found. After user approval, run:"
+  echo "  docker network create $DOCKER_NETWORK_NAME"
+  exit 1
+}
 ```
 
 If a check fails, the agent prompts the user to authorize the install/fix via Bash before proceeding.

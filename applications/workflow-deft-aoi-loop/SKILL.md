@@ -37,7 +37,17 @@ Do not use this skill for a single standalone TAO training run, one-off inferenc
 
 ## Base Model
 
-The loop operates on **NVIDIA TAO Visual ChangeNet** classify with the **NVIDIA C-RADIOv2-B** backbone, fine-tuned end-to-end. The architecture is defined in `specs/baseline_spec.yaml` — that file is the source of truth. All pretrained weights come from HuggingFace (`HF_TOKEN` required); `NGC_API_KEY_*` only gate container pulls. ChangeNet backbone resolution + the staged-file/HF-URL fallback for `model.backbone.pretrained_backbone_path` are owned by `references/visual-changenet.md`. SigLIP for k-NN mining is owned by `references/deft-aoi-mining.md`. **No AnomalyGen-side checkpoints are required in this EA variant** — pre-generated synthetic pairs are ingested directly from `<workspace>/augmentation/anomalygen/{reconstructed_image,original_image}/`; see Pipeline step 3 below.
+The loop operates on **NVIDIA TAO Visual ChangeNet** classify with the **NVIDIA C-RADIOv2-B** backbone, fine-tuned end-to-end. The architecture is defined in `specs/baseline_spec.yaml` — that file is the source of truth. All pretrained weights come from HuggingFace (`HF_TOKEN` required); `NGC_API_KEY_*` only gate container pulls. ChangeNet backbone resolution + the staged-file/HF-URL fallback for `model.backbone.pretrained_backbone_path` are owned by `references/visual-changenet.md`. SigLIP for k-NN mining is owned by `references/deft-aoi-mining.md`. **No AnomalyGen-side checkpoints are required in this EA variant** — pre-generated synthetic pairs are ingested directly from `<workspace>/augmentation/anomalygen/{reconstructed_image,original_image}/`; see Pipeline step 2 below.
+
+## Train AutoML Policy
+
+DEFT AOI owns the iterative data-improvement loop, retraining cadence, and KPI
+checkpoint selection. For this workflow only, bypass model-level AutoML even
+when the underlying Visual ChangeNet model metadata has `automl_enabled: true`.
+Invoke every Visual ChangeNet train stage, including baseline and iteration
+retrain, with the run override `automl_policy: off` / plain training. This is a
+workflow-level override only; do not change model metadata, and do not apply this
+policy to other workflows.
 
 ## Launch Intake
 
@@ -82,7 +92,7 @@ credentials required by the selected workflow.
 Execute the loop in this order (full detail in `## Pipeline` and `## Stage Execution` below):
 
 1. **Pre-Flight.** Run every check in `## Pre-Flight`. Resolve workspace, specs, CSVs, checkpoints, container images. Hard stop on any missing input.
-2. **Baseline.** Run `train -> inference -> evaluate` by invoking the `tao-skill-bank:visual-changenet` skill, then `rca` by invoking `tao-skill-bank:deft-aoi-rca-vcn`. Read `references/visual-changenet.md` and `references/deft-aoi-rca-vcn.md` first for DEFT-loop-specific args (mounts, output dirs, `deft_state.json` updates).
+2. **Baseline.** If `deft_state.json` already has `iterations.baseline.stage_completed == "train"` and a `best_ckpt_path` pointing at an existing file (the upstream `automl-deft-pipeline` pre-seeds these from its Phase 1 AutoML winner — see its Phase 1 → Phase 2 handoff), **skip the train sub-step** and resume at `inference -> evaluate` against the pre-seeded checkpoint. Otherwise run `train -> inference -> evaluate` by invoking the `tao-skill-bank:visual-changenet` skill. Either way, then `rca` by invoking `tao-skill-bank:deft-aoi-rca-vcn`. Read `references/visual-changenet.md` and `references/deft-aoi-rca-vcn.md` first for DEFT-loop-specific args (mounts, output dirs, `deft_state.json` updates).
 3. **Iterate.** For each iteration up to `max_iterations`, execute Pipeline steps 1-7. Between every step, re-read `results/loop_log.jsonl` tail + `results/deft_state.json` from disk — disk is canonical.
 4. **Stop** when the KPI target is met, `max_iterations` is reached, or a hard-stop gate fires (silent-drop, AMP allocation mismatch, train/val leakage). Never auto-retry hard stops.
 5. **Render** `results/DEFT_Loop_Report.html` after each completed iteration (and once more at loop end) by spawning the `reporter` subagent (`agents/reporter.md`). Per-stage renders are not done — every stage already appends one line to `loop_log.jsonl`, which is enough for a tail-watching user; the HTML render carries an iteration's worth of state and one render per iteration keeps the per-loop token cost roughly linear in iteration count, not in stage count. Do not render inline.
@@ -105,7 +115,6 @@ Never write `loop_log.jsonl` via `echo` or inline `jq` — the `seq` invariant r
 | `scripts/validate_training_csv.py` | Validate an assembled ChangeNet training CSV before launching training. Checks required columns and that every `input_path` / `golden_path` exists on disk. Stdlib only — no pandas required. | `--csv PATH --workspace-root PATH` |
 | `scripts/init_deft_state.py` | Write a fresh `${RESULTS_DIR}/deft_state.json` from CLI args. Guarantees unique top-level keys. Atomic write; refuses to overwrite without `--force`. Use only on fresh runs; never on resume. EA variant: no AnomalyGen container args — pre-gen ingestion only. | `--results-dir PATH --workspace PATH --kpi-target STR --max-iterations INT --num-gpus INT --num-epochs INT [--batch-size INT] [--top-k-per-target INT] [--knn-metric STR] [--min-similarity FLOAT] [--train-container STR] [--force]` |
 | `scripts/changenet_data_pair_prepare.py` | Build the ChangeNet `(input, golden, label, object_name)` CSV from `_ng/` + `_ok/` image directories. NV_PCB_Siamese mode (`--images-dir`) emits the 14-column siamese CSV and copies images into the staged tree. | `--input-dir PATH --golden-dir PATH` `[--output PATH=dataset.csv]` `[--label STR]` `[--images-dir PATH]` `[--subdir NAME=sdg]` `[--light NAME=SolderLight]` `[--image-ext EXT=.jpg]` |
-| `scripts/prestage_pregen.py` | **Pre-flight one-shot.** Stages every pre-gen NG/OK pair from `<workspace>/augmentation/anomalygen/` into `${RESULTS_DIR}/synth_pool/images/synth_{ng,ok}/` once, assembles `source_pool.{csv,parquet}` (real mining_pool + sdg, with `provenance` + absolute `filepath`), writes `manifest.json`. With `--embed-with-siglip`, also runs the data-services container once on the source pool so per-iter mining can skip step 2. | `--workspace PATH --results-dir PATH [--light NAME=SolderLight] [--image-ext EXT=.jpg] [--embed-with-siglip] [--ds-image URI] [--siglip-model ID=google/siglip-base-patch16-224] [--force]` |
 | `scripts/prepare_inference_spec.py` | Write `best_model.json` + `best_model_inference_spec.yaml` from `deft_state.json` + the training spec. Run once at loop end. See `references/prepare-for-inference.md`. | `--results-dir PATH` |
 
 ## Agents
@@ -144,9 +153,9 @@ ask the user to reinstall the plugin.
 | Stage(s) | Reference file | Underlying skill | Owns |
 |---|---|---|---|
 | `train`, `evaluate` | `references/visual-changenet.md` | `tao-skill-bank:visual-changenet` | TAO training, inference, evaluation, checkpoint discovery, TAO spec edits, two-checkpoint compare, `${TAO_PYT_IMAGE}` (resolved from `tao_toolkit.pyt` in `versions.yaml`) invocation. |
-| `anomalygen` | Pre-Flight step 10 + Pipeline step 3 (both inline — no skill, no reference doc) | _inline — no skill_ | Pre-Flight stages every pre-gen NG/OK pair into `${RESULTS_DIR}/synth_pool/` once per run via `scripts/prestage_pregen.py` (basename pairing validation, copy, ChangeNet-row emission, `source_pool.{csv,parquet}` assembly, optional source SigLIP embedding). Pipeline step 3 is then a per-iter no-op that just reads `synth_pool/manifest.json` for the cached paths. **No SDG container is launched.** |
+| `anomalygen` | Pipeline step 2 (inline — no skill, no reference doc) | _inline — no skill_ | Pre-generated NG/OK pair ingestion: basename pairing validation, staged copy into `iter${N}/dataset/images/synthetic_iter${N}_{ng,ok}/`, ChangeNet-row emission via `scripts/changenet_data_pair_prepare.py`, source_pool.csv assembly. **Runs before routing** so routing's mining-eligibility sees SDG-covered labels. **No SDG container is launched.** |
 | `rca` (VCN Classify) | `references/deft-aoi-rca-vcn.md` | `tao-skill-bank:deft-aoi-rca-vcn` | Threshold sweep, per-label weakness ranking, per-lighting expansion, `gaps.parquet` schema, and `deft_state.json` output for VCN Classify models. |
-| `routing` | `references/deft-aoi-routing-vcn.md` | `tao-skill-bank:deft-aoi-routing-vcn` *(only when AnomalyGen runs on the fly)* | VCN weak-sample routing to mining vs AnomalyGen, `mining_gaps.parquet` + `anomalygen_gaps.parquet` outputs, dropped-label warnings. **Skipped when AnomalyGen is pre-generated** — there is no AG consumer to route to, so the loop instead promotes all `kpi_gaps.parquet` rows directly into `mining_gaps.parquet` inline (see Pipeline step 2). |
+| `routing` | `references/deft-aoi-routing-vcn.md` | `tao-skill-bank:deft-aoi-routing-vcn` | VCN weak-sample routing to mining and/or AnomalyGen, `mining_gaps.parquet` + `anomalygen_gaps.parquet` outputs, dropped-label warnings. |
 | `data_mining` (VCN path) | `references/deft-aoi-mining.md` | `tao-skill-bank:deft-aoi-mining` | Embed-then-mine workflow: target embedding, source-pool embedding, k-NN nearest-neighbour mining, `mined.parquet` output schema, encoder consistency requirement. |
 
 ### Invariants
@@ -159,7 +168,7 @@ Inputs (all paths under `<workspace>` unless absolute):
 
 ```text
 <workspace>/
-├── .env                                     # NGC_API_KEY_TAO (nvcr.io/nvstaging/tao/*), HF_TOKEN (HuggingFace pre-flight pulls); NGC_API_KEY is the optional fallback. No AnomalyGen credentials required — this EA variant ingests pre-generated pairs.
+├── .env                                     # NGC_API_KEY (nvcr.io/* image pulls), HF_TOKEN (HuggingFace pre-flight pulls). No AnomalyGen credentials required — this EA variant ingests pre-generated pairs.
 ├── specs/baseline_spec.yaml                 # ChangeNet train/eval spec
 ├── train/base/
 │   ├── training_set.csv                     # seed training rows; ChangeNet 14-column siamese schema
@@ -193,29 +202,26 @@ results/run_<YYYYMMDD_HHMMSS>/               # = ${RESULTS_DIR}
 ├── best_model.json                          # inference handoff metadata (see references/prepare-for-inference.md)
 ├── best_model_inference_spec.yaml           # ready-to-run TAO inference spec built from training config
 ├── iter${ITER}_summary.md                   # ≤300-word per-iteration summary
-├── synth_pool/                              # built ONCE at Pre-Flight step 10 via scripts/prestage_pregen.py
-│   ├── manifest.json                        # paths + counts for the loop to reference
-│   ├── images/synth_{ng,ok}/                # ChangeNet-staged pre-gen pairs (single copy, shared across iters)
-│   ├── sdg_rows.csv                         # 14-col + provenance + filepath; the SDG half of source_pool
-│   ├── source_pool.{csv,parquet}            # real (mining_pool) + sdg unified pool with provenance
-│   ├── source_embeddings.parquet            # written only when --embed-with-siglip was passed to prestage_pregen.py
-│   └── source_embed.log                     # data-services log for the source embedding (if run)
 ├── baseline/
 │   ├── train/                               # TAO train output: model_epoch_<EEE>_step_<SSS>.pth × N, status.json, experiment.yaml, train.log
 │   ├── inference/{best_val,latest}/         # per-checkpoint inference.csv + KPI plots from scripts/analyze_kpi.py
 │   └── rca_results/<TS>/                    # kpi_gaps.parquet, threshold.txt, weak_samples_breakdown.txt
 └── iter${ITER}/
     ├── routing_results/<TS>/                # mining_gaps.parquet, anomalygen_gaps.parquet, routing_summary.txt
-    ├── anomalygen/                          # per-iter bookkeeping (just records the synth_pool/manifest.json path)
-    │   └── ingest_summary.json              # per-iter audit: which synth_pool manifest was reused, counts at iter start
+    ├── anomalygen/                          # pre-gen ingestion bookkeeping for this iteration
+    │   └── ingest_summary.json              # per-iter record: ingested pair count, per-defect-type breakdown (if manifest present), source_pool composition
     ├── mining_filter/
-    │   ├── mining_pool.csv                  # top-K-per-target k-NN survivors from synth_pool/source_pool (synth + real subject to same filter)
+    │   ├── sdg_rows.csv                     # ChangeNet rows from pre-gen pairs, paths rewritten to workspace-root-relative; provenance=sdg
+    │   ├── source_pool.csv                  # real + sdg unified pool with provenance column; input to k-NN mining
+    │   ├── mining_pool.csv                  # top-K-per-target k-NN survivors from source_pool.csv (synth + real subject to same filter)
     │   ├── knn_summary.csv                  # candidate_count, kept_count, rejected_count, similarity_threshold=0.9
-    │   ├── target_embeddings.parquet        # embeddings of weak-target images (per-iter — targets change each iter)
+    │   ├── source_embeddings.parquet        # embeddings of mining_pool candidates
+    │   ├── target_embeddings.parquet        # embeddings of weak-target images
     │   └── mining_summary.txt               # per-label breakdown emitted by mining container
     ├── dataset/
     │   ├── train_combined_iter${ITER}.csv
-    │   └── train_combined_iter${ITER}_provenance.csv  # source ∈ {base_train, previous_iter_train, mining_pool}
+    │   ├── train_combined_iter${ITER}_provenance.csv  # source ∈ {base_train, previous_iter_train, mining_pool}
+    │   └── images/synthetic_iter${ITER}_{ng,ok}/      # ChangeNet-ready synthetic image staging
     ├── train/                               # TAO train output for iter${ITER}
     ├── inference/{best_val,latest}/
     └── rca_results/<TS>/                    # next iteration's RCA reads inference/{best_val|latest}/inference.csv
@@ -235,14 +241,13 @@ Resolve everything possible before asking the user. In order:
 
    | Variable | Required for | Image prefix it gates |
    |---|---|---|
-   | `NGC_API_KEY_TAO` | TAO toolkit images (training, inference, deploy, data services, cosmos-rl/predict/embed) | `nvcr.io/nvstaging/tao/*` |
+   | `NGC_API_KEY` | All nvcr.io image pulls — TAO toolkit (training, inference, deploy, data services) | `nvcr.io/nvstaging/tao/*` |
    | `HF_TOKEN` | Pre-Flight HuggingFace model downloads (ChangeNet backbone, SigLIP for mining) | huggingface.co |
-   | `NGC_API_KEY` (optional) | Fallback for any nvcr.io org without a dedicated key | `nvcr.io/*` |
 
-   **Note (EA variant):** `NGC_API_KEY_METROPOLIS_DEV` is **not** required — this loop ingests pre-generated AnomalyGen output and never pulls the AnomalyGen container.
+   Both variables must be non-empty. If either is missing, show the user `.env.example` (next to this skill), ask them to copy it to `<workspace>/.env` and fill in values, and do not proceed until set.
 
-   For each row whose image prefix appears in this run, the matching key must be non-empty. If any required key is missing, show the user `.env.example` (next to this skill), ask them to copy it to `<workspace>/.env` and fill in values, and do not proceed until set.
-4. `docker login nvcr.io` once per *required* key (username `$oauthtoken`, password = the key). nvcr.io stores one credential per host, so log in with the key for the prefix you are about to pull from before running `docker pull`/`docker image inspect` against that prefix; re-login when switching prefixes within Pre-Flight. Do not fall back to host-side TAO wrappers.
+   **Note (EA variant):** `NGC_API_KEY_METROPOLIS_DEV` and the AnomalyGen container are **not** required — this loop ingests pre-generated AnomalyGen output.
+4. `docker login nvcr.io` once with `NGC_API_KEY` (username `$oauthtoken`, password = the key). nvcr.io stores one credential per host. Do not fall back to host-side TAO wrappers.
 5. **Resolve container image refs from `versions.yaml`.** The rest of this skill — including the Pre-Flight Summary's `docker image inspect` line, every stage launch, and the `references/*.md` files — references two env vars (this EA variant has no AnomalyGen container, so `AG_IMAGE` is intentionally absent). They are **not** defined elsewhere; resolve them here using `scripts/resolve_versions_key.py` (the single owner of `versions.yaml` schema knowledge) and `export` them so all downstream commands see them:
 
    ```bash
@@ -259,22 +264,9 @@ Resolve everything possible before asking the user. In order:
    The script exits non-zero (with a diagnostic on stderr) if a key is missing or empty. Hard stop here — without the export, bash silently substitutes `""`, the next step's `docker image inspect` reports `0` MISSING for every image, and the failure mode points at the wrong root cause.
 6. Verify every image resolved in step 5 is present locally (`docker image inspect "$TAO_PYT_IMAGE" "$TAO_DS_IMAGE"`).
 7. Apply the path rule: pre-create iter dirs under `${RESULTS_DIR}/iter${ITER}/` and mount `<workspace>` into containers at the same absolute path. Sub-skills enforce their own container-level invariants (entrypoints, env vars); the loop just supplies the workspace mount and the resolved image URI.
-8. **Verify pre-generated AnomalyGen ingestion source.** Confirm `<workspace>/augmentation/anomalygen/reconstructed_image/` and `<workspace>/augmentation/anomalygen/original_image/` both exist and are non-empty. Validate basename pairing: every file under `reconstructed_image/` must have a same-stem partner under `original_image/`. Record the pair count and, if `augmentation/anomalygen/defect_spec.jsonl` is present, the per-defect-type breakdown — both surface in the Pre-Flight Summary. Hard stop on missing dirs, empty dirs, or unpaired files (Invariants §6). Also confirm GPU count. **Stage the ChangeNet C-RADIOv2-B backbone** per `references/visual-changenet.md` → *ChangeNet backbone resolution* — always pre-download to `<workspace>/augmentation/backbone/c_radio_v2_b.pth`, then rewrite `specs/baseline_spec.yaml::model.backbone.pretrained_backbone_path` to the canonical container path. Do not leave an `https://huggingface.co/...` URL in the spec — the TAO container does not auto-pull, it treats the URL as a literal filesystem path.
+8. **Verify pre-generated AnomalyGen ingestion source.** Confirm `<workspace>/augmentation/anomalygen/reconstructed_image/` and `<workspace>/augmentation/anomalygen/original_image/` both exist and are non-empty. Validate basename pairing: every file under `reconstructed_image/` must have a same-stem partner under `original_image/`. Record the pair count and, if `augmentation/anomalygen/defect_spec.jsonl` is present, the per-defect-type breakdown — both surface in the Pre-Flight Summary. Hard stop on missing dirs, empty dirs, or unpaired files (Invariants §6). Also confirm GPU count. Resolve the ChangeNet pretrained backbone per `references/visual-changenet.md` → *ChangeNet backbone resolution* — stage the safetensors locally if it isn't already present (the reference doc has the inline `hf_hub_download` recipe), then rewrite `specs/baseline_spec.yaml::model.backbone.pretrained_backbone_path` to the container-side mount path. **Hard stop** if `HF_TOKEN` is unset *and* no staged file exists — there is no working HTTPS-URL fallback.
 9. **GPU memory sanity check.** ChangeNet classify with C-RADIOv2-B (ViT-B) at the spec defaults (`batch_size: 64`, `image_width/height: 224`, `cls_weight: [1.0, 10.0]`, learnable difference modules) OOMs on a single 48GB-class GPU. Inspect `nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits` and warn if the assembled spec's `dataset.classify.batch_size` is too large for the available memory: as a rule of thumb, **≤ 16 on 48GB GPUs, ≤ 8 on 24GB GPUs**. Surface the recommendation in the Pre-Flight Summary's `GPUs` row — let the user accept or override before launch rather than failing 30 seconds into training.
-10. **Stage pre-gen AnomalyGen pairs once via `scripts/prestage_pregen.py`.** The pre-gen NG/OK directories do not change between iterations, only the k-NN target set does — so file staging, `source_pool.{csv,parquet}` assembly, and source-pool SigLIP embedding all hoist here instead of running in every Pipeline iteration. The script writes everything under `${RESULTS_DIR}/synth_pool/` and emits `manifest.json`; per-iter Pipeline step 3 reads that manifest and proceeds directly to k-NN.
-
-    ```bash
-    SKILL_ROOT=${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/skills/workflow-deft-aoi-loop
-    python3 $SKILL_ROOT/scripts/prestage_pregen.py \
-        --workspace "$WORKSPACE" \
-        --results-dir "$RESULTS_DIR" \
-        --embed-with-siglip --ds-image "$TAO_DS_IMAGE"
-    ```
-
-    The `--embed-with-siglip` flag is strongly recommended: it embeds the source pool (~1000-2000 rows) once per run, and the per-iter mining stage then reuses `source_embeddings.parquet` (cheap re-embedding only of the ~50 weak targets). Without it, each iter re-embeds the full source pool from scratch (~50s wasted per iter).
-
-    Record the manifest path in `deft_state.json[config.pregen]` so the per-iter Pipeline step 3 can read it without re-discovery. **Do not re-stage on resume**: a non-empty `synth_pool/manifest.json` means staging is already done; verify pair counts match and continue.
-11. Run train/validation leakage check before resuming any prior run.
+10. Run train/validation leakage check before resuming any prior run.
 
 Ask one consolidated question only for missing required inputs. Never ask about a parameter with a default.
 
@@ -373,7 +365,7 @@ mining_filter/source_pool.csv
   + mining_filter/sdg_rows.csv                 (provenance=sdg,  paths already workspace-root-relative)
 ```
 
-Step 3 assembles `source_pool.csv`; step 4 embeds every row with SigLIP and writes the top-K-per-target survivors (deduped, `provenance` preserved) to `mining_filter/mining_pool.csv`. `train_combined_iter${N}.csv` = base training rows + surviving mining rows. **No SDG bypass — synthetic rows go through the same k-NN as real rows.**
+Step 2 assembles `source_pool.csv`; step 3 (routing) consumes it for mining-eligibility; step 4 embeds every row with SigLIP and writes the top-K-per-target survivors (deduped, `provenance` preserved) to `mining_filter/mining_pool.csv`. `train_combined_iter${N}.csv` = base training rows + surviving mining rows. **No SDG bypass — synthetic rows go through the same k-NN as real rows.**
 
 **Per-iter mining bounds.** With `topn` (default 5) survivors per weak target and ~30–60 weak mining-routable targets per iter:
 
@@ -390,55 +382,38 @@ The pre-gen contribution is **per-run, not per-iteration**: the loop re-reads `a
 
 **Schema.** Base training rows arrive with production metadata populated. `augmentation/mining_pool/mining_pool.csv` and `mining_filter/sdg_rows.csv` carry the 4 mandatory columns. `source_pool.csv` and `mining_filter/mining_pool.csv` add a `provenance` column. Merging into `train_combined_iter${N}.csv` follows the Data Contract CSV schema: pad the 10 optional metadata columns with empty strings when absent.
 
-**Quirk: `mining_pool.csv`'s `input_path` is file-style** (e.g. `images/R821@1_SolderLight.jpg` — includes the basename), but TAO's dataloader formula is `{images_dir}/{input_path}/{object_name}_{light}{ext}` which requires dir-style. Before mining or training reads these rows, strip the basename (`input_path = os.path.dirname(orig_input_path)`), then prepend `augmentation/mining_pool/` to make the path workspace-root-relative. `scripts/prestage_pregen.py` does this internally during Pre-Flight source_pool assembly — do not hand-roll the rewrite in iter code; route through the script so the logic stays in one place. Failure mode if you skip the strip: `{images_dir}/augmentation/mining_pool/images/X.jpg/X_SolderLight.jpg` → file-not-found ~30 s into training.
-
 ## Pipeline
 
 All stages run inline in the parent context. For SKILL stages, read the matching `references/*.md` first, then invoke the underlying `tao-skill-bank:*` skill via the Skill tool. INLINE stages have no underlying skill — the parent does the work directly.
 
-Baseline runs once before the loop: `train` → `inference` → `evaluate` (skill: `tao-skill-bank:visual-changenet`), then `rca` (skill: `tao-skill-bank:deft-aoi-rca-vcn`). Then each iteration:
+Baseline runs once before the loop: `train` → `inference` → `evaluate` (skill: `tao-skill-bank:visual-changenet`), then `rca` (skill: `tao-skill-bank:deft-aoi-rca-vcn`). The `train` sub-step is **skipped** when `deft_state.json` arrives with `iterations.baseline.stage_completed == "train"` and a `best_ckpt_path` pointing at an existing file — the `automl-deft-pipeline` parent skill pre-seeds these from its Phase 1 AutoML winner so DEFT doesn't retrain at the same HPs. In that case, baseline picks up at `inference` against the pre-seeded checkpoint, then `evaluate`, then `rca`. Then each iteration:
 
 1. **[SKILL — `tao-skill-bank:deft-aoi-rca-vcn`] RCA** on the previous inference result. Output: `rca_results/`. Write `iterations.<iter>.rca_target_defects` and `rca_gaps_parquet` into `deft_state.json` before advancing. See `references/deft-aoi-rca-vcn.md`.
 
-2. **Route weak samples.** Behaviour depends on whether AnomalyGen is run on the fly or pre-generated:
+2. **[INLINE] Ingest pre-generated AnomalyGen output + assemble `source_pool.csv`.** This EA variant does not run AnomalyGen — the customer has pre-generated NG/OK pairs and dropped them under `<workspace>/augmentation/anomalygen/reconstructed_image/` (NG) ↔ `<workspace>/augmentation/anomalygen/original_image/` (OK), paired 1-to-1 by filename stem (extensions may differ).
 
-   - **AnomalyGen runs on the fly** (Cosmos container is configured — `state.config.anomalygen.sub_skill` is set): **[SKILL — `tao-skill-bank:deft-aoi-routing-vcn`]** Split `rca_gaps_parquet` into `routing_mining_parquet` and `routing_anomalygen_parquet` in `deft_state.json`. Downstream mining and AnomalyGen stages read those paths from disk. See `references/deft-aoi-routing-vcn.md`.
+   **This stage runs before routing** so that routing's mining-eligibility check sees the SDG-augmented labels in `source_pool.csv`, not just the real-only `mining_pool.csv` labels — otherwise routing silently drops every defect class the customer pre-gen covers but the real pool doesn't (e.g. `bridge`, `missing`, `excess_solder`). The stage re-reads the same pre-gen directory every iteration. There is **no SDG bypass and no per-iter ingest cap** — every pre-gen pair is a candidate, and step 4 mines real + sdg together via k-NN against the current iter's weak targets. The effective per-iter contribution is therefore emergent (see Augmentation Pool). Iter N's weak targets differ from iter N-1's, so different synth pairs win each iter as the model evolves.
 
-   - **AnomalyGen is pre-generated** (`state.config.anomalygen.mode == "pregen_ingest"` and `sub_skill == null`): **[INLINE]** Skip the routing skill — there is no AG consumer to route to. Copy `rca_gaps_parquet` verbatim to `routing_results/<TS>/mining_gaps.parquet` and set `routing_anomalygen_parquet` to null in `deft_state.json`. **All weak gaps become mining targets**, regardless of label. The mining step (already configured with `filter_by_label: false`) will let k-NN retrieve whichever source-pool rows are visually closest to each target — real PASS or pre-gen synth NG — without any label-based pre-filter.
-
-     ```python
-     # Pre-generated AnomalyGen — one shutil.copyfile, then state update.
-     import shutil, json, pathlib
-     rca_pq = state["iterations"][iter_label]["rca_gaps_parquet"]
-     rt_dir = pathlib.Path(f"{RESULTS_DIR}/{iter_label}/routing_results/{ts}")
-     rt_dir.mkdir(parents=True, exist_ok=True)
-     mining_pq = rt_dir / "mining_gaps.parquet"
-     shutil.copyfile(rca_pq, mining_pq)
-     state["iterations"][iter_label]["routing_mining_parquet"] = str(mining_pq)
-     state["iterations"][iter_label]["routing_anomalygen_parquet"] = None
+   - **Re-verify basename pairing** under `<workspace>/augmentation/anomalygen/{reconstructed_image,original_image}/`. Pre-Flight step 8 already ran this; re-check as a guard, hard stop on mismatch. Check:
+     ```bash
+     diff <(ls reconstructed_image/ | sed 's/\.[^.]*$//' | sort) \
+          <(ls original_image/      | sed 's/\.[^.]*$//' | sort)
+     # Empty = paired; any output = unpaired stems, fail.
      ```
+   - **Stage + convert pre-gen to ChangeNet rows.** Run `scripts/changenet_data_pair_prepare.py` with `--input-dir <workspace>/augmentation/anomalygen/reconstructed_image`, `--golden-dir <workspace>/augmentation/anomalygen/original_image`, `--images-dir <workspace>`, `--subdir synthetic_iter${N}`. The script copies pairs into `results/iter${N}/dataset/images/synthetic_iter${N}_{ng,ok}/`, converts PNG→JPG if needed, emits the 14-column siamese CSV, and writes `ingest_summary.json` (per-label counts + skip reasons). Rewrite the script's bare `synthetic_iter${N}_ng/` paths to workspace-root-relative form (`results/run_<TS>/iter${N}/dataset/images/synthetic_iter${N}_ng`) and write to `mining_filter/sdg_rows.csv` — this is the SDG half of the source pool, **not** training input yet.
+   - **Assemble `mining_filter/source_pool.csv`.** Concatenate two contributions, both with a `provenance` column:
+     - **Real rows** from `<workspace>/augmentation/mining_pool/mining_pool.csv`. Prepend `augmentation/mining_pool/` to `input_path` and `kpi/images/` to `golden_path` so the path is workspace-root-relative. Stamp `provenance=real`.
+     - **SDG rows** from `mining_filter/sdg_rows.csv` (paths already workspace-root-relative from the rewrite above). Stamp `provenance=sdg`.
+   - **Record + log.** Update `state.iterations.<iter>.anomalygen_ingest` in `deft_state.json` with the source_pool composition (`real=<R>`, `sdg=<S>`). Emit via `scripts/log_stage.py --stage anomalygen --status ok --summary "ingested S pairs; source_pool=R real + S sdg rows"`.
 
-     **Why the simplification matters.** When AnomalyGen is pre-generated, the previous behaviour ran the full routing-vcn skill, which filters `mining_gaps` by *real-pool labels only* (`augmentation/mining_pool/mining_pool.csv['label'].unique()`). For customers whose mining_pool is PASS-only (the common case — production lines collect a stream of nominal samples, not defective ones), this drops every weak NG target from mining. They then get routed to `anomalygen_gaps.parquet`, which has no consumer when AG is pre-generated — silently dropped. Net effect: the loop never gets k-NN neighbours for the very defect classes the model needs to learn. Measured on a real run: every iter dropped 38/88 (43%) of weak samples this way, identically each iter. Promoting all gaps to mining recovers them.
+   **Common pre-gen pitfalls.** All customer-side filesystem hygiene; surface explicit errors when they happen rather than silently masking:
+   - **Unpaired stems from rename suffixes** (e.g. NG `_seed42.png` / OK `_seed42_orig.jpg`) — strip the `_orig` suffix on the OK side before dropping in.
+   - **Subdirectories** — the script reads flat dirs. Flatten with `find reconstructed_image -mindepth 2 -type f -exec mv {} reconstructed_image/ \;` before ingestion.
+   - **Mid-run pool mutation** — replacing `augmentation/anomalygen/` between iters silently changes which synth pairs are candidates. Snapshot the dir listing into `deft_state.json` at Pre-Flight if you need a hard-stop on inode change.
 
-     Log via `scripts/log_stage.py --stage routing --status ok --summary "pre-gen single-bucket: <N> gaps -> mining; no AG fanout"`.
+3. **[SKILL — `tao-skill-bank:deft-aoi-routing-vcn`] Route weak samples.** Split `rca_gaps_parquet` into `routing_mining_parquet` and `routing_anomalygen_parquet` in `deft_state.json`. **Pass `mining_filter/source_pool.csv` (from step 2)** as the routing skill's `source_pool_csv` input — **not** the real-only `<workspace>/augmentation/mining_pool/mining_pool.csv`. Routing's mining-eligibility is `label ∈ source_pool labels`, so a real-only pool causes every SDG-covered defect class to be silently dropped. Downstream mining and AnomalyGen stages read the routed parquet paths from disk. See `references/deft-aoi-routing-vcn.md`.
 
-3. **[INLINE] Read the cached pre-gen manifest.** Staging + source-pool assembly were done **once** at Pre-Flight step 10 (`scripts/prestage_pregen.py`). Per iter, this step is now a thin reader: load `${RESULTS_DIR}/synth_pool/manifest.json`, verify the artefacts referenced by it still exist (`source_pool.csv`, `source_pool.parquet`, and `source_embeddings.parquet` if `--embed-with-siglip` was used at pre-flight), and record the manifest pointer into `state.iterations.<iter>.anomalygen_ingest` so the per-iter audit trail still names the source. Log via `scripts/log_stage.py --stage anomalygen --status ok --summary "reused pre-staged synth_pool: R real + S sdg rows"`.
-
-   The previous design re-staged all 1000 pairs + reassembled `source_pool.csv` every iteration, even though neither the pre-gen NG/OK directory nor the real mining_pool changed between iterations. That cost ~70 GB of duplicate disk on a 10-iter run, plus ~50 s of redundant SigLIP source-pool embedding per iter. Only the k-NN target set (`routing_mining_parquet`) and the per-iter `mining_pool.csv` survivors actually need to be recomputed — and those still happen in step 4.
-
-   **Sanity checks** the per-iter step should still run (cheap, < 1 s each):
-   - `synth_pool/manifest.json` exists and parses; `counts.sdg_rows` > 0.
-   - The NG/OK directory listing has not changed since pre-flight (compare against `manifest.counts.sdg_rows`). Mid-run mutation is still flagged as a hard stop here — *not* silently re-ingested.
-   - `augmentation/mining_pool/mining_pool.csv` still exists and is non-empty (production line append-only growth is fine; deletion is not).
-
-   **If a customer wants to refresh the pre-gen pool**, they must re-launch the loop with a new `RESULTS_DIR` (or pass `--force` to `prestage_pregen.py` and rerun pre-flight). The loop does not re-stage mid-run.
-
-4. **[SKILL — `tao-skill-bank:deft-aoi-mining`] Mine the cached source pool against the iter's weak targets.** Input: `${RESULTS_DIR}/synth_pool/source_pool.parquet` (built once at pre-flight, real + sdg). Two cases:
-
-   - **Pre-flight ran `--embed-with-siglip`** (recommended path): skip the source-pool embedding step entirely. Embed only the iter's `routing_mining_parquet` targets (~50 rows, < 5 s), then run k-NN against the cached `synth_pool/source_embeddings.parquet`. Cost: one embedding call per iter instead of two.
-   - **Pre-flight did not embed**: behave as before — embed source pool from scratch each iter. This is a documented fallback, not the recommended path.
-
-   In both cases keep the **top-K nearest neighbours per target** (`topn=state.config.mining_filter.top_k_per_target`, default 5; deduped). The `provenance` column rides verbatim through embedding so the post-join recovers it. Optionally enforce `cosine ≥ state.config.mining_filter.min_similarity` (default 0.9) as a second filter on top of top-K. Output: `mining_filter/{target_embeddings.parquet, mined.parquet, mining_summary.txt, mining_pool.csv, knn_summary.csv}`. **Synthetic rows go through the same k-NN as real rows — no SDG bypass.** See `references/deft-aoi-mining.md`.
+4. **[SKILL — `tao-skill-bank:deft-aoi-mining`] Mine `source_pool.csv` against the iter's weak targets.** Input: `mining_filter/source_pool.csv` (step 2 output, real + sdg). Embed every row with SigLIP and run k-NN against `routing_mining_parquet` (from `deft_state.json`). Keep the **top-K nearest neighbours per target** (`topn=state.config.mining_filter.top_k_per_target`, default 5; deduped). The `provenance` column rides verbatim through both embedding steps so the post-join recovers it. Optionally enforce `cosine ≥ state.config.mining_filter.min_similarity` (default 0.9) as a second filter on top of top-K. Output: `mining_filter/{source_pool.parquet, target_embeddings.parquet, source_embeddings.parquet, mined.parquet, mining_summary.txt, mining_pool.csv, knn_summary.csv}`. **Synthetic rows go through the same k-NN as real rows — no SDG bypass.** See `references/deft-aoi-mining.md`.
 
    **Mid-iteration leakage check.** Right after mining finishes — before any further CSV assembly — diff `mining_filter/mining_pool.csv` against `train/base/validation_set.csv` on `(input_path, golden_path, label, object_name, boardname)` (use `scripts/validate_training_csv.py --csv <mining_pool.csv> --workspace-root <ws> --validation-csv <validation_set.csv>`). Hard-stop on any hit. Catching leakage here, with only the new rows in scope, is cheap and isolates the offending source. The post-assembly leakage check in step 6b stays as a defence-in-depth backstop.
 
@@ -455,7 +430,7 @@ Baseline runs once before the loop: `train` → `inference` → `evaluate` (skil
 
    b. **Train/validation leakage check.** `scripts/validate_training_csv.py` accepts `--validation-csv`; pass `train/base/validation_set.csv` so the diff on `(input_path, golden_path, label, object_name, boardname)` runs as part of the single validation pass. Hard stop on any validation row appearing in training. (Step 4 already runs the mid-iteration variant on `mining_filter/mining_pool.csv`; this check is the defence-in-depth backstop against leakage introduced by base-CSV reassembly.)
 
-7. **[SKILL — `tao-skill-bank:visual-changenet`] Fine-tune + evaluate.** Invoke the skill for the `train` and `evaluate` tasks. It owns TAO training, checkpoint discovery, inference, KPI analysis, and best-checkpoint selection. Write the selected checkpoint and KPI metrics into `deft_state.json`. Stop the loop if KPI met or `max_iterations` reached. See `references/visual-changenet.md`.
+7. **[SKILL — `tao-skill-bank:visual-changenet`] Fine-tune + evaluate.** Invoke the skill for the `train` and `evaluate` tasks. For the train task, pass the workflow override `automl_policy: off` so Visual ChangeNet runs plain training instead of model-level AutoML. It owns TAO training, checkpoint discovery, inference, KPI analysis, and best-checkpoint selection. Write the selected checkpoint and KPI metrics into `deft_state.json`. Stop the loop if KPI met or `max_iterations` reached. See `references/visual-changenet.md`.
 
 ## State & Logging
 

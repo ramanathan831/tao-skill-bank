@@ -1,4 +1,5 @@
 network_arch: visual-changenet
+automl_enabled: true
 container_image: tao_toolkit.pyt
 actions:
   train:
@@ -66,7 +67,9 @@ actions:
     - inputs/
 pretrained_models:
   classify:
-    backbone: https://huggingface.co/nvidia/C-RADIOv2-B
+    # HF source for staging; the spec field accepts only LOCAL paths. Download
+    # `nvidia/C-RADIOv2-B`/`model.safetensors` and mount it before training.
+    backbone: hf://nvidia/C-RADIOv2-B/model.safetensors
     full_model: ngc://nvidia/tao/visual_changenet_classification:visual_changenet_nvpcb_trainable_v1.0
   segment:
     full_model: ngc://nvidia/tao/visual_changenet_segmentation_levircd:visual_changenet_levircd_trainable_v1.0

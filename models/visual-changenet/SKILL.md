@@ -25,11 +25,24 @@ Visual ChangeNet is a TAO Toolkit model for visual inspection and defect detecti
 - **Classify** — Binary image classification using a siamese-style architecture with a shared backbone (C-RADIO ViT) and a learnable difference module. Compares image pairs to classify defects as PASS/NO_PASS.
 - **Segment** — Pixel-level change segmentation using a ViT-Large NVDINOv2 backbone. Compares before/after image pairs to produce a binary change mask.
 
-The backbone weight (`c_radio_v2_vit_base_patch16_224`) is downloaded from Hugging Face at runtime: `https://huggingface.co/nvidia/C-RADIOv2-B`. Ensure the runtime has Hugging Face access when required. The default spec path `model.backbone.pretrained_backbone_path: /workspace/weights/backbone.pth` is resolved by the container infrastructure.
+The backbone weight (`c_radio_v2_vit_base_patch16_224`) is the `nvidia/C-RADIOv2-B` model from HuggingFace, distributed as `model.safetensors`. **The TAO container does not auto-fetch from HF URLs** — `ptm_utils.load_pretrained_weights()` hands the `pretrained_backbone_path` value to `torch.load(path)` / `safetensors.torch.load_file(path)` directly. Passing an `https://huggingface.co/...` URL or a repo id produces `FileNotFoundError` and the run fails with `Execution status: FAIL` within a few seconds. Stage the file locally before launch:
+
+```bash
+python3 -c "from huggingface_hub import hf_hub_download; import shutil; \
+shutil.copy(hf_hub_download('nvidia/C-RADIOv2-B', 'model.safetensors'), '<workspace>/backbone/c_radio_v2_b.safetensors')"
+```
+
+Mount it into the container (`-v <workspace>/backbone/c_radio_v2_b.safetensors:/data/pretrained_models/C-RADIOv2_B.safetensors`) and set the spec `model.backbone.pretrained_backbone_path` to the container path. `HF_TOKEN` is only needed at staging time, not at training time.
 
 ## Dataclass Schemas
 
-Generated TAO Core schemas are packaged in `schemas/<action>.schema.json`, with `schemas/manifest.json` listing available actions. Each generated schema also emits `references/spec_template_<action>.yaml` from the schema top-level `default` field. For AutoML, `schemas/train.schema.json` and `references/spec_template_train.yaml` must exist and parse; otherwise AutoML is unsupported for this model in the plugin workflow. Use the packaged train schema for `automl_default_parameters`, `automl_disabled_parameters`, defaults, min/max bounds, enums, option weights, math conditions, dependencies, and popular parameters. Do not expect `~/tao-core` at runtime; maintainers regenerate schemas/templates before packaging the skill bank.
+Generated TAO Core schemas are packaged in `schemas/<action>.schema.json`, with `schemas/manifest.json` listing available actions. Each generated schema also emits `references/spec_template_<action>.yaml` from the schema top-level `default` field. AutoML enablement is declared at the model layer in `references/skill_info.yaml` via `automl_enabled`. Runnable AutoML still requires `schemas/train.schema.json` and `references/spec_template_train.yaml` to exist and parse. Use the packaged train schema for `automl_default_parameters`, `automl_disabled_parameters`, defaults, min/max bounds, enums, option weights, math conditions, dependencies, and popular parameters. Do not expect `~/tao-core` at runtime; maintainers regenerate schemas/templates before packaging the skill bank.
+
+## Train Action Policy
+
+This model is AutoML-enabled at the model layer. Before handling any train-stage request, read `references/skill_info.yaml` and resolve the run override from either an explicit `automl_policy` value or the user's workflow request. Treat phrases like "turn off AutoML", "disable AutoML", "no HPO", or "plain training" as `automl_policy: off` for this run only; otherwise default to `auto`. When `automl_policy: auto`, `automl_enabled: true`, and both `schemas/train.schema.json` and `references/spec_template_train.yaml` are packaged, route the train action through `tao-skill-bank:tao-automl` by default with this model's `skill_dir`. Preserve workflow/application overrides for datasets, specs, output directories, GPU/platform settings, parent checkpoints, and `automl_policy`. Use direct model training only when `automl_policy: off` or the packaged train schema/template is missing; in the missing-schema case, report that AutoML is enabled but not runnable for this model until schemas are generated.
+
+Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows stay in this model skill. The per-run `automl_policy` override does not change model metadata.
 
 For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference` for classify and segment variants), read `deploy/SKILL.md` first. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
 
@@ -372,6 +385,8 @@ Set `dataset.classify.num_input` to match the number of lighting conditions. The
 **OOM during training**: Reduce `dataset.classify.batch_size` (16 -> 8 -> 4). With the default image size of 224x224, batch_size=16 typically fits on a 16GB GPU. If using larger images via `image_width`/`image_height`, reduce batch size proportionally.
 
 **Low evaluation accuracy with correct training loss**: The `eval_margin` threshold may be miscalibrated for your data. After training, run inference on a validation set and inspect the embedding distance distribution to pick an appropriate threshold. The default 0.3 is tuned for the reference dataset and may not generalize.
+
+**`AssertionError: Contrastive loss only supports Euclidean distance module`** at evaluate/inference: the spec dropped the `train` subtree. Model `__init__` reads `train.classify.loss` regardless of action; omitting it falls back to contrastive loss, which then conflicts with non-default `model.classify.difference_module` (e.g. `learnable`) saved in the checkpoint. Keep `train.classify.loss` (and `train.classify.cls_weight`) in the spec for evaluate and inference too.
 
 **Training does not converge**: Check that `train.classify.cls_weight` is appropriate for your class distribution. If defects are very rare (<1% of samples), increase the defective class weight. Also verify that `fpratio_sampling` is not too low, which would under-sample the majority class.
 

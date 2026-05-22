@@ -461,6 +461,7 @@
       "spec_template": "references/spec_template_train.yaml"
     }
   },
+  "automl_enabled": true,
   "failures": {},
   "model": "ml-recog",
   "network_arch": "ml_recog",

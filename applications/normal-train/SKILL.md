@@ -20,7 +20,9 @@ Standard supervised fine-tuning: train a model on a labeled dataset, optionally 
 
 ## Steps
 
-1. **train** — always executed
+1. **train** — executed through AutoML when the selected model has
+   `automl_enabled: true` and `automl_policy` is `auto`; set
+   `automl_policy=off` for a plain single training run
 2. **eval** — executed if `eval_dataset_uri` is resolved
 3. **export** — optional, on user request after training
 
@@ -38,6 +40,7 @@ Standard supervised fine-tuning: train a model on a labeled dataset, optionally 
 ### Optional
 - **eval_dataset_uri**: Some model skills mark this as required — check the resolved model skill before treating it as optional.
 - **base_checkpoint**: If not provided, defaults to the NGC pretrained checkpoint listed in the model skill, or trains from scratch if no NGC checkpoint exists.
+- **automl_policy**: `auto` by default; set `off` to bypass model-level AutoML for this run while leaving model metadata unchanged.
 - **image override**: Use `image=<override>` to pin a specific TAO toolkit build
   after reviewing the resolved default.
 
@@ -47,6 +50,15 @@ After the user confirms they want this standard train/eval/export workflow,
 ask which supported platform they intend to run on. Generate the choices with
 `scripts/list_tao_platforms.py --format text`; do not scan platform docs or
 folders.
+
+Before creating a plain train runner, inspect the selected model's metadata
+with `scripts/list_tao_models.py --scope automl --format json` or read
+`models/<network>/references/skill_info.yaml`. If `automl_enabled` is true and
+the helper reports a valid train schema for that model, route the train stage
+through `applications/tao-automl` by default. Only stay on the plain train path
+when `automl_policy=off`, the user explicitly asks for no HPO/AutoML, or AutoML
+is enabled but not runnable because the model's train schema is not packaged
+yet.
 
 Also ask whether long-running monitoring should stay enabled and how many
 minutes between status updates. Defaults: enabled, 5 minutes.

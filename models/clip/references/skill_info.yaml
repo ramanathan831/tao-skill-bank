@@ -1,4 +1,5 @@
 network_arch: clip
+automl_enabled: true
 container_image: tao_toolkit.pyt
 data_format: default
 gpu_spec_key: train.num_gpus

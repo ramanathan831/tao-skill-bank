@@ -1,4 +1,5 @@
 network_arch: cosmos-rl
+automl_enabled: true
 container_image: tao_toolkit.cosmos_rl
 required_credentials:
 - HF_TOKEN
