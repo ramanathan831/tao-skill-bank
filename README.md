@@ -8,16 +8,14 @@ The skill bank works with both Claude Code and Codex. Pick the runtime you use.
 
 ### Claude Code
 
-In a Claude Code session, add the marketplace and install a plugin. Two choices:
+In a Claude Code session, add the marketplace and install the plugin:
 
 ```
 /plugin marketplace add ssh://git@gitlab-master.nvidia.com:12051/nvidia-tao-toolkit/tao-skills-external.git
-/plugin install tao-skills@tao-skill-bank             # everything (recommended)
-# or
-/plugin install deft-aoi-loop-plugin@tao-skill-bank   # just the DEFT AOI loop
+/plugin install tao-skills@tao-skill-bank
 ```
 
-That's it — no `git clone`, no `pip install`. The `tao-skills` plugin bundles all 56 skills (every model, data, platform, and application). If you want only the focused DEFT loop bundle, install `deft-aoi-loop-plugin` instead. The plugin's [`SessionStart`](hooks/session_start.sh) hook loads the [`AGENTS.md`](AGENTS.md) identity at the start of every session.
+That's it — no `git clone`, no `pip install`. The `tao-skills` plugin bundles all 56 skills (every model, data, platform, and application). The plugin's [`SessionStart`](hooks/session_start.sh) hook loads the [`AGENTS.md`](AGENTS.md) identity at the start of every session.
 
 ### Codex
 
@@ -157,7 +155,7 @@ In brief:
 ```
 tao-skills-external/
 ├── .claude-plugin/
-│   ├── marketplace.json              # marketplace catalog (lists tao-skills + deft-aoi-loop-plugin)
+│   ├── marketplace.json              # marketplace catalog (plugin definitions)
 │   └── plugin.json                   # plugin manifest (fallback when loaded directly)
 ├── hooks/
 │   ├── hooks.json                    # SessionStart hook registration

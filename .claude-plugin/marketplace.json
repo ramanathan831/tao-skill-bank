@@ -22,7 +22,6 @@
         "./applications/tao-hf-finetune",
         "./applications/tao-hf-integration",
         "./applications/workflow-deft-aoi-loop",
-        "./data/cosmos-anomalygen",
         "./data/deft-aoi-mining",
         "./data/deft-aoi-rca-vcn",
         "./data/deft-aoi-routing-vcn",
@@ -90,22 +89,6 @@
         "./platform/tao-sdk",
         "./data/daft-convert",
         "./data/daft-validate"
-      ]
-    },
-    {
-      "name": "deft-aoi-loop-plugin",
-      "description": "Focused bundle for the DEFT AOI loop only — Evaluate → RCA → SDG → Retrain → Deploy for NVIDIA PCB AOI. Install this if you want JUST the DEFT workflow without the full TAO skill bank.",
-      "source": "./",
-      "strict": true,
-      "skills": [
-        "./applications/workflow-deft-aoi-loop",
-        "./models/visual-changenet",
-        "./data/deft-aoi-rca-vcn",
-        "./data/deft-aoi-routing-vcn",
-        "./data/deft-aoi-mining",
-        "./data/cosmos-anomalygen",
-        "./platform/docker",
-        "./platform/nvidia-gpu-setup"
       ]
     },
     {
