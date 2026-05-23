@@ -99,8 +99,8 @@ Required. Evaluation requires reference and query datasets for retrieval metrics
 
 - **model.backbone**: Default resnet_50. Options: resnet_50, resnet_101, fan_small, fan_base, fan_large, fan_tiny, nvdinov2_vit_large_legacy.
 - **model.feat_dim**: Embedding dimension. Default 256. Output feature vector size for similarity matching.
-- **train.batch_size**: Per-GPU batch size. Default 4. val_batch_size also 4.
-- **dataset.num_instance**: Instances per identity in a batch (P/K sampling). Default 4. Controls how many images of the same class appear together.
+- **train.batch_size**: Per-GPU batch size. Default 4. `val_batch_size` also 4. For training and AutoML search, `train.batch_size` must be divisible by `dataset.num_instance`.
+- **dataset.num_instance**: Instances per identity in a batch (P/K sampling). Default 4. Controls how many images of the same class appear together. If using a custom AutoML range for `train.batch_size`, use explicit options that are multiples of this value.
 - **train.optim.trunk.base_lr**: Learning rate for the trunk (backbone). Default 3.5e-4 (Adam).
 - **train.optim.embedder.base_lr**: Learning rate for the embedding head. Default 3.5e-4.
 - **train.optim.triplet_loss_margin**: Margin for triplet loss. Default 0.3. smooth_loss=True by default.
