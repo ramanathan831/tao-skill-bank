@@ -8,16 +8,17 @@ Mechanical fields (no per-skill judgment required):
   - license: Apache-2.0          (always — required by validator)
   - metadata.author              (from `git log` — top contributors to the file)
   - metadata.version: "0.1"      (default starting version)
-  - compatibility:               (heuristic per layer + presence of container_image)
+  - metadata.compatibility:      (heuristic per layer + presence of container_image)
   - allowed-tools:               (heuristic — default 'Read Bash'; orchestrators add 'Write')
-  - tags:                        (migrated from references/skill_info.yaml; falls back
+  - metadata.tags:               (migrated from references/skill_info.yaml; falls back
                                   to layer + skill-name heuristic when absent)
 
-Also removes `tags:` from `references/skill_info.yaml` after migration so SKILL.md
-becomes the single source of truth for tags.
+Also removes `tags:` from `references/skill_info.yaml` after migration so
+SKILL.md `metadata.tags` becomes the single source of truth for tags.
 
-Preserves existing fields verbatim. Idempotent — running twice is a no-op for
-fields already present.
+Moves legacy top-level `compatibility`, `tags`, `author`, `version`, and `tools`
+into the standard Agent Skills-compatible shape. Idempotent — running twice is a
+no-op for fields already present.
 
 Usage:
   python3 scripts/migrate-frontmatter.py             # dry-run, prints actions
@@ -124,16 +125,19 @@ def tags_for_skill(skill_path: str, fm: dict) -> tuple[list, str]:
     """Return (tags_list, source) for a skill.
 
     Source priority:
-      1. Existing `tags:` in SKILL.md frontmatter (idempotent — already migrated).
-      2. `tags:` in references/skill_info.yaml (migrate it out).
-      3. Heuristic — layer + skill name.
+      1. Existing `metadata.tags` in SKILL.md frontmatter.
+      2. Legacy top-level `tags:` in SKILL.md frontmatter.
+      3. `tags:` in references/skill_info.yaml (migrate it out).
+      4. Heuristic — layer + skill name.
 
     Returns the source string for action logging:
       'frontmatter' | 'skill_info' | 'heuristic'
     """
-    # 1. Already in frontmatter
+    metadata = fm.get("metadata") if isinstance(fm.get("metadata"), dict) else {}
+    if isinstance(metadata.get("tags"), list) and metadata["tags"]:
+        return metadata["tags"], "metadata"
     if isinstance(fm.get("tags"), list) and fm["tags"]:
-        return fm["tags"], "frontmatter"
+        return fm["tags"], "legacy-frontmatter"
 
     # 2. From skill_info.yaml
     skill_dir = os.path.dirname(skill_path)
@@ -206,10 +210,8 @@ def render_frontmatter(fm: dict) -> str:
         "name",
         "description",
         "license",
-        "compatibility",
         "metadata",
         "allowed-tools",
-        "tags",
         "hooks",
     ]
     ordered = {}
@@ -239,37 +241,47 @@ def migrate_one(skill_md: str, apply: bool) -> str | None:
         fm["license"] = "Apache-2.0"
         actions.append("+license")
 
-    # compatibility
-    if "compatibility" not in fm:
-        fm["compatibility"] = compatibility_for(skill_md)
-        actions.append("+compatibility")
-
-    # metadata.{author, version}
+    # metadata.{author, version, compatibility, tags}
     metadata = fm.get("metadata") or {}
     if not isinstance(metadata, dict):
         metadata = {}
+    if "author" not in metadata and "author" in fm:
+        metadata["author"] = fm["author"]
+        actions.append("author→metadata.author")
     if "author" not in metadata:
         author = git_authors(skill_md)
         if author:
             metadata["author"] = author
             actions.append("+metadata.author")
+    if "version" not in metadata and "version" in fm:
+        metadata["version"] = str(fm["version"])
+        actions.append("version→metadata.version")
     if "version" not in metadata:
         metadata["version"] = "0.1"
         actions.append("+metadata.version")
+    if "compatibility" not in metadata:
+        metadata["compatibility"] = fm.get("compatibility") or compatibility_for(skill_md)
+        actions.append("+metadata.compatibility")
+    tags, source = tags_for_skill(skill_md, fm)
+    if tags and "tags" not in metadata:
+        metadata["tags"] = tags
+        actions.append(f"+metadata.tags(from-{source})")
     if metadata:
         fm["metadata"] = metadata
 
     # allowed-tools
-    if "allowed-tools" not in fm:
+    if "allowed-tools" not in fm and "tools" in fm:
+        fm["allowed-tools"] = fm["tools"]
+        actions.append("tools→allowed-tools")
+    elif "allowed-tools" not in fm:
         fm["allowed-tools"] = allowed_tools_for(skill_md)
         actions.append("+allowed-tools")
 
-    # tags — migrate from skill_info.yaml or fall back to heuristic
-    if "tags" not in fm:
-        tags, source = tags_for_skill(skill_md, fm)
-        if tags:
-            fm["tags"] = tags
-            actions.append(f"+tags(from-{source})")
+    for legacy_key in ("author", "version", "tools", "compatibility", "tags"):
+        if legacy_key in fm:
+            del fm[legacy_key]
+            actions.append(f"-legacy.{legacy_key}")
+
     # Always remove tags from skill_info.yaml if present (single source of truth in SKILL.md)
     if remove_tags_from_skill_info(skill_md, apply):
         actions.append("-skill_info.tags")

@@ -51,18 +51,22 @@ The validator fails CI when `license` is missing. `name` and `description` follo
 ### Optional fields (validator warns when missing)
 
 ```yaml
-compatibility: Requires docker + nvidia-container-toolkit + NGC API key.
 metadata:
   author: NVIDIA Corporation
   version: "1.0"
+  compatibility: Requires docker + nvidia-container-toolkit + NGC API key.
+  tags:
+    - pcb
+    - aoi
+    - defect
 allowed-tools: Read Bash
 ```
 
-**`compatibility:`** — runtime requirements only. Tools, packages, env vars, services the skill needs.
+**`metadata.compatibility:`** — runtime requirements only. Tools, packages, env vars, services the skill needs.
 
-> **Important:** the skill bank is **agent-harness-agnostic**. Do NOT prefix `compatibility:` with "Designed for Claude Code" or any specific harness — the same skill must work in Claude Code, Codex, Gemini CLI, and any Agent Skills compatible agent. Describe runtime requirements only.
+> **Important:** the skill bank is **agent-harness-agnostic**. Do NOT prefix `metadata.compatibility:` with "Designed for Claude Code" or any specific harness — the same skill must work in Claude Code, Codex, Gemini CLI, and any Agent Skills compatible agent. Describe runtime requirements only.
 
-| Skill type | Recommended `compatibility:` value |
+| Skill type | Recommended `metadata.compatibility:` value |
 |---|---|
 | Containerized model/data | `Requires docker + nvidia-container-toolkit + NGC API key.` |
 | `platform/docker` | `Requires docker + nvidia-container-toolkit.` |
@@ -78,17 +82,18 @@ allowed-tools: Read Bash
 
 **`allowed-tools`** — pre-approves tools so Claude doesn't prompt the user per use. Whitespace-separated list. Common values: `Read Bash`, `Read Bash Write`. Use sparingly — only for tools the skill genuinely needs frequently.
 
-**`tags`** — list of short keywords for documentation, browsing, and our own catalog tooling. Examples:
+**`metadata.tags`** — list of short keywords for documentation, browsing, and our own catalog tooling. Examples:
 
 ```yaml
-tags:
-  - pcb
-  - aoi
-  - defect
-  - classification
+metadata:
+  tags:
+    - pcb
+    - aoi
+    - defect
+    - classification
 ```
 
-Tags are NOT used by Claude Code for skill auto-invocation — that's driven by `description` (and trigger phrases within it). Tags exist for human browsing and tooling. Lives in `SKILL.md` frontmatter only — `references/skill_info.yaml` does NOT carry tags (single source of truth).
+Tags are NOT used by Claude Code or Codex for skill auto-invocation — that's driven by `description` (and trigger phrases within it). Tags exist for human browsing and tooling. Lives in `SKILL.md` frontmatter metadata only — `references/skill_info.yaml` does NOT carry tags (single source of truth).
 
 ### Body must be agent-runnable
 
@@ -231,8 +236,6 @@ stages:
 # Platform skills
 sdk_module: tao_sdk.platforms.lepton.sdk
 features: [tracking, multi-node, lustre]
-
-tags: [classification, my-domain]
 ```
 
 ## 5. Optional: `example/` reference output
@@ -260,7 +263,7 @@ cp -r templates/skill-skeleton/workflow applications/<your-skill>
 
 Rename the directory to your skill's kebab-case name. Fill in the placeholders.
 
-## 7. Add to `marketplace.json`
+## 7. Register the skill
 
 List your skill under `tao-skills` (the marketplace's main plugin) so it ships with the standard install.
 
@@ -283,6 +286,11 @@ Users install with `/plugin install tao-skills@tao-skill-bank`. The plugin name 
 
 Do not also add the skill under top-level `skills/`. That directory is only for Codex helper/router skills that generate capability answers or launch intake from the packaged manifests. Mirroring model, data, platform, or application skills under both places gives agents duplicate trigger surfaces and increases the chance of stale or hallucinated routing.
 
+For Codex, also add directly exposed, in-scope skills to `.codex-plugin/plugin.json`
+and create `agents/openai.yaml` in that skill directory. The Codex manifest should
+list explicit skill directories rather than a broad parent directory so validation
+can catch missing or accidental exposure.
+
 ## 8. Validate
 
 ```bash
@@ -293,14 +301,20 @@ Errors (fail CI):
 
 - `marketplace.json` skill paths must resolve.
 - `skills/` must not contain symlink mirrors of canonical skills.
+- `.codex-plugin/plugin.json` skill paths must resolve.
 - `SKILL.md` frontmatter must have `name`, `description`, and `license`.
+- In-scope skills must use standard top-level frontmatter keys only:
+  `name`, `description`, `license`, `metadata`, and `allowed-tools`.
 - `SKILL.md` body must have runnable info (Quick Start, docker run, scripts/, hooks/, or `references/skill_info.yaml`).
+- Directly exposed Codex skills must have `agents/openai.yaml` with
+  `display_name`, `short_description`, and `default_prompt`.
 - No `tao_sdk` symbol leaks into model/data/application skills (platform/* exempt; tao-automl exempted as SDK-native workflow).
 - Hook paths in frontmatter must resolve.
 
 Warnings (printed but don't fail CI):
 
-- Missing `compatibility`.
+- Scoped-out workflow/application debt.
+- Missing `metadata.compatibility`.
 - Missing `metadata.author` or `metadata.version`.
 - Missing `allowed-tools`.
 
@@ -318,13 +332,15 @@ Start a session, ask the agent to exercise the skill. Verify the agent reads it,
 
 - [ ] Skill directory is kebab-case at the right layer.
 - [ ] Frontmatter has `name`, `description` with trigger phrases, `license: Apache-2.0`.
-- [ ] Optional: `compatibility`, `metadata.author`, `metadata.version`, `allowed-tools` populated.
+- [ ] Optional: `metadata.compatibility`, `metadata.author`, `metadata.version`, `metadata.tags`, `allowed-tools` populated.
 - [ ] Body has Quick Start (or scripts/, hooks/, references/skill_info.yaml) — agent-runnable.
 - [ ] If the skill is non-trivial: External Dependencies, CLI Reference, Output Structure, Known Pitfalls sections present.
 - [ ] If using `references/skill_info.yaml`: `container_image` set, `actions.<name>.command` set per action.
 - [ ] No SDK symbols (`tao_sdk`, `sdk.create_job`, etc.) in model/data/application skills (allowed in `platform/*`).
 - [ ] Added to `.claude-plugin/marketplace.json` under the right plugin(s).
 - [ ] No mirrored copy or symlink added under top-level `skills/`.
+- [ ] Added to `.codex-plugin/plugin.json` if the skill should be directly exposed to Codex.
+- [ ] Added `agents/openai.yaml` for any directly exposed Codex skill.
 - [ ] `scripts/validate-skills.sh` passes (no errors; warnings are informational).
 - [ ] Tested locally via `claude --plugin-dir .`.
 
@@ -332,7 +348,7 @@ Start a session, ask the agent to exercise the skill. Verify the agent reads it,
 
 **Naming the skill file wrong.** It must be `SKILL.md` (uppercase, exact). Files like `vila.md` or `<skill_name>.md` are NOT picked up by Claude Code's plugin system — they're treated as supporting docs.
 
-**Mentioning the agent harness in `compatibility`.** The skill bank is harness-agnostic. Don't write "Designed for Claude Code." Restrict the `compatibility` field to runtime requirements.
+**Mentioning the agent harness in `metadata.compatibility`.** The skill bank is harness-agnostic. Don't write "Designed for Claude Code." Restrict the `metadata.compatibility` field to runtime requirements.
 
 **Abstract description.** "Visual Changenet model" is bad. "Fine-tune Visual ChangeNet for PCB defect detection. Use when the user asks to 'train ChangeNet', 'PCB defect detection', or mentions 'siamese classification'." is good.
 

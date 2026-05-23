@@ -6,10 +6,10 @@ description: >-
   REPLACE-WITH-DOMAIN-TERMS. Include literal trigger phrases the user is
   likely to say.
 license: Apache-2.0
-compatibility: REPLACE — typical examples — `Requires docker + nvidia-container-toolkit.` (containerized) or `Requires Python 3.8+ and Pillow.` (local script)
 metadata:
   author: REPLACE-WITH-AUTHOR-NAME
   version: "0.1"
+  compatibility: REPLACE — typical examples — `Requires docker + nvidia-container-toolkit.` (containerized) or `Requires Python 3.8+ and Pillow.` (local script)
 allowed-tools: Read Bash
 ---
 

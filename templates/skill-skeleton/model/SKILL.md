@@ -6,10 +6,10 @@ description: >-
   REPLACE-WITH-NETWORK on REPLACE-WITH-DATA-TYPE", or mentions
   REPLACE-WITH-DOMAIN-TERMS. Include literal trigger phrases.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit + NGC API key.
 metadata:
   author: REPLACE-WITH-AUTHOR-NAME
   version: "0.1"
+  compatibility: Requires docker + nvidia-container-toolkit + NGC API key.
 allowed-tools: Read Bash
 ---
 

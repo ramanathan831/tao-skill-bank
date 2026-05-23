@@ -6,10 +6,10 @@ description: >-
   Use when the user asks to "REPLACE-WITH-INTENT-1", "REPLACE-WITH-INTENT-2",
   or mentions REPLACE-WITH-DOMAIN-TERMS. Include literal trigger phrases.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit. Sub-skills declare additional requirements.
 metadata:
   author: REPLACE-WITH-AUTHOR-NAME
   version: "0.1"
+  compatibility: Requires docker + nvidia-container-toolkit. Sub-skills declare additional requirements.
 allowed-tools: Read Bash
 ---
 
