@@ -72,6 +72,7 @@ Data source overrides are **mandatory for every action** — the agent MUST cons
 ```python
 S3_TRAIN = "s3://bucket/data/train"
 S3_EVAL = "s3://bucket/data/eval"
+CONVERTED_SCENE = "<scene-from-converter>"  # e.g. "subsetscene+bev-sensor-random-0"
 ```
 
 **train (mandatory data sources):**
@@ -86,9 +87,9 @@ CONVERTED = "s3://bucket/results/<dataset_convert_job_id>"
     "dataset.train_dataset.sequences_split_num": 90,
     "dataset.data_root": f"{S3_TRAIN}/train",
     "model.head.instance_bank.anchor": f"{CONVERTED}/anchor_init.npy",
-    "dataset.train_dataset.ann_file": f"{CONVERTED}/train/<scene>_infos_train.pkl",
-    "dataset.val_dataset.ann_file": f"{CONVERTED}/val/<scene>_infos_val.pkl",
-    "dataset.test_dataset.ann_file": f"{CONVERTED}/test/<scene>_infos_test.pkl",
+    "dataset.train_dataset.ann_file": f"{CONVERTED}/train/{CONVERTED_SCENE}_infos_train.pkl",
+    "dataset.val_dataset.ann_file": f"{CONVERTED}/val/{CONVERTED_SCENE}_infos_val.pkl",
+    "dataset.test_dataset.ann_file": f"{CONVERTED}/test/{CONVERTED_SCENE}_infos_test.pkl",
 }
 ```
 
@@ -98,9 +99,9 @@ CONVERTED = "s3://bucket/results/<dataset_convert_job_id>"
 {
     "dataset.data_root": f"{S3_EVAL}/val",
     "model.head.instance_bank.anchor": f"{CONVERTED}/anchor_init.npy",
-    "dataset.train_dataset.ann_file": f"{CONVERTED}/train/<scene>_infos_train.pkl",
-    "dataset.val_dataset.ann_file": f"{CONVERTED}/val/<scene>_infos_val.pkl",
-    "dataset.test_dataset.ann_file": f"{CONVERTED}/test/<scene>_infos_test.pkl",
+    "dataset.train_dataset.ann_file": f"{CONVERTED}/train/{CONVERTED_SCENE}_infos_train.pkl",
+    "dataset.val_dataset.ann_file": f"{CONVERTED}/val/{CONVERTED_SCENE}_infos_val.pkl",
+    "dataset.test_dataset.ann_file": f"{CONVERTED}/test/{CONVERTED_SCENE}_infos_test.pkl",
 }
 ```
 
@@ -118,9 +119,9 @@ CONVERTED = "s3://bucket/results/<dataset_convert_job_id>"
 {
     "dataset.data_root": f"{S3_EVAL}/test",
     "model.head.instance_bank.anchor": f"{CONVERTED}/anchor_init.npy",
-    "dataset.train_dataset.ann_file": f"{CONVERTED}/train/<scene>_infos_train.pkl",
-    "dataset.val_dataset.ann_file": f"{CONVERTED}/val/<scene>_infos_val.pkl",
-    "dataset.test_dataset.ann_file": f"{CONVERTED}/test/<scene>_infos_test.pkl",
+    "dataset.train_dataset.ann_file": f"{CONVERTED}/train/{CONVERTED_SCENE}_infos_train.pkl",
+    "dataset.val_dataset.ann_file": f"{CONVERTED}/val/{CONVERTED_SCENE}_infos_val.pkl",
+    "dataset.test_dataset.ann_file": f"{CONVERTED}/test/{CONVERTED_SCENE}_infos_test.pkl",
 }
 ```
 
@@ -130,14 +131,19 @@ CONVERTED = "s3://bucket/results/<dataset_convert_job_id>"
 {
     "dataset.data_root": f"{S3_TRAIN}/train",
     "model.head.instance_bank.anchor": f"{CONVERTED}/anchor_init.npy",
-    "dataset.train_dataset.ann_file": f"{CONVERTED}/train/<scene>_infos_train.pkl",
-    "dataset.val_dataset.ann_file": f"{CONVERTED}/val/<scene>_infos_val.pkl",
-    "dataset.test_dataset.ann_file": f"{CONVERTED}/test/<scene>_infos_test.pkl",
+    "dataset.train_dataset.ann_file": f"{CONVERTED}/train/{CONVERTED_SCENE}_infos_train.pkl",
+    "dataset.val_dataset.ann_file": f"{CONVERTED}/val/{CONVERTED_SCENE}_infos_val.pkl",
+    "dataset.test_dataset.ann_file": f"{CONVERTED}/test/{CONVERTED_SCENE}_infos_test.pkl",
     "dataset.quant_calibration_dataset.images_dir": f"{S3_TRAIN}",
 }
 ```
 
 For local-docker runs, keep Sparse4D conversion rooted at `/data/aicity_root` and train/eval data roots at the converted split folder, for example `/data/aicity_root/train`. The annotations converter writes absolute RGB paths under the conversion root and relative depth paths under the split, so both mounts must stay stable across conversion and training.
+Use the actual converted annotation filename emitted by Data Services. For the
+packaged AICity smoke dataset the basename is
+`subsetscene+bev-sensor-random-0`, so the train file is
+`train/subsetscene+bev-sensor-random-0_infos_train.pkl`; do not strip the
+BEV-sensor suffix back to `subsetscene_infos_train.pkl`.
 ## Eval Dataset
 
 Optional. Val/test splits configured via dataset ann_file paths.

@@ -149,7 +149,7 @@ EVAL_DATASET_URI = "s3://bucket/data/eval"
     "policy.lora.lora_alpha": 256,
     "policy.lora.r": 16,
     "policy.lora.lora_dropout": 0.05,
-    "train.epoch": 1,
+    "train.epoch": 2,
     "train.train_batch_per_replica": 32,
     "train.optm_lr": 2e-5,
     "train.optm_impl": "fused",
@@ -238,7 +238,7 @@ To evaluate a fine-tuned LoRA model, pass the checkpoint path via spec_overrides
 
 ```python
 spec_overrides={
-    'model.model_name': 's3://bucket/results/{train_job_id}/safetensors/epoch_1',
+    'model.model_name': 's3://bucket/results/{train_job_id}/safetensors/epoch_2',
     'model.enable_lora': True,
     'model.base_model_path': 'nvidia/Cosmos-Reason2-8B',
     'evaluation.batch_size': 10,
@@ -288,7 +288,10 @@ start AutoML to discover this inside torchrun.
 ## Important Parameters
 
 ### Training Loop
-- **train.epoch**: Number of training epochs. Default 10.
+- **train.epoch**: Number of training epochs. Default 10. Use at least 2 for
+  local smoke or AutoML runs that need a host-visible best checkpoint for
+  evaluate/inference; one-epoch runs can leave only a broken `best` symlink
+  after checkpoint cleanup.
 - **train.train_batch_per_replica**: Global batch size per training step. Ideally >= 32 for stability. CRITICAL: must be divisible by `train.train_policy.mini_batch` (default 1 in the packaged smoke-safe template). Recommended production value: 32.
 - **train.compile**: Set to true for potential speedup on newer GPUs (H100), else false.
 - **train.output_dir**: Output directory for checkpoints and logs.
