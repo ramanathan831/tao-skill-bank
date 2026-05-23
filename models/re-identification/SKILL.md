@@ -1,16 +1,19 @@
 ---
 name: re-identification
-description: Person re-identification. Learns discriminative embeddings to match the same person across different camera views.
-  Metric learning based.
+description: >-
+  Person re-identification with metric-learning embeddings across camera views. Use when the user asks
+  to train, evaluate, export, or run inference for TAO Re-Identification, person matching, or
+  camera-to-camera identity retrieval.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  version: '0.1'
-  author: NVIDIA Corporation
+  author: "NVIDIA Corporation"
+  version: "0.1"
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit.
+  tags:
+  - "re"
+  - "identification"
 allowed-tools: Read Bash
-tags:
-- re
-- identification
 ---
 
 # Re-Identification

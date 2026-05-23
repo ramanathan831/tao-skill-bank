@@ -25,14 +25,6 @@ actions:
     defaults:
       vlm_backend: gemini
       steps: '["0","1"]'
-tags:
-- image
-- grounding
-- referring-expressions
-- bounding-boxes
-- phrase-grounding
-- vlm
-- auto-label
 description: Two-step image grounding pipeline that extracts referring expressions
   from (image, caption) pairs and grounds them to pixel-space bounding boxes via a
   VLM.

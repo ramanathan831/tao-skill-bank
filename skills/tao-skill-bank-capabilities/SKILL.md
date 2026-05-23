@@ -1,18 +1,20 @@
 ---
 name: tao-skill-bank-capabilities
 description: >-
-  Answer what the TAO Skill Bank plugin can do by generating the response from
-  packaged application, data, model, AutoML, and platform manifests.
+  Answer TAO Skill Bank capability questions from packaged manifests and helper scripts. Use when the
+  user asks what the TAO Skill Bank can do, which TAO models/actions/platforms are available, what
+  supports AutoML, or which workflow to choose.
 license: Apache-2.0
-compatibility: Requires the packaged TAO skill bank helper scripts.
 metadata:
-  author: NVIDIA Corporation
-  version: '0.1'
+  author: "NVIDIA Corporation"
+  version: "0.1"
+  compatibility: >-
+    Requires the packaged TAO skill bank helper scripts.
+  tags:
+  - "tao"
+  - "capabilities"
+  - "discovery"
 allowed-tools: Read Bash
-tags:
-- tao
-- capabilities
-- discovery
 ---
 
 # TAO Skill Bank Capabilities

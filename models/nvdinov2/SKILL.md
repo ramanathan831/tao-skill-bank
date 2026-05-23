@@ -1,17 +1,20 @@
 ---
 name: nvdinov2
-description: NVDINOv2 for self-supervised visual representation learning. Trains vision transformers via self-distillation
-  (teacher-student) without labels. Produces general-purpose visual features.
+description: >-
+  NVDINOv2 for self-supervised visual representation learning with teacher- student distillation. Use
+  when the user asks to train, distill, export, or run inference for TAO NVDINOv2, DINOv2-style
+  pretraining, or general-purpose visual features.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  version: '0.1'
-  author: NVIDIA Corporation
+  author: "NVIDIA Corporation"
+  version: "0.1"
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit.
+  tags:
+  - "self"
+  - "supervised"
+  - "learning"
 allowed-tools: Read Bash
-tags:
-- self
-- supervised
-- learning
 ---
 
 # NVDINOv2

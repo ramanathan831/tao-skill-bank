@@ -1,16 +1,19 @@
 ---
 name: rtdetr
-description: RT-DETR (Real-Time DEtection TRansformer) for 2D object detection. Designed for real-time inference with competitive
-  accuracy. Supports distillation and quantization for deployment optimization.
+description: >-
+  RT-DETR (Real-Time Detection Transformer) for real-time 2D object detection. Use when the user asks
+  to train, evaluate, export, quantize, distill, generate TensorRT engines, or run inference for TAO
+  RT-DETR detectors.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  version: '0.1'
-  author: NVIDIA Corporation
+  author: "NVIDIA Corporation"
+  version: "0.1"
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit.
+  tags:
+  - "object"
+  - "detection"
 allowed-tools: Read Bash
-tags:
-- object
-- detection
 ---
 
 # RT-DETR

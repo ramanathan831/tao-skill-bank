@@ -1,14 +1,20 @@
 ---
 name: daft-validate
-description: Run `tao-daft validate` to check NVIDIA TAO DAFT datasets for structure, schema, and cross-reference errors. Do not use for non-DAFT formats.
-version: 1.1.0
-compatibility: Requires Python 3.10+ and the nvidia-tao-sdk package (pip install nvidia-tao-daft) 
-metadata:
-  author: NVIDIA Corporation
-  version: "1.0"
+description: >-
+  Validate NVIDIA TAO DAFT datasets for structure, schema, and cross-reference errors with `tao-daft
+  validate`. Use when the user asks to validate a DAFT dataset, check DAFT exports, run `tao-daft
+  validate`, or diagnose DAFT formatting errors. Do not use for non-DAFT formats.
 license: Apache-2.0
-tags: [tao-daft, dataset, validation, schema]
-tools: [Bash, Read]
+metadata:
+  author: "NVIDIA Corporation"
+  version: "1.1.0"
+  compatibility: >-
+    Requires Python 3.10+ and the nvidia-tao-sdk package (pip install nvidia-tao-daft)
+  tags:
+  - "tao-daft"
+  - "dataset"
+  - "validation"
+  - "schema"
 allowed-tools: Bash, Read
 ---
 

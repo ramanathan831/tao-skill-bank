@@ -1,16 +1,19 @@
 ---
 name: classification-pyt
-description: PyTorch image classification. Supports a wide range of backbones (FAN, EfficientNet, ResNet, etc.) with distillation
-  and quantization for deployment.
+description: >-
+  PyTorch image classification with FAN, EfficientNet, ResNet, distillation, and quantization support.
+  Use when the user asks to train, evaluate, export, quantize, distill, or run inference for TAO
+  Classification PyT image classifiers.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  version: '0.1'
-  author: NVIDIA Corporation
+  author: "NVIDIA Corporation"
+  version: "0.1"
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit.
+  tags:
+  - "image"
+  - "classification"
 allowed-tools: Read Bash
-tags:
-- image
-- classification
 ---
 
 # Classification PyT

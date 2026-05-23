@@ -1,16 +1,19 @@
 ---
 name: action-recognition
-description: Action recognition from video sequences. Supports RGB, optical flow, and joint (multi-stream) input types for
-  classifying temporal actions in video clips.
+description: >-
+  Action recognition from video sequences with RGB, optical flow, and joint multi-stream inputs. Use
+  when the user asks to train, evaluate, export, or run inference for TAO action-recognition models or
+  classify temporal actions in video clips.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  version: '0.1'
-  author: NVIDIA Corporation
+  author: "NVIDIA Corporation"
+  version: "0.1"
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit.
+  tags:
+  - "action"
+  - "recognition"
 allowed-tools: Read Bash
-tags:
-- action
-- recognition
 ---
 
 # Action Recognition

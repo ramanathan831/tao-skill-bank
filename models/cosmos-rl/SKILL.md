@@ -1,20 +1,22 @@
 ---
 name: cosmos-rl
-description: Cosmos-Reason2-8B video QA supervised fine-tuning with FSDP parallelism. Use when training or evaluating video
-  question-answering models or working with Cosmos-RL.
+description: >-
+  Cosmos-Reason2-8B video QA supervised fine-tuning with FSDP parallelism. Use when training or
+  evaluating video question-answering models or working with Cosmos-RL.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  author: NVIDIA Corporation
-  version: '0.1'
+  author: "NVIDIA Corporation"
+  version: "0.1"
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit.
+  tags:
+  - "video"
+  - "qa"
+  - "cosmos"
+  - "sft"
+  - "reasoning"
+  - "vlm"
 allowed-tools: Read Bash
-tags:
-- video
-- qa
-- cosmos
-- sft
-- reasoning
-- vlm
 ---
 
 # Cosmos-RL

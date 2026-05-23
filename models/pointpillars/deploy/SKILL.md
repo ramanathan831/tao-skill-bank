@@ -1,21 +1,22 @@
 ---
 name: pointpillars-deploy
 description: >-
-  PointPillars deploy workflow for TensorRT engine generation, TensorRT evaluation, and TensorRT inference using TAO Deploy. Use
-  when the user asks to deploy PointPillars, build a PointPillars TensorRT engine,
-  run PointPillars TRT inference, or evaluate a PointPillars TRT engine.
+  PointPillars deploy workflow for TensorRT engine generation, TensorRT evaluation, and TensorRT
+  inference using TAO Deploy. Use when the user asks to deploy PointPillars, build a PointPillars
+  TensorRT engine, run PointPillars TRT inference, or evaluate a PointPillars TRT engine.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit + NGC API key.
 metadata:
+  author: "NVIDIA Corporation"
   version: "0.1"
-  author: NVIDIA Corporation
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit + NGC API key.
+  tags:
+  - "3d"
+  - "point-cloud"
+  - "detection"
+  - "deployment"
+  - "tensorrt"
 allowed-tools: Read Bash
-tags:
-- 3d
-- point-cloud
-- detection
-- deployment
-- tensorrt
 ---
 
 # PointPillars Deploy

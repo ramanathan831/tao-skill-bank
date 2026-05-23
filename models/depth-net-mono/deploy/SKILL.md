@@ -1,20 +1,21 @@
 ---
 name: depth-net-mono-deploy
 description: >-
-  DepthNet Mono deploy workflow for TensorRT engine generation, TensorRT evaluation, and TensorRT inference using TAO Deploy. Use
-  when the user asks to deploy DepthNet Mono, build a DepthNet Mono TensorRT engine,
-  run DepthNet Mono TRT inference, or evaluate a DepthNet Mono TRT engine.
+  DepthNet Mono deploy workflow for TensorRT engine generation, TensorRT evaluation, and TensorRT
+  inference using TAO Deploy. Use when the user asks to deploy DepthNet Mono, build a DepthNet Mono
+  TensorRT engine, run DepthNet Mono TRT inference, or evaluate a DepthNet Mono TRT engine.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit + NGC API key.
 metadata:
+  author: "NVIDIA Corporation"
   version: "0.1"
-  author: NVIDIA Corporation
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit + NGC API key.
+  tags:
+  - "depth"
+  - "monocular"
+  - "deployment"
+  - "tensorrt"
 allowed-tools: Read Bash
-tags:
-- depth
-- monocular
-- deployment
-- tensorrt
 ---
 
 # DepthNet Mono Deploy

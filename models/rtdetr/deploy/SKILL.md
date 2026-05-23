@@ -1,20 +1,21 @@
 ---
 name: rtdetr-deploy
 description: >-
-  RT-DETR deploy workflow for TensorRT engine generation, TensorRT evaluation, and TensorRT inference using TAO Deploy. Use
-  when the user asks to deploy RT-DETR, build a RT-DETR TensorRT engine,
-  run RT-DETR TRT inference, or evaluate a RT-DETR TRT engine.
+  RT-DETR deploy workflow for TensorRT engine generation, TensorRT evaluation, and TensorRT inference
+  using TAO Deploy. Use when the user asks to deploy RT-DETR, build a RT-DETR TensorRT engine, run
+  RT-DETR TRT inference, or evaluate a RT-DETR TRT engine.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit + NGC API key.
 metadata:
+  author: "NVIDIA Corporation"
   version: "0.1"
-  author: NVIDIA Corporation
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit + NGC API key.
+  tags:
+  - "object"
+  - "detection"
+  - "deployment"
+  - "tensorrt"
 allowed-tools: Read Bash
-tags:
-- object
-- detection
-- deployment
-- tensorrt
 ---
 
 # RT-DETR Deploy

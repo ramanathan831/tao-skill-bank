@@ -1,16 +1,19 @@
 ---
 name: deformable-detr
-description: Deformable DETR for 2D object detection. Uses deformable attention for efficient multi-scale feature processing.
-  Lighter than DINO with competitive accuracy.
+description: >-
+  Deformable DETR for 2D object detection with deformable attention and multi- scale features. Use
+  when the user asks to train, evaluate, export, quantize, generate TensorRT engines, or run inference
+  for TAO Deformable DETR detectors.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  version: '0.1'
-  author: NVIDIA Corporation
+  author: "NVIDIA Corporation"
+  version: "0.1"
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit.
+  tags:
+  - "object"
+  - "detection"
 allowed-tools: Read Bash
-tags:
-- object
-- detection
 ---
 
 # Deformable DETR

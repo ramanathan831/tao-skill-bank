@@ -1,16 +1,19 @@
 ---
 name: pose-classification
-description: Pose classification using ST-GCN (Spatial Temporal Graph Convolutional Network). Classifies skeleton sequences
-  into action categories from pose keypoint data.
+description: >-
+  Pose classification with ST-GCN over skeleton keypoint sequences. Use when the user asks to train,
+  evaluate, export, or run inference for TAO Pose Classification, skeleton action classification, or
+  pose-sequence recognition.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  version: '0.1'
-  author: NVIDIA Corporation
+  author: "NVIDIA Corporation"
+  version: "0.1"
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit.
+  tags:
+  - "pose"
+  - "classification"
 allowed-tools: Read Bash
-tags:
-- pose
-- classification
 ---
 
 # Pose Classification

@@ -1,18 +1,21 @@
 ---
 name: docker
-description: Docker conventions for running NVIDIA GPU container workloads — NGC authentication, --gpus flag, mount patterns,
-  env-var passthrough, container inspection, data-root relocation for split-disk hosts, and common error modes. Use whenever
-  another skill requires running an nvcr.io container or any docker run command on a GPU host. Trigger keywords — docker,
-  docker run, nvcr.io, NGC, --gpus, nvidia-container-toolkit, container image, docker login, docker pull.
+description: >-
+  Docker conventions for running NVIDIA GPU container workloads — NGC authentication, --gpus flag,
+  mount patterns, env-var passthrough, container inspection, data-root relocation for split-disk
+  hosts, and common error modes. Use when another skill requires running an nvcr.io container, `docker
+  run`, or any GPU container command on a host. Trigger keywords — docker, docker run, nvcr.io, NGC,
+  --gpus, nvidia-container-toolkit, container image, docker login, docker pull.
 license: Apache-2.0
-compatibility: Requires NVIDIA driver branch 580, CUDA Toolkit 13.0, Docker, and NVIDIA Container Toolkit 1.19.0.
 metadata:
-  version: '0.1'
-  author: NVIDIA Corporation
+  author: "NVIDIA Corporation"
+  version: "0.1"
+  compatibility: >-
+    Requires NVIDIA driver branch 580, CUDA Toolkit 13.0, Docker, and NVIDIA Container Toolkit 1.19.0.
+  tags:
+  - "platform"
+  - "docker"
 allowed-tools: Read Bash
-tags:
-- platform
-- docker
 ---
 
 # Docker for NVIDIA GPU Workloads

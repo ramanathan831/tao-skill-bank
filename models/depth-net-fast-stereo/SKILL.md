@@ -1,18 +1,22 @@
 ---
 name: depth-net-fast-stereo
-description: Real-time stereo depth estimation using FastFoundationStereo (FFS), the distilled bp2 commercial variant of FoundationStereo. Predicts disparity maps from stereo image pairs with ~10× lower latency than full FoundationStereo.
+description: >-
+  Real-time stereo depth estimation with FastFoundationStereo / DepthNet Fast Stereo. Use when the
+  user asks to train, evaluate, export, or run inference for fast stereo depth, disparity prediction,
+  FFS, or the bp2 FoundationStereo variant.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  version: '0.1'
-  author: NVIDIA Corporation
+  author: "NVIDIA Corporation"
+  version: "0.1"
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit.
+  tags:
+  - "stereo"
+  - "depth"
+  - "estimation"
+  - "realtime"
+  - "distilled"
 allowed-tools: Read Bash
-tags:
-- stereo
-- depth
-- estimation
-- realtime
-- distilled
 ---
 
 # Depth Net Fast Stereo

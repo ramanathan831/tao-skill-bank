@@ -1,17 +1,20 @@
 ---
 name: mae
-description: MAE (Masked Autoencoder) for self-supervised pretraining and fine-tuning. Masks random patches and reconstructs
-  them to learn visual representations. Supports pretrain and finetune stages.
+description: >-
+  MAE (Masked Autoencoder) for self-supervised pretraining, fine-tuning, and visual representation
+  learning. Use when the user asks to pretrain, finetune, evaluate, export, generate TensorRT engines,
+  or run inference for TAO MAE or NVDINO-style representation tasks.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  version: '0.1'
-  author: NVIDIA Corporation
+  author: "NVIDIA Corporation"
+  version: "0.1"
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit.
+  tags:
+  - "self"
+  - "supervised"
+  - "learning"
 allowed-tools: Read Bash
-tags:
-- self
-- supervised
-- learning
 ---
 
 # MAE

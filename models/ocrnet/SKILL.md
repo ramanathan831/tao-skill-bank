@@ -1,16 +1,19 @@
 ---
 name: ocrnet
-description: OCRNet for scene text recognition. Recognizes text content from cropped text region images. Supports CTC and
-  attention-based decoders.
+description: >-
+  OCRNet for scene text recognition from cropped text-region images. Use when the user asks to train,
+  evaluate, export, prune, quantize, retrain, convert datasets, generate TensorRT engines, or run
+  inference for TAO OCRNet text recognizers.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  version: '0.1'
-  author: NVIDIA Corporation
+  author: "NVIDIA Corporation"
+  version: "0.1"
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit.
+  tags:
+  - "text"
+  - "recognition"
 allowed-tools: Read Bash
-tags:
-- text
-- recognition
 ---
 
 # OCRNet

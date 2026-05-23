@@ -1,19 +1,21 @@
 ---
 name: lepton
-description: DGX Cloud Lepton managed GPU compute platform with run/status/cancel interface. Use when submitting jobs to DGX
-  Cloud or managing Lepton GPU resources.
+description: >-
+  DGX Cloud Lepton managed GPU compute platform with run/status/cancel interface. Use when submitting
+  jobs to DGX Cloud or managing Lepton GPU resources.
 license: Apache-2.0
-compatibility: Requires the tao-sdk Python package with the lepton extra (pip install 'tao-sdk[lepton]') plus LEPTON_WORKSPACE_ID
-  and LEPTON_AUTH_TOKEN.
 metadata:
-  author: NVIDIA Corporation
-  version: '0.1'
+  author: "NVIDIA Corporation"
+  version: "0.1"
+  compatibility: >-
+    Requires the tao-sdk Python package with the lepton extra (pip install 'tao-sdk[lepton]') plus
+    LEPTON_WORKSPACE_ID and LEPTON_AUTH_TOKEN.
+  tags:
+  - "dgx-cloud"
+  - "gpu"
+  - "compute"
+  - "lepton"
 allowed-tools: Read Bash
-tags:
-- dgx-cloud
-- gpu
-- compute
-- lepton
 ---
 
 # Lepton

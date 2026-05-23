@@ -1,15 +1,18 @@
 ---
 name: mask2former
-description: Mask2Former for universal image segmentation (panoptic, instance, and semantic). Transformer-based with masked
-  attention for high-quality segmentation results.
+description: >-
+  Mask2Former for universal image segmentation across panoptic, instance, and semantic tasks. Use when
+  the user asks to train, evaluate, export, quantize, generate TensorRT engines, or run inference for
+  TAO Mask2Former segmentation models.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  version: '0.1'
-  author: NVIDIA Corporation
+  author: "NVIDIA Corporation"
+  version: "0.1"
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit.
+  tags:
+  - "segmentation"
 allowed-tools: Read Bash
-tags:
-- segmentation
 ---
 
 # Mask2Former

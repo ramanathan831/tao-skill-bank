@@ -1,16 +1,19 @@
 ---
 name: grounding-dino
-description: Grounding DINO for open-set object detection. Combines DINO-style detection with BERT text encoder for language-guided
-  detection. Detects objects described by text prompts without fixed class vocabulary.
+description: >-
+  Grounding DINO for language-guided open-set object detection with text prompts. Use when the user
+  asks to train, evaluate, export, quantize, generate TensorRT engines, or run inference for TAO
+  Grounding DINO or text-conditioned detection.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  version: '0.1'
-  author: NVIDIA Corporation
+  author: "NVIDIA Corporation"
+  version: "0.1"
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit.
+  tags:
+  - "object"
+  - "detection"
 allowed-tools: Read Bash
-tags:
-- object
-- detection
 ---
 
 # Grounding DINO

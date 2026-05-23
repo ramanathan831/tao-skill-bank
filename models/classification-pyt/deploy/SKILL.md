@@ -1,20 +1,22 @@
 ---
 name: classification-pyt-deploy
 description: >-
-  Classification PyT deploy workflow for TensorRT engine generation, TensorRT evaluation, and TensorRT inference using TAO Deploy. Use
-  when the user asks to deploy Classification PyT, build a Classification PyT TensorRT engine,
-  run Classification PyT TRT inference, or evaluate a Classification PyT TRT engine.
+  Classification PyT deploy workflow for TensorRT engine generation, TensorRT evaluation, and TensorRT
+  inference using TAO Deploy. Use when the user asks to deploy Classification PyT, build a
+  Classification PyT TensorRT engine, run Classification PyT TRT inference, or evaluate a
+  Classification PyT TRT engine.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit + NGC API key.
 metadata:
+  author: "NVIDIA Corporation"
   version: "0.1"
-  author: NVIDIA Corporation
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit + NGC API key.
+  tags:
+  - "image"
+  - "classification"
+  - "deployment"
+  - "tensorrt"
 allowed-tools: Read Bash
-tags:
-- image
-- classification
-- deployment
-- tensorrt
 ---
 
 # Classification PyT Deploy

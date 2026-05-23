@@ -1,20 +1,21 @@
 ---
 name: ml-recog-deploy
 description: >-
-  MLRecog deploy workflow for TensorRT engine generation, TensorRT evaluation, and TensorRT inference using TAO Deploy. Use
-  when the user asks to deploy MLRecog, build a MLRecog TensorRT engine,
-  run MLRecog TRT inference, or evaluate a MLRecog TRT engine.
+  MLRecog deploy workflow for TensorRT engine generation, TensorRT evaluation, and TensorRT inference
+  using TAO Deploy. Use when the user asks to deploy MLRecog, build a MLRecog TensorRT engine, run
+  MLRecog TRT inference, or evaluate a MLRecog TRT engine.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit + NGC API key.
 metadata:
+  author: "NVIDIA Corporation"
   version: "0.1"
-  author: NVIDIA Corporation
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit + NGC API key.
+  tags:
+  - "recognition"
+  - "metric-learning"
+  - "deployment"
+  - "tensorrt"
 allowed-tools: Read Bash
-tags:
-- recognition
-- metric-learning
-- deployment
-- tensorrt
 ---
 
 # MLRecog Deploy

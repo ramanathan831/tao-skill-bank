@@ -1,14 +1,21 @@
 ---
 name: daft-convert
-description: Run `tao-daft convert` to convert NVIDIA TAO DAFT datasets between supported formats. Do not use for non-DAFT data.
-version: 1.1.0
-compatibility: Requires Python 3.10+ and the nvidia-tao-sdk package (pip install nvidia-tao-daft) 
-metadata:
-  author: NVIDIA Corporation
-  version: "1.0"
+description: >-
+  Convert NVIDIA TAO DAFT datasets between supported formats with `tao-daft convert`. Use when the
+  user asks to convert DAFT datasets, run `tao-daft convert`, migrate DAFT annotations, or package
+  annotations in DAFT format. Do not use for non-DAFT data.
 license: Apache-2.0
-tags: [tao-daft, dataset, conversion, vlm, cosmos-reason]
-tools: [Bash, Read]
+metadata:
+  author: "NVIDIA Corporation"
+  version: "1.1.0"
+  compatibility: >-
+    Requires Python 3.10+ and the nvidia-tao-sdk package (pip install nvidia-tao-daft)
+  tags:
+  - "tao-daft"
+  - "dataset"
+  - "conversion"
+  - "vlm"
+  - "cosmos-reason"
 allowed-tools: Bash, Read
 ---
 

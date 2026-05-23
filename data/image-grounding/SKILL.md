@@ -1,19 +1,26 @@
 ---
 name: image-grounding
-description: "Two-step image grounding pipeline: extracts referring expressions from (image, caption) pairs and grounds them to pixel-space bounding boxes via a VLM. Use when the user wants to ground captions to bboxes, generate phrase-grounded annotations, auto-label images for grounding, or run the image_grounding pipeline. Triggers include 'image grounding', 'phrase grounding', 'ground captions', 'auto-label image grounding', 'image_grounding'."
+description: >-
+  Two-step image grounding pipeline: extracts referring expressions from (image, caption) pairs and
+  grounds them to pixel-space bounding boxes via a VLM. Use when the user wants to ground captions to
+  bboxes, generate phrase-grounded annotations, auto-label images for grounding, or run the
+  image_grounding pipeline. Triggers include 'image grounding', 'phrase grounding', 'ground captions',
+  'auto-label image grounding', 'image_grounding'.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit + at least one VLM endpoint (Gemini API key or OpenAI-compatible).
 metadata:
-  author: NVIDIA Corporation
+  author: "NVIDIA Corporation"
   version: "0.1"
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit + at least one VLM endpoint (Gemini API key or
+    OpenAI-compatible).
+  tags:
+  - "image"
+  - "grounding"
+  - "bounding-boxes"
+  - "auto-label"
+  - "vlm"
+  - "2d-grounding"
 allowed-tools: Read Bash Write
-tags:
-  - image
-  - grounding
-  - bounding-boxes
-  - auto-label
-  - vlm
-  - 2d-grounding
 ---
 
 # Image Grounding Pipeline

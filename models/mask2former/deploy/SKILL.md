@@ -1,20 +1,21 @@
 ---
 name: mask2former-deploy
 description: >-
-  Mask2Former deploy workflow for TensorRT engine generation, TensorRT evaluation, and TensorRT inference using TAO Deploy. Use
-  when the user asks to deploy Mask2Former, build a Mask2Former TensorRT engine,
-  run Mask2Former TRT inference, or evaluate a Mask2Former TRT engine.
+  Mask2Former deploy workflow for TensorRT engine generation, TensorRT evaluation, and TensorRT
+  inference using TAO Deploy. Use when the user asks to deploy Mask2Former, build a Mask2Former
+  TensorRT engine, run Mask2Former TRT inference, or evaluate a Mask2Former TRT engine.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit + NGC API key.
 metadata:
+  author: "NVIDIA Corporation"
   version: "0.1"
-  author: NVIDIA Corporation
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit + NGC API key.
+  tags:
+  - "segmentation"
+  - "panoptic"
+  - "deployment"
+  - "tensorrt"
 allowed-tools: Read Bash
-tags:
-- segmentation
-- panoptic
-- deployment
-- tensorrt
 ---
 
 # Mask2Former Deploy

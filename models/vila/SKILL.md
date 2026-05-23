@@ -1,17 +1,20 @@
 ---
 name: vila
-description: VILA vision-language model for multimodal understanding tasks. Supports video and image-based question answering,
-  captioning, and reasoning. Fine-tunable with LoRA or full fine-tuning on custom VLM datasets.
+description: >-
+  VILA vision-language models for image and video question answering, captioning, and reasoning. Use
+  when the user asks to train, evaluate, or run inference for TAO VILA, multimodal understanding, VLM
+  fine-tuning, or LoRA/full fine-tuning.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  version: '0.1'
-  author: NVIDIA Corporation
+  author: "NVIDIA Corporation"
+  version: "0.1"
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit.
+  tags:
+  - "vision"
+  - "language"
+  - "model"
 allowed-tools: Read Bash
-tags:
-- vision
-- language
-- model
 ---
 
 # VILA

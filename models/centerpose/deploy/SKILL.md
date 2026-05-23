@@ -1,20 +1,21 @@
 ---
 name: centerpose-deploy
 description: >-
-  CenterPose deploy workflow for TensorRT engine generation, TensorRT evaluation, and TensorRT inference using TAO Deploy. Use
-  when the user asks to deploy CenterPose, build a CenterPose TensorRT engine,
-  run CenterPose TRT inference, or evaluate a CenterPose TRT engine.
+  CenterPose deploy workflow for TensorRT engine generation, TensorRT evaluation, and TensorRT
+  inference using TAO Deploy. Use when the user asks to deploy CenterPose, build a CenterPose TensorRT
+  engine, run CenterPose TRT inference, or evaluate a CenterPose TRT engine.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit + NGC API key.
 metadata:
+  author: "NVIDIA Corporation"
   version: "0.1"
-  author: NVIDIA Corporation
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit + NGC API key.
+  tags:
+  - "object"
+  - "pose"
+  - "deployment"
+  - "tensorrt"
 allowed-tools: Read Bash
-tags:
-- object
-- pose
-- deployment
-- tensorrt
 ---
 
 # CenterPose Deploy

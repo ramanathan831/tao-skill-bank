@@ -1,24 +1,26 @@
 ---
 name: cosmos-embed
 description: >-
-  Cosmos-Embed1 video-text embedding for text-to-video retrieval, video-to-video search, semantic deduplication, and
-  fine-tuning. Use when the user asks to "fine-tune Cosmos-Embed1", "run cosmos-embed inference", "export Cosmos-Embed1",
-  "embed videos", or "search videos with text".
+  Cosmos-Embed1 video-text embedding for text-to-video retrieval, video-to-video search, semantic
+  deduplication, and fine-tuning. Use when the user asks to "fine-tune Cosmos-Embed1", "run
+  cosmos-embed inference", "export Cosmos-Embed1", "embed videos", or "search videos with text".
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit, the published Cosmos-Embed TAO container from versions.yaml, and a HuggingFace token when downloading pretrained `nvidia/Cosmos-Embed1-*` weights.
 metadata:
-  author: NVIDIA Corporation
+  author: "NVIDIA Corporation"
   version: "0.1"
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit, the published Cosmos-Embed TAO container from
+    versions.yaml, and a HuggingFace token when downloading pretrained `nvidia/Cosmos-Embed1-*` weights.
+  tags:
+  - "video"
+  - "vision-language"
+  - "vlm"
+  - "multimodal"
+  - "retrieval"
+  - "embedding"
+  - "cosmos"
+  - "fine-tuning"
 allowed-tools: Read Bash
-tags:
-- video
-- vision-language
-- vlm
-- multimodal
-- retrieval
-- embedding
-- cosmos
-- fine-tuning
 ---
 
 # Cosmos-Embed

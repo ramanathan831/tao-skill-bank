@@ -1,18 +1,21 @@
 ---
 name: sparse4d
-description: Sparse4D for multi-camera temporal 3D object detection and tracking. Uses sparse queries with deformable attention
-  across camera views and time for end-to-end 3D perception. Includes instance bank for temporal tracking.
+description: >-
+  Sparse4D for multi-camera temporal 3D object detection and tracking. Use when the user asks to
+  train, evaluate, export, quantize, convert datasets, or run inference for TAO Sparse4D, temporal 3D
+  perception, or camera-view tracking.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  version: '0.1'
-  author: NVIDIA Corporation
+  author: "NVIDIA Corporation"
+  version: "0.1"
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit.
+  tags:
+  - "temporal"
+  - "3d"
+  - "detection"
+  - "tracking"
 allowed-tools: Read Bash
-tags:
-- temporal
-- 3d
-- detection
-- tracking
 ---
 
 # Sparse4D

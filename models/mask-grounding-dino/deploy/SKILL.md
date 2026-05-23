@@ -1,21 +1,23 @@
 ---
 name: mask-grounding-dino-deploy
 description: >-
-  Mask Grounding DINO deploy workflow for TensorRT engine generation, TensorRT evaluation, and TensorRT inference using TAO Deploy. Use
-  when the user asks to deploy Mask Grounding DINO, build a Mask Grounding DINO TensorRT engine,
-  run Mask Grounding DINO TRT inference, or evaluate a Mask Grounding DINO TRT engine.
+  Mask Grounding DINO deploy workflow for TensorRT engine generation, TensorRT evaluation, and
+  TensorRT inference using TAO Deploy. Use when the user asks to deploy Mask Grounding DINO, build a
+  Mask Grounding DINO TensorRT engine, run Mask Grounding DINO TRT inference, or evaluate a Mask
+  Grounding DINO TRT engine.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit + NGC API key.
 metadata:
+  author: "NVIDIA Corporation"
   version: "0.1"
-  author: NVIDIA Corporation
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit + NGC API key.
+  tags:
+  - "segmentation"
+  - "object"
+  - "open-vocabulary"
+  - "deployment"
+  - "tensorrt"
 allowed-tools: Read Bash
-tags:
-- segmentation
-- object
-- open-vocabulary
-- deployment
-- tensorrt
 ---
 
 # Mask Grounding DINO Deploy

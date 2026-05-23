@@ -1,20 +1,21 @@
 ---
 name: clip-deploy
 description: >-
-  CLIP deploy workflow for TensorRT engine generation, TensorRT evaluation, and TensorRT inference using TAO Deploy. Use
-  when the user asks to deploy CLIP, build a CLIP TensorRT engine,
-  run CLIP TRT inference, or evaluate a CLIP TRT engine.
+  CLIP deploy workflow for TensorRT engine generation, TensorRT evaluation, and TensorRT inference
+  using TAO Deploy. Use when the user asks to deploy CLIP, build a CLIP TensorRT engine, run CLIP TRT
+  inference, or evaluate a CLIP TRT engine.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit + NGC API key.
 metadata:
+  author: "NVIDIA Corporation"
   version: "0.1"
-  author: NVIDIA Corporation
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit + NGC API key.
+  tags:
+  - "multimodal"
+  - "embedding"
+  - "deployment"
+  - "tensorrt"
 allowed-tools: Read Bash
-tags:
-- multimodal
-- embedding
-- deployment
-- tensorrt
 ---
 
 # CLIP Deploy

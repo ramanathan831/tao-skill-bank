@@ -1,19 +1,20 @@
 ---
 name: segformer-deploy
 description: >-
-  SegFormer deploy workflow for TensorRT engine generation, TensorRT evaluation, and TensorRT inference using TAO Deploy. Use
-  when the user asks to deploy SegFormer, build a SegFormer TensorRT engine,
-  run SegFormer TRT inference, or evaluate a SegFormer TRT engine.
+  SegFormer deploy workflow for TensorRT engine generation, TensorRT evaluation, and TensorRT
+  inference using TAO Deploy. Use when the user asks to deploy SegFormer, build a SegFormer TensorRT
+  engine, run SegFormer TRT inference, or evaluate a SegFormer TRT engine.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit + NGC API key.
 metadata:
+  author: "NVIDIA Corporation"
   version: "0.1"
-  author: NVIDIA Corporation
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit + NGC API key.
+  tags:
+  - "segmentation"
+  - "deployment"
+  - "tensorrt"
 allowed-tools: Read Bash
-tags:
-- segmentation
-- deployment
-- tensorrt
 ---
 
 # SegFormer Deploy

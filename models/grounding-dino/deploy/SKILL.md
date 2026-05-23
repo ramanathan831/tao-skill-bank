@@ -1,21 +1,22 @@
 ---
 name: grounding-dino-deploy
 description: >-
-  Grounding DINO deploy workflow for TensorRT engine generation, TensorRT evaluation, and TensorRT inference using TAO Deploy. Use
-  when the user asks to deploy Grounding DINO, build a Grounding DINO TensorRT engine,
-  run Grounding DINO TRT inference, or evaluate a Grounding DINO TRT engine.
+  Grounding DINO deploy workflow for TensorRT engine generation, TensorRT evaluation, and TensorRT
+  inference using TAO Deploy. Use when the user asks to deploy Grounding DINO, build a Grounding DINO
+  TensorRT engine, run Grounding DINO TRT inference, or evaluate a Grounding DINO TRT engine.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit + NGC API key.
 metadata:
+  author: "NVIDIA Corporation"
   version: "0.1"
-  author: NVIDIA Corporation
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit + NGC API key.
+  tags:
+  - "object"
+  - "detection"
+  - "open-vocabulary"
+  - "deployment"
+  - "tensorrt"
 allowed-tools: Read Bash
-tags:
-- object
-- detection
-- open-vocabulary
-- deployment
-- tensorrt
 ---
 
 # Grounding DINO Deploy

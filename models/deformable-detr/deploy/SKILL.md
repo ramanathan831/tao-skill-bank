@@ -1,20 +1,21 @@
 ---
 name: deformable-detr-deploy
 description: >-
-  Deformable DETR deploy workflow for TensorRT engine generation, TensorRT evaluation, and TensorRT inference using TAO Deploy. Use
-  when the user asks to deploy Deformable DETR, build a Deformable DETR TensorRT engine,
-  run Deformable DETR TRT inference, or evaluate a Deformable DETR TRT engine.
+  Deformable DETR deploy workflow for TensorRT engine generation, TensorRT evaluation, and TensorRT
+  inference using TAO Deploy. Use when the user asks to deploy Deformable DETR, build a Deformable
+  DETR TensorRT engine, run Deformable DETR TRT inference, or evaluate a Deformable DETR TRT engine.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit + NGC API key.
 metadata:
+  author: "NVIDIA Corporation"
   version: "0.1"
-  author: NVIDIA Corporation
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit + NGC API key.
+  tags:
+  - "object"
+  - "detection"
+  - "deployment"
+  - "tensorrt"
 allowed-tools: Read Bash
-tags:
-- object
-- detection
-- deployment
-- tensorrt
 ---
 
 # Deformable DETR Deploy

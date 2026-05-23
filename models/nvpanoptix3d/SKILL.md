@@ -1,18 +1,20 @@
 ---
 name: nvpanoptix3d
-description: NVPanoptix3D for panoptic 3D scene reconstruction from posed RGB images. Produces 3D panoptic segmentation (semantic,
-  instance, and panoptic masks) with occupancy completion. Built on VGGT backbone with Mask2Former-style head and 3D frustum
-  reconstruction.
+description: >-
+  NVPanoptix3D for panoptic 3D scene reconstruction from posed RGB images. Use when the user asks to
+  train, evaluate, export, or run inference for TAO NVPanoptix3D, 3D panoptic segmentation, occupancy
+  completion, or scene reconstruction.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  version: '0.1'
-  author: NVIDIA Corporation
+  author: "NVIDIA Corporation"
+  version: "0.1"
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit.
+  tags:
+  - "panoptic"
+  - "3d"
+  - "reconstruction"
 allowed-tools: Read Bash
-tags:
-- panoptic
-- 3d
-- reconstruction
 ---
 
 # NVPanoptix3D

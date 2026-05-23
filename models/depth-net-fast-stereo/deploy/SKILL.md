@@ -1,23 +1,23 @@
 ---
 name: depth-net-fast-stereo-deploy
 description: >-
-  DepthNet Fast Stereo (FFS bp2) deploy workflow for TensorRT engine generation,
-  TensorRT evaluation, and TensorRT inference using TAO Deploy. Use when the user
-  asks to deploy FastFoundationStereo, build an FFS TensorRT engine, run FFS TRT
-  inference, or evaluate an FFS TRT engine.
+  DepthNet Fast Stereo (FFS bp2) deploy workflow for TensorRT engine generation, TensorRT evaluation,
+  and TensorRT inference using TAO Deploy. Use when the user asks to deploy FastFoundationStereo,
+  build an FFS TensorRT engine, run FFS TRT inference, or evaluate an FFS TRT engine.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit + NGC API key.
 metadata:
+  author: "NVIDIA Corporation"
   version: "0.1"
-  author: NVIDIA Corporation
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit + NGC API key.
+  tags:
+  - "depth"
+  - "stereo"
+  - "deployment"
+  - "tensorrt"
+  - "realtime"
+  - "distilled"
 allowed-tools: Read Bash
-tags:
-- depth
-- stereo
-- deployment
-- tensorrt
-- realtime
-- distilled
 ---
 
 # DepthNet Fast Stereo Deploy

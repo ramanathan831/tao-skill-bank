@@ -1,17 +1,20 @@
 ---
 name: depth-net-stereo
-description: Stereo depth estimation using FoundationStereo architecture. Predicts disparity maps from stereo image pairs
-  for 3D reconstruction.
+description: >-
+  Stereo depth estimation with the FoundationStereo architecture. Use when the user asks to train,
+  evaluate, export, quantize, generate TensorRT engines, or run inference for TAO DepthNet Stereo,
+  stereo disparity, or paired-image 3D reconstruction.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  version: '0.1'
-  author: NVIDIA Corporation
+  author: "NVIDIA Corporation"
+  version: "0.1"
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit.
+  tags:
+  - "stereo"
+  - "depth"
+  - "estimation"
 allowed-tools: Read Bash
-tags:
-- stereo
-- depth
-- estimation
 ---
 
 # Depth Net Stereo

@@ -1,18 +1,22 @@
 ---
 name: deft-aoi-routing-vcn
-description: Routes the weakest VCN samples (output of deft-aoi-rca-vcn) into per-augmentation-module subsets — one parquet for k-NN Mining, one for AnomalyGen (Cosmos SDG) — based on each module's label eligibility. Use as the immediate next step after gap analysis in a VCN AOI SDA iteration.
+description: >-
+  Route weak Visual ChangeNet / VCN AOI samples into per-augmentation-module subsets for k-NN Mining
+  and AnomalyGen. Use when the user asks to split gap- analysis results, route RCA gaps, create mining
+  and anomalygen parquets, or audit which defect labels each module accepts.
 license: Apache-2.0
-compatibility: Standalone — no external runtime requirements.
 metadata:
-  author: NVIDIA Corporation
-  version: '0.1'
+  author: "NVIDIA Corporation"
+  version: "0.1"
+  compatibility: >-
+    Standalone — no external runtime requirements.
+  tags:
+  - "data"
+  - "routing"
+  - "vcn"
+  - "aoi"
+  - "sda"
 allowed-tools: Read Bash
-tags:
-- data
-- routing
-- vcn
-- aoi
-- sda
 ---
 
 # TAO VCN Sample Routing Skill

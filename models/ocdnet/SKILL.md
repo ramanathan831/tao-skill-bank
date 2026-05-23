@@ -1,16 +1,19 @@
 ---
 name: ocdnet
-description: OCDNet for scene text detection. Detects arbitrary-oriented text regions in natural images using a differentiable
-  binarization approach.
+description: >-
+  OCDNet for arbitrary-oriented scene text detection in natural images. Use when the user asks to
+  train, evaluate, export, prune, quantize, retrain, generate TensorRT engines, or run inference for
+  TAO OCDNet text detectors.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  version: '0.1'
-  author: NVIDIA Corporation
+  author: "NVIDIA Corporation"
+  version: "0.1"
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit.
+  tags:
+  - "text"
+  - "detection"
 allowed-tools: Read Bash
-tags:
-- text
-- detection
 ---
 
 # OCDNet

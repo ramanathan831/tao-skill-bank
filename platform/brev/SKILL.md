@@ -1,18 +1,20 @@
 ---
 name: brev
-description: Brev managed GPU instances with Docker support. Use when running training or inference on Brev GPU instances
-  or managing Brev deployments.
+description: >-
+  Brev managed GPU instances with Docker support. Use when running training or inference on Brev GPU
+  instances or managing Brev deployments.
 license: Apache-2.0
-compatibility: Requires the brev CLI (https://github.com/brevdev/brev-cli) and an active brev login.
 metadata:
-  author: NVIDIA Corporation
-  version: '0.1'
+  author: "NVIDIA Corporation"
+  version: "0.1"
+  compatibility: >-
+    Requires the brev CLI (https://github.com/brevdev/brev-cli) and an active brev login.
+  tags:
+  - "gpu"
+  - "compute"
+  - "instance-based"
+  - "brev"
 allowed-tools: Read Bash
-tags:
-- gpu
-- compute
-- instance-based
-- brev
 ---
 
 # Brev

@@ -1,17 +1,25 @@
 ---
 name: deft-aoi-rca-vcn
-description: Performs gap analysis on NVIDIA TAO VCN Classify (Visual Component Net) experiments by invoking the data-services container (`tao_toolkit.data_services` from `versions.yaml`) directly via `docker run … gap_analysis vcn_aoi …` — picks the optimal decision threshold, ranks per-sample weakness, and emits a top-K weakest parquet expanded per-lighting for downstream augmentation. Use when analyzing VCN classification failures, picking SDA augmentation targets, or auditing PASS/NO_PASS boundary cases.
+description: >-
+  Performs gap analysis on NVIDIA TAO VCN Classify (Visual Component Net) experiments by invoking the
+  data-services container (`tao_toolkit.data_services` from `versions.yaml`) directly via `docker run
+  … gap_analysis vcn_aoi …` — picks the optimal decision threshold, ranks per-sample weakness, and
+  emits a top-K weakest parquet expanded per-lighting for downstream augmentation. Use when analyzing
+  VCN classification failures, picking SDA augmentation targets, or auditing PASS/NO_PASS boundary
+  cases.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit and a CUDA GPU. Pulls the `tao_toolkit.data_services` image declared in `versions.yaml` at the skill bank root.
 metadata:
-  author: NVIDIA Corporation
-  version: '0.3'
+  author: "NVIDIA Corporation"
+  version: "0.3"
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit and a CUDA GPU. Pulls the `tao_toolkit.data_services`
+    image declared in `versions.yaml` at the skill bank root.
+  tags:
+  - "data"
+  - "rca"
+  - "vcn"
+  - "aoi"
 allowed-tools: Read Bash
-tags:
-- data
-- rca
-- vcn
-- aoi
 ---
 
 # TAO VCN Classify Gap Analysis Skill

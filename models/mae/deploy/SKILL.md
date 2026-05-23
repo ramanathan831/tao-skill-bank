@@ -1,19 +1,20 @@
 ---
 name: mae-deploy
 description: >-
-  MAE deploy workflow for TensorRT engine generation using TAO Deploy. Use
-  when the user asks to deploy MAE, build a MAE TensorRT engine,
-  or prepare a TensorRT engine from an exported ONNX artifact.
+  MAE deploy workflow for TensorRT engine generation using TAO Deploy. Use when the user asks to
+  deploy MAE, build a MAE TensorRT engine, or prepare a TensorRT engine from an exported ONNX
+  artifact.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit + NGC API key.
 metadata:
+  author: "NVIDIA Corporation"
   version: "0.1"
-  author: NVIDIA Corporation
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit + NGC API key.
+  tags:
+  - "self-supervised"
+  - "deployment"
+  - "tensorrt"
 allowed-tools: Read Bash
-tags:
-- self-supervised
-- deployment
-- tensorrt
 ---
 
 # MAE Deploy

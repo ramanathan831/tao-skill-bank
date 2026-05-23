@@ -1,20 +1,21 @@
 ---
 name: depth-net-stereo-deploy
 description: >-
-  DepthNet Stereo deploy workflow for TensorRT engine generation, TensorRT evaluation, and TensorRT inference using TAO Deploy. Use
-  when the user asks to deploy DepthNet Stereo, build a DepthNet Stereo TensorRT engine,
-  run DepthNet Stereo TRT inference, or evaluate a DepthNet Stereo TRT engine.
+  DepthNet Stereo deploy workflow for TensorRT engine generation, TensorRT evaluation, and TensorRT
+  inference using TAO Deploy. Use when the user asks to deploy DepthNet Stereo, build a DepthNet
+  Stereo TensorRT engine, run DepthNet Stereo TRT inference, or evaluate a DepthNet Stereo TRT engine.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit + NGC API key.
 metadata:
+  author: "NVIDIA Corporation"
   version: "0.1"
-  author: NVIDIA Corporation
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit + NGC API key.
+  tags:
+  - "depth"
+  - "stereo"
+  - "deployment"
+  - "tensorrt"
 allowed-tools: Read Bash
-tags:
-- depth
-- stereo
-- deployment
-- tensorrt
 ---
 
 # DepthNet Stereo Deploy

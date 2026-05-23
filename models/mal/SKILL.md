@@ -1,15 +1,18 @@
 ---
 name: mal
-description: MAL (Minimal Annotation Learning) for weakly-supervised segmentation. Produces segmentation masks from minimal
-  annotations (e.g., point or box annotations). Uses ViT-MAE backbone.
+description: >-
+  MAL (Minimal Annotation Learning) for weakly supervised segmentation from point, box, or minimal
+  annotations. Use when the user asks to train, evaluate, or run inference for TAO MAL,
+  minimal-annotation segmentation, or ViT-MAE segmentation masks.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  version: '0.1'
-  author: NVIDIA Corporation
+  author: "NVIDIA Corporation"
+  version: "0.1"
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit.
+  tags:
+  - "segmentation"
 allowed-tools: Read Bash
-tags:
-- segmentation
 ---
 
 # MAL

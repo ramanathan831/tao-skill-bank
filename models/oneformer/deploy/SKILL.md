@@ -1,20 +1,21 @@
 ---
 name: oneformer-deploy
 description: >-
-  OneFormer deploy workflow for TensorRT engine generation, TensorRT evaluation, and TensorRT inference using TAO Deploy. Use
-  when the user asks to deploy OneFormer, build a OneFormer TensorRT engine,
-  run OneFormer TRT inference, or evaluate a OneFormer TRT engine.
+  OneFormer deploy workflow for TensorRT engine generation, TensorRT evaluation, and TensorRT
+  inference using TAO Deploy. Use when the user asks to deploy OneFormer, build a OneFormer TensorRT
+  engine, run OneFormer TRT inference, or evaluate a OneFormer TRT engine.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit + NGC API key.
 metadata:
+  author: "NVIDIA Corporation"
   version: "0.1"
-  author: NVIDIA Corporation
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit + NGC API key.
+  tags:
+  - "segmentation"
+  - "panoptic"
+  - "deployment"
+  - "tensorrt"
 allowed-tools: Read Bash
-tags:
-- segmentation
-- panoptic
-- deployment
-- tensorrt
 ---
 
 # OneFormer Deploy

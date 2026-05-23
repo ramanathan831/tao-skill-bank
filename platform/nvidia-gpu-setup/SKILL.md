@@ -1,28 +1,26 @@
 ---
 name: nvidia-gpu-setup
-version: "0.1.0"
-author: NVIDIA Corporation
-tools: Read Bash
 description: >-
-  Host setup for TAO GPU backends. Checks and, after user approval, installs
-  NVIDIA driver branch 580, CUDA Toolkit 13.0, and NVIDIA Container Toolkit
-  1.19.0 for Docker/local-Docker and Kubernetes GPU worker hosts. The
-  `--check-only` path works on any Linux distribution; `--install` automates
-  debian-family (Ubuntu/Debian/Pop!_OS/Mint/Zorin/Raspbian), rhel-family
-  (Fedora/RHEL/Rocky/AlmaLinux), and suse-family (openSUSE/SLES) hosts, and
-  prints actionable manual-install steps for everything else.
+  Check, install, or repair NVIDIA GPU host requirements for TAO Docker and Kubernetes backends. Use
+  when the user asks to validate GPU setup, install NVIDIA driver 580, install CUDA Toolkit 13.0,
+  install NVIDIA Container Toolkit 1.19.0, or fix Docker GPU runtime issues.
 license: Apache-2.0
-compatibility: Runs `--check-only` on any Linux distribution. `--install` automates Ubuntu 22.04/24.04 + Debian 12 (apt), Fedora + RHEL/Rocky/AlmaLinux 9/10 (dnf), and openSUSE Leap / SLES 15 (zypper). Requires sudo/root, internet access to NVIDIA package repositories (and download.docker.com on rhel-family), and an x86_64 or aarch64 (sbsa) host. Other distributions (Arch, Alpine, Gentoo, NixOS, …) get a clear error that names the version targets and the NVIDIA install-guide URL.
 metadata:
-  author: NVIDIA Corporation
-  version: '0.1'
+  author: "NVIDIA Corporation"
+  version: "0.1"
+  compatibility: >-
+    Runs `--check-only` on any Linux distribution. `--install` automates Ubuntu 22.04/24.04 + Debian 12
+    (apt), Fedora + RHEL/Rocky/AlmaLinux 9/10 (dnf), and openSUSE Leap / SLES 15 (zypper). Requires
+    sudo/root, internet access to NVIDIA package repositories (and download.docker.com on rhel-family),
+    and an x86_64 or aarch64 (sbsa) host. Other distributions (Arch, Alpine, Gentoo, NixOS, …) get a
+    clear error that names the version targets and the NVIDIA install-guide URL.
+  tags:
+  - "setup"
+  - "nvidia"
+  - "cuda"
+  - "docker"
+  - "kubernetes"
 allowed-tools: Read Bash
-tags:
-- setup
-- nvidia
-- cuda
-- docker
-- kubernetes
 ---
 
 # NVIDIA GPU Host Setup

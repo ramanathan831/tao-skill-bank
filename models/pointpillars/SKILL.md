@@ -1,18 +1,21 @@
 ---
 name: pointpillars
-description: PointPillars for 3D object detection from LiDAR point clouds. Encodes point clouds into a pseudo-image via pillar-based
-  representation, then applies 2D detection. Used in autonomous driving / robotics.
+description: >-
+  PointPillars for 3D object detection from LiDAR point clouds. Use when the user asks to train,
+  evaluate, export, prune, retrain, convert datasets, generate TensorRT engines, or run inference for
+  TAO PointPillars or pillar- based autonomous-driving perception.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  version: '0.1'
-  author: NVIDIA Corporation
+  author: "NVIDIA Corporation"
+  version: "0.1"
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit.
+  tags:
+  - "point"
+  - "cloud"
+  - "3d"
+  - "detection"
 allowed-tools: Read Bash
-tags:
-- point
-- cloud
-- 3d
-- detection
 ---
 
 # PointPillars

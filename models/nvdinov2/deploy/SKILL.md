@@ -1,20 +1,21 @@
 ---
 name: nvdinov2-deploy
 description: >-
-  NvDINOv2 deploy workflow for TensorRT engine generation using TAO Deploy. Use
-  when the user asks to deploy NvDINOv2, build a NvDINOv2 TensorRT engine,
-  or prepare a TensorRT engine from an exported ONNX artifact.
+  NvDINOv2 deploy workflow for TensorRT engine generation using TAO Deploy. Use when the user asks to
+  deploy NvDINOv2, build a NvDINOv2 TensorRT engine, or prepare a TensorRT engine from an exported
+  ONNX artifact.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit + NGC API key.
 metadata:
+  author: "NVIDIA Corporation"
   version: "0.1"
-  author: NVIDIA Corporation
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit + NGC API key.
+  tags:
+  - "self-supervised"
+  - "backbone"
+  - "deployment"
+  - "tensorrt"
 allowed-tools: Read Bash
-tags:
-- self-supervised
-- backbone
-- deployment
-- tensorrt
 ---
 
 # NvDINOv2 Deploy

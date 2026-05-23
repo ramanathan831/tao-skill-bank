@@ -1,15 +1,18 @@
 ---
 name: segformer
-description: SegFormer for semantic segmentation. Lightweight transformer-based architecture with hierarchical feature extraction.
-  Efficient for real-time segmentation tasks.
+description: >-
+  SegFormer for semantic segmentation with lightweight hierarchical transformer features. Use when the
+  user asks to train, evaluate, export, quantize, generate TensorRT engines, or run inference for TAO
+  SegFormer semantic segmentation.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  version: '0.1'
-  author: NVIDIA Corporation
+  author: "NVIDIA Corporation"
+  version: "0.1"
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit.
+  tags:
+  - "segmentation"
 allowed-tools: Read Bash
-tags:
-- segmentation
 ---
 
 # SegFormer

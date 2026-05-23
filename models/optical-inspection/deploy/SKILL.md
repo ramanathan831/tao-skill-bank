@@ -1,20 +1,22 @@
 ---
 name: optical-inspection-deploy
 description: >-
-  Optical Inspection deploy workflow for TensorRT engine generation, TensorRT evaluation, and TensorRT inference using TAO Deploy. Use
-  when the user asks to deploy Optical Inspection, build a Optical Inspection TensorRT engine,
-  run Optical Inspection TRT inference, or evaluate a Optical Inspection TRT engine.
+  Optical Inspection deploy workflow for TensorRT engine generation, TensorRT evaluation, and TensorRT
+  inference using TAO Deploy. Use when the user asks to deploy Optical Inspection, build a Optical
+  Inspection TensorRT engine, run Optical Inspection TRT inference, or evaluate a Optical Inspection
+  TRT engine.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit + NGC API key.
 metadata:
+  author: "NVIDIA Corporation"
   version: "0.1"
-  author: NVIDIA Corporation
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit + NGC API key.
+  tags:
+  - "aoi"
+  - "classification"
+  - "deployment"
+  - "tensorrt"
 allowed-tools: Read Bash
-tags:
-- aoi
-- classification
-- deployment
-- tensorrt
 ---
 
 # Optical Inspection Deploy

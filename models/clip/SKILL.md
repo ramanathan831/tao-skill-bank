@@ -1,18 +1,22 @@
 ---
 name: clip
-description: CLIP vision-language model for image-text retrieval, zero-shot classification, embedding extraction, ONNX export, and TensorRT deployment. Use when training or fine-tuning CLIP, running zero-shot classification, computing image embeddings, or deploying CLIP to ONNX/TensorRT.
+description: >-
+  CLIP vision-language model for image-text retrieval, zero-shot classification, embedding extraction,
+  ONNX export, and TensorRT deployment. Use when training or fine-tuning CLIP, running zero-shot
+  classification, computing image embeddings, or deploying CLIP to ONNX/TensorRT.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  author: NVIDIA Corporation
-  version: '1.0'
+  author: "NVIDIA Corporation"
+  version: "1.0"
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit.
+  tags:
+  - "vision-language"
+  - "classification"
+  - "embedding"
+  - "zero-shot"
+  - "deployment"
 allowed-tools: Read Bash
-tags:
-- vision-language
-- classification
-- embedding
-- zero-shot
-- deployment
 ---
 
 # CLIP

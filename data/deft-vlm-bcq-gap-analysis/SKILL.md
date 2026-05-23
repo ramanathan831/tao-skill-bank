@@ -1,18 +1,24 @@
 ---
 name: deft-vlm-bcq-gap-analysis
-description: Extract false positive and false negative gaps from VLM binary classification (yes/no) predictions. Use after running VLM evaluation when you have a predictions JSON and need to identify failure cases for DEFT root cause analysis.
+description: >-
+  Extract false positive and false negative gaps from VLM binary classification yes/no predictions.
+  Use when the user asks to analyze VLM binary classification failures, extract FP/FN cases from a
+  predictions JSON, run `gap_analysis vlm_bcq`, or prepare VLM failure cases for DEFT root cause
+  analysis.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit.
-version: "0.1.0"
-author: NVIDIA Corporation
-tools: Read Bash
-tags:
-- gap-analysis
-- rcca
-- vlm
-- evaluation
-- false-positive
-- false-negative
+metadata:
+  author: "NVIDIA Corporation"
+  version: "0.1"
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit.
+  tags:
+  - "gap-analysis"
+  - "rcca"
+  - "vlm"
+  - "evaluation"
+  - "false-positive"
+  - "false-negative"
+allowed-tools: Read Bash
 ---
 
 # VLM Binary Classification Gap Analysis

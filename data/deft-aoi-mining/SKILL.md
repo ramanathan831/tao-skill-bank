@@ -1,19 +1,24 @@
 ---
 name: deft-aoi-mining
-description: Runs the DEFT embed-then-mine workflow for VCN AOI iterations — embeds the gap-analysis target parquet, embeds a source pool, and mines nearest-neighbour source images for downstream augmentation. Use as the immediate next step after `deft-aoi-routing-vcn` when expanding a real-image augmentation queue from the mining subset.
+description: >-
+  Run the DEFT AOI embed-then-mine workflow for Visual ChangeNet / VCN AOI iterations. Use when the
+  user asks for k-NN mining after `deft-aoi-routing- vcn`, mining nearest-neighbor source images,
+  embedding a gap parquet and source pool, or expanding a real-image augmentation queue.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit and a CUDA GPU. Pulls the `tao_toolkit.data_services` image declared in `versions.yaml` at the skill bank root.
 metadata:
-  author: NVIDIA Corporation
-  version: '0.2'
+  author: "NVIDIA Corporation"
+  version: "0.2"
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit and a CUDA GPU. Pulls the `tao_toolkit.data_services`
+    image declared in `versions.yaml` at the skill bank root.
+  tags:
+  - "data"
+  - "mining"
+  - "embedding"
+  - "vcn"
+  - "aoi"
+  - "sda"
 allowed-tools: Read Bash
-tags:
-- data
-- mining
-- embedding
-- vcn
-- aoi
-- sda
 ---
 
 # DEFT Mining and Embedding Skill

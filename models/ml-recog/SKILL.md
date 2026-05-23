@@ -1,17 +1,20 @@
 ---
 name: ml-recog
-description: Metric learning recognition for fine-grained visual recognition. Learns embeddings for retrieval-based matching
-  (e.g., retail product recognition). Uses triplet/contrastive losses.
+description: >-
+  Metric learning recognition for fine-grained visual recognition and retrieval- based matching. Use
+  when the user asks to train, evaluate, export, generate TensorRT engines, or run inference for TAO
+  ML Recog, metric-learning embeddings, or retail product recognition.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  version: '0.1'
-  author: NVIDIA Corporation
+  author: "NVIDIA Corporation"
+  version: "0.1"
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit.
+  tags:
+  - "metric"
+  - "learning"
+  - "recognition"
 allowed-tools: Read Bash
-tags:
-- metric
-- learning
-- recognition
 ---
 
 # ML Recog

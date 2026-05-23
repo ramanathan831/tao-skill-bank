@@ -1,16 +1,19 @@
 ---
 name: optical-inspection
-description: Optical inspection for defect detection using Siamese networks. Compares image pairs to detect manufacturing
-  defects, anomalies, or quality issues.
+description: >-
+  Optical Inspection for defect and anomaly detection with Siamese image-pair networks. Use when the
+  user asks to train, evaluate, export, generate TensorRT engines, or run inference for TAO Optical
+  Inspection, AOI defect detection, or image-pair quality checks.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  version: '0.1'
-  author: NVIDIA Corporation
+  author: "NVIDIA Corporation"
+  version: "0.1"
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit.
+  tags:
+  - "defect"
+  - "detection"
 allowed-tools: Read Bash
-tags:
-- defect
-- detection
 ---
 
 # Optical Inspection

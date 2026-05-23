@@ -1,16 +1,19 @@
 ---
 name: centerpose
-description: CenterPose for keypoint / pose estimation. Detects object centers and regresses keypoint locations. Used for
-  6-DoF object pose estimation.
+description: >-
+  CenterPose for keypoint, object-center, and 6-DoF pose estimation. Use when the user asks to train,
+  evaluate, export, generate TensorRT engines, or run inference for TAO CenterPose or keypoint-based
+  pose models.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  version: '0.1'
-  author: NVIDIA Corporation
+  author: "NVIDIA Corporation"
+  version: "0.1"
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit.
+  tags:
+  - "pose"
+  - "estimation"
 allowed-tools: Read Bash
-tags:
-- pose
-- estimation
 ---
 
 # CenterPose

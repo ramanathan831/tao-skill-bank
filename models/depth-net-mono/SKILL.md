@@ -1,17 +1,20 @@
 ---
 name: depth-net-mono
-description: Monocular depth estimation using Metric Depth Anything v2 or Relative Depth Anything architectures. Predicts
-  per-pixel depth from single RGB images.
+description: >-
+  Monocular depth estimation with Metric Depth Anything v2 or Relative Depth Anything architectures.
+  Use when the user asks to train, evaluate, export, quantize, generate TensorRT engines, or run
+  inference for TAO DepthNet Mono from single RGB images.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  version: '0.1'
-  author: NVIDIA Corporation
+  author: "NVIDIA Corporation"
+  version: "0.1"
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit.
+  tags:
+  - "monocular"
+  - "depth"
+  - "estimation"
 allowed-tools: Read Bash
-tags:
-- monocular
-- depth
-- estimation
 ---
 
 # Depth Net Mono

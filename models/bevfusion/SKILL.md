@@ -1,18 +1,21 @@
 ---
 name: bevfusion
-description: BEVFusion for multi-sensor 3D object detection. Fuses LiDAR point clouds and camera images in bird's-eye-view
-  (BEV) space. Used in autonomous driving for robust 3D perception.
+description: >-
+  BEVFusion for multi-sensor 3D object detection from LiDAR point clouds and camera images. Use when
+  the user asks to train, evaluate, run inference, or convert datasets for TAO BEVFusion,
+  bird-eye-view fusion, or autonomous- driving 3D perception.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  version: '0.1'
-  author: NVIDIA Corporation
+  author: "NVIDIA Corporation"
+  version: "0.1"
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit.
+  tags:
+  - "multi"
+  - "sensor"
+  - "3d"
+  - "detection"
 allowed-tools: Read Bash
-tags:
-- multi
-- sensor
-- 3d
-- detection
 ---
 
 # BEVFusion

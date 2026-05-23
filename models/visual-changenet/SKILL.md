@@ -1,21 +1,23 @@
 ---
 name: visual-changenet
-description: Visual ChangeNet for binary image classification and segmentation in AOI defect detection. Use when training,
-  evaluating, or running inference for PCB defect detection or visual inspection.
+description: >-
+  Visual ChangeNet for binary image classification and segmentation in AOI defect detection. Use when
+  training, evaluating, or running inference for PCB defect detection or visual inspection.
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  author: NVIDIA Corporation
-  version: '0.1'
+  author: "NVIDIA Corporation"
+  version: "0.1"
+  compatibility: >-
+    Requires docker + nvidia-container-toolkit.
+  tags:
+  - "pcb"
+  - "aoi"
+  - "defect"
+  - "classification"
+  - "segmentation"
+  - "siamese"
+  - "visual-inspection"
 allowed-tools: Read Bash
-tags:
-- pcb
-- aoi
-- defect
-- classification
-- segmentation
-- siamese
-- visual-inspection
 ---
 
 # Visual ChangeNet
