@@ -27,7 +27,7 @@ Generated TAO Core schemas are packaged in `schemas/<action>.schema.json`, with 
 
 ## Train Action Policy
 
-This model is AutoML-enabled at the model layer. Before handling any train-stage request, read `references/skill_info.yaml` and resolve the run override from either an explicit `automl_policy` value or the user's workflow request. Treat phrases like "turn off AutoML", "disable AutoML", "no HPO", or "plain training" as `automl_policy: off` for this run only; otherwise default to `auto`. When `automl_policy: auto`, `automl_enabled: true`, and both `schemas/train.schema.json` and `references/spec_template_train.yaml` are packaged, route the train action through `tao-skill-bank:tao-automl` by default with this model's `skill_dir`. Preserve workflow/application overrides for datasets, specs, output directories, GPU/platform settings, parent checkpoints, and `automl_policy`. Use direct model training only when `automl_policy: off` or the packaged train schema/template is missing; in the missing-schema case, report that AutoML is enabled but not runnable for this model until schemas are generated.
+This model is AutoML-enabled at the model layer. Before handling any train-stage request, read `references/skill_info.yaml` and resolve the run override from either an explicit `automl_policy` value or the user's workflow request. Use `automl_policy: on` by default and only expose `on` / `off` in new launch prompts. Treat phrases like "turn off AutoML", "disable AutoML", "no HPO", or "plain training" as `automl_policy: off` for this run only. When `automl_policy: on`, `automl_enabled: true`, and both `schemas/train.schema.json` and `references/spec_template_train.yaml` are packaged, route the train action through `tao-skill-bank:tao-automl` by default with this model's `skill_dir`. Preserve workflow/application overrides for datasets, specs, output directories, GPU/platform settings, parent checkpoints, and `automl_policy`. Use direct model training only when `automl_policy: off` or the packaged train schema/template is missing; in the missing-schema case, report that AutoML is enabled but not runnable for this model until schemas are generated.
 
 Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows stay in this model skill. The per-run `automl_policy` override does not change model metadata.
 
@@ -62,6 +62,9 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 ### Typical Spec Overrides
 
 Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
+For packaged S3 folders that store scene data as `data/images.tar.gz`, the
+skill metadata requests extraction into the parent `data/` directory because
+the TAO loader expects `base_dir/data/<scene_id>/...`.
 
 ```python
 S3_TRAIN = "s3://bucket/data/train"
@@ -76,6 +79,7 @@ S3_EVAL = "s3://bucket/data/eval"
     "train.validation_interval": 10,
     "train.num_gpus": 1,
     "dataset.enable_3d": True,
+    "dataset.contiguous_id": True,
     "model.sem_seg_head.num_classes": 13,
     "dataset.frustum_mask_path": f"{S3_TRAIN}/meta/frustum_mask.npz",
     "dataset.label_map": f"{S3_TRAIN}/meta/colormap.json",
@@ -92,6 +96,7 @@ S3_EVAL = "s3://bucket/data/eval"
 ```python
 {
     "dataset.enable_3d": True,
+    "dataset.contiguous_id": True,
     "dataset.frustum_mask_path": f"{S3_EVAL}/meta/frustum_mask.npz",
     "dataset.label_map": f"{S3_EVAL}/meta/colormap.json",
     "dataset.val.json_path": f"{S3_EVAL}/meta/val.json",
@@ -125,6 +130,10 @@ Optional. Val/test splits configured via dataset.val and dataset.test paths.
 - **model.frustum3d.panoptic_weight**: Panoptic loss weight. Default 25.
 - **model.frustum3d.completion_weights**: Completion loss weights. Default [50, 25, 10].
 - **dataset.name**: Dataset name. Options: front3d, matterport, synthetic_hospital, synthetic_warehouse.
+- **dataset.contiguous_id**: Set `True` when the label-map JSON already
+  supplies `trainId` values for its category IDs; leaving the default `False`
+  can synthesize placeholder categories without `trainId` and fail during
+  metadata construction.
 - **dataset.downsample_factor**: Image downsample factor. Default 1 (Front3D), 2 (Matterport).
 - **dataset.target_size**: Target image size. Default [320, 240].
 - **dataset.depth_min**: Min depth. Default 0.4 meters.
@@ -168,6 +177,12 @@ Optional. Val/test splits configured via dataset.val and dataset.test paths.
 Minimum 2 GPU(s), recommended 4 GPU(s). 40GB+ (A100 recommended) VRAM per GPU. 3D reconstruction is very memory intensive. fp16 recommended. activation_checkpoint enabled by default. FSDP for multi-node. AutoML is enabled at the model layer; preserve this GPU/VRAM guidance when routing train through AutoML.
 
 ## Error Patterns
+
+**`nvpanoptix3d: not found` in the PyTorch image**: Use the packaged module
+entrypoint command:
+`python -m nvidia_tao_pytorch.cv.nvpanoptix3d.entrypoint.nvpanoptix3d <action> -e <spec>`.
+The 7.0 PyTorch image contains the NVPanoptix3D package but does not expose a
+`nvpanoptix3d` console script.
 
 **Missing frustum mask**: Ensure meta/frustum_mask.npz is present in the dataset directory.
 

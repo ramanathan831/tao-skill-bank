@@ -15,9 +15,9 @@ actions:
         type: file
       dataset.train_data_sources[0].label_map:
         type: file
-      dataset.val_data_sources[0].image_dir:
+      dataset.val_data_sources.image_dir:
         type: folder
-      dataset.val_data_sources[0].json_file:
+      dataset.val_data_sources.json_file:
         type: file
     outputs:
       results_dir:

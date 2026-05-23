@@ -26,7 +26,7 @@ Generated TAO Core schemas are packaged in `schemas/<action>.schema.json`, with 
 
 ## Train Action Policy
 
-This model is AutoML-enabled at the model layer. Before handling any train-stage request, read `references/skill_info.yaml` and resolve the run override from either an explicit `automl_policy` value or the user's workflow request. Treat phrases like "turn off AutoML", "disable AutoML", "no HPO", or "plain training" as `automl_policy: off` for this run only; otherwise default to `auto`. When `automl_policy: auto`, `automl_enabled: true`, and both `schemas/train.schema.json` and `references/spec_template_train.yaml` are packaged, route the train action through `tao-skill-bank:tao-automl` by default with this model's `skill_dir`. Preserve workflow/application overrides for datasets, specs, output directories, GPU/platform settings, parent checkpoints, and `automl_policy`. Use direct model training only when `automl_policy: off` or the packaged train schema/template is missing; in the missing-schema case, report that AutoML is enabled but not runnable for this model until schemas are generated.
+This model is AutoML-enabled at the model layer. Before handling any train-stage request, read `references/skill_info.yaml` and resolve the run override from either an explicit `automl_policy` value or the user's workflow request. Use `automl_policy: on` by default and only expose `on` / `off` in new launch prompts. Treat phrases like "turn off AutoML", "disable AutoML", "no HPO", or "plain training" as `automl_policy: off` for this run only. When `automl_policy: on`, `automl_enabled: true`, and both `schemas/train.schema.json` and `references/spec_template_train.yaml` are packaged, route the train action through `tao-skill-bank:tao-automl` by default with this model's `skill_dir`. Preserve workflow/application overrides for datasets, specs, output directories, GPU/platform settings, parent checkpoints, and `automl_policy`. Use direct model training only when `automl_policy: off` or the packaged train schema/template is missing; in the missing-schema case, report that AutoML is enabled but not runnable for this model until schemas are generated.
 
 Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows stay in this model skill. The per-run `automl_policy` override does not change model metadata.
 
@@ -136,7 +136,7 @@ S3_EVAL = "s3://bucket/data/eval"
 ```python
 {
     "dataset.train.images": f"{S3_TRAIN}/images.tar.gz",
-    "dataset.label_map": {"coco_panoptic": f"{S3_TRAIN}/label_map_panoptic.json; *: label_map.json"},
+    "dataset.label_map": f"{S3_TRAIN}/label_map_panoptic.json",
     "dataset.train.annotations": f"{S3_TRAIN}/annotations.json",
     "dataset.train.panoptic": f"{S3_TRAIN}/images_panoptic.tar.gz",
     "dataset.val.images": f"{S3_EVAL}/images.tar.gz",
@@ -167,6 +167,9 @@ Optional. Val data configured alongside train in the dataset config.
 ## Important Parameters
 
 - **model.sem_seg_head.num_classes**: Number of segmentation classes. Default 133 (COCO panoptic).
+- **model.one_former.hidden_dim**: Keep at 256 for local smoke runs unless
+  the text encoder width is changed in lock-step. Reducing hidden_dim alone
+  causes a text feature/context dimension mismatch during training.
 - **model.backbone.name**: Default D2SwinTransformer (Swin-based). embed_dim=192, depths=[2,2,18,2] by default.
 - **train.num_epochs**: Default 50 — significantly higher than most TAO models. OneFormer needs more epochs for convergence.
 - **train.optim.lr**: Learning rate. Default 1e-5. Lower than Mask2Former's 2e-4.

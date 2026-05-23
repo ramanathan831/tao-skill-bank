@@ -8,7 +8,13 @@ actions:
   train:
     command: depth_net train -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.train_dataset.data_sources[0].data_file:
+        type: file
+      dataset.val_dataset.data_sources[0].data_file:
+        type: file
+      dataset.test_dataset.data_sources[0].data_file:
+        type: file
     outputs:
       results_dir:
         type: folder

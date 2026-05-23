@@ -26,7 +26,7 @@ Generated TAO Core schemas are packaged in `schemas/<action>.schema.json`, with 
 
 ## Train Action Policy
 
-This model is AutoML-enabled at the model layer. Before handling any train-stage request, read `references/skill_info.yaml` and resolve the run override from either an explicit `automl_policy` value or the user's workflow request. Treat phrases like "turn off AutoML", "disable AutoML", "no HPO", or "plain training" as `automl_policy: off` for this run only; otherwise default to `auto`. When `automl_policy: auto`, `automl_enabled: true`, and both `schemas/train.schema.json` and `references/spec_template_train.yaml` are packaged, route the train action through `tao-skill-bank:tao-automl` by default with this model's `skill_dir`. Preserve workflow/application overrides for datasets, specs, output directories, GPU/platform settings, parent checkpoints, and `automl_policy`. Use direct model training only when `automl_policy: off` or the packaged train schema/template is missing; in the missing-schema case, report that AutoML is enabled but not runnable for this model until schemas are generated.
+This model is AutoML-enabled at the model layer. Before handling any train-stage request, read `references/skill_info.yaml` and resolve the run override from either an explicit `automl_policy` value or the user's workflow request. Use `automl_policy: on` by default and only expose `on` / `off` in new launch prompts. Treat phrases like "turn off AutoML", "disable AutoML", "no HPO", or "plain training" as `automl_policy: off` for this run only. When `automl_policy: on`, `automl_enabled: true`, and both `schemas/train.schema.json` and `references/spec_template_train.yaml` are packaged, route the train action through `tao-skill-bank:tao-automl` by default with this model's `skill_dir`. Preserve workflow/application overrides for datasets, specs, output directories, GPU/platform settings, parent checkpoints, and `automl_policy`. Use direct model training only when `automl_policy: off` or the packaged train schema/template is missing; in the missing-schema case, report that AutoML is enabled but not runnable for this model until schemas are generated.
 
 Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows stay in this model skill. The per-run `automl_policy` override does not change model metadata.
 
@@ -34,7 +34,7 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 
 - **Dataset type:** segmentation
 - **Formats:** odvg, coco, coco_raw
-- **Monitoring metric:** [bbox] val_mAP@50
+- **Monitoring metric:** val_loss
 
 ### Per-Action Dataset Requirements
 
@@ -64,7 +64,7 @@ S3_EVAL = "s3://bucket/data/eval"
     "train.num_epochs": 10,
     "train.checkpoint_interval": 10,
     "train.validation_interval": 10,
-    "val_data_sources.data_type": "OD",
+    "dataset.val_data_sources.data_type": "OD",
     "model.num_region_queries": 100,
     "dataset.train_data_sources": [{"image_dir": f"{S3_TRAIN}/images.tar.gz", "json_file": f"{S3_TRAIN}/annotations_odvg.jsonl", "label_map": f"{S3_TRAIN}/annotations_odvg_labelmap.json"}],
     "dataset.val_data_sources": {"image_dir": f"{S3_EVAL}/images.tar.gz", "json_file": f"{S3_EVAL}/annotations.json"},
@@ -74,7 +74,7 @@ S3_EVAL = "s3://bucket/data/eval"
 **evaluate (mandatory data sources):**
 ```python
 {
-    "test_data_sources.data_type": "OD",
+    "dataset.test_data_sources.data_type": "OD",
     "dataset.test_data_sources": {"image_dir": f"{S3_EVAL}/images.tar.gz", "json_file": f"{S3_EVAL}/annotations.json"},
 }
 ```
@@ -82,7 +82,7 @@ S3_EVAL = "s3://bucket/data/eval"
 **inference (mandatory data sources):**
 ```python
 {
-    "infer_data_sources.data_type": "OD",
+    "dataset.infer_data_sources.data_type": "OD",
     "dataset.infer_data_sources": {"image_dir": f"{S3_EVAL}/images.tar.gz", "classmap": f"{S3_EVAL}/label_map.txt", "json_file": f"{S3_EVAL}/inference.jsonl", "captions": f"{S3_EVAL}/inference.jsonl"},
 }
 ```
@@ -104,6 +104,14 @@ Optional. Validation uses COCO-format annotations even when training uses ODVG.
 - **model.backbone**: Default swin_tiny_224_1k. Same backbone options as Grounding DINO.
 - **train.optim.lr**: Learning rate. Default 2e-4. lr_backbone 2e-5. Reuses GDINOTrainExpConfig — same training setup as Grounding DINO.
 - **model.num_queries**: Object queries. Default 900.
+- **model.enc_layers / model.dec_layers**: Keep both at 6 for train/AutoML
+  runs. The mask head asserts six decoder outputs during validation, so
+  copying Grounding DINO smoke overrides that reduce transformer layers causes
+  an immediate failure.
+- **AutoML metric note**: Use `metric="val_loss"` with
+  `direction="minimize"` for train-stage AutoML. The packaged train loop logs
+  validation loss scalars; it does not emit `[bbox] val_mAP@50` during the
+  train job.
 - **model.has_mask**: Enables mask prediction head. Default True. Adds mask/dice/rela loss coefficients.
 - **model.num_region_queries**: Number of region queries for mask prediction. Default 100.
 - **model.loss_types**: Loss components. Default [labels, boxes, masks]. Includes mask_loss_coef, dice_loss_coef, rela_loss_coef.

@@ -25,7 +25,7 @@ Supported actions: `train`, `evaluate`, `inference`, `export`, `gen_trt_engine`.
 
 ## Train Action Policy
 
-This model is AutoML-enabled at the model layer. Before handling any train-stage request, read `references/skill_info.yaml` and resolve the run override from either an explicit `automl_policy` value or the user's workflow request. Treat phrases like "turn off AutoML", "disable AutoML", "no HPO", or "plain training" as `automl_policy: off` for this run only; otherwise default to `auto`. When `automl_policy: auto`, `automl_enabled: true`, and both `schemas/train.schema.json` and `references/spec_template_train.yaml` are packaged, route the train action through `tao-skill-bank:tao-automl` by default with this model's `skill_dir`. Preserve workflow/application overrides for datasets, specs, output directories, GPU/platform settings, parent checkpoints, and `automl_policy`. Use direct model training only when `automl_policy: off` or the packaged train schema/template is missing; in the missing-schema case, report that AutoML is enabled but not runnable for this model until schemas are generated.
+This model is AutoML-enabled at the model layer. Before handling any train-stage request, read `references/skill_info.yaml` and resolve the run override from either an explicit `automl_policy` value or the user's workflow request. Use `automl_policy: on` by default and only expose `on` / `off` in new launch prompts. Treat phrases like "turn off AutoML", "disable AutoML", "no HPO", or "plain training" as `automl_policy: off` for this run only. When `automl_policy: on`, `automl_enabled: true`, and both `schemas/train.schema.json` and `references/spec_template_train.yaml` are packaged, route the train action through `tao-skill-bank:tao-automl` by default with this model's `skill_dir`. Preserve workflow/application overrides for datasets, specs, output directories, GPU/platform settings, parent checkpoints, and `automl_policy`. Use direct model training only when `automl_policy: off` or the packaged train schema/template is missing; in the missing-schema case, report that AutoML is enabled but not runnable for this model until schemas are generated.
 
 Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows stay in this model skill. The per-run `automl_policy` override does not change model metadata.
 
@@ -180,6 +180,12 @@ Single-GPU training works for small datasets. Use 4+ GPUs for datasets with more
 **NaN loss**: Learning rate is too high for fine-tuning. Reduce `train.optim.vision_lr` and `train.optim.text_lr`, increase `train.optim.warmup_steps`, and verify that captions are valid non-empty text.
 
 **Zero retrieval or classification quality**: Check that captions and prompts match the target label vocabulary. CLIP compares image and text embeddings, so prompt wording matters.
+
+**No CLIP-compatible dataset in a bucket prefix**: Training requires either
+custom-format `images.tar.gz` + `captions.tar.gz` + `image_list.txt`, or WDS
+`.tar` shards plus a shard list/root. Image-classification archives with
+`classes.txt` are not sufficient unless the user explicitly asks to generate
+caption files from labels as a separate data-preparation step.
 
 **Dataset size smaller than total batch size**: The total batch size is `batch_size * num_gpus`. If the dataset, especially validation, has fewer samples than this, reduce `dataset.val.batch_size` or `dataset.train.batch_size`.
 

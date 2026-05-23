@@ -8,7 +8,9 @@ actions:
   dataset_convert:
     command: pointpillars dataset_convert -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.data_path:
+        type: folder
     outputs:
       results_dir:
         type: folder

@@ -28,7 +28,7 @@ Generated TAO Core schemas are packaged in `schemas/<action>.schema.json`, with 
 
 ## Train Action Policy
 
-This model is AutoML-enabled at the model layer. Before handling any train-stage request, read `references/skill_info.yaml` and resolve the run override from either an explicit `automl_policy` value or the user's workflow request. Treat phrases like "turn off AutoML", "disable AutoML", "no HPO", or "plain training" as `automl_policy: off` for this run only; otherwise default to `auto`. When `automl_policy: auto`, `automl_enabled: true`, and both `schemas/train.schema.json` and `references/spec_template_train.yaml` are packaged, route the train action through `tao-skill-bank:tao-automl` by default with this model's `skill_dir`. Preserve workflow/application overrides for datasets, specs, output directories, GPU/platform settings, parent checkpoints, and `automl_policy`. Use direct model training only when `automl_policy: off` or the packaged train schema/template is missing; in the missing-schema case, report that AutoML is enabled but not runnable for this model until schemas are generated.
+This model is AutoML-enabled at the model layer. Before handling any train-stage request, read `references/skill_info.yaml` and resolve the run override from either an explicit `automl_policy` value or the user's workflow request. Use `automl_policy: on` by default and only expose `on` / `off` in new launch prompts. Treat phrases like "turn off AutoML", "disable AutoML", "no HPO", or "plain training" as `automl_policy: off` for this run only. When `automl_policy: on`, `automl_enabled: true`, and both `schemas/train.schema.json` and `references/spec_template_train.yaml` are packaged, route the train action through `tao-skill-bank:tao-automl` by default with this model's `skill_dir`. Preserve workflow/application overrides for datasets, specs, output directories, GPU/platform settings, parent checkpoints, and `automl_policy`. Use direct model training only when `automl_policy: off` or the packaged train schema/template is missing; in the missing-schema case, report that AutoML is enabled but not runnable for this model until schemas are generated.
 
 Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows stay in this model skill. The per-run `automl_policy` override does not change model metadata.
 
@@ -88,10 +88,17 @@ Optional. Pretraining does not need eval data. Fine-tuning optionally uses val s
 ## Important Parameters
 
 - **train.stage**: Training stage. Options: pretrain, finetune. Pretrain learns representations via masking. Finetune adds a classification head.
-- **model.arch**: Architecture. Default convnextv2_base. Wide range of options including ConvNeXt, Hiera, ViT variants.
+- **model.arch**: Architecture. Default convnextv2_base. For local smoke
+  AutoML, use `convnextv2_atto` rather than unsupported names such as
+  `vit_tiny_patch16`. Supported families include `vit_base_patch16` and larger
+  ViTs, ConvNeXtV2 atto/femto/pico/nano/tiny/base/large/huge, and Hiera
+  tiny/small/base/large/huge.
 - **model.num_classes**: Number of classes for fine-tuning. Default 1000 (ImageNet). Only relevant in finetune stage.
 - **model.mask_ratio**: Fraction of patches to mask during pretraining. Typically 0.75.
 - **model.norm_pix_loss**: Whether to normalize pixel values in reconstruction loss.
+- **dataset.augmentation.input_size**: Keep the local smoke profile at 224
+  for ConvNeXtV2 MAE. Reducing to 112 can make the MAE mask grid incompatible
+  with feature-map dimensions.
 - **train.optim.lr**: Learning rate. Default 2e-4.
 - **dataset.augmentation**: Augmentation settings including mixup, cutmix for fine-tuning.
 

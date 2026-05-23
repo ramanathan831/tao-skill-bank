@@ -6,16 +6,35 @@ data_format: front3d
 gpu_spec_key: train.num_gpus
 actions:
   train:
-    command: nvpanoptix3d train -e {config_path}
+    command: python -m nvidia_tao_pytorch.cv.nvpanoptix3d.entrypoint.nvpanoptix3d train -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.frustum_mask_path:
+        type: file
+      dataset.label_map:
+        type: file
+      dataset.train.json_path:
+        type: file
+      dataset.train.base_dir:
+        type: folder
+        extract_to_parent: true
+      dataset.val.json_path:
+        type: file
+      dataset.val.base_dir:
+        type: folder
+        extract_to_parent: true
+      dataset.test.json_path:
+        type: file
+      dataset.test.base_dir:
+        type: folder
+        extract_to_parent: true
     outputs:
       results_dir:
         type: folder
     upload_excludes:
     - inputs/
   evaluate:
-    command: nvpanoptix3d evaluate -e {config_path}
+    command: python -m nvidia_tao_pytorch.cv.nvpanoptix3d.entrypoint.nvpanoptix3d evaluate -e {config_path}
     config_format: yaml
     inputs: {}
     outputs:
@@ -24,7 +43,7 @@ actions:
     upload_excludes:
     - inputs/
   export:
-    command: nvpanoptix3d export -e {config_path}
+    command: python -m nvidia_tao_pytorch.cv.nvpanoptix3d.entrypoint.nvpanoptix3d export -e {config_path}
     config_format: yaml
     inputs: {}
     outputs:
@@ -33,7 +52,7 @@ actions:
     upload_excludes:
     - inputs/
   inference:
-    command: nvpanoptix3d inference -e {config_path}
+    command: python -m nvidia_tao_pytorch.cv.nvpanoptix3d.entrypoint.nvpanoptix3d inference -e {config_path}
     config_format: yaml
     inputs: {}
     outputs:

@@ -26,7 +26,7 @@ For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and Tens
 
 ## Train Action Policy
 
-This model is AutoML-enabled at the model layer. Before handling any train-stage request, read `references/skill_info.yaml` and resolve the run override from either an explicit `automl_policy` value or the user's workflow request. Treat phrases like "turn off AutoML", "disable AutoML", "no HPO", or "plain training" as `automl_policy: off` for this run only; otherwise default to `auto`. When `automl_policy: auto`, `automl_enabled: true`, and both `schemas/train.schema.json` and `references/spec_template_train.yaml` are packaged, route the train action through `tao-skill-bank:tao-automl` by default with this model's `skill_dir`. Preserve workflow/application overrides for datasets, specs, output directories, GPU/platform settings, parent checkpoints, and `automl_policy`. Use direct model training only when `automl_policy: off` or the packaged train schema/template is missing; in the missing-schema case, report that AutoML is enabled but not runnable for this model until schemas are generated.
+This model is AutoML-enabled at the model layer. Before handling any train-stage request, read `references/skill_info.yaml` and resolve the run override from either an explicit `automl_policy` value or the user's workflow request. Use `automl_policy: on` by default and only expose `on` / `off` in new launch prompts. Treat phrases like "turn off AutoML", "disable AutoML", "no HPO", or "plain training" as `automl_policy: off` for this run only. When `automl_policy: on`, `automl_enabled: true`, and both `schemas/train.schema.json` and `references/spec_template_train.yaml` are packaged, route the train action through `tao-skill-bank:tao-automl` by default with this model's `skill_dir`. Preserve workflow/application overrides for datasets, specs, output directories, GPU/platform settings, parent checkpoints, and `automl_policy`. Use direct model training only when `automl_policy: off` or the packaged train schema/template is missing; in the missing-schema case, report that AutoML is enabled but not runnable for this model until schemas are generated.
 
 Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows stay in this model skill. The per-run `automl_policy` override does not change model metadata.
 
@@ -249,7 +249,7 @@ Optional. Val dataset configured via `dataset.val_dataset.data_sources` (each en
 - **dataset.dataset_name**: Top-level dataset family identifier (e.g., `MonoDataset`).
 - **dataset.{train,val,test,infer}_dataset.batch_size**: Per-split batch size.
 - **dataset.{train,val,test,infer}_dataset.workers**: Per-split DataLoader worker count (the field name is `workers`, not `num_workers`).
-- **dataset.{train,val,test,infer}_dataset.augmentation.crop_size**: Per-split crop size. Default `[518, 518]`.
+- **dataset.{train,val,test,infer}_dataset.augmentation.crop_size**: Per-split crop size. Default `[518, 518]`. For Depth Anything ViT encoders, each spatial dimension must be divisible by the patch size (14 for `vits`/`vitb`/`vitl`/`vitg`).
 - **dataset.{train,val,test,infer}_dataset.data_sources**: List of `{data_file, dataset_name}` dicts. Both fields are mandatory per entry.
 - **dataset.max_depth** / **dataset.min_depth**: Top-level depth range for metric depth estimation.
 - **export.input_channel**: ONNX input channel count. Default `3` (RGB), matching the runtime input expected by `RelativeDepthAnythingV2` / `MetricDepthAnythingV2`. Source: `experiment_mono_relative.yaml` export block.
