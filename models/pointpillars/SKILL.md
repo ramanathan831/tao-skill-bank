@@ -45,24 +45,25 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 |---|---|---|---|---|
 | dataset_convert | dataset.data_path | id |  | No |
 | evaluate | dataset.data_path | train_datasets |  | No |
-| evaluate | dataset.data_info_path | train_datasets | /results/{dataset_convert_job_id}/data_info/ | No |
+| evaluate | dataset.data_info_path | train_datasets | /results/{dataset_convert_job_id}/results_dir/data_info/ | No |
 | export | dataset.data_path | train_datasets |  | No |
-| export | dataset.data_info_path | train_datasets | /results/{dataset_convert_job_id}/data_info/ | No |
+| export | dataset.data_info_path | train_datasets | /results/{dataset_convert_job_id}/results_dir/data_info/ | No |
 | inference | dataset.data_path | train_datasets |  | No |
-| inference | dataset.data_info_path | train_datasets | /results/{dataset_convert_job_id}/data_info/ | No |
+| inference | dataset.data_info_path | train_datasets | /results/{dataset_convert_job_id}/results_dir/data_info/ | No |
 | prune | dataset.data_path | train_datasets |  | No |
-| prune | dataset.data_info_path | train_datasets | /results/{dataset_convert_job_id}/data_info/ | No |
+| prune | dataset.data_info_path | train_datasets | /results/{dataset_convert_job_id}/results_dir/data_info/ | No |
 | retrain | dataset.data_path | train_datasets |  | No |
-| retrain | dataset.data_info_path | train_datasets | /results/{dataset_convert_job_id}/data_info/ | No |
+| retrain | dataset.data_info_path | train_datasets | /results/{dataset_convert_job_id}/results_dir/data_info/ | No |
 | train | dataset.data_path | train_datasets |  | No |
-| train | dataset.data_info_path | train_datasets | /results/{dataset_convert_job_id}/data_info/ | No |
+| train | dataset.data_info_path | train_datasets | /results/{dataset_convert_job_id}/results_dir/data_info/ | No |
 
 ### Typical Spec Overrides
 
 Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
 
 ```python
-S3_TRAIN = "s3://bucket/data/train"
+DATA_ROOT = "s3://bucket/data/pointpillars"
+DATA_INFO = "/results/{dataset_convert_job_id}/results_dir/data_info"
 ```
 
 **train (mandatory data sources):**
@@ -72,50 +73,52 @@ S3_TRAIN = "s3://bucket/data/train"
     "train.checkpoint_interval": 10,
     "train.validation_interval": 10,
     "train.num_gpus": 1,
-    "dataset.data_path": f"{S3_TRAIN}",
-    "dataset.data_info_path": f"{S3_TRAIN}//results/{dataset_convert_job_id}/data_info/",
+    "dataset.data_path": DATA_ROOT,
+    "dataset.data_info_path": DATA_INFO,
 }
 ```
 
 **evaluate (mandatory data sources):**
 ```python
 {
-    "dataset.data_path": f"{S3_TRAIN}",
-    "dataset.data_info_path": f"{S3_TRAIN}//results/{dataset_convert_job_id}/data_info/",
+    "dataset.data_path": DATA_ROOT,
+    "dataset.data_info_path": DATA_INFO,
 }
 ```
 
 **export (mandatory data sources):**
 ```python
 {
-    "dataset.data_path": f"{S3_TRAIN}",
-    "dataset.data_info_path": f"{S3_TRAIN}//results/{dataset_convert_job_id}/data_info/",
+    "dataset.data_path": DATA_ROOT,
+    "dataset.data_info_path": DATA_INFO,
 }
 ```
 
 **inference (mandatory data sources):**
 ```python
 {
-    "dataset.data_path": f"{S3_TRAIN}",
-    "dataset.data_info_path": f"{S3_TRAIN}//results/{dataset_convert_job_id}/data_info/",
+    "dataset.data_path": DATA_ROOT,
+    "dataset.data_info_path": DATA_INFO,
 }
 ```
 
 **prune (mandatory data sources):**
 ```python
 {
-    "dataset.data_path": f"{S3_TRAIN}",
-    "dataset.data_info_path": f"{S3_TRAIN}//results/{dataset_convert_job_id}/data_info/",
+    "dataset.data_path": DATA_ROOT,
+    "dataset.data_info_path": DATA_INFO,
 }
 ```
 
 **retrain (mandatory data sources):**
 ```python
 {
-    "dataset.data_path": f"{S3_TRAIN}",
-    "dataset.data_info_path": f"{S3_TRAIN}//results/{dataset_convert_job_id}/data_info/",
+    "dataset.data_path": DATA_ROOT,
+    "dataset.data_info_path": DATA_INFO,
 }
 ```
+
+For local Docker, `DATA_INFO` must be visible inside every train/evaluate/export container. Use the dataset_convert job from the same results root, or mount/copy the converted `results_dir/data_info` folder into the current run and set `dataset.data_info_path` to that mounted container path. Do not reuse a `/results/<job_id>/...` path from another run root unless that folder is mounted into the current job.
 ## Eval Dataset
 
 Optional. Validation data (val.tar.gz) is separate from training. Used for mAP evaluation.
@@ -160,7 +163,7 @@ Minimum 1 GPU(s), recommended 4 GPU(s). 16GB+ (V100 or A100) VRAM per GPU. Point
 
 ## Error Patterns
 
-**dataset_convert required**: Training will fail if data_info_path is not populated from a prior dataset_convert job. Always run convert first.
+**dataset_convert required**: Training will fail if `dataset.data_info_path` is not populated from a prior `dataset_convert` job. Always run convert first, and verify the train container can see `dbinfos_train.pkl` and `infos_train.pkl` under `dataset.data_info_path`. A common local-Docker failure is a stale `/results/<old_job_id>/...` path from a different results root.
 
 **Point cloud range mismatch**: If point_cloud_range does not match the actual sensor data extent, detections will be poor or empty.
 

@@ -88,7 +88,7 @@ spec_params: {}
 key_defaults: {}
 spec_shorthand_keys:
   num_epochs: train.num_epochs
-  batch_size: dataset.batch_size
-  learning_rate: train.optim.lr
+  batch_size: train.batch_size
+  learning_rate: train.lr
 description: PointPillars for 3D object detection from LiDAR point clouds. Encodes point clouds into a pseudo-image via pillar-based
   representation, then applies 2D detection. Used in autonomous driving / robotics.
