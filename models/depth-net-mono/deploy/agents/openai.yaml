@@ -1,0 +1,5 @@
+interface:
+  display_name: "Depth Net Mono Deploy"
+  short_description: "Help with Depth Net Mono Deploy tasks"
+  default_prompt: "Use $depth-net-mono-deploy to help with this TAO task."
+  brand_color: "#76B900"

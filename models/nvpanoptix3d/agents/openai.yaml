@@ -1,0 +1,5 @@
+interface:
+  display_name: "Nvpanoptix3d"
+  short_description: "Help with Nvpanoptix3d tasks"
+  default_prompt: "Use $nvpanoptix3d to help with this TAO task."
+  brand_color: "#76B900"

@@ -1,0 +1,5 @@
+interface:
+  display_name: "Centerpose Deploy"
+  short_description: "Help with Centerpose Deploy tasks"
+  default_prompt: "Use $centerpose-deploy to help with this TAO task."
+  brand_color: "#76B900"

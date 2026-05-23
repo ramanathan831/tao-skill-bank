@@ -1,0 +1,5 @@
+interface:
+  display_name: "Mask Grounding Dino"
+  short_description: "Help with Mask Grounding Dino tasks"
+  default_prompt: "Use $mask-grounding-dino to help with this TAO task."
+  brand_color: "#76B900"

@@ -1,0 +1,5 @@
+interface:
+  display_name: "Cosmos Rl"
+  short_description: "Help with Cosmos Rl tasks"
+  default_prompt: "Use $cosmos-rl to help with this TAO task."
+  brand_color: "#76B900"

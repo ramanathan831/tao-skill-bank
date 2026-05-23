@@ -1,0 +1,5 @@
+interface:
+  display_name: "Mal"
+  short_description: "Help with Mal tasks and workflows"
+  default_prompt: "Use $mal to help with this TAO task."
+  brand_color: "#76B900"

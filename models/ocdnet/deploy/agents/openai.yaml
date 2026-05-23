@@ -1,0 +1,5 @@
+interface:
+  display_name: "Ocdnet Deploy"
+  short_description: "Help with Ocdnet Deploy tasks"
+  default_prompt: "Use $ocdnet-deploy to help with this TAO task."
+  brand_color: "#76B900"

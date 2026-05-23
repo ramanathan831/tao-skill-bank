@@ -1,0 +1,5 @@
+interface:
+  display_name: "Ocrnet Deploy"
+  short_description: "Help with Ocrnet Deploy tasks"
+  default_prompt: "Use $ocrnet-deploy to help with this TAO task."
+  brand_color: "#76B900"

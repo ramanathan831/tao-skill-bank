@@ -1,0 +1,5 @@
+interface:
+  display_name: "Dino Deploy"
+  short_description: "Help with Dino Deploy tasks"
+  default_prompt: "Use $dino-deploy to help with this TAO task."
+  brand_color: "#76B900"

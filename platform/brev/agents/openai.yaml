@@ -1,0 +1,5 @@
+interface:
+  display_name: "Brev"
+  short_description: "Help with Brev tasks and workflows"
+  default_prompt: "Use $brev to help with this TAO task."
+  brand_color: "#76B900"

@@ -1,0 +1,5 @@
+interface:
+  display_name: "Grounding Dino Deploy"
+  short_description: "Help with Grounding Dino Deploy tasks"
+  default_prompt: "Use $grounding-dino-deploy to help with this TAO task."
+  brand_color: "#76B900"

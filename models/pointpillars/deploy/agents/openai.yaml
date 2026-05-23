@@ -1,0 +1,5 @@
+interface:
+  display_name: "Pointpillars Deploy"
+  short_description: "Help with Pointpillars Deploy tasks"
+  default_prompt: "Use $pointpillars-deploy to help with this TAO task."
+  brand_color: "#76B900"

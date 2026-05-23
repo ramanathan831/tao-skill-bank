@@ -1,0 +1,5 @@
+interface:
+  display_name: "Mae"
+  short_description: "Help with Mae tasks and workflows"
+  default_prompt: "Use $mae to help with this TAO task."
+  brand_color: "#76B900"

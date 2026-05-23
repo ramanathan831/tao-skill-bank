@@ -1,0 +1,5 @@
+interface:
+  display_name: "Dino"
+  short_description: "Help with Dino tasks and workflows"
+  default_prompt: "Use $dino to help with this TAO task."
+  brand_color: "#76B900"

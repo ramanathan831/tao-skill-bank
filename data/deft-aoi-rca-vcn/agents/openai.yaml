@@ -1,0 +1,5 @@
+interface:
+  display_name: "Deft Aoi Rca Vcn"
+  short_description: "Help with Deft Aoi Rca Vcn tasks"
+  default_prompt: "Use $deft-aoi-rca-vcn to help with this TAO task."
+  brand_color: "#76B900"

@@ -1,0 +1,5 @@
+interface:
+  display_name: "Image Grounding"
+  short_description: "Help with Image Grounding tasks"
+  default_prompt: "Use $image-grounding to help with this TAO task."
+  brand_color: "#76B900"

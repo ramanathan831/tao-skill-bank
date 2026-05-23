@@ -1,0 +1,5 @@
+interface:
+  display_name: "Visual Changenet"
+  short_description: "Help with Visual Changenet tasks"
+  default_prompt: "Use $visual-changenet to help with this TAO task."
+  brand_color: "#76B900"

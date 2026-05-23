@@ -1,0 +1,5 @@
+interface:
+  display_name: "Oneformer Deploy"
+  short_description: "Help with Oneformer Deploy tasks"
+  default_prompt: "Use $oneformer-deploy to help with this TAO task."
+  brand_color: "#76B900"

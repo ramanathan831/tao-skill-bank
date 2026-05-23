@@ -1,0 +1,5 @@
+interface:
+  display_name: "Tao Sdk"
+  short_description: "Help with Tao Sdk tasks and workflows"
+  default_prompt: "Use $tao-sdk to help with this TAO task."
+  brand_color: "#76B900"

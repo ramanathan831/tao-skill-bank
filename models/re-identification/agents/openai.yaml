@@ -1,0 +1,5 @@
+interface:
+  display_name: "Re Identification"
+  short_description: "Help with Re Identification tasks"
+  default_prompt: "Use $re-identification to help with this TAO task."
+  brand_color: "#76B900"

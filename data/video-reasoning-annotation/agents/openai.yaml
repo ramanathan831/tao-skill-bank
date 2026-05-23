@@ -1,0 +1,5 @@
+interface:
+  display_name: "Video Reasoning Annotation"
+  short_description: "Help with Video Reasoning Annotation tasks"
+  default_prompt: "Use $video-reasoning-annotation to help with this TAO task."
+  brand_color: "#76B900"

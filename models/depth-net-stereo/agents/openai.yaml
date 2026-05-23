@@ -1,0 +1,5 @@
+interface:
+  display_name: "Depth Net Stereo"
+  short_description: "Help with Depth Net Stereo tasks"
+  default_prompt: "Use $depth-net-stereo to help with this TAO task."
+  brand_color: "#76B900"

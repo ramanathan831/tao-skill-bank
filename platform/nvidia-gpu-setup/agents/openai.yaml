@@ -1,0 +1,5 @@
+interface:
+  display_name: "Nvidia Gpu Setup"
+  short_description: "Help with Nvidia Gpu Setup tasks"
+  default_prompt: "Use $nvidia-gpu-setup to help with this TAO task."
+  brand_color: "#76B900"

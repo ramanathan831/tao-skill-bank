@@ -1,0 +1,5 @@
+interface:
+  display_name: "Deft Aoi Mining"
+  short_description: "Help with Deft Aoi Mining tasks"
+  default_prompt: "Use $deft-aoi-mining to help with this TAO task."
+  brand_color: "#76B900"

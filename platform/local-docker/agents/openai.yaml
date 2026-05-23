@@ -1,0 +1,5 @@
+interface:
+  display_name: "Local Docker"
+  short_description: "Help with Local Docker tasks"
+  default_prompt: "Use $local-docker to help with this TAO task."
+  brand_color: "#76B900"

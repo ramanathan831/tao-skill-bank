@@ -1,0 +1,5 @@
+interface:
+  display_name: "Rtdetr Deploy"
+  short_description: "Help with Rtdetr Deploy tasks"
+  default_prompt: "Use $rtdetr-deploy to help with this TAO task."
+  brand_color: "#76B900"

@@ -1,0 +1,5 @@
+interface:
+  display_name: "Deft Vlm Bcq Gap Analysis"
+  short_description: "Help with Deft Vlm Bcq Gap Analysis tasks"
+  default_prompt: "Use $deft-vlm-bcq-gap-analysis to help with this TAO task."
+  brand_color: "#76B900"

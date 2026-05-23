@@ -1,0 +1,5 @@
+interface:
+  display_name: "Depth Net Mono"
+  short_description: "Help with Depth Net Mono tasks"
+  default_prompt: "Use $depth-net-mono to help with this TAO task."
+  brand_color: "#76B900"

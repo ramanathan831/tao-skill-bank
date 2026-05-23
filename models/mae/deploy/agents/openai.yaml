@@ -1,0 +1,5 @@
+interface:
+  display_name: "Mae Deploy"
+  short_description: "Help with Mae Deploy tasks"
+  default_prompt: "Use $mae-deploy to help with this TAO task."
+  brand_color: "#76B900"

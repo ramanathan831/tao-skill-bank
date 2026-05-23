@@ -1,0 +1,5 @@
+interface:
+  display_name: "Sparse4d"
+  short_description: "Help with Sparse4d tasks and workflows"
+  default_prompt: "Use $sparse4d to help with this TAO task."
+  brand_color: "#76B900"

@@ -1,0 +1,5 @@
+interface:
+  display_name: "Segformer"
+  short_description: "Help with Segformer tasks"
+  default_prompt: "Use $segformer to help with this TAO task."
+  brand_color: "#76B900"

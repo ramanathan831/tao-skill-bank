@@ -1,0 +1,5 @@
+interface:
+  display_name: "Ml Recog"
+  short_description: "Help with Ml Recog tasks and workflows"
+  default_prompt: "Use $ml-recog to help with this TAO task."
+  brand_color: "#76B900"

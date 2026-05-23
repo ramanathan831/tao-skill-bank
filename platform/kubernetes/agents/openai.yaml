@@ -1,0 +1,5 @@
+interface:
+  display_name: "Kubernetes"
+  short_description: "Help with Kubernetes tasks"
+  default_prompt: "Use $kubernetes to help with this TAO task."
+  brand_color: "#76B900"

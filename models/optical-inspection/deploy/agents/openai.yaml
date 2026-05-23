@@ -1,0 +1,5 @@
+interface:
+  display_name: "Optical Inspection Deploy"
+  short_description: "Help with Optical Inspection Deploy tasks"
+  default_prompt: "Use $optical-inspection-deploy to help with this TAO task."
+  brand_color: "#76B900"

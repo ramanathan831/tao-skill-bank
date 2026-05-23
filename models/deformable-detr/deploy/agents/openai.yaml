@@ -1,0 +1,5 @@
+interface:
+  display_name: "Deformable Detr Deploy"
+  short_description: "Help with Deformable Detr Deploy tasks"
+  default_prompt: "Use $deformable-detr-deploy to help with this TAO task."
+  brand_color: "#76B900"

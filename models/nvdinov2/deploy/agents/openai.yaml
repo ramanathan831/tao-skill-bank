@@ -1,0 +1,5 @@
+interface:
+  display_name: "Nvdinov2 Deploy"
+  short_description: "Help with Nvdinov2 Deploy tasks"
+  default_prompt: "Use $nvdinov2-deploy to help with this TAO task."
+  brand_color: "#76B900"

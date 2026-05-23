@@ -1,0 +1,5 @@
+interface:
+  display_name: "Daft Convert"
+  short_description: "Help with Daft Convert tasks"
+  default_prompt: "Use $daft-convert to help with this TAO task."
+  brand_color: "#76B900"

@@ -1,0 +1,5 @@
+interface:
+  display_name: "Lepton"
+  short_description: "Help with Lepton tasks and workflows"
+  default_prompt: "Use $lepton to help with this TAO task."
+  brand_color: "#76B900"

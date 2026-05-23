@@ -1,0 +1,5 @@
+interface:
+  display_name: "Pointpillars"
+  short_description: "Help with Pointpillars tasks"
+  default_prompt: "Use $pointpillars to help with this TAO task."
+  brand_color: "#76B900"

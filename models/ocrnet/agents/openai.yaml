@@ -1,0 +1,5 @@
+interface:
+  display_name: "Ocrnet"
+  short_description: "Help with Ocrnet tasks and workflows"
+  default_prompt: "Use $ocrnet to help with this TAO task."
+  brand_color: "#76B900"

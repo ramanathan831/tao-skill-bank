@@ -1,0 +1,5 @@
+interface:
+  display_name: "Pose Classification"
+  short_description: "Help with Pose Classification tasks"
+  default_prompt: "Use $pose-classification to help with this TAO task."
+  brand_color: "#76B900"

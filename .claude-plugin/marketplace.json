@@ -25,6 +25,9 @@
         "./data/deft-aoi-mining",
         "./data/deft-aoi-rca-vcn",
         "./data/deft-aoi-routing-vcn",
+        "./data/deft-vlm-bcq-gap-analysis",
+        "./data/image-grounding",
+        "./data/image-referring-expression",
         "./data/video-reasoning-annotation",
         "./models/action-recognition",
         "./models/bevfusion",
@@ -34,11 +37,13 @@
         "./models/classification-pyt/deploy",
         "./models/clip",
         "./models/clip/deploy",
+        "./models/cosmos-embed",
         "./models/cosmos-rl",
         "./models/deformable-detr",
         "./models/deformable-detr/deploy",
 
         "./models/depth-net-fast-stereo",
+        "./models/depth-net-fast-stereo/deploy",
         "./models/depth-net-mono",
         "./models/depth-net-mono/deploy",
         "./models/depth-net-stereo",
@@ -87,6 +92,8 @@
         "./platform/nvidia-gpu-setup",
         "./platform/slurm",
         "./platform/tao-sdk",
+        "./skills/tao-skill-bank-capabilities",
+        "./skills/tao-workflow-launch",
         "./data/daft-convert",
         "./data/daft-validate"
       ]

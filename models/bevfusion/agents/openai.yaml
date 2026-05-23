@@ -1,0 +1,5 @@
+interface:
+  display_name: "Bevfusion"
+  short_description: "Help with Bevfusion tasks"
+  default_prompt: "Use $bevfusion to help with this TAO task."
+  brand_color: "#76B900"

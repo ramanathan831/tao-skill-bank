@@ -1,0 +1,5 @@
+interface:
+  display_name: "Visual Changenet Deploy"
+  short_description: "Help with Visual Changenet Deploy tasks"
+  default_prompt: "Use $visual-changenet-deploy to help with this TAO task."
+  brand_color: "#76B900"

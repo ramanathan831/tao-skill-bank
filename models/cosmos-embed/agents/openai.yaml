@@ -1,0 +1,5 @@
+interface:
+  display_name: "Cosmos Embed"
+  short_description: "Help with Cosmos Embed tasks"
+  default_prompt: "Use $cosmos-embed to help with this TAO task."
+  brand_color: "#76B900"

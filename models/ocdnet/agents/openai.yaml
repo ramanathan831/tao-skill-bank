@@ -1,0 +1,5 @@
+interface:
+  display_name: "Ocdnet"
+  short_description: "Help with Ocdnet tasks and workflows"
+  default_prompt: "Use $ocdnet to help with this TAO task."
+  brand_color: "#76B900"

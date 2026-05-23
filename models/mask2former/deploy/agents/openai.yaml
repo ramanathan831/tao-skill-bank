@@ -1,0 +1,5 @@
+interface:
+  display_name: "Mask2former Deploy"
+  short_description: "Help with Mask2former Deploy tasks"
+  default_prompt: "Use $mask2former-deploy to help with this TAO task."
+  brand_color: "#76B900"

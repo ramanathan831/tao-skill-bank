@@ -1,0 +1,5 @@
+interface:
+  display_name: "Centerpose"
+  short_description: "Help with Centerpose tasks"
+  default_prompt: "Use $centerpose to help with this TAO task."
+  brand_color: "#76B900"

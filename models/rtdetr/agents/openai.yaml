@@ -1,0 +1,5 @@
+interface:
+  display_name: "Rtdetr"
+  short_description: "Help with Rtdetr tasks and workflows"
+  default_prompt: "Use $rtdetr to help with this TAO task."
+  brand_color: "#76B900"

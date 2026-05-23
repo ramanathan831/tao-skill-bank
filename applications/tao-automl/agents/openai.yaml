@@ -1,0 +1,5 @@
+interface:
+  display_name: "Tao Automl"
+  short_description: "Help with Tao Automl tasks"
+  default_prompt: "Use $tao-automl to help with this TAO task."
+  brand_color: "#76B900"

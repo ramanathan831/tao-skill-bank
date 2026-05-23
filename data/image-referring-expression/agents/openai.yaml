@@ -1,0 +1,5 @@
+interface:
+  display_name: "Image Referring Expression"
+  short_description: "Help with Image Referring Expression tasks"
+  default_prompt: "Use $image-referring-expression to help with this TAO task."
+  brand_color: "#76B900"

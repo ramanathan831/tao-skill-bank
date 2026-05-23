@@ -1,0 +1,5 @@
+interface:
+  display_name: "Docker"
+  short_description: "Help with Docker tasks and workflows"
+  default_prompt: "Use $docker to help with this TAO task."
+  brand_color: "#76B900"

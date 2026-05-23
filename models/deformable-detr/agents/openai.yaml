@@ -1,0 +1,5 @@
+interface:
+  display_name: "Deformable Detr"
+  short_description: "Help with Deformable Detr tasks"
+  default_prompt: "Use $deformable-detr to help with this TAO task."
+  brand_color: "#76B900"

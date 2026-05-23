@@ -1,0 +1,5 @@
+interface:
+  display_name: "Segformer Deploy"
+  short_description: "Help with Segformer Deploy tasks"
+  default_prompt: "Use $segformer-deploy to help with this TAO task."
+  brand_color: "#76B900"

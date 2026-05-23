@@ -1,0 +1,5 @@
+interface:
+  display_name: "Classification Pyt Deploy"
+  short_description: "Help with Classification Pyt Deploy tasks"
+  default_prompt: "Use $classification-pyt-deploy to help with this TAO task."
+  brand_color: "#76B900"

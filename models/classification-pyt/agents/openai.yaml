@@ -1,0 +1,5 @@
+interface:
+  display_name: "Classification Pyt"
+  short_description: "Help with Classification Pyt tasks"
+  default_prompt: "Use $classification-pyt to help with this TAO task."
+  brand_color: "#76B900"

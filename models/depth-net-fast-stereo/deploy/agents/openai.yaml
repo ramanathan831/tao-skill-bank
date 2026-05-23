@@ -1,0 +1,5 @@
+interface:
+  display_name: "Depth Net Fast Stereo Deploy"
+  short_description: "Help with Depth Net Fast Stereo Deploy tasks"
+  default_prompt: "Use $depth-net-fast-stereo-deploy to help with this TAO task."
+  brand_color: "#76B900"

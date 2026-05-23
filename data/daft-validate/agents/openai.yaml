@@ -1,0 +1,5 @@
+interface:
+  display_name: "Daft Validate"
+  short_description: "Help with Daft Validate tasks"
+  default_prompt: "Use $daft-validate to help with this TAO task."
+  brand_color: "#76B900"

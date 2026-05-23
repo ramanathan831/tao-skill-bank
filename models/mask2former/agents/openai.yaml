@@ -1,0 +1,5 @@
+interface:
+  display_name: "Mask2former"
+  short_description: "Help with Mask2former tasks"
+  default_prompt: "Use $mask2former to help with this TAO task."
+  brand_color: "#76B900"

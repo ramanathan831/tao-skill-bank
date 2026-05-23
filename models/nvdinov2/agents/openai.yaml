@@ -1,0 +1,5 @@
+interface:
+  display_name: "Nvdinov2"
+  short_description: "Help with Nvdinov2 tasks and workflows"
+  default_prompt: "Use $nvdinov2 to help with this TAO task."
+  brand_color: "#76B900"
