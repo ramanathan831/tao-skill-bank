@@ -76,61 +76,68 @@ S3_EVAL = "s3://bucket/data/eval"
 
 **train (mandatory data sources):**
 ```python
+CONVERTED = "s3://bucket/results/<dataset_convert_job_id>"
 {
     "train.num_epochs": 30,
     "train.checkpoint_interval": 10,
     "train.validation_interval": 10,
     "train.num_gpus": 1,
     "dataset.sequences.split_num": 90,
-    "train_dataset.sequences_split_num": 90,
-    "dataset.data_root": {"spec": f"{S3_TRAIN}/aicity.split)"},
-    "model.head.instance_bank.anchor": f"{S3_TRAIN}//results/{dataset_convert_job_id}/anchor_init.npy",
-    "dataset.train_dataset.ann_file": {"spec": f"{S3_TRAIN}/aicity.split)"},
-    "dataset.val_dataset.ann_file": {"spec": f"{S3_EVAL}/aicity.split)"},
-    "dataset.test_dataset.ann_file": {"spec": f"{S3_EVAL}/aicity.split)"},
+    "dataset.train_dataset.sequences_split_num": 90,
+    "dataset.data_root": f"{S3_TRAIN}/train",
+    "model.head.instance_bank.anchor": f"{CONVERTED}/anchor_init.npy",
+    "dataset.train_dataset.ann_file": f"{CONVERTED}/train/<scene>_infos_train.pkl",
+    "dataset.val_dataset.ann_file": f"{CONVERTED}/val/<scene>_infos_val.pkl",
+    "dataset.test_dataset.ann_file": f"{CONVERTED}/test/<scene>_infos_test.pkl",
 }
 ```
 
 **evaluate (mandatory data sources):**
 ```python
+CONVERTED = "s3://bucket/results/<dataset_convert_job_id>"
 {
-    "dataset.data_root": {"spec": f"{S3_EVAL}/aicity.split)"},
-    "model.head.instance_bank.anchor": f"{S3_TRAIN}//results/{dataset_convert_job_id}/anchor_init.npy",
-    "dataset.train_dataset.ann_file": {"spec": f"{S3_TRAIN}/aicity.split)"},
-    "dataset.val_dataset.ann_file": {"spec": f"{S3_EVAL}/aicity.split)"},
-    "dataset.test_dataset.ann_file": {"spec": f"{S3_EVAL}/aicity.split)"},
+    "dataset.data_root": f"{S3_EVAL}/val",
+    "model.head.instance_bank.anchor": f"{CONVERTED}/anchor_init.npy",
+    "dataset.train_dataset.ann_file": f"{CONVERTED}/train/<scene>_infos_train.pkl",
+    "dataset.val_dataset.ann_file": f"{CONVERTED}/val/<scene>_infos_val.pkl",
+    "dataset.test_dataset.ann_file": f"{CONVERTED}/test/<scene>_infos_test.pkl",
 }
 ```
 
 **export (mandatory data sources):**
 ```python
+CONVERTED = "s3://bucket/results/<dataset_convert_job_id>"
 {
-    "model.head.instance_bank.anchor": f"{S3_TRAIN}//results/{dataset_convert_job_id}/anchor_init.npy",
+    "model.head.instance_bank.anchor": f"{CONVERTED}/anchor_init.npy",
 }
 ```
 
 **inference (mandatory data sources):**
 ```python
+CONVERTED = "s3://bucket/results/<dataset_convert_job_id>"
 {
-    "dataset.data_root": {"spec": f"{S3_EVAL}/aicity.split)"},
-    "model.head.instance_bank.anchor": f"{S3_TRAIN}//results/{dataset_convert_job_id}/anchor_init.npy",
-    "dataset.train_dataset.ann_file": {"spec": f"{S3_TRAIN}/aicity.split)"},
-    "dataset.val_dataset.ann_file": {"spec": f"{S3_EVAL}/aicity.split)"},
-    "dataset.test_dataset.ann_file": {"spec": f"{S3_EVAL}/aicity.split)"},
+    "dataset.data_root": f"{S3_EVAL}/test",
+    "model.head.instance_bank.anchor": f"{CONVERTED}/anchor_init.npy",
+    "dataset.train_dataset.ann_file": f"{CONVERTED}/train/<scene>_infos_train.pkl",
+    "dataset.val_dataset.ann_file": f"{CONVERTED}/val/<scene>_infos_val.pkl",
+    "dataset.test_dataset.ann_file": f"{CONVERTED}/test/<scene>_infos_test.pkl",
 }
 ```
 
 **quantize (mandatory data sources):**
 ```python
+CONVERTED = "s3://bucket/results/<dataset_convert_job_id>"
 {
-    "dataset.data_root": {"spec": f"{S3_TRAIN}/aicity.split)"},
-    "model.head.instance_bank.anchor": f"{S3_TRAIN}//results/{dataset_convert_job_id}/anchor_init.npy",
-    "dataset.train_dataset.ann_file": {"spec": f"{S3_TRAIN}/aicity.split)"},
-    "dataset.val_dataset.ann_file": {"spec": f"{S3_EVAL}/aicity.split)"},
-    "dataset.test_dataset.ann_file": {"spec": f"{S3_EVAL}/aicity.split)"},
+    "dataset.data_root": f"{S3_TRAIN}/train",
+    "model.head.instance_bank.anchor": f"{CONVERTED}/anchor_init.npy",
+    "dataset.train_dataset.ann_file": f"{CONVERTED}/train/<scene>_infos_train.pkl",
+    "dataset.val_dataset.ann_file": f"{CONVERTED}/val/<scene>_infos_val.pkl",
+    "dataset.test_dataset.ann_file": f"{CONVERTED}/test/<scene>_infos_test.pkl",
     "dataset.quant_calibration_dataset.images_dir": f"{S3_TRAIN}",
 }
 ```
+
+For local-docker runs, keep Sparse4D conversion rooted at `/data/aicity_root` and train/eval data roots at the converted split folder, for example `/data/aicity_root/train`. The annotations converter writes absolute RGB paths under the conversion root and relative depth paths under the split, so both mounts must stay stable across conversion and training.
 ## Eval Dataset
 
 Optional. Val/test splits configured via dataset ann_file paths.
@@ -181,13 +188,18 @@ Minimum 2 GPU(s), recommended 8 GPU(s). 40GB+ (A100 recommended) VRAM per GPU. M
 
 **dataset_convert required**: Must run dataset_convert first to produce annotation pickles and anchor_init.npy.
 
-**`invalid choice: 'dataset_convert'` / no `dataset_convert` subcommand**:
-The packaged sparse4d schemas and skill metadata include a conversion action,
-but the resolved TAO PyTorch 7.0.0 RC CLI exposes only `train`, `evaluate`,
-`export`, `inference`, `quantize`, and `default_specs`. If the dataset prefix
-only contains raw AICity files and no converted `ann_file` artifacts plus
-`anchor_init.npy`, AutoML train is blocked until a container with conversion
-support or preconverted artifacts are provided.
+**dataset_convert container/command**: Sparse4D conversion is an AICity to
+OVPKL annotations conversion. Launch `dataset_convert` with the action-level
+`tao_toolkit.data_services` image and `annotations convert -e {config_path}`;
+do not use the PyTorch `sparse4d` CLI for conversion. Train/evaluate/export/
+inference still use the model-level PyTorch image.
+
+**Stable raw-data path**: The AICity to OVPKL converter writes image paths into
+the generated pickle files. Keep `aicity.root` at `/data/aicity_root` during
+conversion, then point `dataset.data_root` at the split folder, for example
+`/data/aicity_root/train` for training or `/data/aicity_root/val` for
+evaluation. This preserves the converter's absolute RGB paths and relative
+depth paths.
 
 **Missing anchor file**: Set model.head.instance_bank.anchor to the anchor_init.npy path from dataset_convert results.
 
