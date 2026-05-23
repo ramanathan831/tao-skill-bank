@@ -56,7 +56,7 @@ validation:
   enable_dataset_cache: false
 policy:
   model_name_or_path: nvidia/Cosmos-Reason2-8B
-  model_max_length: 4096
+  model_max_length: 40960
   model_gradient_checkpointing: true
   parallelism:
     n_init_replicas: 1

@@ -39,7 +39,7 @@
         "media_path": "data/sft/train2017"
       },
       "vision": {
-        "nframes": 8
+        "fps": 1
       }
     },
     "custom_script": "",
@@ -67,7 +67,7 @@
         "use_rslora": false
       },
       "model_gradient_checkpointing": true,
-      "model_max_length": 4096,
+      "model_max_length": 40960,
       "model_name_or_path": "nvidia/Cosmos-Reason2-8B",
       "parallelism": {
         "cp_rotate_method": "allgather",
@@ -175,7 +175,7 @@
           "media_path": "data/sft/train2017"
         },
         "vision": {
-          "nframes": 8
+          "fps": 1
         }
       },
       "description": "Custom config.",
@@ -325,7 +325,7 @@
           "use_rslora": false
         },
         "model_gradient_checkpointing": true,
-        "model_max_length": 4096,
+        "model_max_length": 40960,
         "model_name_or_path": "nvidia/Cosmos-Reason2-8B",
         "parallelism": {
           "cp_rotate_method": "allgather",
@@ -488,7 +488,7 @@
           "type": "bool"
         },
         "model_max_length": {
-          "default": 4096,
+          "default": 40960,
           "description": "Model max length.",
           "maximum": Infinity,
           "minimum": 1,
