@@ -33,7 +33,7 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 
 - **Dataset type:** pose_classification
 - **Formats:** default
-- **Monitoring metric:** val_acc
+- **Monitoring metric:** val_loss
 
 ### Per-Action Dataset Requirements
 
@@ -42,17 +42,17 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 | evaluate | evaluate.test_dataset.data_path | train_datasets |  | No |
 | evaluate | evaluate.test_dataset.label_path | train_datasets |  | No |
 | inference | inference.test_dataset.data_path | train_datasets |  | No |
-| train | dataset.train_dataset.data_path | train_datasets |  | No |
-| train | dataset.train_dataset.label_path | train_datasets |  | No |
-| train | dataset.val_dataset.data_path | train_datasets |  | No |
-| train | dataset.val_dataset.label_path | train_datasets |  | No |
+| train | dataset.train_dataset.data_path | train_datasets | train_data.npy | No |
+| train | dataset.train_dataset.label_path | train_datasets | train_label.pkl | No |
+| train | dataset.val_dataset.data_path | train_datasets | val_data.npy | No |
+| train | dataset.val_dataset.label_path | train_datasets | val_label.pkl | No |
 
 ### Typical Spec Overrides
 
 Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
 
 ```python
-S3_TRAIN = "s3://bucket/data/train"
+S3_TRAIN = "s3://bucket/data/purpose_built_models_pose_classification_train/nvidia"
 ```
 
 **train (mandatory data sources):**
@@ -62,12 +62,21 @@ S3_TRAIN = "s3://bucket/data/train"
     "train.checkpoint_interval": 10,
     "train.validation_interval": 10,
     "train.num_gpus": 1,
-    "num_classes": 6,
-    "graph_layout": "nvidia",
-    "dataset.train_dataset.data_path": f"{S3_TRAIN}",
-    "dataset.train_dataset.label_path": f"{S3_TRAIN}",
-    "dataset.val_dataset.data_path": f"{S3_TRAIN}",
-    "dataset.val_dataset.label_path": f"{S3_TRAIN}",
+    "wandb.enable": False,
+    "dataset.num_classes": 6,
+    "dataset.label_map": {
+        "class_0": 0,
+        "class_1": 1,
+        "class_2": 2,
+        "class_3": 3,
+        "class_4": 4,
+        "class_5": 5,
+    },
+    "model.graph_layout": "nvidia",
+    "dataset.train_dataset.data_path": f"{S3_TRAIN}/train_data.npy",
+    "dataset.train_dataset.label_path": f"{S3_TRAIN}/train_label.pkl",
+    "dataset.val_dataset.data_path": f"{S3_TRAIN}/val_data.npy",
+    "dataset.val_dataset.label_path": f"{S3_TRAIN}/val_label.pkl",
 }
 ```
 
@@ -87,7 +96,7 @@ S3_TRAIN = "s3://bucket/data/train"
 ```
 ## Eval Dataset
 
-Optional. Validation data is provided alongside training as val_data.npy / val_label.pkl.
+Optional. Validation data is provided alongside training as val_data.npy / val_label.pkl. TAO training emits `val_loss` as the TensorBoard validation scalar for this model; use `val_loss` with minimize direction for AutoML selection unless a custom evaluation hook supplies a different metric.
 
 ## Important Parameters
 
@@ -119,6 +128,8 @@ Minimum 1 GPU(s), recommended 1 GPU(s). 8GB+ VRAM per GPU. Pose classification i
 **Graph layout mismatch**: Ensure model.graph_layout matches the skeleton format in your .npy data files.
 
 **Label shape mismatch**: train_label.pkl class indices must be in range [0, num_classes).
+
+**Missing label map**: The training dataloader expects `dataset.label_map` to be a dictionary. If the dataset only supplies numeric class IDs, set a synthetic contiguous map such as `class_0: 0` through `class_5: 5` for the six-class NVIDIA sample data.
 
 ## Spec Param / Parent Model Inference
 

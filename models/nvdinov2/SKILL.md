@@ -36,7 +36,7 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 
 - **Dataset type:** image_classification
 - **Formats:** ssl
-- **Monitoring metric:** train_loss
+- **Monitoring metric:** train_loss_epoch
 
 ### Per-Action Dataset Requirements
 
@@ -61,6 +61,27 @@ S3_EVAL = "s3://bucket/data/eval"
     "train.num_gpus": 1,
     "train.num_epochs": 10,
     "train.checkpoint_interval": 10,
+    "dataset.train_dataset.images_dir": f"{S3_TRAIN}/images_train.tar.gz",
+}
+```
+
+**local AutoML validation / smoke run:**
+Use this shape when the goal is to confirm Bayesian launch, metric selection,
+best-model choice, and checkpoint persistence on local Docker. It keeps the
+run representative while avoiding the much slower ViT-Large default.
+
+```python
+{
+    "wandb.enable": False,
+    "model.backbone.teacher_type": "vit_s",
+    "model.backbone.student_type": "vit_s",
+    "model.backbone.img_size": 224,
+    "dataset.batch_size": 8,
+    "dataset.workers": 2,
+    "train.num_epochs": 1,
+    "train.checkpoint_interval": 1,
+    "train.num_prototypes": 1024,
+    "train.num_gpus": 1,
     "dataset.train_dataset.images_dir": f"{S3_TRAIN}/images_train.tar.gz",
 }
 ```
@@ -115,6 +136,11 @@ Minimum 4 GPU(s), recommended 8 GPU(s). 40GB+ (A100 recommended) VRAM per GPU. S
 ## Error Patterns
 
 **CUDA out of memory**: ViT-Large teacher+student with img_size=518 requires 40GB+ GPU memory. Reduce batch_size, img_size, or use smaller ViT variant.
+
+**AutoML metric not found**: TAO's Lightning progress line reports the final
+training scalar as `train_loss_epoch`. Use `train_loss_epoch` with minimize
+direction for AutoML selection; log parsers may also map `train_loss` to this
+epoch scalar.
 
 **Slow convergence**: SSL needs many epochs. Default 10 is for quick testing; production runs typically use 100+ epochs.
 

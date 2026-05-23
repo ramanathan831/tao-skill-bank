@@ -35,7 +35,7 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 
 - **Dataset type:** ocrnet
 - **Formats:** default
-- **Monitoring metric:** val_acc
+- **Monitoring metric:** val_acc_1
 
 ### Per-Action Dataset Requirements
 
@@ -57,8 +57,10 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 | retrain | dataset.train_dataset_dir | train_datasets | results/{dataset_convert_job_id}/dataset_convert/lmdb | Yes |
 | retrain | dataset.val_dataset_dir | eval_dataset | results/{dataset_convert_job_id}/dataset_convert/lmdb | No |
 | retrain | dataset.character_list_file | eval_dataset | character_list | No |
-| train | dataset.train_dataset_dir | train_datasets | results/{dataset_convert_job_id}/dataset_convert/lmdb | Yes |
-| train | dataset.val_dataset_dir | eval_dataset | results/{dataset_convert_job_id}/dataset_convert/lmdb | No |
+| train | dataset.train_dataset_dir | train_datasets | train.tar.gz | Yes |
+| train | dataset.train_gt_file | train_datasets | train/gt_new.txt | No |
+| train | dataset.val_dataset_dir | eval_dataset | test.tar.gz | No |
+| train | dataset.val_gt_file | eval_dataset | test/gt_new.txt | No |
 | train | dataset.character_list_file | eval_dataset | character_list | No |
 
 ### Typical Spec Overrides
@@ -78,8 +80,10 @@ S3_EVAL = "s3://bucket/data/eval"
     "train.validation_interval": 10,
     "train.num_gpus": 1,
     "dataset.batch_size": 16,
-    "dataset.train_dataset_dir": [f"{S3_TRAIN}/results/{dataset_convert_job_id}/dataset_convert/lmdb"],
-    "dataset.val_dataset_dir": f"{S3_EVAL}/results/{dataset_convert_job_id}/dataset_convert/lmdb",
+    "dataset.train_dataset_dir": [f"{S3_TRAIN}/train.tar.gz"],
+    "dataset.train_gt_file": f"{S3_TRAIN}/train/gt_new.txt",
+    "dataset.val_dataset_dir": f"{S3_EVAL}/test.tar.gz",
+    "dataset.val_gt_file": f"{S3_EVAL}/test/gt_new.txt",
     "dataset.character_list_file": f"{S3_EVAL}/character_list",
 }
 ```

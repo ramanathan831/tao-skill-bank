@@ -20,8 +20,12 @@ actions:
     inputs:
       dataset.train_dataset_dir:
         type: folder
+      dataset.train_gt_file:
+        type: file
       dataset.val_dataset_dir:
         type: folder
+      dataset.val_gt_file:
+        type: file
       dataset.character_list_file:
         type: file
     outputs:

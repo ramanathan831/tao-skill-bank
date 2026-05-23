@@ -198,6 +198,8 @@ Minimum 1 GPU(s), recommended 2 GPU(s). 16GB+ (V100 or A100) VRAM per GPU. RT-DE
 
 **num_classes mismatch**: RT-DETR defaults to 80 (not 91 like DINO). Ensure dataset.num_classes matches your annotation categories.
 
+**CUDA index assert from category IDs**: If COCO category IDs are one-based or otherwise not remapped to zero-based contiguous IDs, set `dataset.num_classes` to `max(category_id) + 1` and keep `dataset.eval_class_ids` aligned to the actual category IDs. For the packaged four-class S3 sample with IDs 1-4, use `dataset.num_classes: 5` and `dataset.eval_class_ids: [1, 2, 3, 4]`.
+
 **return_interm_indices vs num_feature_levels**: Default is [1,2,3] with num_feature_levels=3. Must be consistent if changed.
 
 ## Spec Param / Parent Model Inference

@@ -33,7 +33,7 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 
 - **Dataset type:** action_recognition
 - **Formats:** default
-- **Monitoring metric:** val_acc
+- **Monitoring metric:** val_loss
 
 ### Per-Action Dataset Requirements
 
@@ -85,6 +85,9 @@ S3_TRAIN = "s3://bucket/data/train"
 ## Eval Dataset
 
 Optional. Test dataset is provided as test.tar.gz separate from training.
+TAO training emits `val_loss` as the validation scalar for the packaged sample
+data; use `val_loss` with minimize direction for AutoML selection unless a
+custom evaluator supplies an accuracy metric.
 
 ## Important Parameters
 
