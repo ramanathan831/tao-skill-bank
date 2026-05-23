@@ -1,5 +1,13 @@
 # Image Grounding — Full Configuration Reference
 
+
+## Contents
+
+- Pipeline configuration shape
+- Input/output paths
+- VLM endpoint and model settings
+- Common overrides and troubleshooting
+
 ## Complete YAML Structure
 
 Generate a default experiment spec with `auto_label default_specs results_dir=/results module_name=auto_label`, then set `autolabel_type: "image_grounding"`.

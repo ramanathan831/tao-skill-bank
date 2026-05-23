@@ -1,16 +1,20 @@
 ---
 name: tao-sdk
-description: TAO Execution SDK for submitting and monitoring GPU training jobs on supported platforms (Lepton, Brev, SLURM, local Docker, Kubernetes). Use when the user wants job tracking, S3 I/O wrapping, multi-node distributed training, or platform-specific features that docker-run can't provide.
+description: >-
+  TAO Execution SDK for submitting and monitoring GPU training jobs on supported platforms (Lepton,
+  Brev, SLURM, local Docker, Kubernetes). Use when the user wants job tracking, S3 I/O wrapping,
+  multi-node distributed training, or platform-specific features that docker-run can't provide.
 license: Apache-2.0
-compatibility: Requires Python 3.10+ and the nvidia-tao-sdk package (pip install nvidia-tao-sdk[all]).
 metadata:
-  author: NVIDIA Corporation
-  version: '0.2'
+  author: "NVIDIA Corporation"
+  version: "0.2"
+  compatibility: >-
+    Requires Python 3.10+ and the nvidia-tao-sdk package (pip install nvidia-tao-sdk[all]).
+  tags:
+  - "platform"
+  - "tao"
+  - "sdk"
 allowed-tools: Read Bash
-tags:
-- platform
-- tao
-- sdk
 ---
 
 # TAO Execution SDK
@@ -483,69 +487,11 @@ specs["dataset"]["train_csv"] = f"{base}/train.csv"   # nested — see "spec is 
 
 ## Platform-specific notes
 
-### Lepton (`from tao_sdk.platforms.lepton import LeptonSDK`)
-- Jobs run as containers on DGX Cloud.
-- NFS/Lustre mounts auto-detected from the node group; the SDK builds the appropriate `Mount` objects.
-- `gpu_count` resolves to a Lepton resource shape; or pass `dedicated_node_group="<name>"` for guaranteed allocation.
-- `num_nodes=N` (N>1) enables distributed training.
+For platform-specific SDK kwargs, storage assumptions, and credential prompts,
+read `references/platform-notes.md`.
 
-### Brev (`from tao_sdk.platforms.brev import BrevSDK`)
-- Jobs run on GPU instances via `brev exec`.
-- No shared storage — S3 only.
-- Pass `instance_id="<id>"` in kwargs to reuse an existing instance (skip 2–5 min boot).
-- Pass `gpu_type="L40S"` to control instance class for ephemeral instances.
-- Use `sdk.delete_instance(instance_id)` when done with an ephemeral one.
+## Error patterns and boundaries
 
-### SLURM
-- Jobs submit over SSH to a login node with `sbatch` and run containers through
-  Pyxis/Enroot `srun --container-image`.
-- Use the platform helper output to ask only for SLURM credentials and storage
-  settings. Do not ask for Lepton, Brev, or Kubernetes credentials.
-- Dataset paths must be visible from the cluster job, usually absolute Lustre or
-  shared filesystem paths; do not pass agent-host local paths to SLURM jobs.
-- Use the packaged SLURM runtime defaults unless the user gives a validated
-  override. For the common `polar,polar3,polar4,grizzly` queues, prefer the
-  four-hour default rather than generating 12-hour wrappers.
-
-### Kubernetes
-- Jobs run as Kubernetes Jobs on a configured GPU cluster.
-- Auth uses kubeconfig (`KUBECONFIG` or `~/.kube/config`) or an in-cluster
-  service account.
-- Requires NVIDIA GPU Operator or equivalent `nvidia.com/gpu` device plugin.
-- Do not ask for Lepton, Brev, or SLURM credentials for Kubernetes runs.
-- A local path on the agent host is not proof that the path is mounted inside
-  the job pod.
-
-### Local Docker
-- Jobs run on the local Docker daemon host.
-- Multi-node is not supported; multi-GPU on the local host is supported.
-- Verify local dataset paths, Docker daemon access, and NVIDIA runtime before
-  generating or launching runner artifacts.
-
-## Error patterns
-
-**`CredentialError: Missing LEPTON_WORKSPACE_ID`**: env var not loaded. Run `source ~/.config/tao/.env` or check the SessionStart hook fired.
-
-**`CredentialError: S3_BUCKET_NAME env var required`**: any `inputs` or `outputs` argument needs S3 credentials. Set `S3_BUCKET_NAME`, `ACCESS_KEY`, `SECRET_KEY` (and `S3_ENDPOINT_URL` for non-AWS).
-
-**TAO crash: `You need to set ... results_dir`** (or any spec key declared in `skill_info.actions.<action>.outputs`): `build_entrypoint` was called without `outputs=action_cfg["outputs"]`. The script_runner only auto-fills output spec keys it was told about; missing `outputs=` leaves `results_dir: ''` and the TAO entrypoint aborts. Same root cause if S3 input URIs aren't downloaded — `inputs=action_cfg["inputs"]` was also omitted. Mirror both from `skill_info.yaml` exactly.
-
-**Job stuck in `Pending` (Lepton)**: call `get_job_replicas(job_id)` and inspect `readiness_issue`. Most common: image pull (waited too long) or `ConfigError` on a bad node — cancel and resubmit.
-
-**`Image pull failed`**: `NGC_KEY` is invalid or expired. The SDK auto-creates a Lepton image-pull-secret from `$NGC_KEY`; refresh the key and resubmit.
-
-**Double slash in S3 URI**: `dataset_uri.rstrip("/")` before concatenating, or use `os.path.join` (note: not `posixpath.join` — that doesn't strip).
-
-**Brev instance won't start**: GPU type unavailable in the user's region. Try a different `gpu_type` or wait.
-
-## What the SDK does NOT do
-
-- It does **not** read or interpret skills. The agent reads `SKILL.md` and `references/skill_info.yaml`; the SDK just submits whatever command the agent constructs.
-- It does **not** do hyperparameter optimization by itself. The agent owns the
-  model-level AutoML policy: when model metadata has `automl_enabled: true`, use
-  `applications/tao-automl` (which uses this SDK as a building block) unless the
-  workflow passes `automl_policy: off` or the user explicitly asks for a plain
-  single training run.
-- It does **not** decide what goes in the spec. The agent constructs the spec dict (loading templates, applying overrides) and passes it to `build_entrypoint`, which serializes the spec and inlines the in-container runner that writes it to `{config_path}` at job start. The SDK has no opinion about which keys you set.
-- It does **not** select platforms automatically. Pick the SDK matching your target backend explicitly: `LeptonSDK`, `BrevSDK`, `DockerSDK`, `SlurmSDK`, or `KubernetesSDK`.
-- It does **not** orchestrate multi-step workflows. The agent chains jobs by polling and constructing the next command.
+Read `references/error-patterns.md` for common credential, wrapping, pending,
+image-pull, URI, and capacity failures. Read `references/non-goals.md` for the
+boundary between agent-owned behavior and SDK-owned behavior.

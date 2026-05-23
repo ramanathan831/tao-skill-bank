@@ -1,5 +1,13 @@
 # Image Referring Expression — Full Configuration Reference
 
+
+## Contents
+
+- Pipeline configuration shape
+- KITTI label and image inputs
+- Caption, grounding, and verification settings
+- Output artifacts and troubleshooting
+
 ## Complete YAML Structure
 
 Generate a default experiment spec with `auto_label default_specs results_dir=/results module_name=auto_label`, then set `autolabel_type: "image_referring_expression"`.

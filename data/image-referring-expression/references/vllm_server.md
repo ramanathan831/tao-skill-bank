@@ -1,5 +1,13 @@
 # vLLM Server Setup for Vision-Language Models
 
+
+## Contents
+
+- Server launch prerequisites
+- vLLM command patterns
+- Health checks
+- Common server failures
+
 This guide walks the user through standing up a self-hosted [vLLM](https://github.com/vllm-project/vllm) server that exposes an OpenAI-compatible `/v1/chat/completions` endpoint for vision-language models (VLMs). Once the server is running, point the pipeline at it with `vlm.backend: "openai"` and the matching `base_url` / `model_name` / `api_key` values.
 
 ## 1. Prerequisites

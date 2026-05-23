@@ -1,5 +1,13 @@
 # Video Reasoning Annotation — Domain Adaptation Guide
 
+
+## Contents
+
+- Consultation workflow
+- Caption requirements checklist
+- Prompt-template placeholders
+- Validation steps for custom domains
+
 ## Overview
 
 The default prompts in `nvidia_tao_ds.auto_label.video_reasoning_annotation.prompts` work for general video content. For domain-specific datasets, customize the prompts via the template module to get significantly better caption accuracy, description quality, and QA relevance.

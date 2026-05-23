@@ -1,5 +1,13 @@
 # Video Reasoning Annotation — Full Configuration Reference
 
+
+## Contents
+
+- Input video and domain configuration
+- VLM/LLM endpoint settings
+- Caption and QA generation controls
+- Output schemas and troubleshooting
+
 ## Complete YAML Structure
 
 Generate a default experiment spec with `auto_label default_specs results_dir=/results module_name=auto_label`, then set `autolabel_type: "video_reasoning_annotation"`.

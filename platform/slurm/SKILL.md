@@ -1,18 +1,20 @@
 ---
 name: slurm
-description: Remote SLURM GPU cluster execution over SSH with sbatch/srun, Pyxis/Enroot containers, and Lustre-backed results.
-  Use when running TAO jobs on an on-prem or DGX SLURM cluster.
+description: >-
+  Remote SLURM GPU cluster execution over SSH with sbatch/srun, Pyxis/Enroot containers, and
+  Lustre-backed results. Use when running TAO jobs on an on-prem or DGX SLURM cluster.
 license: Apache-2.0
-compatibility: Requires SSH access to a SLURM login node (passwordless via key auth) and SLURM_USER + SLURM_HOSTNAME env vars.
-  The TAO SDK with the slurm extra (pip install 'nvidia-tao-sdk[slurm]') is needed only if you want Job handles, S3 I/O wrapping,
-  or run-folder durability via ActionWorkflow.
 metadata:
-  author: NVIDIA Corporation
-  version: '0.2'
+  author: "NVIDIA Corporation"
+  version: "0.2"
+  compatibility: >-
+    Requires SSH access to a SLURM login node (passwordless via key auth) and SLURM_USER +
+    SLURM_HOSTNAME env vars. The TAO SDK with the slurm extra (pip install 'nvidia-tao-sdk[slurm]') is
+    needed only if you want Job handles, S3 I/O wrapping, or run-folder durability via ActionWorkflow.
+  tags:
+  - "platform"
+  - "slurm"
 allowed-tools: Read Bash
-tags:
-- platform
-- slurm
 ---
 
 ## Preflight
@@ -220,36 +222,8 @@ fail inside the first training job.
 
 ## SSH Failure Remediation Prompt
 
-When passwordless SSH fails, use this concise prompt:
-
-```text
-SLURM is blocked on passwordless SSH. Please provide:
-
-SSH_KEY_PATH=/path/to/private_key
-
-If you have not set up passwordless access yet:
-1. Create a key if needed:
-   ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_ed25519
-2. Install the public key on one login host:
-   ssh-copy-id -i ~/.ssh/id_ed25519.pub <SLURM_USER>@<login-host>
-3. Trust the host key:
-   ssh-keyscan -H <login-host> >> ~/.ssh/known_hosts
-4. Lock private-key permissions:
-   chmod 600 ~/.ssh/id_ed25519
-5. Verify it works without prompts:
-   ssh -o BatchMode=yes -i ~/.ssh/id_ed25519 <SLURM_USER>@<login-host> 'hostname'
-
-After that, rerun with SSH_KEY_PATH=~/.ssh/id_ed25519.
-```
-
-Results default to:
-
-```text
-/lustre/fsw/portfolios/edgeai/users/<slurm_user>/results/<job_id>
-```
-
-The runner sets `TAO_API_RESULTS_DIR` to the parent results directory because
-container code appends the job id when writing status and artifacts.
+When passwordless SSH fails, use the prompt and result-path notes in
+`references/ssh-remediation.md`.
 
 ## Container Execution
 
