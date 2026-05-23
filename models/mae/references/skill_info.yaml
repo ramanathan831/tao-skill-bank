@@ -10,9 +10,9 @@ actions:
     config_format: yaml
     inputs:
       dataset.train_data_sources:
-        type: folder
+        type: file
       dataset.val_data_sources:
-        type: folder
+        type: file
     outputs:
       results_dir:
         type: folder
@@ -21,7 +21,11 @@ actions:
   evaluate:
     command: mae evaluate -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      evaluate.checkpoint:
+        type: file
+      dataset.val_data_sources:
+        type: file
     outputs:
       results_dir:
         type: folder
@@ -39,7 +43,11 @@ actions:
   inference:
     command: mae inference -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      inference.checkpoint:
+        type: file
+      dataset.test_data_sources:
+        type: file
     outputs:
       results_dir:
         type: folder

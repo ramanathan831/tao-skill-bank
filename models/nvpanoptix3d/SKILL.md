@@ -95,6 +95,7 @@ S3_EVAL = "s3://bucket/data/eval"
 **evaluate (mandatory data sources):**
 ```python
 {
+    "evaluate.checkpoint": "<selected train/AutoML checkpoint>",
     "dataset.enable_3d": True,
     "dataset.contiguous_id": True,
     "dataset.frustum_mask_path": f"{S3_EVAL}/meta/frustum_mask.npz",
@@ -109,6 +110,7 @@ S3_EVAL = "s3://bucket/data/eval"
 **inference (mandatory data sources):**
 ```python
 {
+    "inference.checkpoint": "<selected train/AutoML checkpoint>",
     "dataset.enable_3d": True,
     "dataset.frustum_mask_path": f"{S3_EVAL}/meta/frustum_mask.npz",
     "dataset.label_map": f"{S3_EVAL}/meta/colormap.json",

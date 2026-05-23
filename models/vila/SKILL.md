@@ -57,6 +57,7 @@ S3_EVAL = "s3://bucket/data/eval"
 **train (mandatory data sources):**
 ```python
 {
+    "model_path": "/path/or/s3/to/base_vila_model",
     "train.dataset.dataset_yaml_path": f"{S3_TRAIN}/dataset.yaml",
     "train.num_epochs": 1,
     "train.batch_size": 8,
@@ -70,6 +71,7 @@ S3_EVAL = "s3://bucket/data/eval"
 **evaluate (mandatory data sources):**
 ```python
 {
+    "model_path": "/path/or/s3/to/trained_or_base_vila_model",
     "eval.dataset_yaml_path": f"{S3_EVAL}/dataset.yaml",
 }
 ```
@@ -77,6 +79,7 @@ S3_EVAL = "s3://bucket/data/eval"
 **inference (mandatory data sources):**
 ```python
 {
+    "model_path": "/path/or/s3/to/trained_or_base_vila_model",
     "inference.media": f"{S3_EVAL}/",
 }
 ```
@@ -120,6 +123,11 @@ Minimum 1 GPU(s), recommended 8 GPU(s). 40GB+ (A100 80GB recommended) VRAM per G
 to `nvcr.io/nvidia/tao/tao-toolkit:6.26.3-vila`; verify the image manifest
 before launching. If Docker/NGC reports the tag does not exist, stop and update
 the image mapping or require an explicit `image=<override>`.
+
+**AutoML blocked until image mapping is fixed**: Do not launch VILA AutoML with
+the default image mapping. The packaged `6.26.3-vila` tag has no Docker
+manifest; mark the run blocked unless the user supplies a valid VILA image and
+a reachable base `model_path`.
 
 **Video frame loading**: Ensure num_video_frames and video_max_tiles are compatible with available GPU memory.
 

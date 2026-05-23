@@ -186,6 +186,7 @@ S3_EVAL = "aws://bucket/data/eval"
     "dataset.test_dataset.data_sources": [
         {"data_file": f"{S3_EVAL}/annotations.txt", "dataset_name": "Middlebury"}
     ],
+    "evaluate.checkpoint": "<selected train/AutoML checkpoint>",
 }
 ```
 
@@ -217,6 +218,7 @@ S3_EVAL = "aws://bucket/data/eval"
     "dataset.infer_dataset.data_sources": [
         {"data_file": f"{S3_EVAL}/annotations.txt", "dataset_name": "GenericDataset"}
     ],
+    "inference.checkpoint": "<selected train/AutoML checkpoint>",
 }
 ```
 

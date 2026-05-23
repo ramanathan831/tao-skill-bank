@@ -85,7 +85,7 @@
       "ckpt": {
         "enable_checkpoint": true,
         "export_safetensors": true,
-        "max_keep": 1,
+        "max_keep": 2,
         "save_freq_in_epoch": 1,
         "save_mode": "sync"
       },
@@ -605,7 +605,7 @@
         "ckpt": {
           "enable_checkpoint": true,
           "export_safetensors": true,
-          "max_keep": 1,
+          "max_keep": 2,
           "save_freq_in_epoch": 1,
           "save_mode": "sync"
         },
@@ -669,7 +669,7 @@
           "default": {
             "enable_checkpoint": true,
             "export_safetensors": true,
-            "max_keep": 1,
+            "max_keep": 2,
             "save_freq_in_epoch": 1,
             "save_mode": "sync"
           },

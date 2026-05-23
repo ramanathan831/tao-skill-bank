@@ -72,6 +72,10 @@ S3_TRAIN = "s3://bucket/data/train"
 **evaluate (mandatory data sources):**
 ```python
 {
+    "dataset.label_map": {
+        "catch": 0,
+        "smile": 1
+    },
     "evaluate.test_dataset_dir": f"{S3_TRAIN}/test.tar.gz",
 }
 ```
@@ -79,6 +83,10 @@ S3_TRAIN = "s3://bucket/data/train"
 **inference (mandatory data sources):**
 ```python
 {
+    "dataset.label_map": {
+        "catch": 0,
+        "smile": 1
+    },
     "inference.inference_dataset_dir": f"{S3_TRAIN}/test/smile.tar.gz",
 }
 ```
@@ -117,6 +125,12 @@ Minimum 1 GPU(s), recommended 2 GPU(s). 16GB+ VRAM per GPU. Memory depends on se
 ## Error Patterns
 
 **Sequence length mismatch**: Ensure video clips have enough frames for the configured rgb_seq_length or of_seq_length.
+
+**Evaluate/inference missing label map**: Downstream actions rebuild the
+ActionRecognitionModel before loading the checkpoint, so they need the same
+`dataset.label_map` used during training. Include it with every evaluate or
+inference spec; otherwise model construction fails before the checkpoint can be
+validated.
 
 ## Spec Param / Parent Model Inference
 

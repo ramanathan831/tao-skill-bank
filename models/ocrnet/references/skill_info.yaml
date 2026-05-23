@@ -36,7 +36,15 @@ actions:
   quantize:
     command: ocrnet quantize -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.train_dataset_dir:
+        type: folder
+      dataset.val_dataset_dir:
+        type: folder
+      dataset.character_list_file:
+        type: file
+      dataset.quant_calibration_dataset.images_dir:
+        type: folder
     outputs:
       results_dir:
         type: folder
@@ -45,7 +53,11 @@ actions:
   evaluate:
     command: ocrnet evaluate -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.character_list_file:
+        type: file
+      evaluate.test_dataset_dir:
+        type: folder
     outputs:
       results_dir:
         type: folder
@@ -54,7 +66,9 @@ actions:
   export:
     command: ocrnet export -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.character_list_file:
+        type: file
     outputs:
       results_dir:
         type: folder
@@ -63,7 +77,9 @@ actions:
   prune:
     command: ocrnet prune -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.character_list_file:
+        type: file
     outputs:
       results_dir:
         type: folder
@@ -72,7 +88,13 @@ actions:
   retrain:
     command: ocrnet retrain -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.train_dataset_dir:
+        type: folder
+      dataset.val_dataset_dir:
+        type: folder
+      dataset.character_list_file:
+        type: file
     outputs:
       results_dir:
         type: folder
@@ -81,7 +103,11 @@ actions:
   inference:
     command: ocrnet inference -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.character_list_file:
+        type: file
+      inference.inference_dataset_dir:
+        type: folder
     outputs:
       results_dir:
         type: folder

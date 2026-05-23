@@ -21,7 +21,13 @@ actions:
   quantize:
     command: ocdnet quantize -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.train_dataset.data_path:
+        type: folder
+      dataset.validate_dataset.data_path:
+        type: folder
+      dataset.quant_calibration_dataset.images_dir:
+        type: folder
     outputs:
       results_dir:
         type: folder
@@ -30,7 +36,9 @@ actions:
   evaluate:
     command: ocdnet evaluate -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.validate_dataset.data_path:
+        type: folder
     outputs:
       results_dir:
         type: folder
@@ -48,7 +56,9 @@ actions:
   prune:
     command: ocdnet prune -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.validate_dataset.data_path:
+        type: folder
     outputs:
       results_dir:
         type: folder
@@ -57,7 +67,11 @@ actions:
   retrain:
     command: ocdnet retrain -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.train_dataset.data_path:
+        type: folder
+      dataset.validate_dataset.data_path:
+        type: folder
     outputs:
       results_dir:
         type: folder
@@ -66,7 +80,9 @@ actions:
   inference:
     command: ocdnet inference -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      inference.input_folder:
+        type: folder
     outputs:
       results_dir:
         type: folder
@@ -87,6 +103,6 @@ key_defaults: {}
 spec_shorthand_keys:
   num_epochs: train.num_epochs
   batch_size: dataset.batch_size
-  learning_rate: train.optim.lr
+  learning_rate: train.optimizer.args.lr
 description: OCDNet for scene text detection. Detects arbitrary-oriented text regions in natural images using a differentiable
   binarization approach.

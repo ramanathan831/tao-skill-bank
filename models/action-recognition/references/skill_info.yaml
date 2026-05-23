@@ -21,7 +21,9 @@ actions:
   evaluate:
     command: action_recognition evaluate -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      evaluate.test_dataset_dir:
+        type: folder
     outputs:
       results_dir:
         type: folder
@@ -39,7 +41,9 @@ actions:
   inference:
     command: action_recognition inference -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      inference.inference_dataset_dir:
+        type: folder
     outputs:
       results_dir:
         type: folder

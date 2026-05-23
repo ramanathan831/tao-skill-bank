@@ -1,14 +1,17 @@
 name: vila
 network_arch: vila
 automl_enabled: true
+automl_blocked_reason: default tao_toolkit.vila image nvcr.io/nvidia/tao/tao-toolkit:6.26.3-vila has no Docker manifest; provide a valid VILA image mapping and a base model_path before running AutoML.
 container_image: tao_toolkit.vila
 data_format: default
-gpu_spec_key: train.num_gpus
+gpu_spec_key: train.system.num_gpus
 actions:
   train:
     command: vila train -e {config_path}
     config_format: yaml
     inputs:
+      model_path:
+        type: folder
       train.dataset.dataset_yaml_path:
         type: file
     outputs:
@@ -19,7 +22,11 @@ actions:
   evaluate:
     command: vila evaluate -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      model_path:
+        type: folder
+      eval.dataset_yaml_path:
+        type: file
     outputs:
       results_dir:
         type: folder
@@ -28,7 +35,11 @@ actions:
   inference:
     command: vila inference -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      model_path:
+        type: folder
+      inference.media:
+        type: folder
     outputs:
       results_dir:
         type: folder
@@ -39,7 +50,8 @@ spec_params: {}
 key_defaults: {}
 spec_shorthand_keys:
   num_epochs: train.num_epochs
-  batch_size: dataset.batch_size
-  learning_rate: train.optim.lr
+  num_gpus: train.system.num_gpus
+  batch_size: train.batch_size
+  learning_rate: train.learning_rate
 description: VILA vision-language model for multimodal understanding tasks. Supports video and image-based question answering,
   captioning, and reasoning. Fine-tunable with LoRA or full fine-tuning on custom VLM datasets.

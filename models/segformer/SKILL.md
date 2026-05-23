@@ -148,6 +148,8 @@ Minimum 1 GPU(s), recommended 2 GPU(s). 16GB+ (V100 or A100) VRAM per GPU. SegFo
 
 **TensorBoard unsupported for segmentation training**: Keep `train.tensorboard.enabled: false`. The SegFormer training entrypoint asserts that TensorBoard visualization is not supported for segmentation, so do not enable TensorBoard just to extract AutoML metrics; use log parsing or a post-train evaluator instead.
 
+**Checkpoint handoff**: Use the best AutoML child job's `results_dir/train/*.pth` checkpoint such as `segformer_model_latest.pth` or `model_epoch_*.pth` as `evaluate.checkpoint`, `export.checkpoint`, or `inference.checkpoint`. Preserve `dataset.segment.num_classes`, `dataset.segment.img_size`, and `dataset.segment.root_dir` overrides for downstream actions.
+
 ## Spec Param / Parent Model Inference
 
 Model-specific inference mappings belong in this MD file, not in `config.json`. Generated runners should read this section and apply the mappings with SDK helpers before `create_job()`. This mirrors the old microservices `infer_params.py` flow.

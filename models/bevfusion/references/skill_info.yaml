@@ -1,6 +1,7 @@
 name: bevfusion
 network_arch: bevfusion
 automl_enabled: true
+automl_blocked_reason: default TAO 7.0.0 RC images mapped by versions.yaml do not include mmdet3d; provide a BEVFusion image with mmdet3d or update the image mapping before running AutoML.
 container_image: tao_toolkit.pyt
 data_format: default
 gpu_spec_key: train.num_gpus

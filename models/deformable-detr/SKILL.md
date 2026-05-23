@@ -85,6 +85,13 @@ S3_EVAL = "s3://bucket/data/eval"
 }
 ```
 
+If the train or AutoML run changed architecture-affecting fields such as
+`model.enc_layers`, `model.dec_layers`, `model.num_queries`, or
+`model.num_select`, carry the same values into evaluate, export, inference, and
+deploy actions with the selected checkpoint. Loading a checkpoint into the
+default architecture can fail with tensor shape mismatches, especially when
+smoke-test runs shrink the transformer for speed.
+
 **export (mandatory data sources):**
 ```python
 {

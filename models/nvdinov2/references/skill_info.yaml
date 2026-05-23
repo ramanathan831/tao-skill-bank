@@ -37,7 +37,9 @@ actions:
   inference:
     command: nvdinov2 inference -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.test_dataset.images_dir:
+        type: folder
     outputs:
       results_dir:
         type: folder

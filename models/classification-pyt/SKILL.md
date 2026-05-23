@@ -137,6 +137,9 @@ S3_EVAL = "s3://bucket/data/eval"
 ## Eval Dataset
 
 Optional. Validation images are provided as a separate tar alongside training images.
+For small smoke datasets that do not provide a separate `images_test.tar.gz`,
+set `dataset.test_dataset.images_dir` to the validation archive so evaluate and
+inference still exercise the checkpoint handoff.
 
 ## Important Parameters
 

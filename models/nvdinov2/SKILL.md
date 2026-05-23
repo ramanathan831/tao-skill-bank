@@ -96,6 +96,7 @@ run representative while avoiding the much slower ViT-Large default.
 **inference (mandatory data sources):**
 ```python
 {
+    "inference.checkpoint": "<selected train/AutoML student_epoch_* checkpoint>",
     "dataset.test_dataset.images_dir": f"{S3_EVAL}/images_test.tar.gz",
 }
 ```
@@ -136,6 +137,12 @@ Minimum 4 GPU(s), recommended 8 GPU(s). 40GB+ (A100 recommended) VRAM per GPU. S
 ## Error Patterns
 
 **CUDA out of memory**: ViT-Large teacher+student with img_size=518 requires 40GB+ GPU memory. Reduce batch_size, img_size, or use smaller ViT variant.
+
+**Inference checkpoint has unexpected Lightning keys**: For downstream
+`inference`, pass the selected AutoML run's `student_epoch_*.pth` checkpoint,
+not `nvdinov2_model_latest.pth`. The latest file is a training checkpoint and
+the inference loader reports unexpected keys such as `state_dict`, optimizer
+state, and scheduler state.
 
 **AutoML metric not found**: TAO's Lightning progress line reports the final
 training scalar as `train_loss_epoch`. Use `train_loss_epoch` with minimize

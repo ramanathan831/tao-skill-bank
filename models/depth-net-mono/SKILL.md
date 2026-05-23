@@ -53,6 +53,12 @@ Per-line annotation file referenced by `data_sources[*].data_file`:
 | 1 | `<image>` | Mono inference (no GT) |
 | 2 | `<image> <gt_depth>` | Mono with GT |
 
+Do not pass stereo annotation rows such as `<left_image> <right_image>
+<gt_depth>` directly to mono train/evaluate/inference. If only a stereo depth
+dataset is available, derive a mono annotation file by keeping the left image
+and GT depth columns, then mount or stage the image/depth archive at the same
+container paths referenced by that derived annotation file.
+
 If you already have one, point to it. Otherwise generate via `depth_net convert`:
 
 ```
@@ -186,6 +192,7 @@ S3_EVAL = "aws://bucket/data/eval"
     "dataset.test_dataset.data_sources": [
         {"data_file": f"{S3_EVAL}/annotations.txt", "dataset_name": "NYUDV2Relative"}
     ],
+    "evaluate.checkpoint": "<selected train/AutoML checkpoint>",
 }
 ```
 
@@ -213,6 +220,7 @@ Defaults sourced from `nvidia_tao_pytorch/cv/depth_net/experiment_specs/experime
     "dataset.infer_dataset.data_sources": [
         {"data_file": f"{S3_EVAL}/annotations.txt", "dataset_name": "RelativeMonoDataset"}
     ],
+    "inference.checkpoint": "<selected train/AutoML checkpoint>",
     "inference.save_raw_pfm": False,
 }
 ```

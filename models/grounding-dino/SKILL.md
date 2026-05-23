@@ -80,6 +80,7 @@ S3_EVAL = "s3://bucket/data/eval"
 **inference (mandatory data sources):**
 ```python
 {
+    "inference.checkpoint": "<selected train/AutoML checkpoint>",
     "dataset.infer_data_sources.captions": [
         "person"
     ],
@@ -90,6 +91,7 @@ S3_EVAL = "s3://bucket/data/eval"
 **evaluate (mandatory data sources):**
 ```python
 {
+    "evaluate.checkpoint": "<selected train/AutoML checkpoint>",
     "dataset.test_data_sources": {"image_dir": f"{S3_EVAL}/images.tar.gz", "json_file": f"{S3_EVAL}/annotations.json"},
 }
 ```
@@ -110,9 +112,19 @@ Optional. Validation uses COCO-format annotations for mAP even though training c
 
 - **model.backbone**: Default swin_tiny_224_1k. Also supports resnet_50 and other Swin variants. Swin generally performs better for grounding tasks.
 - **model.text_encoder_type**: BERT model for text encoding. Default bert-base-uncased. max_text_len defaults to 256.
+- **model.max_text_len**: Keep this aligned with the dataset label/token
+  position maps. Do not shrink it for smoke tests unless the corresponding
+  label maps are regenerated with the same length; otherwise validation can
+  fail with a matrix shape mismatch between token probabilities and position
+  maps.
 - **train.optim.lr**: Learning rate. Default 2e-4. lr_backbone 2e-5. Supports bf16 precision in addition to fp16/fp32.
 - **dataset.max_labels**: Maximum labels per image during training. Default 50. Increase for dense annotation datasets.
 - **model.num_queries**: Object queries. Default 900 (higher than DINO's 300) due to open-vocabulary nature.
+- **model.num_queries / model.num_select**: Keep `num_queries` high enough
+  for the number of matched ODVG targets in a batch. Very small smoke values
+  such as 20 can fail during Hungarian target indexing on dense images; use at
+  least 100 for minimal Grounding DINO smoke runs unless the dataset is known
+  to have fewer objects per image.
 - **train.optim.lr_steps**: MultiStep LR schedule. Default [10].
 
 ## Multi-GPU / Multi-Node
@@ -146,6 +158,16 @@ Minimum 1 GPU(s), recommended 4 GPU(s). 24GB+ (A100 recommended) VRAM per GPU. G
 **Val annotation category IDs**: Validation annotations should have category IDs starting from 0 for correct loss computation. Use annotation format conversion if needed.
 
 **Text encoder loading error**: Ensure the container has access to download bert-base-uncased weights or provide a local path.
+
+**mat1 and mat2 shapes cannot be multiplied in `post_process.py`**: The text
+token length and label position maps are inconsistent, commonly because
+`model.max_text_len` was overridden below the default 256 while the dataset
+label maps still use 256-length position maps. Restore `model.max_text_len` or
+regenerate the label maps with the same length.
+
+**index is out of bounds for dimension 0 in `criterion.py`**: `model.num_queries`
+is too small for the matched ODVG targets in the current batch. Increase
+`model.num_queries` and keep `model.num_select` compatible with it.
 
 ## Spec Param / Parent Model Inference
 

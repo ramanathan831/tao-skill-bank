@@ -37,7 +37,29 @@ actions:
   quantize:
     command: mask2former quantize -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.train.img_dir:
+        type: folder
+      dataset.label_map:
+        type: file
+      dataset.train.instance_json:
+        type: file
+      dataset.train.panoptic_json:
+        type: file
+      dataset.train.panoptic_dir:
+        type: folder
+      dataset.val.img_dir:
+        type: folder
+      dataset.val.instance_json:
+        type: file
+      dataset.val.panoptic_json:
+        type: file
+      dataset.val.panoptic_dir:
+        type: folder
+      dataset.test.img_dir:
+        type: folder
+      dataset.quant_calibration_dataset.images_dir:
+        type: folder
     outputs:
       results_dir:
         type: folder
@@ -46,7 +68,27 @@ actions:
   evaluate:
     command: mask2former evaluate -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.train.img_dir:
+        type: folder
+      dataset.label_map:
+        type: file
+      dataset.train.instance_json:
+        type: file
+      dataset.train.panoptic_json:
+        type: file
+      dataset.train.panoptic_dir:
+        type: folder
+      dataset.val.img_dir:
+        type: folder
+      dataset.val.instance_json:
+        type: file
+      dataset.val.panoptic_json:
+        type: file
+      dataset.val.panoptic_dir:
+        type: folder
+      dataset.test.img_dir:
+        type: folder
     outputs:
       results_dir:
         type: folder
@@ -64,7 +106,27 @@ actions:
   inference:
     command: mask2former inference -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.train.img_dir:
+        type: folder
+      dataset.label_map:
+        type: file
+      dataset.train.instance_json:
+        type: file
+      dataset.train.panoptic_json:
+        type: file
+      dataset.train.panoptic_dir:
+        type: folder
+      dataset.val.img_dir:
+        type: folder
+      dataset.val.instance_json:
+        type: file
+      dataset.val.panoptic_json:
+        type: file
+      dataset.val.panoptic_dir:
+        type: folder
+      dataset.test.img_dir:
+        type: folder
     outputs:
       results_dir:
         type: folder

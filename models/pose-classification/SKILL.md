@@ -83,15 +83,15 @@ S3_TRAIN = "s3://bucket/data/purpose_built_models_pose_classification_train/nvid
 **evaluate (mandatory data sources):**
 ```python
 {
-    "evaluate.test_dataset.data_path": f"{S3_TRAIN}",
-    "evaluate.test_dataset.label_path": f"{S3_TRAIN}",
+    "evaluate.test_dataset.data_path": f"{S3_TRAIN}/val_data.npy",
+    "evaluate.test_dataset.label_path": f"{S3_TRAIN}/val_label.pkl",
 }
 ```
 
 **inference (mandatory data sources):**
 ```python
 {
-    "inference.test_dataset.data_path": f"{S3_TRAIN}",
+    "inference.test_dataset.data_path": f"{S3_TRAIN}/test_data.npy",
 }
 ```
 ## Eval Dataset
@@ -130,6 +130,8 @@ Minimum 1 GPU(s), recommended 1 GPU(s). 8GB+ VRAM per GPU. Pose classification i
 **Label shape mismatch**: train_label.pkl class indices must be in range [0, num_classes).
 
 **Missing label map**: The training dataloader expects `dataset.label_map` to be a dictionary. If the dataset only supplies numeric class IDs, set a synthetic contiguous map such as `class_0: 0` through `class_5: 5` for the six-class NVIDIA sample data.
+
+**Checkpoint handoff**: After AutoML/train, use the saved `.pth` checkpoint under the best child job's `results_dir/train/` (for example `model_epoch_*.pth` or `pc_model_latest.pth`) as `evaluate.checkpoint`, `export.checkpoint`, or `inference.checkpoint`. Keep the same `dataset.num_classes`, `dataset.label_map`, and `model.graph_layout` overrides for downstream actions.
 
 ## Spec Param / Parent Model Inference
 

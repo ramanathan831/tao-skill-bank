@@ -32,7 +32,11 @@ actions:
   prune:
     command: pointpillars prune -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.data_path:
+        type: folder
+      dataset.data_info_path:
+        type: folder
     outputs:
       results_dir:
         type: folder
@@ -41,7 +45,11 @@ actions:
   evaluate:
     command: pointpillars evaluate -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.data_path:
+        type: folder
+      dataset.data_info_path:
+        type: folder
     outputs:
       results_dir:
         type: folder
@@ -50,7 +58,11 @@ actions:
   retrain:
     command: pointpillars retrain -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.data_path:
+        type: folder
+      dataset.data_info_path:
+        type: folder
     outputs:
       results_dir:
         type: folder
@@ -59,7 +71,11 @@ actions:
   export:
     command: pointpillars export -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.data_path:
+        type: folder
+      dataset.data_info_path:
+        type: folder
     outputs:
       results_dir:
         type: folder
@@ -68,7 +84,11 @@ actions:
   inference:
     command: pointpillars inference -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.data_path:
+        type: folder
+      dataset.data_info_path:
+        type: folder
     outputs:
       results_dir:
         type: folder
@@ -77,7 +97,11 @@ actions:
   gen_trt_engine:
     command: pointpillars gen_trt_engine -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.data_path:
+        type: folder
+      dataset.data_info_path:
+        type: folder
     outputs:
       results_dir:
         type: folder

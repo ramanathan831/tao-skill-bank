@@ -23,7 +23,11 @@ actions:
   evaluate:
     command: re_identification evaluate -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      evaluate.test_dataset:
+        type: folder
+      evaluate.query_dataset:
+        type: folder
     outputs:
       results_dir:
         type: folder
@@ -41,7 +45,11 @@ actions:
   inference:
     command: re_identification inference -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      inference.test_dataset:
+        type: folder
+      inference.query_dataset:
+        type: folder
     outputs:
       results_dir:
         type: folder
@@ -53,6 +61,6 @@ key_defaults: {}
 spec_shorthand_keys:
   num_epochs: train.num_epochs
   batch_size: dataset.batch_size
-  learning_rate: train.optim.lr
+  learning_rate: train.optim.base_lr
 description: Person re-identification. Learns discriminative embeddings to match the same person across different camera views.
   Metric learning based.

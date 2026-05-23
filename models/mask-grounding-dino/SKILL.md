@@ -74,6 +74,7 @@ S3_EVAL = "s3://bucket/data/eval"
 **evaluate (mandatory data sources):**
 ```python
 {
+    "evaluate.checkpoint": "<selected train/AutoML checkpoint>",
     "dataset.test_data_sources.data_type": "OD",
     "dataset.test_data_sources": {"image_dir": f"{S3_EVAL}/images.tar.gz", "json_file": f"{S3_EVAL}/annotations.json"},
 }
@@ -82,6 +83,7 @@ S3_EVAL = "s3://bucket/data/eval"
 **inference (mandatory data sources):**
 ```python
 {
+    "inference.checkpoint": "<selected train/AutoML checkpoint>",
     "dataset.infer_data_sources.data_type": "OD",
     "dataset.infer_data_sources": {"image_dir": f"{S3_EVAL}/images.tar.gz", "classmap": f"{S3_EVAL}/label_map.txt", "json_file": f"{S3_EVAL}/inference.jsonl", "captions": f"{S3_EVAL}/inference.jsonl"},
 }

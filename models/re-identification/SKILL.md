@@ -65,6 +65,7 @@ S3_TRAIN = "s3://bucket/data/train"
     "dataset.num_classes": 100,
     "dataset.num_workers": 4,
     "dataset.batch_size": 16,
+    "dataset.num_instances": 4,
     "dataset.train_dataset_dir": f"{S3_TRAIN}/sample_train.tar.gz",
     "dataset.test_dataset_dir": f"{S3_TRAIN}/sample_test.tar.gz",
     "dataset.query_dataset_dir": f"{S3_TRAIN}/sample_query.tar.gz",
@@ -123,6 +124,8 @@ Minimum 1 GPU(s), recommended 2 GPU(s). 16GB+ VRAM per GPU. Re-ID models are rel
 **Invalid triplet batch shape**: `dataset.batch_size` must be compatible with `dataset.num_instances` so each mini-batch can be reshaped for hard-example mining. For local AutoML smoke runs, keep `dataset.batch_size` fixed to a known valid multiple such as 16 with `dataset.num_instances: 4`, and tune `train.optim.base_lr` instead of unconstrained batch size.
 
 **Query/gallery mismatch**: Query and test (gallery) datasets must share the same identity namespace.
+
+**Checkpoint handoff**: Use the best AutoML child job's `results_dir/train/*.pth` checkpoint (for example `reid_model_latest.pth` or `model_epoch_*.pth`) as `evaluate.checkpoint`, `export.checkpoint`, or `inference.checkpoint`. Preserve the same dataset identity count and query/gallery archives for downstream actions.
 
 ## Spec Param / Parent Model Inference
 

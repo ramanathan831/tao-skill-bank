@@ -114,6 +114,7 @@ S3_EVAL = "s3://bucket/data/eval"
 **inference (mandatory data sources):**
 ```python
 {
+    "inference.checkpoint": "<selected train/AutoML checkpoint>",
     "dataset.character_list_file": f"{S3_EVAL}/character_list",
     "inference.inference_dataset_dir": f"{S3_EVAL}/test.tar.gz",
 }

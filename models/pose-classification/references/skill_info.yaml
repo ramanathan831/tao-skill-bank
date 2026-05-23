@@ -25,7 +25,11 @@ actions:
   evaluate:
     command: pose_classification evaluate -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      evaluate.test_dataset.data_path:
+        type: file
+      evaluate.test_dataset.label_path:
+        type: file
     outputs:
       results_dir:
         type: folder
@@ -43,7 +47,9 @@ actions:
   inference:
     command: pose_classification inference -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      inference.test_dataset.data_path:
+        type: file
     outputs:
       results_dir:
         type: folder

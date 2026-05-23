@@ -202,6 +202,8 @@ Minimum 1 GPU(s), recommended 2 GPU(s). 16GB+ (V100 or A100) VRAM per GPU. RT-DE
 
 **return_interm_indices vs num_feature_levels**: Default is [1,2,3] with num_feature_levels=3. Must be consistent if changed.
 
+**Checkpoint handoff**: For evaluate/export/inference, use the best AutoML child job's `results_dir/train/*.pth` checkpoint such as `rtdetr_model_latest.pth` or `model_epoch_*.pth`. Keep `dataset.num_classes`, `dataset.eval_class_ids`, `model.num_queries`, and `model.num_select` consistent with training.
+
 ## Spec Param / Parent Model Inference
 
 Model-specific inference mappings belong in this MD file, not in `config.json`. Generated runners should read this section and apply the mappings with SDK helpers before `create_job()`. This mirrors the old microservices `infer_params.py` flow.

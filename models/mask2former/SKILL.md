@@ -119,6 +119,7 @@ S3_EVAL = "s3://bucket/data/eval"
 **evaluate (mandatory data sources):**
 ```python
 {
+    "evaluate.checkpoint": "<selected train/AutoML checkpoint>",
     "model.sem_seg_head.num_classes": 133,
     "dataset.contiguous_id": True,
     "dataset.train.type": "coco_panoptic",
@@ -147,6 +148,7 @@ S3_EVAL = "s3://bucket/data/eval"
 **inference (mandatory data sources):**
 ```python
 {
+    "inference.checkpoint": "<selected train/AutoML checkpoint>",
     "model.sem_seg_head.num_classes": 90,
     "dataset.contiguous_id": True,
     "dataset.train.img_dir": f"{S3_TRAIN}/images.tar.gz",

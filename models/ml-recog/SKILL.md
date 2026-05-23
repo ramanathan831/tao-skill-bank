@@ -80,6 +80,7 @@ S3_TRAIN = "s3://bucket/data/train"
 **evaluate (mandatory data sources):**
 ```python
 {
+    "evaluate.checkpoint": "<selected train/AutoML checkpoint>",
     "dataset.val_dataset": {"reference": f"{S3_TRAIN}/metric_learning_recognition/retail-product-checkout-dataset_classification_demo/unknown_classes/reference.tar.gz", "query": f"{S3_TRAIN}/metric_learning_recognition/retail-product-checkout-dataset_classification_demo/unknown_classes/test.tar.gz"},
 }
 ```
@@ -87,6 +88,7 @@ S3_TRAIN = "s3://bucket/data/train"
 **inference (mandatory data sources):**
 ```python
 {
+    "inference.checkpoint": "<selected train/AutoML checkpoint>",
     "dataset.val_dataset": {"reference": f"{S3_TRAIN}/metric_learning_recognition/retail-product-checkout-dataset_classification_demo/unknown_classes/reference.tar.gz"},
     "inference.input_path": f"{S3_TRAIN}/metric_learning_recognition/retail-product-checkout-dataset_classification_demo/unknown_classes/test.tar.gz",
 }
@@ -128,6 +130,13 @@ Minimum 1 GPU(s), recommended 2 GPU(s). 16GB+ VRAM per GPU. Metric learning bene
 ## Error Patterns
 
 **Reference/query mismatch**: Ensure reference and query datasets share compatible class namespaces for evaluation.
+
+**PyTorch 2.6 checkpoint load failure on evaluate/inference**: Current TAO
+ML-Recog checkpoints may contain OmegaConf objects. For checkpoints produced by
+the same trusted TAO train/AutoML workflow, set
+`TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1` in downstream evaluate/inference job env
+vars so Lightning can load the full checkpoint. Do not use this env var for
+untrusted checkpoints.
 
 ## Spec Param / Parent Model Inference
 

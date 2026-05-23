@@ -27,7 +27,7 @@ train:
     enable_checkpoint: true
     save_freq_in_epoch: 1
     save_mode: sync
-    max_keep: 1
+    max_keep: 2
     export_safetensors: true
   train_policy:
     type: sft

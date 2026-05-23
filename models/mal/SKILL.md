@@ -76,6 +76,7 @@ S3_EVAL = "s3://bucket/data/eval"
 **evaluate (mandatory data sources):**
 ```python
 {
+    "evaluate.checkpoint": "<selected train/AutoML checkpoint>",
     "dataset.val_img_dir": f"{S3_EVAL}/images.tar.gz",
     "dataset.val_ann_path": f"{S3_EVAL}/annotations.json",
 }
@@ -84,6 +85,7 @@ S3_EVAL = "s3://bucket/data/eval"
 **inference (mandatory data sources):**
 ```python
 {
+    "inference.checkpoint": "<selected train/AutoML checkpoint>",
     "inference.img_dir": f"{S3_EVAL}/images.tar.gz",
     "inference.ann_path": f"{S3_EVAL}/annotations.json",
 }
@@ -96,7 +98,8 @@ Optional. Val images and annotations configured alongside train paths.
 
 - **model.arch**: ViT-MAE backbone variant. Default vit-mae-base/16. Options include vit-mae-large/16 and other ViT-MAE variants.
 - **train.lr**: Learning rate. Default 1e-6 (very low — fine-tuning ViT).
-- **model.crop_size**: Training crop size. Default 512.
+- **dataset.crop_size**: Training crop size. Default 512. Use this key, not
+  `model.crop_size`.
 - **train.warmup_epochs**: Warmup epochs before full learning rate.
 - **model.load_mask**: Whether to load pre-computed masks.
 
@@ -122,7 +125,10 @@ Minimum 1 GPU(s), recommended 2 GPU(s). 24GB+ (A100 recommended) VRAM per GPU. V
 
 ## Error Patterns
 
-**CUDA out of memory**: Reduce model.crop_size (512 -> 384 -> 256) or use a smaller ViT-MAE variant (base vs large).
+**CUDA out of memory**: Reduce `dataset.crop_size` (512 -> 384 -> 256) or use a smaller ViT-MAE variant (base vs large).
+
+**Key `crop_size` not in `MALModelConfig`**: The crop-size override was placed
+under `model.crop_size`. Move it to `dataset.crop_size`.
 
 ## Spec Param / Parent Model Inference
 

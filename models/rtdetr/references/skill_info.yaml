@@ -25,7 +25,15 @@ actions:
   distill:
     command: rtdetr distill -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.train_data_sources[0].image_dir:
+        type: folder
+      dataset.train_data_sources[0].json_file:
+        type: file
+      dataset.val_data_sources.image_dir:
+        type: folder
+      dataset.val_data_sources.json_file:
+        type: file
     outputs:
       results_dir:
         type: folder
@@ -34,7 +42,19 @@ actions:
   quantize:
     command: rtdetr quantize -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.train_data_sources[0].image_dir:
+        type: folder
+      dataset.train_data_sources[0].json_file:
+        type: file
+      dataset.val_data_sources.image_dir:
+        type: folder
+      dataset.val_data_sources.json_file:
+        type: file
+      dataset.quant_calibration_data_sources.image_dir:
+        type: folder
+      dataset.quant_calibration_data_sources.json_file:
+        type: file
     outputs:
       results_dir:
         type: folder
@@ -43,7 +63,11 @@ actions:
   evaluate:
     command: rtdetr evaluate -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.test_data_sources.image_dir:
+        type: folder
+      dataset.test_data_sources.json_file:
+        type: file
     outputs:
       results_dir:
         type: folder
@@ -61,7 +85,11 @@ actions:
   inference:
     command: rtdetr inference -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.infer_data_sources.image_dir:
+        type: folder
+      dataset.infer_data_sources.classmap:
+        type: file
     outputs:
       results_dir:
         type: folder
@@ -70,7 +98,9 @@ actions:
   gen_trt_engine:
     command: rtdetr gen_trt_engine -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      gen_trt_engine.tensorrt.calibration.cal_image_dir[0]:
+        type: folder
     outputs:
       results_dir:
         type: folder

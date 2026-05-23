@@ -36,7 +36,21 @@ actions:
   evaluate:
     command: python -m nvidia_tao_pytorch.cv.nvpanoptix3d.entrypoint.nvpanoptix3d evaluate -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.frustum_mask_path:
+        type: file
+      dataset.label_map:
+        type: file
+      dataset.val.json_path:
+        type: file
+      dataset.val.base_dir:
+        type: folder
+        extract_to_parent: true
+      dataset.test.json_path:
+        type: file
+      dataset.test.base_dir:
+        type: folder
+        extract_to_parent: true
     outputs:
       results_dir:
         type: folder
@@ -54,7 +68,13 @@ actions:
   inference:
     command: python -m nvidia_tao_pytorch.cv.nvpanoptix3d.entrypoint.nvpanoptix3d inference -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.frustum_mask_path:
+        type: file
+      dataset.label_map:
+        type: file
+      inference.images_dir:
+        type: folder
     outputs:
       results_dir:
         type: folder

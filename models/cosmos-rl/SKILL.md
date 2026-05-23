@@ -155,7 +155,7 @@ EVAL_DATASET_URI = "s3://bucket/data/eval"
     "train.optm_impl": "fused",
     "train.deterministic": True,
     "train.ckpt.save_freq_in_epoch": 1,
-    "train.ckpt.max_keep": 1,
+    "train.ckpt.max_keep": 2,
     "train.train_policy.mini_batch": 1,
     "train.train_policy.dataset.test_size": 0,
     "train.train_policy.dataloader_num_workers": 4,
@@ -225,7 +225,12 @@ The `actions.evaluate` block in `references/skill_info.yaml` declares the action
 
 ### Config format
 
-The evaluator reads a **flat TOML** config with top-level keys: `dataset`, `model`, `task`, `evaluation`, `vision`, `generation`, `metrics`, `results`, `num_gpus`, `results_dir`. The defaults template (`references/spec_template_evaluate.yaml`) matches this flat structure.
+The evaluator reads a **flat TOML** config with top-level keys: `dataset`,
+`model`, `task`, `evaluation`, `vision`, `generation`, `metrics`, `results`,
+`num_gpus`, and `results_dir`. The defaults template
+(`references/spec_template_evaluate.yaml`) matches this flat structure. Use
+dotted overrides such as `dataset.annotation_path`, `model.model_name`, and
+`evaluation.batch_size`.
 
 ### Task type
 
@@ -329,8 +334,16 @@ For platform-side multi-node setup (sbatch flags on SLURM, Indexed Job + Service
 
 ### Checkpointing
 - **train.ckpt.save_freq_in_epoch**: Save every N epochs. Default 1.
-- **train.ckpt.max_keep**: Keep N most recent checkpoints. Default 1.
+- **train.ckpt.max_keep**: Keep N most recent checkpoints. Default 2 for
+  AutoML/minimal runs so the best LoRA adapter remains available even when the
+  container records the best validation step before later epoch cleanup.
 - **train.ckpt.export_safetensors**: Export in safetensors format. Default true.
+
+When verifying downstream handoff, prefer `train_output_dir/best/safetensors`
+if it resolves inside the results mount. If that symlink points at a pruned
+`step_*` directory, use the retained `train_output_dir/<timestamp>/safetensors/epoch_*`
+directory that corresponds to the best validation epoch, and keep
+`train.ckpt.max_keep >= 2` for two-epoch smoke runs.
 
 ### Validation
 - **validation.freq_in_epoch**: Run validation every N epochs. Too frequent slows training.

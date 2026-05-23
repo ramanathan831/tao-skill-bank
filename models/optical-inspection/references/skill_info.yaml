@@ -29,7 +29,11 @@ actions:
   evaluate:
     command: optical_inspection evaluate -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.test_dataset.images_dir:
+        type: folder
+      dataset.test_dataset.csv_path:
+        type: file
     outputs:
       results_dir:
         type: folder
@@ -47,7 +51,11 @@ actions:
   inference:
     command: optical_inspection inference -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.infer_dataset.images_dir:
+        type: folder
+      dataset.infer_dataset.csv_path:
+        type: file
     outputs:
       results_dir:
         type: folder

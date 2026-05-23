@@ -237,7 +237,7 @@ docker run --rm --gpus all --shm-size=8g \
     -v <workspace>/kpi/images:/data/datasets/NV_PCB_Siamese/images \
     -v <workspace>/train/base:/data/datasets/NV_PCB_Siamese/csv \
     -v <workspace>/kpi:/data/datasets/NV_PCB_Siamese/kpi \
-    -v <workspace>/augmentation/backbone/c_radio_v2_b.ckpt:/data/pretrained_models/C-RADIOv2_B.pth \
+    -v <workspace>/augmentation/backbone/c_radio_v2_b.safetensors:/data/pretrained_models/C-RADIOv2_B.safetensors \
     "$TAO_PYT_IMAGE" \
     visual_changenet <action> -e /data/workspace/specs/<spec>.yaml \
     [key=value overrides...]
@@ -245,7 +245,10 @@ docker run --rm --gpus all --shm-size=8g \
 
 **`--shm-size=8g` is required** — without it, dataloader workers crash with `Unexpected bus error encountered in worker` due to insufficient shared memory.
 
-**Backbone mount**: mount the `.ckpt` file directly as a single file (not the directory), aliased to `/data/pretrained_models/C-RADIOv2_B.pth`.
+**Backbone mount**: mount the C-RADIO `.safetensors` file directly as a single
+file or mount its parent directory, and set
+`model.backbone.pretrained_backbone_path` to the container path
+`/data/pretrained_models/C-RADIOv2_B.safetensors`.
 
 Override checkpoint and results_dir on the command line to avoid editing the spec:
 ```bash
@@ -390,6 +393,14 @@ Set `dataset.classify.num_input` to match the number of lighting conditions. The
 **Low evaluation accuracy with correct training loss**: The `eval_margin` threshold may be miscalibrated for your data. After training, run inference on a validation set and inspect the embedding distance distribution to pick an appropriate threshold. The default 0.3 is tuned for the reference dataset and may not generalize.
 
 **`AssertionError: Contrastive loss only supports Euclidean distance module`** at evaluate/inference: the spec dropped the `train` subtree. Model `__init__` reads `train.classify.loss` regardless of action; omitting it falls back to contrastive loss, which then conflicts with non-default `model.classify.difference_module` (e.g. `learnable`) saved in the checkpoint. Keep `train.classify.loss` (and `train.classify.cls_weight`) in the spec for evaluate and inference too.
+
+**Checkpoint load key mismatch at evaluate/inference**: Keep the classify model
+architecture fields aligned with the train spec. C-RADIO classify checkpoints
+require `model.backbone.type: c_radio_v2_vit_base_patch16_224`,
+`model.classify.difference_module: learnable`, `model.classify.embed_dec: 30`,
+`model.classify.eval_margin: 0.3`, `dataset.classify.num_input: 1`, and
+`dataset.classify.input_map: {SolderLight: 0}` unless the training run used a
+different override set.
 
 **Training does not converge**: Check that `train.classify.cls_weight` is appropriate for your class distribution. If defects are very rare (<1% of samples), increase the defective class weight. Also verify that `fpratio_sampling` is not too low, which would under-sample the majority class.
 

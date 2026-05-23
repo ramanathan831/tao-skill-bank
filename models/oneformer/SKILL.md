@@ -109,6 +109,7 @@ S3_EVAL = "s3://bucket/data/eval"
 **evaluate (mandatory data sources):**
 ```python
 {
+    "evaluate.checkpoint": "<selected train/AutoML checkpoint>",
     "model.sem_seg_head.num_classes": 133,
     "dataset.contiguous_id": True,
     "dataset.train.images": f"{S3_TRAIN}/images.tar.gz",
@@ -135,6 +136,7 @@ S3_EVAL = "s3://bucket/data/eval"
 **inference (mandatory data sources):**
 ```python
 {
+    "inference.checkpoint": "<selected train/AutoML checkpoint>",
     "dataset.train.images": f"{S3_TRAIN}/images.tar.gz",
     "dataset.label_map": f"{S3_TRAIN}/label_map_panoptic.json",
     "dataset.train.annotations": f"{S3_TRAIN}/annotations.json",
@@ -201,6 +203,17 @@ Minimum 2 GPU(s), recommended 4 GPU(s). 24GB+ (A100 recommended) VRAM per GPU. O
 ## Error Patterns
 
 **CUDA out of memory**: batch_size is already 1. Reduce image resolution or use a smaller Swin configuration.
+
+**Invalid Lightning precision `fp32`**: Use `train.precision: "32"` in
+train/AutoML/evaluate/inference specs. The current Lightning stack rejects the
+legacy `fp32` string.
+
+**PyTorch 2.6 checkpoint load failure on evaluate/inference**: Current
+OneFormer checkpoints include OmegaConf objects. For checkpoints produced by
+the same trusted TAO train/AutoML workflow, set
+`TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1` in downstream evaluate/inference job env
+vars so Lightning can load the full checkpoint. Do not use this env var for
+untrusted checkpoints.
 
 **Slow training**: 50 default epochs with batch_size=1 is slow on single GPU. Use multi-GPU distributed training.
 

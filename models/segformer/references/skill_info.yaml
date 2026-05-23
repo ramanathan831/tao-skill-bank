@@ -19,7 +19,11 @@ actions:
   quantize:
     command: segformer quantize -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.segment.root_dir:
+        type: folder
+      dataset.segment.quant_calibration_dataset.images_dir:
+        type: folder
     outputs:
       results_dir:
         type: folder
@@ -28,7 +32,9 @@ actions:
   evaluate:
     command: segformer evaluate -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.segment.root_dir:
+        type: folder
     outputs:
       results_dir:
         type: folder
@@ -37,7 +43,9 @@ actions:
   export:
     command: segformer export -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.segment.root_dir:
+        type: folder
     outputs:
       results_dir:
         type: folder
@@ -46,7 +54,9 @@ actions:
   inference:
     command: segformer inference -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.segment.root_dir:
+        type: folder
     outputs:
       results_dir:
         type: folder
@@ -66,7 +76,7 @@ spec_params: {}
 key_defaults: {}
 spec_shorthand_keys:
   num_epochs: train.num_epochs
-  batch_size: dataset.batch_size
+  batch_size: dataset.segment.batch_size
   learning_rate: train.optim.lr
 description: SegFormer for semantic segmentation. Lightweight transformer-based architecture with hierarchical feature extraction.
   Efficient for real-time segmentation tasks.

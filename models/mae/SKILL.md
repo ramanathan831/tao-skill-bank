@@ -71,6 +71,7 @@ S3_EVAL = "s3://bucket/data/eval"
 ```python
 {
     "dataset.val_data_sources": f"{S3_EVAL}/images_val.tar.gz",
+    "evaluate.checkpoint": "<selected train/AutoML checkpoint>",
 }
 ```
 
@@ -78,6 +79,7 @@ S3_EVAL = "s3://bucket/data/eval"
 ```python
 {
     "dataset.test_data_sources": f"{S3_EVAL}/images_test.tar.gz",
+    "inference.checkpoint": "<selected train/AutoML checkpoint>",
 }
 ```
 
@@ -99,6 +101,8 @@ Optional. Pretraining does not need eval data. Fine-tuning optionally uses val s
 - **dataset.augmentation.input_size**: Keep the local smoke profile at 224
   for ConvNeXtV2 MAE. Reducing to 112 can make the MAE mask grid incompatible
   with feature-map dimensions.
+- MAE does not expose a `dataset.workers` spec field. Do not add it to
+  smoke-test overrides; Hydra rejects unknown dataset keys before training.
 - **train.optim.lr**: Learning rate. Default 2e-4.
 - **dataset.augmentation**: Augmentation settings including mixup, cutmix for fine-tuning.
 

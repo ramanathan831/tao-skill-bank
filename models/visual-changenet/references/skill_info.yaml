@@ -6,63 +6,90 @@ actions:
     command: visual_changenet train -e {config_path}
     config_format: yaml
     inputs:
-    - dataset.classify.train_dataset.csv_path
-    - dataset.classify.train_dataset.images_dir
-    - dataset.classify.validation_dataset.csv_path
-    - dataset.classify.validation_dataset.images_dir
+      model.backbone.pretrained_backbone_path:
+        type: file
+      dataset.classify.train_dataset.csv_path:
+        type: file
+      dataset.classify.train_dataset.images_dir:
+        type: file
+      dataset.classify.validation_dataset.csv_path:
+        type: file
+      dataset.classify.validation_dataset.images_dir:
+        type: file
     outputs:
-    - results_dir
+      results_dir:
+        type: folder
     upload_excludes:
     - inputs/
   evaluate:
     command: visual_changenet evaluate -e {config_path}
     config_format: yaml
     inputs:
-    - dataset.classify.test_dataset.csv_path
-    - dataset.classify.test_dataset.images_dir
-    - evaluate.checkpoint
+      dataset.classify.validation_dataset.csv_path:
+        type: file
+      dataset.classify.validation_dataset.images_dir:
+        type: file
+      dataset.classify.test_dataset.csv_path:
+        type: file
+      dataset.classify.test_dataset.images_dir:
+        type: file
+      evaluate.checkpoint:
+        type: file
     outputs:
-    - results_dir
+      results_dir:
+        type: folder
     upload_excludes:
     - inputs/
   inference:
     command: visual_changenet inference -e {config_path}
     config_format: yaml
     inputs:
-    - dataset.classify.infer_dataset.csv_path
-    - dataset.classify.infer_dataset.images_dir
-    - inference.checkpoint
+      dataset.classify.infer_dataset.csv_path:
+        type: file
+      dataset.classify.infer_dataset.images_dir:
+        type: file
+      inference.checkpoint:
+        type: file
     outputs:
-    - results_dir
+      results_dir:
+        type: folder
     upload_excludes:
     - inputs/
   segment_train:
     command: visual_changenet train -e {config_path}
     config_format: yaml
     inputs:
-    - dataset.segment.root_dir
+      dataset.segment.root_dir:
+        type: folder
     outputs:
-    - results_dir
+      results_dir:
+        type: folder
     upload_excludes:
     - inputs/
   segment_evaluate:
     command: visual_changenet evaluate -e {config_path}
     config_format: yaml
     inputs:
-    - dataset.segment.root_dir
-    - evaluate.checkpoint
+      dataset.segment.root_dir:
+        type: folder
+      evaluate.checkpoint:
+        type: file
     outputs:
-    - results_dir
+      results_dir:
+        type: folder
     upload_excludes:
     - inputs/
   segment_inference:
     command: visual_changenet inference -e {config_path}
     config_format: yaml
     inputs:
-    - dataset.segment.root_dir
-    - inference.checkpoint
+      dataset.segment.root_dir:
+        type: folder
+      inference.checkpoint:
+        type: file
     outputs:
-    - results_dir
+      results_dir:
+        type: folder
     upload_excludes:
     - inputs/
 pretrained_models:
