@@ -91,6 +91,6 @@ custom:
     annotation_path: data/sft/annotations.json
     media_path: data/sft/train2017
   vision:
-    nframes: 8
+    fps: 1
   system_prompt: ''
 custom_script: ''
