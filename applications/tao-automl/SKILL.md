@@ -211,9 +211,9 @@ Extract these fields for a default run:
 | `status_interval_minutes` | Yes | `5` | Ask during launch intake. Default: 5 minutes. |
 | required credentials | Platform/model-dependent | `SLURM_USER`, `SLURM_HOSTNAME`, `SSH_KEY_PATH` or `SSH_AUTH_SOCK`, `HF_TOKEN` | First filter platform credentials with `scripts/list_tao_platforms.py --platform <platform>`, satisfy required credential groups, then add selected-model credentials. Do not ask for unrelated platform credentials. |
 | compute shape | Model-dependent | `num_gpus=4`, `num_nodes=1` | Ask only for model-required hardware fields that are not provided by the platform/default profile. |
-| `llm_endpoint` | **Yes** (for `llm`/`hybrid`/`autoresearch`) | `"https://inference-api.nvidia.com"` | **MUST prompt.** The code default `https://integrate.api.nvidia.com/v1` returns 404. Always ask for and pass explicitly. |
-| `llm_model` | **Yes** (for `llm`/`hybrid`/`autoresearch`) | `"gcp/google/gemini-3.1-pro-preview"` | **MUST prompt.** Ask which model to use. Default: `meta/llama-3.1-70b-instruct` via NIM. |
-| `llm_api_key` | **Yes** (for `llm`/`hybrid`/`autoresearch`) | `"nvapi-..."` or `"sk-..."` | **MUST prompt** if `NVIDIA_API_KEY` / `AUTOML_LLM_API_KEY` env vars are not set. |
+| `llm_endpoint` / `base_url` | **Yes** (for `llm`/`hybrid`/`autoresearch`) | `"https://inference-api.nvidia.com"` | Resolve from user input or `AUTOML_LLM_ENDPOINT`; pass explicitly in `automl_settings`. |
+| `llm_model` / `model` | **Yes** (for `llm`/`hybrid`/`autoresearch`) | `"gcp/google/gemini-3.1-pro-preview"` | Resolve from user input or `AUTOML_LLM_MODEL`; pass explicitly in `automl_settings`. |
+| `llm_api_key` / `api_key` | **Yes** (for `llm`/`hybrid`/`autoresearch`) | `"nvapi-..."` or `"sk-..."` | Resolve from `AUTOML_LLM_API_KEY` or `NVIDIA_API_KEY`. Do not print or log the value; if unavailable, stop for credential setup instead of falling back silently. |
 
 Use these quick-start AutoML defaults without asking:
 
@@ -269,7 +269,7 @@ Customization-only fields:
 | `status_interval_minutes` | `5`, `10`, `15` | Already asked during launch intake; customize only if the user wants a different cadence. |
 | `automl_hyperparameters` | `["train.optm_lr", "train.epoch"]` | List choices from the generated schema JSON, not from hand-written guesses. |
 | `custom_param_ranges` | `{"train.optm_lr": {"valid_min": 1e-6, "valid_max": 1e-4}}` | Validate against schema type/range/options before using. |
-| `llm_endpoint`, `llm_model`, `llm_api_key` | `https://inference-api.nvidia.com`, `gcp/google/gemini-3.1-pro-preview`, `nvapi-...` | Required only when the selected algorithm is `llm`, `hybrid`, or `autoresearch`. Resolve from env/secret files first where allowed, then prompt. |
+| `llm_endpoint`, `llm_model`, `llm_api_key` | `https://inference-api.nvidia.com`, `gcp/google/gemini-3.1-pro-preview`, `nvapi-...` | Required only when the selected algorithm is `llm`, `hybrid`, or `autoresearch`. Resolve credentials from env/secret files; do not echo keys. |
 
 **MANDATORY: Read the generated dataclass schema before configuring AutoML.**
 
@@ -329,13 +329,13 @@ result = runner.run(
 )
 ```
 
-**MANDATORY prompting for LLM-based algorithms (`llm`, `hybrid`, `autoresearch`):**
+**MANDATORY LLM configuration for LLM-based algorithms (`llm`, `hybrid`, `autoresearch`):**
 
 When the user requests or customizes into an LLM-powered algorithm, resolve ALL THREE of the following before generating the script. Do not ask for these on default `bayesian` quick-start runs.
 
 1. **`llm_endpoint`** — user input -> `AUTOML_LLM_ENDPOINT` -> `https://inference-api.nvidia.com`
 2. **`llm_model`** — user input -> `AUTOML_LLM_MODEL` -> `gcp/google/gemini-3.1-pro-preview`
-3. **`llm_api_key`** — `AUTOML_LLM_API_KEY` -> `NVIDIA_API_KEY` -> declared local secret file when allowed -> prompt the user
+3. **`llm_api_key`** — `AUTOML_LLM_API_KEY` -> `NVIDIA_API_KEY` -> declared local secret file when allowed. Do not print the value.
 
 If the runner does not receive valid LLM settings, the LLM brain may silently fall back to random sampling — wasting GPU budget on random configs instead of intelligent ones. There is no error message; the only clue is "LLM call failed... Falling back to random" in the logs.
 
@@ -395,6 +395,13 @@ Only resume an existing runner/workspace when the user explicitly asks to resume
 - Training loss is cheap, but can overfit on small fine-tuning datasets. Prefer the model skill's recommended validation or task metric when available.
 - If the model skill recommends a validation proxy, also apply the model skill's required validation-related `spec_overrides` so the metric is actually emitted.
 - A real task metric via `eval_fn` is often the most honest but adds per-rec cost. Use it when the model skill says log-based metrics are insufficient or the user explicitly wants downstream evaluation.
+
+**Checkpoint / resume behavior**:
+
+- Resume-based algorithms (`hyperband`, `asha`, `bohb`, `dehb`, `pbt`, `hyperband_es`) must resume from the checkpoint for the stopped rung/generation epoch or step, not a generic `*_latest.*` file.
+- The runner records the intended `resume_from_epoch` / `resume_from_step` on promoted recommendations and resolves the model-specific checkpoint path through the SDK checkpoint resolver. Do not patch runner scripts to guess names like `model_latest.pth`.
+- If the intended checkpoint is epoch 1, prefer artifacts such as `epoch_1`, `epoch_001`, `model_epoch_001.pth`, `model_epoch_000_step_*.pth` when the trainer writes zero-indexed epoch files, or a checkpoint directory like `checkpoints/epoch_1`.
+- Use a `latest` checkpoint only when the requested action explicitly has no epoch/step target. If no epoch/step-specific resume artifact exists, report the model as blocked and fix the model/skill checkpoint metadata rather than silently resuming from latest.
 
 ---
 
@@ -533,10 +540,10 @@ result = runner.run(
 For `llm`, `hybrid`, or `autoresearch`, use the same generic runner shape as above, plus the required LLM endpoint, model, and key in `automl_settings`. All model-specific hyperparameters, metric extractors, and `spec_overrides` must still come from the model skill.
 
 **LLM endpoint configuration** (in order of precedence):
-1. `automl_settings` keys: `llm_endpoint`, `llm_model`, `llm_api_key`
+1. `automl_settings` keys: `llm_endpoint`, `llm_model`, `llm_api_key`; aliases `base_url`, `model`, and `api_key` are also accepted.
 2. Environment variables: `AUTOML_LLM_ENDPOINT`, `AUTOML_LLM_MODEL`, `AUTOML_LLM_API_KEY`
 3. Fallback env var for API key: `NVIDIA_API_KEY`
-4. Defaults: NVIDIA NIM endpoint (`https://inference-api.nvidia.com`) with `meta/llama-3.1-70b-instruct`. **Note:** the code hardcodes `https://integrate.api.nvidia.com/v1` as the fallback which may 404 — always pass `llm_endpoint` explicitly or set `AUTOML_LLM_ENDPOINT`.
+4. Defaults: NVIDIA inference endpoint (`https://inference-api.nvidia.com`) with `gcp/google/gemini-3.1-pro-preview`. Always pass the endpoint, model, and key explicitly for reproducible LLM-based testing.
 
 ### Programmatic API (without runner)
 
@@ -580,8 +587,8 @@ print("Best:", automl.get_best().specs)
 | `automl_max_concurrent` | int | 4 | Max parallel configs (asha only) |
 | `automl_population_size` | int | 10 | Population size (pbt only) |
 | `automl_max_experiments` | int | 50 | Max experiments (autoresearch only) |
-| `llm_endpoint` | str | NVIDIA NIM | OpenAI-compatible API endpoint (llm, hybrid, autoresearch) |
-| `llm_model` | str | `meta/llama-3.1-70b-instruct` | LLM model name (llm, hybrid, autoresearch) |
+| `llm_endpoint` | str | `https://inference-api.nvidia.com` | OpenAI-compatible API endpoint (llm, hybrid, autoresearch) |
+| `llm_model` | str | `gcp/google/gemini-3.1-pro-preview` | LLM model name (llm, hybrid, autoresearch) |
 | `llm_api_key` | str | from env | API key for the LLM endpoint |
 | `research_program` | str | None | Free-text research directives for the autoresearch agent |
 | `automl_delete_intermediate_ckpt` | bool | False | Delete non-best checkpoints to save storage. Hyperband-family algorithms defer deletion until bracket completion for safety. |
@@ -949,7 +956,7 @@ Model-specific notes do not belong in this AutoML skill. For every requested `ne
 ## Common Pitfalls
 
 1. **`skill_dir` not passed (or wrong path).** `AutoMLRunner(skill_dir=...)` requires an absolute path to a model directory inside the skill bank. The runner raises `FileNotFoundError: skill_info.yaml not found at <skill_dir>/references/skill_info.yaml` if the path is wrong. Use the same bank root the agent loaded this SKILL.md from; combine with `models/<network>/`.
-2. **Wrong LLM endpoint (404).** The code hardcodes `https://integrate.api.nvidia.com/v1` as the default, which returns 404. The correct endpoint is `https://inference-api.nvidia.com`. ALWAYS pass `llm_endpoint` explicitly in `automl_settings`. The LLM brain silently falls back to random sampling on 404, so you won't see a crash — just useless random configs.
+2. **Wrong LLM endpoint (404).** Use `https://inference-api.nvidia.com` for NVIDIA inference API testing and pass it explicitly in `automl_settings`. The LLM brain falls back to random sampling on LLM failure, so check logs for "LLM call failed" before trusting the run as LLM-guided.
 3. **Model-specific training failures (data format, missing datasets, invalid params).** Each network has unique training requirements. ALWAYS read `<bank-root>/models/<network>/SKILL.md` — the "Training Requirements" and "Error Patterns" sections document model-specific failure modes that apply to AutoML recs too.
 4. **Workspace path collisions.** Running the same script twice overwrites the previous experiment. Always include a timestamp: `workspace_path=f"./automl_workspace/{TIMESTAMP}"` where `TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")`.
 5. **Using a weak proxy metric.** The brain can optimize a metric that does not reflect real task quality. Use the metric recommended by the model skill or provide `eval_fn`.
@@ -1063,17 +1070,17 @@ Agent: For a real task metric, I'll use the eval_fn hook described by the model 
 Agent: I'll use the LLM algorithm — it reasons about your network architecture and learns from each experiment.
 I need three things for the LLM brain:
 1. LLM endpoint URL (default: https://inference-api.nvidia.com)
-2. LLM model name (default: meta/llama-3.1-70b-instruct, or e.g. gcp/google/gemini-3.1-pro-preview)
-3. API key for the endpoint (or set NVIDIA_API_KEY env var)
+2. LLM model name (default: gcp/google/gemini-3.1-pro-preview)
+3. API key available in `AUTOML_LLM_API_KEY` or `NVIDIA_API_KEY`
 
-User: endpoint "https://inference-api.nvidia.com", model "gcp/google/gemini-3.1-pro-preview", key "sk-abc123"
+User: endpoint "https://inference-api.nvidia.com", model "gcp/google/gemini-3.1-pro-preview"
 
 Agent: Running LLM-guided search with 10 recs. The LLM will explain its reasoning for each config choice in the logs.
 [executes runner.run(automl_settings={
     "algorithm": "llm",
     "llm_endpoint": "https://inference-api.nvidia.com",
     "llm_model": "gcp/google/gemini-3.1-pro-preview",
-    "llm_api_key": "sk-abc123",
+    "llm_api_key": os.environ["AUTOML_LLM_API_KEY"],
     ...
 })]
 ```
@@ -1090,16 +1097,16 @@ Agent: I'll use the autoresearch algorithm. It will:
 I'll cap it at 30 experiments. I need:
 - Dataset URI
 - LLM endpoint (default: https://inference-api.nvidia.com)
-- LLM model (default: meta/llama-3.1-70b-instruct)
-- LLM API key (or set NVIDIA_API_KEY env var)
+- LLM model (default: gcp/google/gemini-3.1-pro-preview)
+- LLM API key in `AUTOML_LLM_API_KEY` or `NVIDIA_API_KEY`
 
-User: dataset s3://bucket/data, endpoint https://inference-api.nvidia.com, model gcp/google/gemini-3.1-pro-preview, key sk-abc123
+User: dataset s3://bucket/data, endpoint https://inference-api.nvidia.com, model gcp/google/gemini-3.1-pro-preview
 
 [executes runner.run(automl_settings={
     "algorithm": "autoresearch", "automl_max_experiments": 30,
     "llm_endpoint": "https://inference-api.nvidia.com",
     "llm_model": "gcp/google/gemini-3.1-pro-preview",
-    "llm_api_key": "sk-abc123",
+    "llm_api_key": os.environ["AUTOML_LLM_API_KEY"],
     ...
 })]
 ```
