@@ -151,6 +151,23 @@ packaged AICity smoke dataset the basename is
 `subsetscene+bev-sensor-random-0`, so the train file is
 `train/subsetscene+bev-sensor-random-0_infos_train.pkl`; do not strip the
 BEV-sensor suffix back to `subsetscene_infos_train.pkl`.
+
+When reusing a previous dataset conversion for AutoML or repeated training,
+copy or mount the conversion output by the explicit `dataset_convert_job_id`,
+not by the first `results_dir` found under a results root. Before launching
+train/evaluate/inference, verify all required converted artifacts exist:
+
+```bash
+CONVERTED="/path/to/results/${dataset_convert_job_id}/results_dir"
+test -f "${CONVERTED}/anchor_init.npy"
+test -f "${CONVERTED}/train/subsetscene+bev-sensor-random-0_infos_train.pkl"
+test -f "${CONVERTED}/train/subsetscene+bev-sensor-random-1_infos_train.pkl"
+test -f "${CONVERTED}/train/subsetscene+bev-sensor-random-2_infos_train.pkl"
+```
+
+If any check fails, rerun `dataset_convert` with the `tao_toolkit.data_services`
+image instead of launching train. A wrong conversion artifact often surfaces as
+`FileNotFoundError: .../anchor_init.npy` during model construction.
 ## Eval Dataset
 
 Optional. Val/test splits configured via dataset ann_file paths.

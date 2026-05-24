@@ -343,7 +343,9 @@ When verifying downstream handoff, prefer `train_output_dir/best/safetensors`
 if it resolves inside the results mount. If that symlink points at a pruned
 `step_*` directory, use the retained `train_output_dir/<timestamp>/safetensors/epoch_*`
 directory that corresponds to the best validation epoch, and keep
-`train.ckpt.max_keep >= 2` for two-epoch smoke runs.
+`train.ckpt.max_keep >= 2` for two-epoch smoke runs. Do not count downloaded
+base-model shards under `ptm/` or launcher staging files under `inputs/` as
+fine-tuned checkpoints for eval/inference handoff.
 
 ### Validation
 - **validation.freq_in_epoch**: Run validation every N epochs. Too frequent slows training.

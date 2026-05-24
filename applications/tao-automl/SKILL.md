@@ -932,6 +932,12 @@ Check common issues:
 - **Cached data corruption** — inspect the model skill's dataset/cache error patterns and clear only the affected cache path if documented.
 - **LLM endpoint unreachable** (llm/hybrid/autoresearch only) — the brain falls back to random sampling. Check `AUTOML_LLM_ENDPOINT` and `AUTOML_LLM_API_KEY`. Verify with: `curl -s $AUTOML_LLM_ENDPOINT/models -H "Authorization: Bearer $AUTOML_LLM_API_KEY"`.
 
+If the runner reports no new recommendations and there are no pending/running
+child jobs, treat the AutoML run as exhausted instead of continuing to poll
+forever. Inspect the failed child job logs, fix the model skill/config/setup
+issue, then relaunch from a fresh runner or resume only after the failed cause
+is corrected.
+
 ---
 
 ## Model-Specific Notes
