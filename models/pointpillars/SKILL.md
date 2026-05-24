@@ -119,6 +119,8 @@ DATA_INFO = "/results/{dataset_convert_job_id}/results_dir/data_info"
 ```
 
 For local Docker, `DATA_INFO` must be visible inside every train/evaluate/export container. Use the dataset_convert job from the same results root, or mount/copy the converted `results_dir/data_info` folder into the current run and set `dataset.data_info_path` to that mounted container path. Do not reuse a `/results/<job_id>/...` path from another run root unless that folder is mounted into the current job.
+
+For AutoML train workflows, perform this as a launch preflight before calling `AutoMLRunner.run`: create or materialize the `dataset_convert` output under the current run's `RESULTS_ROOT`, set `dataset.data_info_path` to that current-run container path, and verify `dbinfos_train.pkl`, `infos_train.pkl`, and `infos_val.pkl` are present from the train container's point of view. If a runner is cloned or adapted from a prior AutoML algorithm, update the conversion artifact in the new run root; a stale `CONVERT_JOB_ID` from another results mount is not valid.
 ## Eval Dataset
 
 Optional. Validation data (val.tar.gz) is separate from training. Used for mAP evaluation.
