@@ -281,6 +281,8 @@ List your skill under `tao-skills` (the marketplace's main plugin) so it ships w
 
 Users install with `/plugin install tao-skills@tao-skill-bank`. The plugin name (`tao-skills`) is what they type; the marketplace name (`tao-skill-bank`) is the source.
 
+Do not also add the skill under top-level `skills/`. That directory is only for Codex helper/router skills that generate capability answers or launch intake from the packaged manifests. Mirroring model, data, platform, or application skills under both places gives agents duplicate trigger surfaces and increases the chance of stale or hallucinated routing.
+
 ## 8. Validate
 
 ```bash
@@ -290,6 +292,7 @@ Users install with `/plugin install tao-skills@tao-skill-bank`. The plugin name 
 Errors (fail CI):
 
 - `marketplace.json` skill paths must resolve.
+- `skills/` must not contain symlink mirrors of canonical skills.
 - `SKILL.md` frontmatter must have `name`, `description`, and `license`.
 - `SKILL.md` body must have runnable info (Quick Start, docker run, scripts/, hooks/, or `references/skill_info.yaml`).
 - No `tao_sdk` symbol leaks into model/data/application skills (platform/* exempt; tao-automl exempted as SDK-native workflow).
@@ -321,6 +324,7 @@ Start a session, ask the agent to exercise the skill. Verify the agent reads it,
 - [ ] If using `references/skill_info.yaml`: `container_image` set, `actions.<name>.command` set per action.
 - [ ] No SDK symbols (`tao_sdk`, `sdk.create_job`, etc.) in model/data/application skills (allowed in `platform/*`).
 - [ ] Added to `.claude-plugin/marketplace.json` under the right plugin(s).
+- [ ] No mirrored copy or symlink added under top-level `skills/`.
 - [ ] `scripts/validate-skills.sh` passes (no errors; warnings are informational).
 - [ ] Tested locally via `claude --plugin-dir .`.
 
@@ -333,6 +337,8 @@ Start a session, ask the agent to exercise the skill. Verify the agent reads it,
 **Abstract description.** "Visual Changenet model" is bad. "Fine-tune Visual ChangeNet for PCB defect detection. Use when the user asks to 'train ChangeNet', 'PCB defect detection', or mentions 'siamese classification'." is good.
 
 **Duplicating docker boilerplate.** If your skill explains `--gpus`, NGC login, or nvidia-container-toolkit, delete it and link to `tao-skill-bank:docker`.
+
+**Mirroring skills under `skills/`.** Keep one canonical skill location under `models/`, `data/`, `platform/`, or `applications/`. The top-level `skills/` directory is a Codex helper surface, not a flat copy of the bank.
 
 **Over-long SKILL.md.** Keep it under ~500 lines. Move long reference material to `references/` and link.
 

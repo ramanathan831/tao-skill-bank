@@ -120,6 +120,8 @@ For more complex workflows (iterative fine-tuning with synthetic data augmentati
 
 Each skill is a directory with `SKILL.md` (agent-readable instructions). Optional `references/skill_info.yaml` provides structured metadata for SDK-orchestrated execution; optional `scripts/` bundles supporting code.
 
+The top-level `skills/` directory is not a second copy of the skill bank. It is the Codex plugin surface for small helper/router skills, such as capability discovery and launch intake. Canonical model, data, platform, and application skills live once in the layer directories above; do not add symlinks or copies under `skills/`.
+
 ## Optional Python layer
 
 For users who want job handles, S3 I/O wrapping via `script_runner`, state persistence, multi-node distributed training, Lepton access, or failure analysis, the [TAO Execution SDK](https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-sdk) provides a single wheel with optional extras:
@@ -148,7 +150,8 @@ In brief:
 2. Copy a template from [`templates/skill-skeleton/`](templates/skill-skeleton/) — `minimal/` for the bare path, `model/`, `data/`, `platform/`, or `workflow/` for richer scaffolding.
 3. Fill in frontmatter and SKILL.md body. Body must contain a `## Quick Start` section, a `docker run` block, an SDK call, or a link to `references/skill_info.yaml`.
 4. Add the skill path to [`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json) under the relevant plugin(s).
-5. Validate with `scripts/validate-skills.sh` before submitting a PR.
+5. Do not add a mirror entry under top-level `skills/`; Codex helper skills route to the canonical layer directories.
+6. Validate with `scripts/validate-skills.sh` before submitting a PR.
 
 ## Repository structure
 
@@ -160,6 +163,10 @@ tao-skills-external/
 ├── hooks/
 │   ├── hooks.json                    # SessionStart hook registration
 │   └── session_start.sh              # emits agent guidance; sources ~/.config/tao/.env
+├── .codex-plugin/
+│   └── plugin.json                   # Codex plugin manifest
+├── .agents/
+│   └── plugins/marketplace.json      # Codex marketplace entry
 ├── .env.example                      # credential template (copy to ~/.config/tao/.env)
 ├── versions.yaml                     # single source of truth: container images + SDK wheel versions
 ├── README.md
@@ -174,7 +181,8 @@ tao-skills-external/
 ├── applications/
 ├── data/
 ├── models/
-└── platform/
+├── platform/
+└── skills/                           # Codex helper/router skills only; no mirrored skill symlinks
 ```
 
 ## CI
@@ -183,7 +191,7 @@ The repo runs three CI suites in parallel:
 
 - **NV-ACES skill evaluation** (`.skill-eval.yml`) — Tier 1/2 quality scoring, security scan.
 - **Skill execution eval** (`.gitlab-ci.yml`) — runs each skill's `eval.config` on a real GPU runner.
-- **`validate-skills`** (`scripts/validate-skills.sh`) — marketplace path resolution, frontmatter, body has runnable info, no SDK leaks, hook references resolve.
+- **`validate-skills`** (`scripts/validate-skills.sh`) — marketplace path resolution, no `skills/` mirrors, frontmatter, body has runnable info, no SDK leaks, hook references resolve.
 
 PRs must pass all three before merge.
 
@@ -193,4 +201,5 @@ PRs must pass all three before merge.
 - **Generic docker conventions live once** in `platform/docker`. Other skills defer to it for `--gpus`, NGC auth, mount patterns, data-root relocation, etc.
 - **No SDK leaks in model/data/application skills.** `tao_sdk`-specific imports, `sdk.create_job` calls, and credential-file references belong only in `platform/tao-sdk` and (for platform-specific reasons) `platform/lepton`.
 - **Minimum-viable skill is `SKILL.md` only.** Add `references/skill_info.yaml` only when SDK orchestration or multi-action structured metadata earn their keep.
+- **One canonical location per skill.** Model, data, platform, and application skills live only in their layer directories; `skills/` is for Codex helper/router skills, not mirrored copies.
 - **Prefer portability over cleverness.** A skill that works across three coding agents is more valuable than a skill that works perfectly in one.
