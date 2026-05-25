@@ -96,6 +96,7 @@ Recommended starting overrides:
 {
     'gen_trt_engine.tensorrt.data_type': 'fp16',
     'inference.batch_size': 1,
+    'evaluate.batch_size': 1,
     'gen_trt_engine.tensorrt.min_batch_size': 1,
     'gen_trt_engine.tensorrt.opt_batch_size': 1,
     'gen_trt_engine.tensorrt.max_batch_size': 8,
@@ -105,7 +106,10 @@ Recommended starting overrides:
 Model-specific notes:
 
 - Use `fp16` for the starter-kit TensorRT engine path unless INT8 calibration is explicitly requested.
-- For TensorRT inference, set the runtime batch size to 1 unless the engine profile was built for the larger batch.
+- For TensorRT inference and evaluation, set the runtime batch size to 1 unless
+  the engine profile was built for the larger batch. The default Classification
+  PyT ONNX export uses a static batch-1 input, so TensorRT evaluation with
+  `evaluate.batch_size: 8` fails with a static dimension mismatch.
 
 ## Job Chain Mapping
 
@@ -127,7 +131,7 @@ Model-specific notes:
 
 ## Known Pitfalls
 
-**Engine profile mismatch:** Runtime batch size for evaluate or inference must fit within the TensorRT min/opt/max profile used during `gen_trt_engine`.
+**Engine profile mismatch:** Runtime batch size for evaluate or inference must fit within the TensorRT min/opt/max profile used during `gen_trt_engine`. If the ONNX input is static batch 1, keep evaluate and inference at batch 1.
 
 **Template class or shape mismatch:** Copy class count, input resolution, backbone, and post-processing settings from train/export before running TAO Deploy.
 

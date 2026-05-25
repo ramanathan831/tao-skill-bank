@@ -64,9 +64,16 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
 
 ```python
-S3_TRAIN = "s3://bucket/data/train"
-S3_EVAL = "s3://bucket/data/eval"
+TRAIN_IMAGES_DIR = "/workspace/data/extracted/train/images_train"
+VAL_IMAGES_DIR = "/workspace/data/extracted/val/images_val"
+TEST_IMAGES_DIR = "/workspace/data/extracted/test/images_test"
+CLASSES_FILE = "/workspace/data/s3/classes.txt"
 ```
+
+For local Docker, download the S3 archives, extract them first, and point
+`dataset.*.images_dir` at the extracted class-root folder. Do not pass
+`images_train.tar.gz`, `images_val.tar.gz`, or `images_test.tar.gz` directly to
+local Docker specs; the skill metadata declares these inputs as folders.
 
 **train (mandatory data sources):**
 ```python
@@ -75,9 +82,9 @@ S3_EVAL = "s3://bucket/data/eval"
     "train.validation_interval": 2,
     "train.checkpoint_interval": 2,
     "train.num_gpus": 1,
-    "dataset.train_dataset.images_dir": f"{S3_TRAIN}/images_train.tar.gz",
-    "dataset.classes_file": f"{S3_TRAIN}/classes.txt",
-    "dataset.val_dataset.images_dir": f"{S3_EVAL}/images_val.tar.gz",
+    "dataset.train_dataset.images_dir": TRAIN_IMAGES_DIR,
+    "dataset.classes_file": CLASSES_FILE,
+    "dataset.val_dataset.images_dir": VAL_IMAGES_DIR,
 }
 ```
 
@@ -86,7 +93,7 @@ S3_EVAL = "s3://bucket/data/eval"
 {
     "export.input_height": 224,
     "export.input_width": 224,
-    "dataset.root_dir": f"{S3_TRAIN}",
+    "dataset.root_dir": "/workspace/data/extracted",
 }
 ```
 
@@ -101,37 +108,38 @@ S3_EVAL = "s3://bucket/data/eval"
 ```python
 {
     "dataset.batch_size": 1,
-    "dataset.val_dataset.images_dir": f"{S3_EVAL}/images_val.tar.gz",
-    "dataset.classes_file": f"{S3_EVAL}/classes.txt",
-    "dataset.test_dataset.images_dir": f"{S3_EVAL}/images_test.tar.gz",
+    "dataset.val_dataset.images_dir": VAL_IMAGES_DIR,
+    "dataset.classes_file": CLASSES_FILE,
+    "dataset.test_dataset.images_dir": TEST_IMAGES_DIR,
 }
 ```
 
 **distill (mandatory data sources):**
 ```python
 {
-    "dataset.train_dataset.images_dir": f"{S3_TRAIN}/images_train.tar.gz",
-    "dataset.classes_file": f"{S3_TRAIN}/classes.txt",
-    "dataset.val_dataset.images_dir": f"{S3_EVAL}/images_val.tar.gz",
+    "dataset.train_dataset.images_dir": TRAIN_IMAGES_DIR,
+    "dataset.classes_file": CLASSES_FILE,
+    "dataset.val_dataset.images_dir": VAL_IMAGES_DIR,
+    "train.optim.policy": "step",
 }
 ```
 
 **evaluate (mandatory data sources):**
 ```python
 {
-    "dataset.val_dataset.images_dir": f"{S3_EVAL}/images_val.tar.gz",
-    "dataset.classes_file": f"{S3_EVAL}/classes.txt",
-    "dataset.test_dataset.images_dir": f"{S3_EVAL}/images_test.tar.gz",
+    "dataset.val_dataset.images_dir": VAL_IMAGES_DIR,
+    "dataset.classes_file": CLASSES_FILE,
+    "dataset.test_dataset.images_dir": TEST_IMAGES_DIR,
 }
 ```
 
 **quantize (mandatory data sources):**
 ```python
 {
-    "dataset.train_dataset.images_dir": f"{S3_TRAIN}/images_train.tar.gz",
-    "dataset.classes_file": f"{S3_TRAIN}/classes.txt",
-    "dataset.val_dataset.images_dir": f"{S3_EVAL}/images_val.tar.gz",
-    "dataset.quant_calibration_dataset.images_dir": f"{S3_TRAIN}/images_train.tar.gz",
+    "dataset.train_dataset.images_dir": TRAIN_IMAGES_DIR,
+    "dataset.classes_file": CLASSES_FILE,
+    "dataset.val_dataset.images_dir": VAL_IMAGES_DIR,
+    "dataset.quant_calibration_dataset.images_dir": TRAIN_IMAGES_DIR,
 }
 ```
 ## Eval Dataset
@@ -176,6 +184,15 @@ Minimum 1 GPU(s), recommended 2 GPU(s). 16GB+ (V100 or A100) VRAM per GPU. Class
 **num_classes mismatch**: Ensure dataset.num_classes matches the actual class directories in your image tarballs and classes.txt.
 
 **Empty class directory**: Every class in classes.txt must have at least one image in the corresponding subdirectory.
+
+**Distill scheduler default**: The 7.0 PyT distiller does not assign a scheduler
+interval for `train.optim.policy: linear`. Use `train.optim.policy: step` for
+distill specs unless the container implementation is updated.
+
+**Checkpoint handoff**: Training produces `model_epoch_*.pth` checkpoints and a
+`classifier_model_latest.pth` symlink. For evaluate, inference, export, quantize,
+distill, and resume, select the exact intended epoch checkpoint through the SDK
+resolver; use the latest symlink only when the user explicitly requests latest.
 
 ## Spec Param / Parent Model Inference
 
