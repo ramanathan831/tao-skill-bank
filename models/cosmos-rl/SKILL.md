@@ -31,7 +31,7 @@ Generated TAO Core schemas are packaged in `schemas/<action>.schema.json`, with 
 
 This model is AutoML-enabled at the model layer. Before handling any train-stage request, read `references/skill_info.yaml` and resolve the run override from either an explicit `automl_policy` value or the user's workflow request. Use `automl_policy: on` by default and only expose `on` / `off` in new launch prompts. Treat phrases like "turn off AutoML", "disable AutoML", "no HPO", or "plain training" as `automl_policy: off` for this run only. When `automl_policy: on`, `automl_enabled: true`, and both `schemas/train.schema.json` and `references/spec_template_train.yaml` are packaged, route the train action through `tao-skill-bank:tao-automl` by default with this model's `skill_dir`. Preserve workflow/application overrides for datasets, specs, output directories, GPU/platform settings, parent checkpoints, and `automl_policy`. Use direct model training only when `automl_policy: off` or the packaged train schema/template is missing; in the missing-schema case, report that AutoML is enabled but not runnable for this model until schemas are generated.
 
-Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows stay in this model skill. The per-run `automl_policy` override does not change model metadata.
+Non-train actions such as `evaluate`, `inference`, and `quantize` stay in this model skill. The per-run `automl_policy` override does not change model metadata.
 
 ## Credentials
 
@@ -88,12 +88,10 @@ scripts/check_tao_launch_preflight.py --platform slurm \
 
 ### Per-Action Dataset Requirements
 
-The packaged Cosmos-RL model action metadata currently declares **train** and
-**evaluate** only (`references/skill_info.yaml` and `schemas/manifest.json`).
-Do not advertise or launch quantize, export, prune, deploy, or standalone
-model-skill inference for Cosmos-RL until those actions are added to the model
-metadata. Historical TAO Core mappings for inference or quantize are not enough
-to make them supported skill actions.
+The packaged Cosmos-RL model action metadata declares **train**, **evaluate**,
+**inference**, and **quantize** (`references/skill_info.yaml` and
+`schemas/manifest.json`). Do not advertise export, prune, deploy, or dataset
+convert for Cosmos-RL unless those actions are added to the model metadata.
 
 | Action | Spec Key | Source | Files | List? |
 |---|---|---|---|---|
@@ -103,17 +101,25 @@ to make them supported skill actions.
 | train | custom.val_dataset.media_path | eval_dataset | dataset root containing media payload | No |
 | evaluate | dataset.annotation_path | eval_dataset | annotations.json | No |
 | evaluate | dataset.media_dir | eval_dataset | dataset root containing media payload | No |
+| inference | media | inference_dataset | one image/video or a media folder/archive | No |
+| quantize | dataset.annotation_path | calibration_dataset | annotations.json | No |
+| quantize | dataset.media_dir | calibration_dataset | dataset root containing media payload | No |
 
 ## Spec construction
 
-cosmos-rl is `mode: config`. **Always start from `references/spec_template_train.yaml`** (or `spec_template_evaluate.yaml` for evaluate) — load it as your base spec via `yaml.safe_load(...)` and apply user overrides on top. Don't rebuild from scratch. See `platform/tao-sdk/SKILL.md`'s "Constructing the spec / args" section for the load-template-then-override pattern.
+cosmos-rl is `mode: config`. **Always start from the packaged
+`references/spec_template_<action>.yaml` for the requested action** — load it
+as your base spec via `yaml.safe_load(...)` and apply user overrides on top.
+Don't rebuild from scratch. See `platform/tao-sdk/SKILL.md`'s "Constructing the
+spec / args" section for the load-template-then-override pattern.
 
 ```python
 import yaml
 from pathlib import Path
 
 skill = Path.home() / "tao-sdk/tao-skills-external/models/cosmos-rl"
-specs = yaml.safe_load((skill / "references/spec_template_train.yaml").read_text())
+action = "train"  # train, evaluate, inference, or quantize
+specs = yaml.safe_load((skill / f"references/spec_template_{action}.yaml").read_text())
 # Now apply your overrides on top of `specs` (next section).
 ```
 
@@ -199,9 +205,38 @@ validation set instead of silently falling back to training-only data.
 }
 ```
 
-Quantize and standalone model-skill inference are not packaged Cosmos-RL
-actions yet. If a user asks for those, state that the current model skill only
-supports train and evaluate, and do not synthesize action configs.
+**inference (mandatory media):**
+```python
+{
+    "model_path": "nvidia/Cosmos-Reason2-8B",
+    "media": "/tao-workspace/media/videos/example.mp4",
+    "type": "video",
+    "prompt": "Briefly describe this video.",
+    "fps": 1,
+    "total_pixels": 200704,
+    "max_new_tokens": 32,
+    "results_dir": "/results/inference",
+    "enable_lora": False,
+}
+```
+
+**quantize (mandatory calibration data):**
+```python
+{
+    "model.model_path": "nvidia/Cosmos-Reason2-8B",
+    "dataset.annotation_path": "/tao-workspace/calibration/annotations.json",
+    "dataset.media_dir": "/tao-workspace/calibration/videos",
+    "quantize.num_calibration_samples": 1,
+    "quantize.max_sequence_length": 4096,
+    "quantize.quantization_scheme": "W4A16",
+    "quantize.skip_test_generation": True,
+    "results_dir": "/results/quantize",
+}
+```
+
+The quantize wrapper includes a compatibility shim for the current image's
+`compressed_tensors`/`llmcompressor` import mismatch. Keep that shim in the
+model-skill action metadata until the container packages matching versions.
 
 ## Critical Overrides (Train)
 
@@ -379,6 +414,11 @@ Cosmos-RL models are 8B parameters and benefit from multi-GPU training with FSDP
 
 **vision_embeds.shape[0] must be equal to n_tokens**: `model_max_length` is too small for the video input at the current FPS and resolution. Increase `policy.model_max_length` to 40960.
 
+**Quantize image/video token mismatch**: `Mismatch in image token count between
+text and input_ids` during calibration means `quantize.max_sequence_length` is
+too small for the sampled media tokens. The packaged smoke template uses 4096;
+do not lower it to tiny values such as 128 for video calibration.
+
 **train_batch_per_replica not divisible by mini_batch**: The default `train_batch_per_replica=1` from the TAO Core schema is invalid because `mini_batch` defaults to 4. Immediate AssertionError on all ranks. Fix: set `train_batch_per_replica` to a multiple of `mini_batch` (recommended: 32 for large datasets, 4 for small datasets).
 
 **train_batch_per_replica larger than samples per rank**: With FSDP, each rank sees `total_samples / dp_shard_size` samples. If `train_batch_per_replica` exceeds this, the trainer completes 0 training steps and attempts to save a checkpoint before the optimizer/scheduler is initialized, crashing with `'NoneType' object has no attribute 'state_dict'`. Fix: ensure `train_batch_per_replica <= total_samples / dp_shard_size`. For small datasets (e.g., 31 DEFT-generated samples on 8 GPUs = ~4 per rank), set `train_batch_per_replica` to 4.
@@ -391,7 +431,9 @@ Cosmos-RL models are 8B parameters and benefit from multi-GPU training with FSDP
 
 ## DEFT Support
 
-Cosmos-RL implements the DEFT workflow contract for video QA tasks. See `config.json` for the full DEFT section and `workflow/deft/deft.md` for the pipeline overview.
+Cosmos-RL implements the DEFT workflow contract for video QA tasks. Use the
+packaged model metadata and `workflow/deft/deft.md` for the pipeline overview;
+this skill does not package a `config.json`.
 
 ### Gap Analysis (`scripts/analyze_gaps.py`)
 

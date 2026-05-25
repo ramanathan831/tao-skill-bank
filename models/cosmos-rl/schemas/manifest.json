@@ -23,6 +23,24 @@
       "schema_action": "evaluate",
       "spec_template": "references/spec_template_evaluate.yaml"
     },
+    "inference": {
+      "automl_default_parameters": [],
+      "automl_disabled_parameters": [],
+      "core_module": "cosmos-rl",
+      "path": "schemas/inference.schema.json",
+      "popular": {},
+      "schema_action": "inference",
+      "spec_template": "references/spec_template_inference.yaml"
+    },
+    "quantize": {
+      "automl_default_parameters": [],
+      "automl_disabled_parameters": [],
+      "core_module": "cosmos-rl",
+      "path": "schemas/quantize.schema.json",
+      "popular": {},
+      "schema_action": "quantize",
+      "spec_template": "references/spec_template_quantize.yaml"
+    },
     "train": {
       "automl_default_parameters": [
         "custom.vision.fps",

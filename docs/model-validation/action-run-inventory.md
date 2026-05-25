@@ -90,13 +90,13 @@ not yet reached a per-model validation report.
 - train: pass
 - AutoML default train route: pass with Bayesian `automl_max_recommendations=2`
 - eval: pass with exact trained LoRA folder
-- inference: unsupported; not declared in metadata
+- inference: pass after adding packaged model-skill metadata and wrapper
 - export: unsupported
 - deploy: unsupported
 - prune: unsupported
 - retrain/resume: pass with exact Cosmos checkpoint policy folder
 - dataset convert: unsupported
-- quantize: unsupported
+- quantize: pass after adding packaged model-skill metadata and wrapper
 - gated model access and local-docker image/mount checks: pass
 
 ## deformable-detr
