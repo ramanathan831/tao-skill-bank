@@ -150,10 +150,15 @@ Use the SDK/model checkpoint resolver or the exact epoch/step checkpoint for
 evaluate, inference, export, and resume. Use the symlink only when the user
 explicitly asks for latest.
 
-**TAO Deploy image**: CenterPose TensorRT actions should use
-`nvcr.io/nvidia/tao/tao-toolkit:6.26.3-deploy`. The current 7.0 RC deploy alias
-builds an engine but fails deploy evaluate/inference in postprocessing with
-`TypeError: only 0-dimensional arrays can be converted to Python scalars`.
+**TAO Deploy postprocessor compatibility**: Some deploy images, including the
+`nvcr.io/nvstaging/tao/tao-toolkit-deploy:validation-fixes-20260525` validation
+image, build a TensorRT engine but fail deploy evaluate/inference in CenterPose
+postprocessing with `TypeError: only 0-dimensional arrays can be converted to
+Python scalars` when converting the exported `scores` output. Treat
+`gen_trt_engine` as a separate action from TensorRT evaluate/inference, inspect
+the deploy action exit code/logs, and mark deploy evaluate/inference failed if
+this error appears. Do not count a successful engine build as full deploy
+validation.
 
 ## Spec Param / Parent Model Inference
 

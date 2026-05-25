@@ -73,11 +73,14 @@ Deploy action metadata is in `skill_info.yaml`. Deploy spec templates live in th
 
 Direct TAO Launcher spelling is `tao deploy centerpose gen_trt_engine`, `tao deploy centerpose evaluate`, `tao deploy centerpose inference`.
 
-Use `nvcr.io/nvidia/tao/tao-toolkit:6.26.3-deploy` for CenterPose deploy
-validation. The current 7.0 RC deploy alias can build a CenterPose engine, but
-its deployed evaluate/inference postprocessor fails on the exported `scores`
-shape with `TypeError: only 0-dimensional arrays can be converted to Python
-scalars`.
+Treat engine generation as only the first deploy action. Some deploy images,
+including `nvcr.io/nvstaging/tao/tao-toolkit-deploy:validation-fixes-20260525`,
+can build a CenterPose engine but still fail TensorRT evaluate/inference in the
+postprocessor on the exported `scores` shape with `TypeError: only
+0-dimensional arrays can be converted to Python scalars`. Inspect deploy
+evaluate/inference exit codes and logs separately, and report those actions as
+failed when this error appears instead of treating `gen_trt_engine` success as
+full deploy success.
 
 ## Required Inputs
 
