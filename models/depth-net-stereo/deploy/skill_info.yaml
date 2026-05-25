@@ -10,8 +10,6 @@ actions:
     inputs:
       gen_trt_engine.onnx_file:
         type: file
-      gen_trt_engine.trt_engine:
-        type: file
     outputs:
       results_dir:
         type: folder
@@ -71,8 +69,11 @@ notes:
 - The TAO Deploy command is `depth_net` for both mono and stereo DepthNet model skills.
 - 'Keep `dataset.dataset_name: StereoDataset` and use a stereo data source such as
   `GenericDataset` (no GT) or a dataset-specific class like `Middlebury` (with GT) in the deploy spec.'
-- 'Build TRT engines with `gen_trt_engine.tensorrt.data_type: fp16` for FoundationStereo
-  on supported deploy paths (NGC static-shape and user-trained static / batch-only-dynamic).
-  Engine input H/W are pinned to the trace shape on every path. See deploy/SKILL.md.'
+- 'Use `gen_trt_engine.tensorrt.data_type: fp32` for fresh-install smoke tests.
+  FP16 is supported on the NGC static-shape and user-trained static / batch-only-dynamic
+  paths. Engine input H/W are pinned to the trace shape on every path. See deploy/SKILL.md.'
+- 'The current TAO Deploy image interprets `gen_trt_engine.tensorrt.workspace_size`
+  as GiB. Use `4` for a 4 GiB workspace; do not use byte or MiB-style values such
+  as 1024.'
 - 'Match `evaluate.input_height/input_width` to the export-time ONNX shape and to
   `dataset.test_dataset.augmentation.crop_size` for end-to-end shape consistency.'

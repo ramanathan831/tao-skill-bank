@@ -22,12 +22,14 @@ actions:
     command: depth_net quantize -e {config_path}
     config_format: yaml
     inputs:
+      quantize.model_path:
+        type: file
       dataset.train_dataset.data_sources[0].data_file:
         type: file
       dataset.val_dataset.data_sources[0].data_file:
         type: file
       dataset.quant_calibration_dataset.images_dir:
-        type: file
+        type: folder
     outputs:
       results_dir:
         type: folder
@@ -49,10 +51,14 @@ actions:
   export:
     command: depth_net export -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      export.checkpoint:
+        type: file
     outputs:
       results_dir:
         type: folder
+      export.onnx_file:
+        type: file
     upload_excludes:
     - inputs/
   inference:
