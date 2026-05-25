@@ -38,6 +38,12 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 - **Monitoring metric:** val_mAP. Current TAO Sparse4D training emits this
   value in status/logs as `img_bbox_NuScenes/mAP` and `mAP`; AutoML metric
   extractors should treat those emitted keys as aliases for `val_mAP`.
+  Multi-fidelity AutoML algorithms such as Hyperband, ASHA, and BOHB may
+  promote a checkpoint to a resume job that completes without emitting a fresh
+  `val_mAP` alias. In that case, compare AutoML's carried metric to the source
+  rung job that emitted `img_bbox_NuScenes/mAP` or `mAP`, while still verifying
+  that the promoted job resumed from the explicit epoch/step checkpoint,
+  produced a real checkpoint, and is usable for evaluate/inference.
 
 ### Per-Action Dataset Requirements
 
