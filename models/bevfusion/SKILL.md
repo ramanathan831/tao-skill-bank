@@ -181,6 +181,15 @@ empty string, for `train.pretrained_checkpoint` and
 `nvcr.io/nvidia/tao/tao-toolkit:5.5.0-pyt`; it contains `mmdet3d` and exposes
 the BEVFusion `convert`, `train`, `evaluate`, and `inference` subtasks.
 
+**Post-evaluation SIGSEGV in BEVFusion 5.5**: Some local-docker runs can write
+checkpoints or prediction files and still finish with TAO `Execution status:
+FAIL` after `Signal 11 (SIGSEGV)` in `cuMemRetainAllocationHandle`. Do not mark
+the action successful from the Docker exit code alone; inspect the TAO log or
+`status.json`. If a checkpoint was produced before this failure, use only the
+exact intended checkpoint such as `epoch_1.pth` for downstream diagnostics and
+do not treat `last_checkpoint` as a best checkpoint unless the action explicitly
+requests the latest checkpoint.
+
 **Missing modality data**: Ensure both camera images and LiDAR point clouds are present if using multi-modal fusion.
 
 **Epoch numbering**: BEVFusion checkpoint epoch numbers may not follow standard zero-padded format.
