@@ -16,6 +16,7 @@ not run.
 - prune: unsupported/not advertised
 - quantize: unsupported/not advertised
 - retrain: pass through `train.resume_training_checkpoint_path` after trusted-checkpoint load env
+- AutoML default train route: pass with Bayesian `automl_max_recommendations=2`
 - dataset convert: unsupported/not advertised
 - other: parent PyT `gen_trt_engine` was advertised by metadata but rejected by the real PyT CLI; removed from the parent model action metadata and manifest because TAO Deploy owns it
 
@@ -31,6 +32,19 @@ not run.
 - Best checkpoint produced: no separate best-named checkpoint artifact; the one-epoch run produced one concrete epoch/step checkpoint, which was selected for downstream validation
 - Best checkpoint path: `/tmp/tao-model-validation/ml-recog/results/train/model_epoch_000_step_00044.pth`
 - Other checkpoints produced: `/tmp/tao-model-validation/ml-recog/results/train/ml_model_latest.pth` symlink to the exact train checkpoint; resume validation produced `/tmp/tao-model-validation/ml-recog/results/retrain/model_epoch_001_step_00088.pth` and a `ml_model_latest.pth` symlink
+
+## AutoML Default Training Rerun
+
+- Default direct model training used AutoML after the default policy was corrected to `automl_policy=on`.
+- Source: `s3://nvcf-storage-handling/data/purpose_built_models_ml_recog_train/metric_learning_recognition/retail-product-checkout-dataset_classification_demo/known_classes/`
+- Algorithm: bayesian
+- Recommendations requested: 2
+- Metric: `val Precision at Rank 1`, maximize
+- Tuned parameters: `train.optim.trunk.base_lr`, `train.optim.embedder.base_lr`
+- Recommendation 0: job `2b01e3b1-341b-4713-9ae2-5c68d162259c`, metric `0.5676683235816979`, checkpoint `/tmp/tao-automl-validation/ml-recog/results/2b01e3b1-341b-4713-9ae2-5c68d162259c/results_dir/train/model_epoch_000_step_00088.pth`
+- Recommendation 1: job `f110600d-318a-4ab6-aa6b-cf2182e8fbdf`, metric `0.571052860192041`, checkpoint `/tmp/tao-automl-validation/ml-recog/results/f110600d-318a-4ab6-aa6b-cf2182e8fbdf/results_dir/train/model_epoch_000_step_00088.pth`
+- Best recommendation: rec 1, selected by the AutoML controller summary
+- Generated spec verification: both recommendations used SDK-extracted real S3 train/reference/query archives, `dataset.num_instance=4`, `train.batch_size=4`, `train.val_batch_size=4`, and distinct Bayesian trunk/embedder base learning-rate values within the requested ranges.
 
 ## Checkpoint/Action Verification
 
@@ -66,11 +80,11 @@ not run.
 - Removed parent PyT `gen_trt_engine` from model action metadata and from `schemas/manifest.json`.
 - Added deploy `inference.input_path` to the deploy template and deploy skill metadata.
 - Updated ML-Recog documentation for deploy inference input wiring and trusted-checkpoint env usage on evaluate, inference, export, and resume/retrain.
+- No additional ML-Recog model skill code change was needed for the AutoML default rerun.
 
 ## Remaining Issues
 
 - `TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1` is still required for trusted ML-Recog checkpoint-consuming actions in this TAO/PyTorch image until upstream checkpoint loading is updated.
-- `automl_policy=on` cannot be honored without routing train through the `tao-automl` workflow skill, which was explicitly prohibited for this validation. Direct model-skill train was validated instead.
 - SDK `parent_model` resolver execution was not invoked because workflow/SDK paths were out of scope; the metadata contract is now present and direct runs used the exact checkpoint path.
 
 ## Files Changed
@@ -83,9 +97,9 @@ not run.
 - `models/ml-recog/schemas/manifest.json`
 - `models/schemas.manifest.json`
 - `docs/model-validation/ml-recog.md`
+- `docs/model-validation/action-run-inventory.md`
 
 ## Final Status
 
-Fully validated for the ML-Recog model skill's supported parent and deploy
-actions on local Docker after the metadata/template fixes. AutoML workflow
-behavior was intentionally not run.
+Fully validated for the ML-Recog model skill's supported parent, AutoML default
+train, and deploy actions on local Docker after the metadata/template fixes.

@@ -241,6 +241,7 @@ not yet reached a per-model validation report.
 - prune: unsupported/not advertised
 - quantize: unsupported/not advertised
 - retrain: pass through `train.resume_training_checkpoint_path`
+- AutoML default train route: pass with Bayesian `automl_max_recommendations=2`
 - dataset convert: unsupported/not advertised
 
 ## nvdinov2
