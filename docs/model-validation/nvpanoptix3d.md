@@ -2,7 +2,8 @@
 
 Validated on 2026-05-25 with `platform=local-docker`, `image=default`
 (`nvcr.io/nvstaging/tao/tao-toolkit-pyt:7.0.0-rc-226-multiarch`),
-`num_gpus=1`, and direct model skill actions only. Workflow skills were not run.
+`num_gpus=1`, direct model skill actions, and the model skill's AutoML-enabled
+default train route. Workflow skills were not run.
 
 ## Supported Actions Tested
 
@@ -14,6 +15,7 @@ Validated on 2026-05-25 with `platform=local-docker`, `image=default`
 - prune: unsupported/not advertised
 - quantize: unsupported/not advertised
 - retrain: pass through `train.resume_training_checkpoint_path`
+- AutoML default train route: pass with Bayesian `automl_max_recommendations=2`
 - dataset convert: unsupported/not advertised
 - other: fp16 train/retrain was probed and rejected by the real CLI with `ValueError: Only fp32 precision is supported.` Export was probed with both 2D and 3D ONNX output fields; the current export entrypoint only produces `export.onnx_file_2d`.
 
@@ -31,6 +33,21 @@ Validated on 2026-05-25 with `platform=local-docker`, `image=default`
 - Best checkpoint produced: no separate best-named checkpoint artifact; the one-epoch run produced one concrete epoch/step checkpoint, which was selected for downstream validation
 - Best checkpoint path: `/tmp/tao-model-validation/nvpanoptix3d/results/train/model_epoch_000_step_00020.pth`
 - Other checkpoints produced: `/tmp/tao-model-validation/nvpanoptix3d/results/train/nvpanoptix3d_model_latest.pth` symlink to the exact train checkpoint. Resume validation wrote `/tmp/tao-model-validation/nvpanoptix3d/results/retrain/model_epoch_000_step_00020.pth` and a `nvpanoptix3d_model_latest.pth` symlink.
+
+## AutoML Default Training Rerun
+
+- Default model training was rerun through the model skill's AutoML-enabled train route after confirming the previous direct validation had exercised normal training only.
+- Source: `s3://nvcf-storage-handling/data/purpose_built_models_nvpanoptix3d_train/`
+- Eval source: `s3://nvcf-storage-handling/data/purpose_built_models_nvpanoptix3d_val/`
+- Test source: `s3://nvcf-storage-handling/data/purpose_built_models_nvpanoptix3d_test/`
+- Algorithm: bayesian
+- Recommendations requested: 2
+- Metric: `train_loss`, minimize; TAO `status.json` recorded PRQ/RSQ/RRQ only, so the AutoML runner used the training progress log for `train_loss`.
+- Tuned parameter: `train.optim.lr`
+- Recommendation 0: job `098172d6-4a38-4ee0-b72e-c134d2a8b8ca`, `train.optim.lr=0.0002868659351565142`, `train_loss=214.992`, checkpoint `/tmp/tao-automl-validation/nvpanoptix3d/results/098172d6-4a38-4ee0-b72e-c134d2a8b8ca/results_dir/train/model_epoch_000_step_00020.pth`
+- Recommendation 1: job `8a7c013d-0b24-4ed3-b16b-063dff90b6e4`, `train.optim.lr=0.0002700214525931551`, `train_loss=277.819`, checkpoint `/tmp/tao-automl-validation/nvpanoptix3d/results/8a7c013d-0b24-4ed3-b16b-063dff90b6e4/results_dir/train/model_epoch_000_step_00020.pth`
+- Best recommendation: rec 0, selected by the AutoML controller summary.
+- Generated spec verification: both recommendations used SDK-staged real S3 train/val/test roots, `dataset.enable_3d=true`, `dataset.contiguous_id=true`, `model.sem_seg_head.num_classes=13`, `train.precision=fp32`, `train.num_epochs=1`, and `train.optim.monitor_name=train_loss`.
 
 ## Checkpoint/Action Verification
 
@@ -55,7 +72,7 @@ Validated on 2026-05-25 with `platform=local-docker`, `image=default`
 - Checkpoint issues:
   - Missing metadata meant checkpoint-consuming actions could not be safely chained through the skill resolver before the fix.
 - Docker/local execution issues:
-  - Large checkpoints are produced: train and resume artifacts are each about 5.3 GB, and ONNX export with external data is about 4.4 GB.
+  - Large checkpoints are produced: train and resume artifacts are each about 5.3 GB, each AutoML recommendation folder was about 5.4 GB, and ONNX export with external data is about 4.4 GB.
 - Fresh-install issues:
   - Fresh installs would expose missing checkpoint handoff metadata, fp16 guidance that fails at runtime, and inference image-dir guidance that can silently produce a zero-length PASS.
 
@@ -65,11 +82,11 @@ Validated on 2026-05-25 with `platform=local-docker`, `image=default`
 - Added evaluate/export/inference checkpoint inputs and `parent_model` mappings.
 - Added `export.onnx_file_2d` output metadata with a `create_onnx_file_2d` mapping.
 - Updated the model docs for fp32-only train/resume, flat RGB inference folders, 2D-only ONNX export, and exact checkpoint handoff behavior.
+- No additional NvPanoptix3D model skill code change was needed for the AutoML default rerun.
 
 ## Remaining Issues
 
 - `export.onnx_file_3d` remains present in the generated schema/template, but the current toolkit image does not produce a 3D ONNX artifact.
-- `automl_policy=on` cannot be honored without routing train through the `tao-automl` workflow skill, which was explicitly prohibited for this validation. Direct model-skill train was validated instead.
 - SDK `parent_model` resolver execution was not invoked because workflow/SDK paths were out of scope; the metadata contract is now present and direct runs used exact checkpoint paths.
 
 ## Files Changed
@@ -77,9 +94,10 @@ Validated on 2026-05-25 with `platform=local-docker`, `image=default`
 - `models/nvpanoptix3d/SKILL.md`
 - `models/nvpanoptix3d/references/skill_info.yaml`
 - `docs/model-validation/nvpanoptix3d.md`
+- `docs/model-validation/action-run-inventory.md`
 
 ## Final Status
 
-Fully validated for the NvPanoptix3D model skill's advertised parent actions on
-local Docker after the metadata/docs fixes. The current image supports 2D ONNX
-export only.
+Fully validated for the NvPanoptix3D model skill's advertised parent and AutoML
+default train actions on local Docker after the metadata/docs fixes. The
+current image supports 2D ONNX export only.
