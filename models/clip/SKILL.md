@@ -19,7 +19,7 @@ tags:
 
 Contrastive Language-Image Pre-training model for zero-shot and fine-tuned image classification, image-text retrieval, and embedding extraction. Fine-tuning adapts CLIP's shared image-text embedding space to domain-specific image-caption data.
 
-No default NGC pretrained checkpoint is required. When `train.pretrained_model_path`, `evaluate.checkpoint`, `inference.checkpoint`, or `export.checkpoint` is unset, TAO loads pretrained weights from HuggingFace for SigLIP2/OpenCLIP variants or `torch.hub` for Radio-CLIP, so first use needs network access or a local mirror.
+No default NGC pretrained checkpoint is required for spec construction, but unset checkpoint behavior is action-specific. In the validation-fixes PyTorch image, `export.checkpoint: null` exports the selected CLIP architecture and may initialize weights when pretrained weights are unavailable. Do not assume `inference.checkpoint: null` loads pretrained weights: `clip inference` currently calls the checkpoint loader with `None` and fails before embedding extraction. For PyTorch inference, checkpoint-backed evaluation/export, resume, and retrain flows, resolve and pass an exact checkpoint from the parent train output.
 
 Supported actions: `train`, `evaluate`, `inference`, `export`, `gen_trt_engine`.
 
@@ -159,7 +159,7 @@ Optional for training. If provided, validation metrics are computed at validatio
 
 The skill exposes `gen_trt_engine` as the deploy action. In generated SDK runners, use `model_info["actions"]["gen_trt_engine"]` and run it in the TAO Deploy image, not the PyTorch training image. The in-container command is `clip gen_trt_engine -e {config_path}`; direct TAO Launcher usage spells the same action as `tao deploy clip gen_trt_engine -e /path/to/spec.yaml`.
 
-TAO Deploy inference can discover combined engines, paired separate engines, or single-pillar `_vision.engine` / `_text.engine` files. In the 7.0.0 deploy image validated by this skill, `clip gen_trt_engine` builds image-shaped ONNX inputs correctly but fails on CLIP text inputs because the shared engine builder assumes every input has `(B, C, H, W)` dimensions. The validated deploy path is image-only: export with `export.encoder_type: separate`, pass `clip_model_vision.onnx` to `gen_trt_engine.onnx_file`, write `clip_vision.engine`, and set `inference.text_file: null` for TensorRT image embeddings. Combined ONNX, text ONNX, full text inference, and TensorRT retrieval evaluation remain blocked until the deploy builder handles text input profiles.
+TAO Deploy inference can discover combined engines, paired separate engines, or single-pillar `_vision.engine` / `_text.engine` files. In the current TAO Deploy image validated by this skill, `clip gen_trt_engine` builds image-shaped ONNX inputs correctly but fails on CLIP text inputs because the shared engine builder assumes every input has `(B, C, H, W)` dimensions. The validated deploy path is image-only: export with `export.encoder_type: separate`, pass `clip_model_vision.onnx` to `gen_trt_engine.onnx_file`, write `clip_vision.engine`, and set `inference.text_file: null` for TensorRT image embeddings. Combined ONNX, text ONNX, full text inference, and TensorRT retrieval evaluation remain blocked until the deploy builder handles text input profiles.
 
 Use `evaluate.trt_engine` for TensorRT evaluation and `inference.trt_engine` for TensorRT embedding extraction. These TensorRT paths also run in the TAO Deploy image. Direct TAO Launcher usage spells these as `tao deploy clip evaluate` and `tao deploy clip inference`.
 
@@ -204,6 +204,8 @@ caption files from labels as a separate data-preparation step.
 **TensorRT shape mismatch**: When using dynamic batch export, provide min/opt/max shape profiles for every input. Text sequence length must match the tokenizer length, commonly 77 for CLIP tokenizers and 64 for SigLIP2 tokenizers.
 
 **PyTorch 2.6 checkpoint load failure**: If a trusted TAO CLIP Lightning checkpoint fails with a `Weights only load failed` / `numpy.dtypes.Float64DType` unpickling error, rerun checkpoint-dependent PyTorch actions with `TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1`. Do not use this override for untrusted checkpoints.
+
+**PyTorch inference with null checkpoint**: If `clip inference` fails with `TypeError: expected str, bytes or os.PathLike object, not NoneType`, the spec did not provide `inference.checkpoint`. Use the exact resolved checkpoint from a parent train job for PyTorch inference, or use the export plus TensorRT image-only deploy path when no training checkpoint exists.
 
 **CLIP TensorRT text build failure**: If `clip gen_trt_engine` fails with `IndexError: Out of bounds` while parsing `input_ids` or `attention_mask`, the current deploy builder is treating text inputs as image tensors. Build the `_vision.onnx` file for image-only TensorRT inference and document text/full retrieval deployment as blocked for this deploy image.
 
