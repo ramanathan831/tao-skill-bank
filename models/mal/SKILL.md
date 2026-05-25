@@ -113,6 +113,16 @@ Optional. Val images and annotations configured alongside train paths.
 - **train.warmup_epochs**: Warmup epochs before full learning rate.
 - **model.load_mask**: Whether to load pre-computed masks.
 
+## AutoML / HPO Notes
+
+For MAL AutoML launches, keep the default smoke search space narrow and pass
+`automl_hyperparameters=["train.lr", "train.wd"]`. Use conservative Bayesian
+ranges around the ViT-MAE fine-tuning defaults, for example
+`train.lr` from `1e-7` to `1e-5` and `train.wd` from `1e-5` to `1e-2`.
+The packaged train schema marks these two parameters as the default AutoML
+parameters; pass them explicitly when using a runtime that still derives MAL
+search metadata from its bundled config module.
+
 ## Multi-GPU / Multi-Node
 
 **Launch method:** Lightning-managed (single `python` process, Lightning spawns workers).
