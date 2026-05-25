@@ -14,6 +14,7 @@ evaluate:
 model:
   pretrained_model_path: null
   precision: bf16
+  fsdp_shard_size: 1
   input_hw: [224, 224]
   network:
     embed_dim: 256

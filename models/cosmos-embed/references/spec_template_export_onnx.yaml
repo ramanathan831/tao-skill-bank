@@ -13,6 +13,7 @@ export:
 model:
   pretrained_model_path: null
   precision: fp32
+  fsdp_shard_size: 1
   input_hw: [224, 224]
   network:
     embed_dim: 256
