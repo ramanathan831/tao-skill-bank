@@ -57,7 +57,7 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 | evaluate | dataset.test.base_dir | inference_dataset |  | No |
 | inference | dataset.frustum_mask_path | inference_dataset | meta/frustum_mask.npz | No |
 | inference | dataset.label_map | inference_dataset | meta/colormap.json | No |
-| inference | inference.images_dir | inference_dataset | images.tar.gz | No |
+| inference | inference.images_dir | inference_dataset | flat folder of `.jpg`/`.png` RGB images | No |
 | train | dataset.frustum_mask_path | train_datasets | meta/frustum_mask.npz | No |
 | train | dataset.label_map | train_datasets | meta/colormap.json | No |
 | train | dataset.train.json_path | train_datasets | meta/train.json | No |
@@ -122,7 +122,7 @@ S3_EVAL = "s3://bucket/data/eval"
     "dataset.enable_3d": True,
     "dataset.frustum_mask_path": f"{S3_EVAL}/meta/frustum_mask.npz",
     "dataset.label_map": f"{S3_EVAL}/meta/colormap.json",
-    "inference.images_dir": f"{S3_EVAL}/images.tar.gz",
+    "inference.images_dir": "/path/to/flat_rgb_images",
 }
 ```
 ## Eval Dataset
@@ -150,11 +150,10 @@ Optional. Val/test splits configured via dataset.val and dataset.test paths.
 - **dataset.depth_max**: Max depth. Default 6.0 meters.
 - **train.lr**: Learning rate. Default 2e-4. backbone_multiplier=0.1.
 - **train.lr_scheduler**: Options: MultiStep, Warmuppoly. Milestones [88, 96].
-- **train.precision**: Options: fp16, fp32. Default fp16.
+- **train.precision**: Only `fp32` is supported by the current train code.
 - **train.distributed_strategy**: Options: ddp, fsdp. activation_checkpoint=True by default.
 - **train.clip_grad_norm**: Gradient clipping norm. Default 0.1.
 - **export.onnx_file_2d**: ONNX path for 2D model component.
-- **export.onnx_file_3d**: ONNX path for 3D model component.
 - **export.max_voxels**: Max voxels for engine input. Default 700000.
 - **inference.mode**: Options: semantic, instance, panoptic.
 
@@ -178,13 +177,15 @@ Optional. Val/test splits configured via dataset.val and dataset.test paths.
 
 ## Export / TRT Defaults
 
-- Exports separate 2D and 3D ONNX models (onnx_file_2d, onnx_file_3d)
+- Exports the 2D ONNX model to `export.onnx_file_2d`. The current export
+  entrypoint calls `export_2d_model`; `export.onnx_file_3d` is present in the
+  schema but not produced by this toolkit image.
 - TRT data types: FP32, FP16 only
 - max_voxels: 700000 (engine input tensor limit)
 
 ## Hardware
 
-Minimum 2 GPU(s), recommended 4 GPU(s). 40GB+ (A100 recommended) VRAM per GPU. 3D reconstruction is very memory intensive. fp16 recommended. activation_checkpoint enabled by default. FSDP for multi-node. AutoML is enabled at the model layer; preserve this GPU/VRAM guidance when routing train through AutoML.
+Minimum 2 GPU(s), recommended 4 GPU(s). 40GB+ (A100 recommended) VRAM per GPU. 3D reconstruction is very memory intensive. Use `train.precision: fp32`; the current training entrypoint rejects fp16. activation_checkpoint enabled by default. FSDP for multi-node. AutoML is enabled at the model layer; preserve this GPU/VRAM guidance when routing train through AutoML.
 
 ## Error Patterns
 
@@ -200,11 +201,24 @@ The 7.0 PyTorch image contains the NVPanoptix3D package but does not expose a
 
 **3D occupancy OOM**: Reduce frustum_dims or grid_dimensions if running out of GPU memory during 3D reconstruction.
 
+**fp16 precision rejected**: The schema advertises `fp16`, but the current
+training entrypoint raises `ValueError: Only fp32 precision is supported.` Use
+`train.precision: fp32` for train and resume/retrain.
+
+**Inference dataloader length is zero**: `inference.images_dir` is scanned only
+for top-level `.jpg` and `.png` files. If the S3 test archive extracts to
+scene subdirectories, create or point to a flat folder of real RGB images before
+running inference.
+
+**3D ONNX missing after export**: The current export entrypoint only calls the
+2D ONNX exporter and writes `export.onnx_file_2d`. Do not require
+`export.onnx_file_3d` unless the toolkit image adds a 3D exporter.
+
 ## Spec Param / Parent Model Inference
 
 Model-specific inference mappings belong in this MD file, not in `config.json`. Generated runners should read this section and apply the mappings with SDK helpers before `create_job()`. This mirrors the old microservices `infer_params.py` flow.
 
-Inference mappings from TAO Core `nvpanoptix3d.config.json`:
+Model-specific handoff mappings:
 
 | Action | Spec Field | Inference Function | Meaning |
 |---|---|---|---|
@@ -213,8 +227,7 @@ Inference mappings from TAO Core `nvpanoptix3d.config.json`:
 | evaluate | `results_dir` | `output_dir` | current job results directory |
 | export | `encryption_key` | `key` | encryption key |
 | export | `export.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
-| export | `export.onnx_file_2d` | `create_onnx_file_2d` | create_onnx_file_2d |
-| export | `export.onnx_file_3d` | `create_onnx_file_3d` | create_onnx_file_3d |
+| export | `export.onnx_file_2d` | `create_onnx_file_2d` | output 2D ONNX path |
 | export | `results_dir` | `output_dir` | current job results directory |
 | inference | `encryption_key` | `key` | encryption key |
 | inference | `inference.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
