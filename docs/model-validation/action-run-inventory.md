@@ -312,7 +312,18 @@ not yet reached a per-model validation report.
 - dataset convert: unsupported by the packaged OneFormer PyT CLI
 
 ## optical-inspection
-- not run yet in this validation branch
+- train: pass, default model invocation routed through AutoML with two Bayesian recommendations
+- eval/evaluate: pass
+- inference: pass
+- export: pass
+- deploy gen_trt_engine: pass after removing pre-created engine output metadata
+- deploy evaluate on TensorRT engine: pass after fixing deploy evaluate `dataset.infer_dataset.*` wiring and `evaluate.batch_size`
+- deploy inference on TensorRT engine: pass
+- retrain/resume: pass from the selected best AutoML checkpoint
+- prune: unsupported by the packaged Optical Inspection PyT CLI/model skill
+- quantize: unsupported by the packaged Optical Inspection PyT CLI/model skill
+- dataset convert: blocked/not packaged as a model skill action; no compatible raw Factory PCB/golden CSV dataset in S3
+- parent PyT gen_trt_engine: unsupported by the real PyT CLI; TensorRT is deploy-only
 
 ## pointpillars
 - not run yet in this validation branch

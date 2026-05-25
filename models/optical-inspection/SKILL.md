@@ -19,7 +19,7 @@ Optical inspection for defect detection using Siamese networks. Compares image p
 
 Set train.pretrained_model_path for pretrained Siamese weights.
 
-For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference`), read `deploy/SKILL.md` first. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
+For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference`), read `deploy/SKILL.md` first. The parent PyT container does not expose `optical_inspection gen_trt_engine`; TensorRT engine generation is deploy-only. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
 
 ## Dataclass Schemas
 
@@ -43,7 +43,6 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 |---|---|---|---|---|
 | evaluate | dataset.test_dataset.images_dir | eval_dataset | images.tar.gz | No |
 | evaluate | dataset.test_dataset.csv_path | eval_dataset | dataset.csv | No |
-| gen_trt_engine | gen_trt_engine.tensorrt.calibration.cal_image_dir | calibration_dataset | images.tar.gz | Yes |
 | inference | dataset.infer_dataset.images_dir | inference_dataset | images.tar.gz | No |
 | inference | dataset.infer_dataset.csv_path | inference_dataset | dataset.csv | No |
 | train | dataset.train_dataset.images_dir | train_datasets | images.tar.gz | No |
@@ -78,14 +77,6 @@ S3_EVAL = "s3://bucket/data/eval"
 }
 ```
 
-**gen_trt_engine (mandatory data sources):**
-```python
-{
-    "gen_trt_engine.tensorrt.data_type": "fp16",
-    "gen_trt_engine.tensorrt.calibration.cal_image_dir": [f"{S3_TRAIN}/images.tar.gz"],
-}
-```
-
 **evaluate (mandatory data sources):**
 ```python
 {
@@ -95,6 +86,8 @@ S3_EVAL = "s3://bucket/data/eval"
 }
 ```
 
+Use the workflow's checkpoint resolver for downstream actions instead of guessing a filename. For Optical Inspection smoke runs, AutoML may produce `model_epoch_000_step_00006.pth`; resume can then produce `model_epoch_001_step_00012.pth`. Best-checkpoint actions should use the AutoML best child job's selected checkpoint, epoch-specific actions should pass the exact epoch/step checkpoint requested, and only explicit "latest" requests should resolve to the latest checkpoint.
+
 **inference (mandatory data sources):**
 ```python
 {
@@ -103,6 +96,11 @@ S3_EVAL = "s3://bucket/data/eval"
     "dataset.infer_dataset.csv_path": f"{S3_EVAL}/dataset.csv",
 }
 ```
+
+## Dataset Convert
+
+The PyT container exposes `optical_inspection dataset_convert`, but this model skill does not package a `dataset_convert` action/template. The converter expects the raw Factory PCB layout (`root_dataset_dir`, train/val/all PCB directories, `golden_csv_dir`, `project_name`, and `bot_top`). The S3 validation bucket currently contains preconverted Optical Inspection `images.tar.gz` plus `dataset.csv` splits, not the raw PCB/golden CSV source. Do not synthesize a fake PCB dataset; document dataset conversion as blocked when no compatible raw dataset is available.
+
 ## Eval Dataset
 
 Optional. Eval dataset uses same format (images + CSV).
@@ -152,11 +150,6 @@ Inference mappings from TAO Core `optical_inspection.config.json`:
 | export | `export.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
 | export | `export.onnx_file` | `create_onnx_file` | output ONNX path |
 | export | `results_dir` | `output_dir` | current job results directory |
-| gen_trt_engine | `encryption_key` | `key` | encryption key |
-| gen_trt_engine | `gen_trt_engine.onnx_file` | `parent_model` | model file inferred from the parent job results folder |
-| gen_trt_engine | `gen_trt_engine.tensorrt.calibration.cal_cache_file` | `create_cal_cache` | calibration cache path |
-| gen_trt_engine | `gen_trt_engine.trt_engine` | `create_engine_file` | output TensorRT engine path |
-| gen_trt_engine | `results_dir` | `output_dir` | current job results directory |
 | inference | `encryption_key` | `key` | encryption key |
 | inference | `inference.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
 | inference | `inference.trt_engine` | `parent_model` | model file inferred from the parent job results folder |
