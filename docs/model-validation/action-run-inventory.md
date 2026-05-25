@@ -214,6 +214,7 @@ not yet reached a per-model validation report.
 - prune: unsupported/not advertised
 - quantize: pass
 - retrain/resume: pass
+- AutoML default train route: pass with Bayesian `automl_max_recommendations=2`
 - dataset convert: unsupported/not advertised
 
 ## mask2former
