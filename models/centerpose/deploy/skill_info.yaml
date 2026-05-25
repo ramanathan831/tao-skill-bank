@@ -1,7 +1,7 @@
 name: centerpose-deploy
 type: model
 network_arch: centerpose
-container_image: tao_toolkit.deploy
+container_image: nvcr.io/nvidia/tao/tao-toolkit:6.26.3-deploy
 data_format: default
 actions:
   gen_trt_engine:
@@ -26,7 +26,7 @@ actions:
       evaluate.trt_engine:
         type: file
       dataset.test_data:
-        type: file
+        type: folder
     outputs:
       results_dir:
         type: folder
@@ -39,7 +39,7 @@ actions:
       inference.trt_engine:
         type: file
       dataset.inference_data:
-        type: file
+        type: folder
     outputs:
       results_dir:
         type: folder

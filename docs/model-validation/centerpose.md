@@ -1,0 +1,94 @@
+# Model: centerpose
+
+## Supported actions tested
+
+- train: pass
+- eval: pass
+- inference: pass
+- export: pass
+- gen_trt_engine: pass
+- deploy evaluate: pass
+- deploy inference: pass
+- resume train: pass
+- prune: unsupported by this model skill
+- quantize: unsupported by this model skill
+- retrain: unsupported as a separate action by this model skill
+- dataset convert: unsupported by this model skill
+- other: not applicable
+
+## Dataset used
+
+- Source: `s3://nvcf-storage-handling/data/purpose_built_models_centerpose_train/train.tar.gz`, `s3://nvcf-storage-handling/data/purpose_built_models_centerpose_val/val.tar.gz`, `s3://nvcf-storage-handling/data/purpose_built_models_centerpose_test/test.tar.gz`
+- Local root: `/tmp/tao-model-validation/centerpose/data/extracted`
+- Notes: archives were extracted before local-docker execution. The data is a single-category `bike` CenterPose dataset with image/JSON pairs under `train/`, `val/`, and `test/`.
+- Any dataset compatibility issues: the dataset has one class, so `dataset.num_classes=1` and `dataset.category=bike` were used instead of the common `num_classes=6`.
+
+## Training result
+
+- Training completed: yes
+- Best checkpoint produced: no explicit best-checkpoint artifact was produced in this one-epoch validation run.
+- Best checkpoint path: not applicable; downstream actions used the exact epoch/step checkpoint.
+- Other checkpoints produced:
+  - `/tmp/tao-model-validation/centerpose/results/train/model_epoch_000_step_00008.pth`
+  - `/tmp/tao-model-validation/centerpose/results/train/centerpose_model_latest.pth` symlink to `model_epoch_000_step_00008.pth`
+  - `/tmp/tao-model-validation/centerpose/results/resume/model_epoch_001_step_00016.pth`
+
+## Checkpoint/action verification
+
+- Eval checkpoint used: `/workspace/results/train/model_epoch_000_step_00008.pth`
+- Inference checkpoint used: `/workspace/results/train/model_epoch_000_step_00008.pth`
+- Export checkpoint used: `/workspace/results/train/model_epoch_000_step_00008.pth`
+- Resume/retrain checkpoint used: `/workspace/results/train/model_epoch_000_step_00008.pth`
+- Deploy engine input used: `/workspace/results/export/centerpose.onnx`
+- Deploy evaluate/inference engine used: `/workspace/results/gen_trt_engine_626/centerpose.engine`
+- Were checkpoint paths selected through the proper resolver: yes for direct local-docker validation; the exact model-specific epoch/step checkpoint was selected instead of the latest symlink.
+- Any incorrect latest-checkpoint behavior found: no runtime action blindly selected latest. The skill docs needed explicit CenterPose checkpoint handoff guidance.
+
+## Issues found
+
+- Model skill issues:
+  - The prose examples pointed users at S3 tarballs, but local-docker CenterPose actions consume extracted folders.
+  - Parent `gen_trt_engine` metadata did not identify the deploy container or ONNX/engine artifacts.
+  - Deploy metadata used the generic 7.0 RC deploy alias, which built an engine but failed deploy evaluate/inference postprocessing.
+- Config issues:
+  - `gen_trt_engine.tensorrt.calibration.cal_image_dir` was a scalar in deploy templates/schema, but TAO Deploy expects a list.
+  - Deploy `dataset.test_data` and `dataset.inference_data` metadata were typed as files, but the working CenterPose deploy actions consume folders.
+- Dataset issues:
+  - No issue after extracting the tarballs and using `category=bike`.
+- Checkpoint issues:
+  - No unsupported checkpoint pattern was found. CenterPose produced `model_epoch_000_step_00008.pth` plus a latest symlink.
+- Docker/local execution issues:
+  - `nvcr.io/nvstaging/tao/tao-toolkit-deploy:7.0.0-rc-171-multiarch` failed deploy evaluate/inference with `TypeError: only 0-dimensional arrays can be converted to Python scalars`.
+  - `nvcr.io/nvidia/tao/tao-toolkit:6.26.3-deploy` passed engine generation, deploy evaluate, and deploy inference.
+- Fresh-install issues:
+  - AutoML was requested as `on`, but workflow skills were explicitly prohibited for this validation, so no AutoML workflow was run.
+
+## Fixes made
+
+- Documented extracted-folder inputs for CenterPose local-docker runs.
+- Added exact checkpoint handoff guidance for `model_epoch_*_step_*.pth` checkpoints and latest symlinks.
+- Pinned CenterPose deploy metadata to `nvcr.io/nvidia/tao/tao-toolkit:6.26.3-deploy`.
+- Added parent `gen_trt_engine` action-level deploy image and ONNX/engine inputs/outputs.
+- Changed deploy `dataset.test_data` and `dataset.inference_data` metadata from file to folder.
+- Changed deploy and parent gen_trt calibration image-dir defaults to lists.
+
+## Remaining issues
+
+- The 7.0 RC deploy alias remains incompatible with CenterPose deploy evaluate/inference for this exported ONNX; the model skill now routes CenterPose deploy actions to 6.26.3-deploy.
+- No explicit best checkpoint was produced by the one-epoch validation run.
+- Prune, quantize, retrain, and dataset convert are not declared CenterPose actions.
+
+## Files changed
+
+- `models/centerpose/SKILL.md`
+- `models/centerpose/deploy/SKILL.md`
+- `models/centerpose/deploy/skill_info.yaml`
+- `models/centerpose/references/skill_info.yaml`
+- `models/centerpose/references/spec_template_deploy_gen_trt_engine.yaml`
+- `models/centerpose/references/spec_template_gen_trt_engine.yaml`
+- `models/centerpose/schemas/gen_trt_engine.schema.json`
+- `docs/model-validation/centerpose.md`
+
+## Final status
+
+Fully validated for all actions declared by the CenterPose model skill and CenterPose deploy model skill on `local-docker`.

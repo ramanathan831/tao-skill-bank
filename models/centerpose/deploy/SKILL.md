@@ -73,6 +73,12 @@ Deploy action metadata is in `skill_info.yaml`. Deploy spec templates live in th
 
 Direct TAO Launcher spelling is `tao deploy centerpose gen_trt_engine`, `tao deploy centerpose evaluate`, `tao deploy centerpose inference`.
 
+Use `nvcr.io/nvidia/tao/tao-toolkit:6.26.3-deploy` for CenterPose deploy
+validation. The current 7.0 RC deploy alias can build a CenterPose engine, but
+its deployed evaluate/inference postprocessor fails on the exported `scores`
+shape with `TypeError: only 0-dimensional arrays can be converted to Python
+scalars`.
+
 ## Required Inputs
 
 | Action | Required artifact or data | Spec key |
@@ -133,3 +139,7 @@ Model-specific notes:
 **INT8 calibration missing:** INT8 builds need an extracted calibration image directory, a writable cache path, and enough images for `cal_batch_size * cal_batches`.
 
 **Mounted paths do not exist:** TAO Deploy checks local paths inside the container. Make sure every path in the spec has a matching Docker mount or job artifact mapping.
+
+**Calibration image dir type:** `gen_trt_engine.tensorrt.calibration.cal_image_dir`
+must be a list of directories, even for FP32 builds where calibration is not
+semantically used.

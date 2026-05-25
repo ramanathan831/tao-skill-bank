@@ -52,8 +52,11 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
 
 ```python
-S3_TRAIN = "s3://bucket/data/train"
-S3_EVAL = "s3://bucket/data/eval"
+TRAIN_DIR = "/path/to/extracted/train"
+VAL_DIR = "/path/to/extracted/val"
+TEST_DIR = "/path/to/extracted/test"
+INFER_DIR = VAL_DIR
+CAL_IMAGE_DIRS = ["/path/to/extracted/train/<sequence_or_image_dir>"]
 ```
 
 **train (mandatory data sources):**
@@ -65,8 +68,8 @@ S3_EVAL = "s3://bucket/data/eval"
     "train.num_gpus": 1,
     "dataset.category": "bike",
     "dataset.batch_size": 4,
-    "dataset.train_data": f"{S3_TRAIN}/train.tar.gz",
-    "dataset.val_data": f"{S3_EVAL}/val.tar.gz",
+    "dataset.train_data": TRAIN_DIR,
+    "dataset.val_data": VAL_DIR,
 }
 ```
 
@@ -74,7 +77,7 @@ S3_EVAL = "s3://bucket/data/eval"
 ```python
 {
     "dataset.category": "bike",
-    "dataset.test_data": f"{S3_EVAL}/test.tar.gz",
+    "dataset.test_data": TEST_DIR,
 }
 ```
 
@@ -82,14 +85,14 @@ S3_EVAL = "s3://bucket/data/eval"
 ```python
 {
     "dataset.category": "bike",
-    "dataset.inference_data": f"{S3_EVAL}/val.tar.gz",
+    "dataset.inference_data": INFER_DIR,
 }
 ```
 
 **gen_trt_engine (mandatory data sources):**
 ```python
 {
-    "gen_trt_engine.tensorrt.calibration.cal_image_dir": [f"{S3_TRAIN}/train.tar.gz"],
+    "gen_trt_engine.tensorrt.calibration.cal_image_dir": CAL_IMAGE_DIRS,
 }
 ```
 ## Eval Dataset
@@ -134,6 +137,23 @@ Minimum 1 GPU(s), recommended 2 GPU(s). 16GB+ VRAM per GPU. CenterPose is modera
 ## Error Patterns
 
 **num_joints mismatch**: Ensure dataset.num_joints matches the keypoint count in your annotations.
+
+**Extract S3 tarballs for local Docker**: The starter-kit S3 data is packaged as
+`train.tar.gz`, `val.tar.gz`, and `test.tar.gz`, but the CenterPose TAO actions
+consume extracted folders. Extract each archive and set `dataset.train_data`,
+`dataset.val_data`, `dataset.test_data`, and `dataset.inference_data` to the
+extracted split directories.
+
+**Checkpoint handoff**: CenterPose training writes concrete checkpoints such as
+`model_epoch_000_step_00008.pth` and a `centerpose_model_latest.pth` symlink.
+Use the SDK/model checkpoint resolver or the exact epoch/step checkpoint for
+evaluate, inference, export, and resume. Use the symlink only when the user
+explicitly asks for latest.
+
+**TAO Deploy image**: CenterPose TensorRT actions should use
+`nvcr.io/nvidia/tao/tao-toolkit:6.26.3-deploy`. The current 7.0 RC deploy alias
+builds an engine but fails deploy evaluate/inference in postprocessing with
+`TypeError: only 0-dimensional arrays can be converted to Python scalars`.
 
 ## Spec Param / Parent Model Inference
 
