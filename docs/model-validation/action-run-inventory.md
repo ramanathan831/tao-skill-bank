@@ -307,9 +307,9 @@ those rebuilt tags before being counted as pass.
 - export: pass with explicit non-existing `export.onnx_file` at default 640x640 shape
 - quantize: pass with best AutoML checkpoint after preserving parent AutoML job path
 - retrain/resume: pass from the selected best AutoML checkpoint
-- deploy gen_trt_engine: fail in the original default image because the common deploy builder treated 2D `task_tokens` as BCHW; fixed in rebuilt deploy image `nvcr.io/nvstaging/tao/tao-toolkit-deploy:validation-fixes-20260525`, full rerun pending
-- deploy evaluate: blocked in the original default image because no TensorRT engine was produced; full rerun pending after deploy builder fix
-- deploy inference: blocked in the original default image because no TensorRT engine was produced; full rerun pending after deploy builder fix
+- deploy gen_trt_engine: pass in rebuilt deploy image `nvcr.io/nvstaging/tao/tao-toolkit-deploy:validation-fixes-20260525`; source-fixed rerun parsed 2D `task_tokens` as `(1, 77)` and generated `oneformer_640.engine`
+- deploy evaluate: pass in rebuilt deploy image; source-fixed rerun processed the two-image validation subset and reported metrics
+- deploy inference: pass in rebuilt deploy image; source-fixed rerun processed 15/15 validation images through the TensorRT engine
 - prune: unsupported by the packaged OneFormer PyT CLI
 - dataset convert: unsupported by the packaged OneFormer PyT CLI
 
