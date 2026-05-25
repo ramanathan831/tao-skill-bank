@@ -279,7 +279,7 @@ those rebuilt tags before being counted as pass.
 - deploy/inference on TensorRT engine: pass
 - deploy/evaluate: pass
 - prune: pass
-- quantize: fail in the original default image due missing `dm`/`task` constructor context and missing ModelOpt ONNX extras; fixed in rebuilt PyT image `nvcr.io/nvstaging/tao/tao-toolkit-pyt:validation-fixes-20260525`, full rerun pending
+- quantize: pass in rebuilt PyT image `nvcr.io/nvstaging/tao/tao-toolkit-pyt:validation-fixes-20260525`; rerun used full resolver-selected `model_epoch_000_step_00006.pth` instead of `model_best.pth` and wrote `quantized_model_torchao.pth`
 - resume training through `train.resume_training_checkpoint_path`: pass
 - AutoML default train route: pass with Bayesian `automl_max_recommendations=2`
 - retrain: unsupported as a standalone PyT action
