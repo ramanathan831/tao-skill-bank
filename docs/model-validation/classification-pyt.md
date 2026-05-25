@@ -15,6 +15,7 @@
 - prune: unsupported by this model skill
 - retrain: unsupported as a separate action by this model skill; resume train was tested
 - dataset convert: unsupported by this model skill
+- AutoML default train route: pass with Bayesian `automl_max_recommendations=2`
 - other: not applicable
 
 ## Dataset used
@@ -34,6 +35,20 @@
   - `/tmp/tao-model-validation/classification-pyt/results/train/classifier_model_latest.pth` symlink to `model_epoch_000.pth`
   - `/tmp/tao-model-validation/classification-pyt/results/resume/model_epoch_001.pth`
   - `/tmp/tao-model-validation/classification-pyt/results/distill/model_epoch_000.pth`
+
+## AutoML default-path rerun
+
+- Training mode before rerun: normal/direct TAO model training. This happened because the earlier validation explicitly prohibited workflow/AutoML routing.
+- Secrets source: `~/.tao/secrets.env`, sourced without printing values. `ACCESS_KEY`, `SECRET_KEY`, `NGC_KEY`, and `HF_TOKEN` were passed through the local run environment.
+- AutoML route: `AutoMLRunner` with `skill_dir=/localhome/local-rarunachalam/tao-skills-external/models/classification-pyt`, `platform=local-docker`, default PyT image, `algorithm=bayesian`, `metric=val_acc_1`, `direction=maximize`, and `automl_max_recommendations=2`.
+- Search parameters: minimal validation subset `train.optim.lr` and `dataset.batch_size`; the broader generated schema has 25 AutoML-enabled parameters. The minimal validation ranges were `lr=0.00001..0.0001` and `batch_size=2..4`.
+- Result: pass. Two real Docker TAO child jobs completed and emitted `val_acc_1` in `status.json`.
+- Rec 0: job `38b31e9f-b453-45da-bf8a-6b3e599e3d18`, `dataset.batch_size=3`, `train.optim.lr=0.00003587298602236866`, `val_acc_1=0.067`.
+- Rec 1: job `0ea445b3-e283-4675-9631-da874d55de9c`, `dataset.batch_size=3`, `train.optim.lr=0.00006458158014235467`, `val_acc_1=0.083`; selected as best by the runner.
+- AutoML checkpoints produced:
+  - `/tmp/tao-automl-validation/classification-pyt/results/automl_train/38b31e9f-b453-45da-bf8a-6b3e599e3d18/results_dir/train/model_epoch_000.pth`
+  - `/tmp/tao-automl-validation/classification-pyt/results/automl_train/0ea445b3-e283-4675-9631-da874d55de9c/results_dir/train/model_epoch_000.pth`
+- Generated specs contained dataset paths and hyperparameters only; no credentials were written to the generated specs.
 
 ## Checkpoint/action verification
 
@@ -63,7 +78,7 @@
 - Docker/local execution issues:
   - TAO Deploy 7.0 RC actions passed after using batch 1 for evaluate. The deploy entrypoint logged a telemetry warning after successful commands.
 - Fresh-install issues:
-  - AutoML was requested as `on`, but workflow skills were explicitly prohibited for this validation, so no AutoML workflow was run.
+  - none after the AutoML default-path rerun used the local checkout with the Docker/runtime dependencies installed.
 
 ## Fixes made
 
@@ -73,12 +88,12 @@
 - Changed deploy evaluate default batch size from 8 to 1.
 - Changed distill template/schema default `train.optim.policy` from `linear` to `step`.
 - Updated deploy notes to call out batch-1 runtime requirements for both TensorRT inference and evaluation.
+- Reran the train path through AutoML with a two-recommendation Bayesian configuration.
 
 ## Remaining issues
 
 - No explicit best checkpoint was produced by the one-epoch validation run.
 - TAO Deploy logs a non-fatal telemetry warning after successful deploy commands.
-- AutoML routing was not exercised because workflow skills were disallowed by the validation request.
 - Prune, dataset convert, and a separate retrain action are not declared Classification PyT actions.
 
 ## Files changed
@@ -94,4 +109,4 @@
 
 ## Final status
 
-Fully validated for all actions declared by the Classification PyT model skill and Classification PyT deploy model skill on `local-docker`.
+Fully validated for all actions declared by the Classification PyT model skill and Classification PyT deploy model skill on `local-docker`, plus the AutoML default train route with two Bayesian recommendations.
