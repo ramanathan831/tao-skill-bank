@@ -187,6 +187,7 @@ not yet reached a per-model validation report.
 - quantize: unsupported/not advertised
 - prune: unsupported/not advertised
 - retrain/resume: pass
+- AutoML default train route: pass with Bayesian `automl_max_recommendations=2`
 - dataset convert: unsupported/not advertised
 
 ## mal

@@ -10,6 +10,7 @@ Supported actions tested:
 - quantize: unsupported/not advertised by the MAE model skill
 - prune: unsupported/not advertised by the MAE model skill
 - retrain/resume: pass through train.resume_training_checkpoint_path
+- AutoML default train route: pass with Bayesian automl_max_recommendations=2
 - dataset convert: unsupported/not advertised by the MAE model skill
 - parent gen_trt_engine: fail; not supported by the PyTorch CLI and removed from parent model metadata
 
@@ -25,6 +26,19 @@ Training result:
 - Best checkpoint produced: no separate best checkpoint artifact; the one-epoch run produced an epoch/step checkpoint.
 - Best checkpoint path: /tmp/tao-model-validation/mae/results/train/train/model_epoch_000_step_00099.pth
 - Other checkpoints produced: /tmp/tao-model-validation/mae/results/resume/train/model_epoch_001_step_00198.pth; convnextv2_atto_latest.pth symlinks were produced but not used for checkpoint-dependent actions.
+
+AutoML default training rerun:
+- Default direct model training used AutoML after the default policy was corrected to automl_policy=on.
+- Source: s3://nvcf-storage-handling/data/classification_train/images_train.tar.gz
+- Source: s3://nvcf-storage-handling/data/classification_val/images_val.tar.gz
+- Algorithm: bayesian
+- Recommendations requested: 2
+- Metric: train_loss, minimize
+- Tuned parameters: train.optim.lr, train.optim.weight_decay
+- Recommendation 0: job dc93dcd7-5efb-4e54-8454-2c7a0c97266d, train_loss 2.997810125350952, checkpoint /tmp/tao-automl-validation/mae/results/dc93dcd7-5efb-4e54-8454-2c7a0c97266d/results_dir/train/model_epoch_000_step_00049.pth
+- Recommendation 1: job 5b7e6712-5dd8-4017-86c1-ecd6b86595fe, train_loss 3.0066092014312744, checkpoint /tmp/tao-automl-validation/mae/results/5b7e6712-5dd8-4017-86c1-ecd6b86595fe/results_dir/train/model_epoch_000_step_00049.pth
+- Best recommendation: rec 0, selected by the AutoML controller summary
+- Generated spec verification: both recommendations used the real S3 ImageFolder archives after SDK extraction, train.stage=finetune, model.arch=convnextv2_atto, model.num_classes=20, dataset.batch_size=8, and distinct Bayesian learning-rate/weight-decay values within the requested ranges.
 
 Checkpoint/action verification:
 - Eval checkpoint used: /tmp/tao-model-validation/mae/results/train/train/model_epoch_000_step_00099.pth
@@ -58,6 +72,7 @@ Fixes made:
 - Added evaluate, export, and inference checkpoint resolver mappings to skill_info.yaml.
 - Removed invalid dataset.segment from the MAE deploy gen_trt_engine template.
 - Documented that inference requires a finetune checkpoint and that exact epoch/step checkpoints should be selected instead of latest symlinks.
+- No additional MAE model skill code change was needed for the AutoML default rerun.
 
 Remaining issues:
 - None for the supported parent actions after the metadata fixes. The finetune path is deprecated by the container but still functional.
@@ -69,6 +84,7 @@ Files changed:
 - models/mae/schemas/manifest.json
 - models/schemas.manifest.json
 - docs/model-validation/mae.md
+- docs/model-validation/action-run-inventory.md
 
 Final status:
-- Fully validated for supported parent actions and deploy gen_trt_engine on local-docker with image=default.
+- Fully validated for supported parent actions, AutoML default train, and deploy gen_trt_engine on local-docker with image=default.
