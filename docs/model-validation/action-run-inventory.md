@@ -149,6 +149,7 @@ not yet reached a per-model validation report.
 
 ## dino
 - train: pass
+- AutoML default train route: pass with Bayesian `automl_max_recommendations=2`
 - eval/evaluate: pass
 - inference: pass
 - export: pass
