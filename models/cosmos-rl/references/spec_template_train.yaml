@@ -90,6 +90,9 @@ custom:
   train_dataset:
     annotation_path: data/sft/annotations.json
     media_path: data/sft/train2017
+  val_dataset:
+    annotation_path: data/sft/annotations.json
+    media_path: data/sft/train2017
   vision:
     nframes: 8
   system_prompt: ''

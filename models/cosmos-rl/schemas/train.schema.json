@@ -37,6 +37,10 @@
         "annotation_path": "data/sft/annotations.json",
         "media_path": "data/sft/train2017"
       },
+      "val_dataset": {
+        "annotation_path": "data/sft/annotations.json",
+        "media_path": "data/sft/train2017"
+      },
       "vision": {
         "nframes": 8
       }
@@ -210,7 +214,25 @@
         },
         "val_dataset": {
           "automl_enabled": false,
+          "default": {
+            "annotation_path": "data/sft/annotations.json",
+            "media_path": "data/sft/train2017"
+          },
           "description": "Validation dataset config (optional).",
+          "properties": {
+            "annotation_path": {
+              "default": "data/sft/annotations.json",
+              "description": "Path to the validation annotation file",
+              "title": "Validation annotation path",
+              "type": "string"
+            },
+            "media_path": {
+              "default": "data/sft/train2017",
+              "description": "Path to the validation media directory",
+              "title": "Validation media directory path",
+              "type": "string"
+            }
+          },
           "type": "collection"
         },
         "vision": {

@@ -184,11 +184,9 @@ EVAL_DATASET_URI = "s3://bucket/data/eval"
 ```
 
 `custom.val_dataset.annotation_path` and `custom.val_dataset.media_path` are
-valid train schema fields even when `defaults-train.json` does not pre-create
-`custom.val_dataset`. Strict validators must check the packaged train schema or
-seed the parent `custom.val_dataset` object before applying leaf overrides. Do
-not reject those keys as typos just because they are absent from the default
-spec object.
+valid train schema fields and are seeded in the packaged train template. Strict
+validators must preserve those keys so AutoML can optimize against an explicit
+validation set instead of silently falling back to training-only data.
 
 **evaluate (mandatory data sources):**
 ```python

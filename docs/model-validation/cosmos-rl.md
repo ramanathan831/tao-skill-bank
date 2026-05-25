@@ -2,11 +2,10 @@ Model: cosmos-rl
 
 Validated on 2026-05-25 with `platform=local-docker`, `image=default`
 resolved to `nvcr.io/nvstaging/tao/cosmos_rl:7.0.0-rc-176-multiarch`.
-The user requested model-skill validation only, so AutoML/workflow skills were
-not run even though the model metadata declares AutoML support.
 
 Supported actions tested:
 - train: pass
+- AutoML default train route: pass with Bayesian `automl_max_recommendations=2`
 - eval: pass with exact trained LoRA folder
 - inference: unsupported; not declared in `references/skill_info.yaml` or `schemas/manifest.json`
 - export: unsupported
@@ -19,6 +18,7 @@ Supported actions tested:
 
 Dataset used:
 - Source: `s3://nvcf-storage-handling/data/cosmos_rl_wts_train_subset/`
+- Eval source: `s3://nvcf-storage-handling/data/cosmos_rl_wts_val_subset/`
 - Files: `annotations_video_fps_30.json` and `videos.tar.gz`
 - Notes: the archive was extracted locally. The annotations store video paths
   relative to the archive's `videos/` directory, so local Docker specs used the
@@ -43,6 +43,14 @@ Training result:
   `/tmp/tao-model-validation/cosmos-rl/results/resume_exact/20260525024808/safetensors/epoch_2`
   and
   `/tmp/tao-model-validation/cosmos-rl/results/resume_exact/20260525024808/checkpoints/epoch_2/policy`
+
+AutoML default train route:
+- Rerun completed: yes, through `AutoMLRunner` + `DockerSDK` on local Docker.
+- Algorithm/config: Bayesian, `automl_max_recommendations=2`, metric `val/avg_loss`, direction minimize, 1 epoch, 8 train records, 4 validation records, one GPU.
+- Search parameters/ranges: `train.optm_lr` constrained to `5e-7..2e-6` and `policy.lora.lora_dropout` constrained to `0.0..0.02`.
+- Recommendation 0: job `f69d57c9-ac3e-416c-a3f2-a45ca37008fb`, `train.optm_lr=1.1157898708340944e-06`, `policy.lora.lora_dropout=0.01559456423653458`, `val/avg_loss=12.780737400054932`, checkpoints under `/tmp/tao-automl-validation/cosmos-rl/results/f69d57c9-ac3e-416c-a3f2-a45ca37008fb/train_output_dir/20260525085453/{safetensors,checkpoints}/epoch_1`.
+- Recommendation 1: job `1ea439a1-99eb-4a29-a06f-c666fe6c99b2`, `train.optm_lr=1.9857283768336603e-06`, `policy.lora.lora_dropout=1e-07`, `val/avg_loss=12.763819217681885`, checkpoints under `/tmp/tao-automl-validation/cosmos-rl/results/1ea439a1-99eb-4a29-a06f-c666fe6c99b2/train_output_dir/20260525085854/{safetensors,checkpoints}/epoch_1`.
+- Best recommendation: rec 1 / job `1ea439a1-99eb-4a29-a06f-c666fe6c99b2`.
 
 Checkpoint/action verification:
 - Eval checkpoint used: `/tao-workspace/results/train/20260525024058/safetensors/epoch_1`
@@ -69,6 +77,7 @@ Issues found:
 - Config issues:
   - Direct container training should use the bare HuggingFace id or a local HF snapshot path. `hf_model://...` is only appropriate for SDK/platform predownload paths.
   - For the WTS archive, the usable media root is the extracted `videos/` directory, not the parent extraction directory.
+  - The packaged train schema listed `custom.val_dataset` as an empty collection, so AutoML runner key validation rejected `custom.val_dataset.annotation_path` and `custom.val_dataset.media_path` even though the model skill requires them for validation-backed AutoML.
 - Dataset issues:
   - `cosmos_rl_its_subset` is incompatible until `video_fps` is added to every annotation record.
 - Checkpoint issues:
@@ -89,6 +98,7 @@ Fixes made:
 - Clarified direct Docker model path handling versus SDK `hf_model://` predownload handling.
 - Added model-specific checkpoint resolver guidance for broken `best/step_*` symlinks, exact `safetensors/epoch_N` evaluation, and exact `checkpoints/epoch_N/policy` resume.
 - Updated the train schema so `train.resume` may be a bool or an exact checkpoint string.
+- Added `custom.val_dataset.annotation_path` and `custom.val_dataset.media_path` to the packaged train schema/template so AutoML train can accept explicit validation data.
 
 Remaining issues:
 - The current container still creates broken `best` symlinks for epoch-based saves; the model skill now documents the required resolver behavior.
@@ -98,7 +108,8 @@ Remaining issues:
 Files changed:
 - `models/cosmos-rl/SKILL.md`
 - `models/cosmos-rl/schemas/train.schema.json`
+- `models/cosmos-rl/references/spec_template_train.yaml`
 - `docs/model-validation/cosmos-rl.md`
 
 Final status:
-- Fully validated for all actions declared by the Cosmos-RL model skill on `local-docker`: train, evaluate, and checkpoint-dependent resume.
+- Fully validated for all actions declared by the Cosmos-RL model skill on `local-docker`: train, default AutoML train routing with two Bayesian recommendations, evaluate, and checkpoint-dependent resume.

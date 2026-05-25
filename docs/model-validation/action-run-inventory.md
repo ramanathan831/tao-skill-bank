@@ -88,6 +88,7 @@ not yet reached a per-model validation report.
 
 ## cosmos-rl
 - train: pass
+- AutoML default train route: pass with Bayesian `automl_max_recommendations=2`
 - eval: pass with exact trained LoRA folder
 - inference: unsupported; not declared in metadata
 - export: unsupported
