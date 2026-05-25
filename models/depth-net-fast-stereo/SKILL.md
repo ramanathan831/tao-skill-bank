@@ -31,7 +31,12 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 
 ## Two Use Cases
 
-FFS ships with a pre-trained bp2 commercial checkpoint (`model_best_bp2_serialize.pth`).
+FFS raw-deploy and bp2-finetune flows require a pre-trained bp2 commercial
+checkpoint (`model_best_bp2_serialize.pth`). The default PyT image does not
+guarantee that this file is present on disk, so treat the checkpoint path as a
+required user/registry artifact. If no bp2 checkpoint is available, scratch
+training is still usable for workflow validation, but the resulting metrics are
+not representative of the bp2 model.
 
 1. **Raw deploy** — use the bp2 ckpt as-is. Skip `train`; run `inference` / `evaluate` / `export` / `gen_trt_engine` directly with the bp2 file as the action's checkpoint.
 2. **Finetune on user data** — set `train.pretrained_model_path` to the bp2 file, train on user data, then verify + deploy on the resulting ckpt. The full 7-action sequence (train → evaluate pyt → inference pyt → export → gen_trt_engine → inference deploy → evaluate deploy) is supported.
@@ -126,7 +131,16 @@ Copy the action block from **Typical Spec Overrides**. Replace:
 - For raw deploy use cases (no train): set `<action>.checkpoint` to the bp2 file path
 - For finetune use cases: set `train.pretrained_model_path` to the bp2 file path
 
-**Chained train → next action checkpoint path**: For local Docker chaining (no SDK runner), the trained checkpoint lives at `<train.results_dir>/<task>/dn_model_latest.pth` — Lightning `ModelCheckpoint` nests under the task name. Example: `train.results_dir: /workspace/results/finetune/train` produces `/workspace/results/finetune/train/train/dn_model_latest.pth`. Use that nested path for the next action's `<action>.checkpoint`. SDK-runner deploys resolve this automatically via `parent_job_id` — see "Spec Param / Parent Model Inference" below.
+**Chained train → next action checkpoint path**: For local Docker chaining (no
+SDK runner), Lightning `ModelCheckpoint` nests under the task name. Example:
+`train.results_dir: /workspace/results/finetune/train` produces checkpoints
+under `/workspace/results/finetune/train/train/`. The exact checkpoint pattern is
+`model_epoch_<epoch>_step_<step>.pth`, plus a `dn_model_latest.pth` symlink. Use
+the model-specific or SDK-provided checkpoint resolver to select the intended
+exact epoch/step checkpoint for `evaluate`, `inference`, `export`, resume, and
+deploy handoff. Use `dn_model_latest.pth` only when the user explicitly asks for
+latest. SDK-runner deploys resolve this automatically via `parent_job_id` — see
+"Spec Param / Parent Model Inference" below.
 
 Shape consistency: `crop_size` in `dataset.test_dataset.augmentation.crop_size` should match `export.input_height` / `input_width` for end-to-end pyt-vs-deploy comparability — see `deploy/SKILL.md`'s shape table.
 
