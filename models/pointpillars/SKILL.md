@@ -23,6 +23,8 @@ Typically trained from scratch. Provide train.resume_training_checkpoint_path to
 
 For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference`), read `deploy/SKILL.md` first. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
 
+The packaged PyTorch PointPillars CLI supports `dataset_convert`, `train`, `evaluate`, `inference`, `export`, and `prune`. It does not expose a parent-model `gen_trt_engine` action; TensorRT engine generation is deploy-only. It also does not expose a separate `retrain` subcommand. Retraining from a pruned model uses `pointpillars train -e ...` with `train.pruned_model_path` populated.
+
 ## Dataclass Schemas
 
 Generated TAO Core schemas are packaged in `schemas/<action>.schema.json`, with `schemas/manifest.json` listing available actions. Each generated schema also emits `references/spec_template_<action>.yaml` from the schema top-level `default` field. AutoML enablement is declared at the model layer in `references/skill_info.yaml` via `automl_enabled`. Runnable AutoML still requires `schemas/train.schema.json` and `references/spec_template_train.yaml` to exist and parse. Use the packaged train schema for `automl_default_parameters`, `automl_disabled_parameters`, defaults, min/max bounds, enums, option weights, math conditions, dependencies, and popular parameters. Do not expect `~/tao-core` at runtime; maintainers regenerate schemas/templates before packaging the skill bank.
@@ -118,7 +120,7 @@ DATA_INFO = "/results/{dataset_convert_job_id}/results_dir/data_info"
 }
 ```
 
-For local Docker, `DATA_INFO` must be visible inside every train/evaluate/export container. Use the dataset_convert job from the same results root, or mount/copy the converted `results_dir/data_info` folder into the current run and set `dataset.data_info_path` to that mounted container path. Do not reuse a `/results/<job_id>/...` path from another run root unless that folder is mounted into the current job.
+For local Docker, `DATA_INFO` must be visible inside every train/evaluate/export/prune/retrain container. Use the dataset_convert job from the same results root, or mount/copy the converted `results_dir/data_info` folder into the current run and set `dataset.data_info_path` to that mounted container path. If the host scratch root is mounted at `/results` and the conversion artifacts live under host `scratch/results/<job_id>/results_dir/data_info`, the direct-job container path is `/results/results/<job_id>/results_dir/data_info`. Do not reuse a `/results/<job_id>/...` path from another run root unless that folder is mounted into the current job.
 
 For AutoML train workflows, perform this as a launch preflight before calling `AutoMLRunner.run`: create or materialize the `dataset_convert` output under the current run's `RESULTS_ROOT`, set `dataset.data_info_path` to that current-run container path, and verify `dbinfos_train.pkl`, `infos_train.pkl`, and `infos_val.pkl` are present from the train container's point of view. If a runner is cloned or adapted from a prior AutoML algorithm, update the conversion artifact in the new run root; a stale `CONVERT_JOB_ID` from another results mount is not valid.
 ## Eval Dataset
@@ -171,6 +173,12 @@ Minimum 1 GPU(s), recommended 4 GPU(s). 16GB+ (V100 or A100) VRAM per GPU. Point
 
 **Epoch numbering**: PointPillars checkpoint epoch numbers may be offset by 1 from status.json reported epochs.
 
+**Checkpoint selection**: PointPillars training emits checkpoints named like `checkpoint_epoch_1.pth`. For evaluation, inference, export, prune, and resume, select the intended checkpoint through the model/job checkpoint resolver and pass that exact file to `evaluate.checkpoint`, `inference.checkpoint`, `export.checkpoint`, `prune.model`, or `train.resume_training_checkpoint_path`. Do not guess by taking the newest `model.pth`; this model does not use that filename.
+
+**Prune/retrain key**: PointPillars prune writes an encrypted `.tlt` artifact. Keep a non-empty `key` in the prune and retrain specs; the packaged templates use the TAO default `tlt_encode`. If `key` is omitted or `null`, the toolkit can still exit with a container success code while logging a passphrase error and creating an empty `pruned_0.1.tlt`. Always verify the pruned model is nonzero before using it for retrain.
+
+**Status files matter**: Some PointPillars failures can be followed by `Execution status: PASS` in the entrypoint footer and a Docker exit code of 0. Check `results_dir/status.json` and the expected artifact before marking an action as passed.
+
 ## Spec Param / Parent Model Inference
 
 Model-specific inference mappings belong in this MD file, not in `config.json`. Generated runners should read this section and apply the mappings with SDK helpers before `create_job()`. This mirrors the old microservices `infer_params.py` flow.
@@ -188,10 +196,6 @@ Inference mappings from TAO Core `pointpillars.config.json`:
 | export | `export.save_engine` | `create_engine_file` | output TensorRT engine path |
 | export | `key` | `key` | encryption key |
 | export | `results_dir` | `output_dir` | current job results directory |
-| gen_trt_engine | `gen_trt_engine.onnx_file` | `parent_model` | model file inferred from the parent job results folder |
-| gen_trt_engine | `gen_trt_engine.save_engine` | `create_engine_file` | output TensorRT engine path |
-| gen_trt_engine | `key` | `key` | encryption key |
-| gen_trt_engine | `results_dir` | `output_dir` | current job results directory |
 | inference | `inference.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
 | inference | `inference.trt_engine` | `parent_model` | model file inferred from the parent job results folder |
 | inference | `key` | `key` | encryption key |

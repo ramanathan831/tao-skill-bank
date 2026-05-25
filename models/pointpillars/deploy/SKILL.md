@@ -89,6 +89,8 @@ Direct TAO Launcher spelling is `tao deploy pointpillars gen_trt_engine`, `tao d
 
 For direct Docker runs, mount input folders at the same paths used in the spec. For chained jobs, map exported ONNX artifacts into `gen_trt_engine.onnx_file` and map the engine artifact into `evaluate.trt_engine` or `inference.trt_engine` where those actions are available.
 
+`gen_trt_engine.save_engine` must be a writable file path in the spec, but it should not be declared as a file input or pre-created by the skill runner. TAO Deploy creates the engine file at that path. If the runner creates the path as a directory first, engine generation fails or writes to the wrong location.
+
 ## Spec Overrides
 
 Carry structural model and dataset settings forward from the train/export spec. The deploy defaults are templates, not a substitute for the model-specific values used to produce the ONNX file.
@@ -109,6 +111,7 @@ Model-specific notes:
 - PointPillars deploy uses `gen_trt_engine.save_engine` for the engine output path, not `gen_trt_engine.trt_engine`.
 - PointPillars TensorRT engine generation supports FP32 and FP16; INT8 is rejected by the deploy script.
 - Keep class names, point cloud range, voxel settings, and post-processing config aligned with the exported model.
+- `dataset.data_info_path` is the folder produced by the parent `dataset_convert` action. It must be mounted into the deploy container at the exact path used in the spec.
 
 ## Job Chain Mapping
 

@@ -326,7 +326,19 @@ not yet reached a per-model validation report.
 - parent PyT gen_trt_engine: unsupported by the real PyT CLI; TensorRT is deploy-only
 
 ## pointpillars
-- not run yet in this validation branch
+- dataset convert: pass
+- train: pass, default model invocation routed through AutoML with two Bayesian recommendations
+- evaluate: pass with resolver-selected `checkpoint_epoch_1.pth`
+- inference: pass with resolver-selected `checkpoint_epoch_1.pth`
+- export: pass with resolver-selected `checkpoint_epoch_1.pth`
+- prune: pass after adding a non-empty prune key and verifying nonzero `pruned_0.1.tlt`
+- retrain: pass through `pointpillars train -e` with `train.pruned_model_path`
+- resume training: pass from the resolver-selected epoch-1 checkpoint and produced `checkpoint_epoch_2.pth`
+- deploy gen_trt_engine: pass after removing pre-created engine output metadata
+- deploy evaluate on TensorRT engine: pass
+- deploy inference on TensorRT engine: pass
+- quantize: unsupported/not advertised
+- parent PyT gen_trt_engine: unsupported by the real PyT CLI; TensorRT is deploy-only
 
 ## pose-classification
 - not run yet in this validation branch
