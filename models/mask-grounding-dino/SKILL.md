@@ -41,7 +41,7 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 | Action | Spec Key | Source | Files | List? |
 |---|---|---|---|---|
 | evaluate | dataset.test_data_sources | eval_dataset | image_dir: images.tar.gz, json_file: annotations.json | No |
-| inference | dataset.infer_data_sources | inference_dataset | image_dir: images.tar.gz, classmap: label_map.txt, json_file: inference.jsonl, captions: inference.jsonl | No |
+| inference | dataset.infer_data_sources | inference_dataset | image_dir: images.tar.gz, captions: text prompts | No |
 | quantize | dataset.train_data_sources | train_datasets | image_dir: images.tar.gz, json_file: annotations_odvg.jsonl, label_map: annotations_odvg_labelmap.json | Yes |
 | quantize | dataset.val_data_sources | eval_dataset | image_dir: images.tar.gz, json_file: annotations.json | No |
 | quantize | dataset.quant_calibration_data_sources | train_datasets | image_dir: images.tar.gz, json_file: annotations_odvg.jsonl, label_map: annotations_odvg_labelmap.json | No |
@@ -85,7 +85,7 @@ S3_EVAL = "s3://bucket/data/eval"
 {
     "inference.checkpoint": "<selected train/AutoML checkpoint>",
     "dataset.infer_data_sources.data_type": "OD",
-    "dataset.infer_data_sources": {"image_dir": f"{S3_EVAL}/images.tar.gz", "classmap": f"{S3_EVAL}/label_map.txt", "json_file": f"{S3_EVAL}/inference.jsonl", "captions": f"{S3_EVAL}/inference.jsonl"},
+    "dataset.infer_data_sources": {"image_dir": f"{S3_EVAL}/images.tar.gz", "captions": ["person", "bicycle", "car"]},
 }
 ```
 
@@ -141,6 +141,10 @@ Minimum 1 GPU(s), recommended 4 GPU(s). 24GB+ (A100 recommended) VRAM per GPU. H
 
 **CUDA out of memory**: Reduce batch_size. Mask prediction adds overhead on top of Grounding DINO.
 
+**Deploy schema error for `test_threshold`**: TAO Deploy uses
+`evaluate.text_threshold` and `inference.text_threshold`. Do not use
+`test_threshold` in deploy specs.
+
 ## Spec Param / Parent Model Inference
 
 Model-specific inference mappings belong in this MD file, not in `config.json`. Generated runners should read this section and apply the mappings with SDK helpers before `create_job()`. This mirrors the old microservices `infer_params.py` flow.
@@ -175,3 +179,11 @@ Inference mappings from TAO Core `mask_grounding_dino.config.json`:
 | train | `train.resume_training_checkpoint_path` | `resume_model` | model file inferred from the current job results folder |
 
 For `parent_model` or `parent_model_folder`, pass the upstream train/export/AutoML child job id as `parent_job_id`. The SDK lists the parent result folder, filters checkpoint artifacts, and returns the selected model file or folder. Do not add these mappings back to `config.json` and do not patch generated runner scripts to guess checkpoint paths.
+
+When selecting a Mask Grounding DINO checkpoint outside the SDK resolver, match
+the intended epoch/step artifact exactly, for example
+`model_epoch_000_step_00049.pth`. The `mask_gdino_model_latest.pth` symlink is
+valid only when latest is explicitly requested. The parent PyTorch
+`mask_grounding_dino` CLI supports `train`, `evaluate`, `inference`, `export`,
+and `quantize`; run TensorRT engine generation, TensorRT inference, and
+TensorRT evaluation through `deploy/SKILL.md`.
