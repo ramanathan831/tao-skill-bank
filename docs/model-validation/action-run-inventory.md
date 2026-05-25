@@ -125,6 +125,7 @@ not yet reached a per-model validation report.
 
 ## depth-net-mono
 - train: pass after config fix
+- AutoML default train route: pass with Bayesian `automl_max_recommendations=2`
 - eval: pass
 - inference: pass
 - export: pass
