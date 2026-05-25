@@ -5,11 +5,12 @@ The parent PyT image resolved to
 `nvcr.io/nvstaging/tao/tao-toolkit-pyt:7.0.0-rc-226-multiarch`; the deploy
 image resolved to
 `nvcr.io/nvstaging/tao/tao-toolkit-deploy:7.0.0-rc-171-multiarch`. The user
-requested model-skill validation only, so AutoML/workflow skills were not run
-even though the common config requested AutoML.
+later requested default AutoML validation, so the train route was rerun through
+TAO AutoML with a compact Bayesian search.
 
 Supported actions tested:
 - train: pass
+- AutoML default train route: pass with Bayesian `automl_max_recommendations=2`
 - eval: pass with exact trained checkpoint
 - inference: pass with exact trained checkpoint
 - export: pass with exact trained checkpoint
@@ -42,6 +43,14 @@ Training result:
   `/tmp/tao-model-validation/deformable-detr/results/train/model_epoch_000_step_00024.pth`
   and
   `/tmp/tao-model-validation/deformable-detr/results/resume/model_epoch_001_step_00048.pth`
+
+AutoML default train route:
+- Rerun completed: yes, through `AutoMLRunner` + `DockerSDK` on local Docker.
+- Algorithm/config: Bayesian, `automl_max_recommendations=2`, metric `val_loss`, direction minimize, 1 epoch, 12 train images, 6 validation images, one GPU.
+- Search parameters/ranges: `train.optim.lr` constrained to `5e-5..2e-4` and `dataset.batch_size` constrained to `1..2`.
+- Recommendation 0: job `099669d5-ad77-475e-889a-e422a8c8f95a`, `dataset.batch_size=2`, `train.optim.lr=0.0001576977311060172`, `val_loss=5.724095821380615`, checkpoint `/tmp/tao-automl-validation/deformable-detr/results/099669d5-ad77-475e-889a-e422a8c8f95a/results_dir/train/model_epoch_000_step_00006.pth`.
+- Recommendation 1: job `d1dc9da6-e1f2-4995-98b1-b26171ab1253`, `dataset.batch_size=1`, `train.optim.lr=7.936678931274525e-05`, `val_loss=5.916896343231201`, checkpoint `/tmp/tao-automl-validation/deformable-detr/results/d1dc9da6-e1f2-4995-98b1-b26171ab1253/results_dir/train/model_epoch_000_step_00012.pth`.
+- Best recommendation: rec 0 / job `099669d5-ad77-475e-889a-e422a8c8f95a`.
 
 Checkpoint/action verification:
 - Eval checkpoint used:
@@ -131,5 +140,5 @@ Files changed:
 
 Final status:
 - Fully validated for all actions declared by the Deformable-DETR parent model
-  skill on `local-docker`, plus the supported Deformable-DETR deploy sub-skill
-  actions.
+  skill on `local-docker`, default AutoML train routing with two Bayesian
+  recommendations, plus the supported Deformable-DETR deploy sub-skill actions.
