@@ -137,6 +137,7 @@ not yet reached a per-model validation report.
 
 ## depth-net-stereo
 - train: pass after geometry config fix
+- AutoML default train route: pass with Bayesian `automl_max_recommendations=2`
 - eval: pass
 - inference: pass
 - export: pass
