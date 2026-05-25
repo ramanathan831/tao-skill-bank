@@ -952,10 +952,17 @@
           "type": "categorical"
         },
         "resume": {
+          "anyOf": [
+            {
+              "type": "bool"
+            },
+            {
+              "type": "string"
+            }
+          ],
           "default": false,
-          "description": "Whether to resume training.",
-          "title": "Resume",
-          "type": "bool"
+          "description": "Resume training. false disables resume; true resumes from the latest checkpoint under the output directory; a string resumes from the exact checkpoint policy folder.",
+          "title": "Resume"
         },
         "sync_weight_interval": {
           "default": 1,

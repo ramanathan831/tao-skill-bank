@@ -67,9 +67,11 @@ For root mode, explain the automatic mapping: `train_root` maps to
 `custom.val_dataset`.
 
 Before train or AutoML runner generation, resolve the action=train container
-image from `models/cosmos-rl/config.json`, show the exact image to the user, and
+image from `references/skill_info.yaml` and `versions.yaml` (or the packaged
+`scripts/resolve_tao_image.py` helper), show the exact image to the user, and
 ask whether to use it or override with `image=<override>`. Do not silently
-launch on the default image.
+launch on the default image. This skill does not package a
+`models/cosmos-rl/config.json` file.
 
 For launch preflight, pass the concrete annotation paths to the shared helper
 and require `video_fps`:
@@ -86,6 +88,13 @@ scripts/check_tao_launch_preflight.py --platform slurm \
 
 ### Per-Action Dataset Requirements
 
+The packaged Cosmos-RL model action metadata currently declares **train** and
+**evaluate** only (`references/skill_info.yaml` and `schemas/manifest.json`).
+Do not advertise or launch quantize, export, prune, deploy, or standalone
+model-skill inference for Cosmos-RL until those actions are added to the model
+metadata. Historical TAO Core mappings for inference or quantize are not enough
+to make them supported skill actions.
+
 | Action | Spec Key | Source | Files | List? |
 |---|---|---|---|---|
 | train | custom.train_dataset.annotation_path | train_datasets | annotations.json | No |
@@ -94,8 +103,6 @@ scripts/check_tao_launch_preflight.py --platform slurm \
 | train | custom.val_dataset.media_path | eval_dataset | dataset root containing media payload | No |
 | evaluate | dataset.annotation_path | eval_dataset | annotations.json | No |
 | evaluate | dataset.media_dir | eval_dataset | dataset root containing media payload | No |
-| quantize | calibration_dataset.annotation_path | calibration_dataset | annotations.json | No |
-| quantize | calibration_dataset.media_dir | calibration_dataset | dataset root containing media payload | No |
 
 ## Spec construction
 
@@ -117,6 +124,12 @@ The reference TOML (and the spec the model actually consumes) is **nested dicts*
 These are the typical override **paths** to apply on top of the template (not the full spec). The agent reads each `key.subkey.leaf` as a dotted path and assigns the value at that nested location in the template-loaded `specs` dict.
 
 Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above.
+
+For direct local Docker runs, mount user data somewhere other than
+`/workspace` (for example `/tao-workspace`). The Cosmos-RL image keeps its
+Python package under `/workspace/cosmos_rl`; bind-mounting over `/workspace`
+hides the package and makes `cosmos-rl` fail with
+`ModuleNotFoundError: No module named 'cosmos_rl'`.
 
 ```python
 TRAIN_DATASET_URI = "s3://bucket/data/train"
@@ -188,25 +201,9 @@ spec object.
 }
 ```
 
-**quantize (mandatory data sources):**
-```python
-{
-    "calibration_dataset.annotation_path": f"{TRAIN_DATASET_URI}/annotations.json",
-    "calibration_dataset.media_dir": TRAIN_DATASET_URI,
-    "model.enable_lora": True,
-    "model.base_model_path": "hf_model://nvidia/Cosmos-Reason2-8B",
-}
-```
-
-**inference (mandatory data sources):**
-```python
-{
-    "media": "s3://bucket/data/videos/test_video.mp4",
-    "prompt": "When does something happen in the video?",
-    "enable_lora": True,
-    "base_model_path": "hf_model://nvidia/Cosmos-Reason2-8B",
-}
-```
+Quantize and standalone model-skill inference are not packaged Cosmos-RL
+actions yet. If a user asks for those, state that the current model skill only
+supports train and evaluate, and do not synthesize action configs.
 
 ## Critical Overrides (Train)
 
@@ -214,7 +211,7 @@ These are the keys whose template defaults are wrong or where omission flips the
 
 | Parameter | Template Default | Required Value | Why |
 |---|---|---|---|
-| `policy.model_name_or_path` | `nvidia/Cosmos-Reason2-8B` | `hf_model://nvidia/Cosmos-Reason2-8B` (or local checkpoint) | The bare HF id makes cosmos-rl fetch from HF Hub at runtime; the `hf_model://` URI form pre-downloads the weights before the training command starts |
+| `policy.model_name_or_path` | `nvidia/Cosmos-Reason2-8B` | Direct Docker: `nvidia/Cosmos-Reason2-8B` or a local HF snapshot path. SDK/managed platform predownload: `hf_model://nvidia/Cosmos-Reason2-8B`. | The direct `cosmos-rl --config ...` CLI loads from HuggingFace at runtime and does not need the SDK URI wrapper. The `hf_model://` URI form is for SDK/platform launchers that pre-download model inputs before the container command starts. |
 | `policy.model_max_length` | 40960 | Keep at 40960 or higher | Smaller than ~40k causes `vision_embeds` shape mismatch on video inputs |
 | `train.train_batch_per_replica` | 32 | Any multiple of `train.train_policy.mini_batch` | Mismatch raises an immediate AssertionError |
 | `train.train_policy.type` | `"sft"` | Keep as `"sft"` for SFT workflows | If dropped during agent regeneration, cosmos-rl flips to RL mode → rollout replica allocated → multi-node attempted → hostname errors when `num_nodes=1` |
@@ -340,12 +337,28 @@ For platform-side multi-node setup (sbatch flags on SLURM, Indexed Job + Service
 - **train.ckpt.export_safetensors**: Export in safetensors format. Default true.
 
 When verifying downstream handoff, prefer `train_output_dir/best/safetensors`
-if it resolves inside the results mount. If that symlink points at a pruned
-`step_*` directory, use the retained `train_output_dir/<timestamp>/safetensors/epoch_*`
-directory that corresponds to the best validation epoch, and keep
-`train.ckpt.max_keep >= 2` for two-epoch smoke runs. Do not count downloaded
-base-model shards under `ptm/` or launcher staging files under `inputs/` as
-fine-tuned checkpoints for eval/inference handoff.
+only if it resolves inside the results mount. In the current local Docker image,
+epoch-based saving writes concrete artifacts under
+`train_output_dir/<timestamp>/safetensors/epoch_N` and
+`train_output_dir/<timestamp>/checkpoints/epoch_N/policy`, but
+`best/best_score.json` and the `best/{safetensors,checkpoints}` symlinks can
+record `step_N` targets that do not exist. If a `best` symlink points at a
+missing `step_*` directory, resolve the best validation step back to the
+corresponding retained `epoch_*` directory and use that exact folder. Do not
+fall back to "latest" silently.
+
+For evaluate, pass the resolved LoRA folder directly:
+`model.model_name=<train_output_dir>/<timestamp>/safetensors/epoch_N`,
+`model.enable_lora=true`, and
+`model.base_model_path=nvidia/Cosmos-Reason2-8B` (or the local base-model
+snapshot path). For resume/retrain, pass the exact Cosmos checkpoint policy
+folder as a string:
+`train.resume=<train_output_dir>/<timestamp>/checkpoints/epoch_N/policy`.
+Avoid `train.resume=true` for local Docker epoch-based checkpoints because the
+current resolver scans `step_*` checkpoint directories and can miss the
+`epoch_*` folders. Do not count downloaded base-model shards under `ptm/`,
+launcher staging files under `inputs/`, or the broken `best` symlink itself as
+fine-tuned checkpoints for handoff.
 
 ### Validation
 - **validation.freq_in_epoch**: Run validation every N epochs. Too frequent slows training.
