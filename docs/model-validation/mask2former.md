@@ -10,7 +10,7 @@ Supported actions tested:
 - deploy inference on tao-deployed gen_trt_engine model: pass
 - deploy eval on tao-deployed gen_trt_engine model: pass
 - prune: unsupported/not advertised by the Mask2Former model skill
-- quantize: fail
+- quantize: pass in the rebuilt PyT image `nvcr.io/nvstaging/tao/tao-toolkit-pyt:validation-fixes-20260525`
 - retrain/resume: pass through train.resume_training_checkpoint_path
 - AutoML default train route: pass with Bayesian automl_max_recommendations=2
 - dataset convert: unsupported/not advertised by the Mask2Former model skill
@@ -34,6 +34,7 @@ Training result:
 - Best checkpoint produced: no separate best checkpoint artifact; the one-epoch smoke run produced an exact epoch/step checkpoint.
 - Best checkpoint path: /tmp/tao-model-validation/mask2former/results/train/model_epoch_000_step_00100.pth
 - Other checkpoints produced: /tmp/tao-model-validation/mask2former/results/resume/model_epoch_001_step_00200.pth; mask2former_model_latest.pth symlinks were produced by the runtime but were not used for checkpoint-dependent actions.
+- Source-fixed rerun checkpoint: /tmp/tao-source-fixed-rerun/current/mask2former/results/train/model_epoch_000_step_00002.pth
 
 AutoML default training rerun:
 - Default direct model training used AutoML after the default policy was corrected to automl_policy=on.
@@ -52,10 +53,10 @@ Checkpoint/action verification:
 - Eval checkpoint used: /tmp/tao-model-validation/mask2former/results/train/model_epoch_000_step_00100.pth
 - Inference checkpoint used: /tmp/tao-model-validation/mask2former/results/train/model_epoch_000_step_00100.pth
 - Export checkpoint used: /tmp/tao-model-validation/mask2former/results/train/model_epoch_000_step_00100.pth
-- Quantize checkpoint/model used: checkpoint-based torchao quantize used /tmp/tao-model-validation/mask2former/results/train/model_epoch_000_step_00100.pth and failed in the runtime checkpoint loader; ONNX quantize used /tmp/tao-model-validation/mask2former/results/export/model.onnx from the exact checkpoint and failed because the default image lacks modelopt.onnx quantization support.
+- Quantize checkpoint/model used in source-fixed rerun: /workspace/results/train/model_epoch_000_step_00002.pth, selected through `tao_sdk.checkpoints.get_checkpoint_path(..., epoch=0, step=2, allow_latest=False)`.
 - Resume/retrain checkpoint used: /tmp/tao-model-validation/mask2former/results/train/model_epoch_000_step_00100.pth
 - Deploy checkpoint/model path: deploy gen_trt_engine used /tmp/tao-model-validation/mask2former/results/export/model.onnx, which was exported from the exact checkpoint above; deploy inference and deploy evaluate used /tmp/tao-model-validation/mask2former/results/deploy/mask2former.engine.
-- Were checkpoint paths selected through the proper resolver: yes in model metadata after the fix; direct local-docker validation used explicit exact paths to verify the resolver contract.
+- Were checkpoint paths selected through the proper resolver: yes in model metadata after the fix; direct local-docker validation and the source-fixed rerun used explicit exact paths to verify the resolver contract.
 - Any incorrect latest-checkpoint behavior found: no action selected mask2former_model_latest.pth. The model metadata was missing resolver mappings before the fix, which made fresh-install parent handoff fragile.
 
 Issues found:
@@ -73,7 +74,7 @@ Issues found:
 - Checkpoint issues:
   - No runtime latest-checkpoint misuse was found. The missing resolver mappings could cause generated workflows to omit exact parent checkpoint or export artifact selection.
 - Docker/local execution issues:
-  - Checkpoint-based quantize failed in the default PyTorch image because mask2former/scripts/quantize.py passes experiment_spec to Mask2formerPlModule.load_from_checkpoint instead of the required cfg argument.
+  - Checkpoint-based quantize failed in the original default PyTorch image because mask2former/scripts/quantize.py passes experiment_spec to Mask2formerPlModule.load_from_checkpoint instead of the required cfg argument; the rebuilt PyT image passed.
   - ONNX quantize failed in the default PyTorch image because modelopt.onnx.quantization is not installed.
   - The containers emit telemetry and dependency warnings that do not affect the passing actions.
 - Fresh-install issues:
@@ -86,9 +87,11 @@ Fixes made:
 - Updated Mask2Former deploy metadata and templates to use COCO panoptic split-level fields and removed invalid top-level dataset.type.
 - Documented exact checkpoint selection, raw-id num_classes behavior, semantic deploy evaluation, deploy schema requirements, and quantize runtime blockers.
 - No additional Mask2Former model skill code change was needed for the AutoML default rerun.
+- Reran source-fixed quantize on `nvcr.io/nvstaging/tao/tao-toolkit-pyt:validation-fixes-20260525` with the resolver-selected checkpoint and fixed 256x256 calibration inputs; the action completed successfully and wrote `/workspace/results/quantize/quantized_model_torchao.pth`.
 
 Remaining issues:
-- Quantize remains unresolved in the default image. The model skill can now pass the correct artifact path, but the runtime checkpoint loader and missing ONNX quantization package block both tested quantize paths.
+- The original default image still has the checkpoint-loader and ONNX quantization package blockers listed above; the rebuilt source-fixed PyT image passes the packaged checkpoint quantize path.
+- ONNX quantize was not rerun because the packaged source-fixed action path validated here uses PyTorch checkpoint quantization with `torchao`.
 
 Files changed:
 - models/mask2former/SKILL.md
@@ -103,4 +106,4 @@ Files changed:
 - docs/model-validation/action-run-inventory.md
 
 Final status:
-- Partially validated on local-docker with image=default. AutoML default train and all advertised parent/deploy actions passed except quantize, which is blocked by default-image runtime/package issues after model-skill metadata fixes.
+- Fully validated for packaged model-skill actions after the source-fixed image rerun. AutoML default train and all advertised parent/deploy actions passed on local-docker; quantize requires the rebuilt PyT image.
