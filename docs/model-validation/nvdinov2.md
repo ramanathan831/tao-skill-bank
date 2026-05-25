@@ -3,8 +3,8 @@
 Validated on 2026-05-25 with `platform=local-docker`, `image=default`
 (`nvcr.io/nvstaging/tao/tao-toolkit-pyt:7.0.0-rc-226-multiarch` and
 `nvcr.io/nvstaging/tao/tao-toolkit-deploy:7.0.0-rc-171-multiarch`),
-`num_gpus=1`, and direct model/deploy skill actions only. Workflow skills were
-not run.
+`num_gpus=1`, direct model/deploy skill actions, and the model skill's
+AutoML-enabled default train route. Workflow skills were not run.
 
 ## Supported Actions Tested
 
@@ -16,6 +16,7 @@ not run.
 - prune: unsupported/not advertised
 - quantize: unsupported/not advertised
 - retrain: pass through `train.resume_training_checkpoint_path`
+- AutoML default train route: pass with Bayesian `automl_max_recommendations=2`
 - dataset convert: unsupported/not advertised
 - other: stale parent `distill` action was advertised by metadata but rejected by the real PyT CLI; removed from the parent model metadata and manifests. PyT inference on the generated TensorRT engine was probed and failed with the toolkit's `.pth`/`.tlt`-only loader, so it is documented as unsupported.
 
@@ -33,6 +34,20 @@ not run.
 - Best checkpoint produced: no separate best-named checkpoint artifact; the one-epoch run produced one concrete epoch/step checkpoint set, which was selected for downstream validation
 - Best checkpoint path: `/tmp/tao-model-validation/nvdinov2/results/train/student_epoch_000_step_00015.pth` for inference/export handoff
 - Other checkpoints produced: `/tmp/tao-model-validation/nvdinov2/results/train/model_epoch_000_step_00015.pth`, `/tmp/tao-model-validation/nvdinov2/results/train/teacher_epoch_000_step_00015.pth`, and `nvdinov2_model_latest.pth` symlink to the full training checkpoint. Resume validation produced `model_epoch_001_step_00030.pth`, `student_epoch_001_step_00030.pth`, and `teacher_epoch_001_step_00030.pth`.
+
+## AutoML Default Training Rerun
+
+- Default model training was rerun through the model skill's AutoML-enabled train route after confirming the previous direct validation had exercised normal training only.
+- Source: `s3://nvcf-storage-handling/data/nvdinov2_train_cats_dogs/images_train.tar.gz`
+- Algorithm: bayesian
+- Recommendations requested: 2
+- Metric: `train_loss_epoch`, minimize; TAO `status.json` also recorded the same final values under `train_loss`
+- Tuned parameters: `dataset.batch_size`, `dataset.workers`
+- Recommendation 0: job `78312719-752d-4363-9cc6-b1f808998235`, `dataset.batch_size=3`, `dataset.workers=2`, `train_loss_epoch=11.885`, checkpoints under `/tmp/tao-automl-validation/nvdinov2/results/78312719-752d-4363-9cc6-b1f808998235/results_dir/train/`
+- Recommendation 1: job `cb592898-da6a-4042-a130-39aa23803793`, `dataset.batch_size=2`, `dataset.workers=1`, `train_loss_epoch=11.779`, checkpoints under `/tmp/tao-automl-validation/nvdinov2/results/cb592898-da6a-4042-a130-39aa23803793/results_dir/train/`
+- Best recommendation: rec 1, selected by the AutoML controller summary.
+- Generated spec verification: both recommendations used the SDK-extracted real S3 train archive at `/results/<job>/inputs/dataset_train_dataset_images_dir/images_train`, ViT-S teacher/student, `img_size=224`, `train.num_epochs=1`, `train.num_prototypes=1024`, `train.use_custom_attention=false`, and distinct Bayesian batch/worker values within the requested ranges.
+- AutoML checkpoints produced: both recommendations produced `model_epoch_000_step_*.pth`, `student_epoch_000_step_*.pth`, and `teacher_epoch_000_step_*.pth`; the selected best recommendation produced `student_epoch_000_step_03202.pth` for downstream inference/export and `model_epoch_000_step_03202.pth` for resume/retrain.
 
 ## Checkpoint/Action Verification
 
@@ -70,11 +85,11 @@ not run.
 - Added export and inference checkpoint inputs plus `parent_model`/`create_onnx_file` mappings for exact train-output handoff.
 - Corrected the deploy template backbone keys, added `results_dir`, and changed the TensorRT profile defaults to fixed batch 1.
 - Updated parent and deploy skill docs with exact checkpoint guidance, unsupported TensorRT-engine inference behavior, and the current CLI-supported action set.
+- No additional NvDINOv2 model skill code change was needed for the AutoML default rerun.
 
 ## Remaining Issues
 
 - PyT `nvdinov2 inference` does not run on the generated TensorRT engine; it raises `NotImplementedError: Model path format is only supported for .tlt or .pth`. The generated engine is valid for downstream TensorRT consumers, but there is no model-skill inference action for that engine in this toolkit image.
-- `automl_policy=on` cannot be honored without routing train through the `tao-automl` workflow skill, which was explicitly prohibited for this validation. Direct model-skill train was validated instead.
 - SDK `parent_model` resolver execution was not invoked because workflow/SDK paths were out of scope; the metadata contract is now present and direct runs used exact checkpoint paths.
 
 ## Files Changed
@@ -87,9 +102,11 @@ not run.
 - `models/nvdinov2/schemas/manifest.json`
 - `models/schemas.manifest.json`
 - `docs/model-validation/nvdinov2.md`
+- `docs/model-validation/action-run-inventory.md`
 
 ## Final Status
 
-Fully validated for the NvDINOv2 model skill's advertised parent and deploy
-actions on local Docker after the metadata/template fixes. TensorRT-engine
-inference is documented as unsupported by the current PyT inference command.
+Fully validated for the NvDINOv2 model skill's advertised parent, AutoML
+default train, and deploy actions on local Docker after the metadata/template
+fixes. TensorRT-engine inference is documented as unsupported by the current
+PyT inference command.
