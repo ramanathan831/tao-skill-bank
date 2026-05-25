@@ -16,7 +16,7 @@ skill's AutoML-enabled default train route. Workflow skills were not run.
 - deploy/inference on tao-deployed gen_trt_engine model: pass
 - deploy/evaluate: pass
 - prune: pass after adding the missing `prune.pruned_file` output handoff
-- quantize: fail after checkpoint, exact epoch, and ONNX quantize attempts
+- quantize: pass in the rebuilt PyT image `nvcr.io/nvstaging/tao/tao-toolkit-pyt:validation-fixes-20260525`
 - retrain: pass after routing the model-skill action through `ocrnet train -e` with `model.pruned_graph_path`
 - dataset convert: pass
 - other: parent PyT `gen_trt_engine` was probed and confirmed unsupported by the real PyT CLI; TensorRT is handled by the deploy sub-skill
@@ -37,6 +37,9 @@ skill's AutoML-enabled default train route. Workflow skills were not run.
   - `/tmp/tao-automl-validation/ocrnet/results/497d5fea-1366-407a-9a18-46213a3293c9/results_dir/train/model_epoch_000_step_00003.pth`
   - retrain produced `/tmp/tao-automl-validation/ocrnet/94db88ac-1660-4f99-b22d-6402b11cf140/results_dir/train/best_accuracy.pth`
   - retrain produced `/tmp/tao-automl-validation/ocrnet/94db88ac-1660-4f99-b22d-6402b11cf140/results_dir/train/model_epoch_000_step_00003.pth`
+- Source-fixed rerun checkpoints:
+  - `/tmp/tao-source-fixed-rerun/current/ocrnet/results/train/best_accuracy.pth`
+  - `/tmp/tao-source-fixed-rerun/current/ocrnet/results/train/model_epoch_000_step_00003.pth`
 
 ## AutoML Default Training Rerun
 
@@ -63,7 +66,8 @@ skill's AutoML-enabled default train route. Workflow skills were not run.
   - `best_accuracy.pth` failed as a saved model object after trusted PyTorch load.
   - exact `model_epoch_000_step_00003.pth` failed in `OCRNetModel.load_from_checkpoint` with missing `dm`.
   - exported ONNX reached calibration and then failed because `modelopt.onnx.quantization` is missing in the default PyT image.
-- Were checkpoint paths selected through the proper resolver: yes. Direct validation used `tao_sdk.checkpoints.get_checkpoint_path`, which selected `best_accuracy.pth` for best-checkpoint actions and exact `model_epoch_000_step_00003.pth` for the epoch-specific checkpoint probe.
+- Source-fixed quantize checkpoint used: `/workspace/results/train/model_epoch_000_step_00003.pth`, selected through `tao_sdk.checkpoints.get_checkpoint_path(..., epoch=0, step=3, allow_latest=False)`. The rerun intentionally did not use `best_accuracy.pth`.
+- Were checkpoint paths selected through the proper resolver: yes. Direct validation used `tao_sdk.checkpoints.get_checkpoint_path`, which selected `best_accuracy.pth` for best-checkpoint actions and exact `model_epoch_000_step_00003.pth` for the epoch-specific checkpoint probe. The source-fixed quantize rerun also used the exact epoch/step checkpoint.
 - Any incorrect latest-checkpoint behavior found: yes. Metadata previously lacked the checkpoint/output mappings needed to avoid fragile handoff; fixed for evaluate, inference, export, prune, quantize, train resume, and retrain.
 
 ## Issues Found
@@ -79,7 +83,7 @@ skill's AutoML-enabled default train route. Workflow skills were not run.
 - Dataset issues:
   - One validation image is logged as corrupted, but it is non-blocking for smoke validation.
 - Checkpoint issues:
-  - Quantize does not accept the OCRNet best-weight file or the exact Lightning epoch checkpoint in the current toolkit image.
+  - Quantize does not accept the OCRNet best-weight file; the exact Lightning epoch checkpoint failed in the original default PyT image but passed in the rebuilt PyT image.
 - Docker/local execution issues:
   - PyT quantize ONNX path is blocked because the default image lacks `modelopt.onnx.quantization`.
   - Deploy telemetry reports a non-fatal decode warning after successful deploy commands.
@@ -95,13 +99,12 @@ skill's AutoML-enabled default train route. Workflow skills were not run.
 - Regenerated the deploy experiment template from the deploy container default spec shape.
 - Added deploy gen_trt_engine calibration cache/image metadata and deploy evaluate GT-file metadata.
 - Updated OCRNet instructions for checkpoint selection, raw eval GT files, deploy TensorRT routing, and quantize caveats.
+- Reran source-fixed quantize on `nvcr.io/nvstaging/tao/tao-toolkit-pyt:validation-fixes-20260525` with the resolver-selected full epoch checkpoint; the action completed successfully and wrote `/workspace/results/quantize/quantized_model_torchao.pth`.
 
 ## Remaining Issues
 
-- OCRNet quantize remains unresolved in the current default PyT image. All tested paths fail after correct artifact selection:
-  - best checkpoint: saved model object is not a Lightning checkpoint
-  - exact epoch checkpoint: `OCRNetModel.__init__()` requires `dm`
-  - ONNX: `modelopt.onnx.quantization` is unavailable in the image
+- The original default PyT image still has the quantize blockers listed above; the rebuilt source-fixed PyT image passes the packaged PyTorch-checkpoint quantize path.
+- ONNX quantize was not rerun because the packaged source-fixed action path validated here uses PyTorch checkpoint quantization with `torchao`.
 
 ## Files Changed
 
@@ -114,6 +117,7 @@ skill's AutoML-enabled default train route. Workflow skills were not run.
 
 ## Final Status
 
-Partially validated: all advertised parent model actions pass except quantize,
-and all deploy TensorRT actions pass after the model-skill metadata/template
-fixes. Quantize is blocked by current toolkit/default-image runtime defects.
+Fully validated for packaged model-skill actions after the source-fixed image
+rerun. All advertised parent model actions and deploy TensorRT actions pass;
+quantize requires the rebuilt PyT image and a full epoch checkpoint, not
+`best_accuracy.pth`.
