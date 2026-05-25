@@ -300,7 +300,6 @@
         "distill",
         "evaluate",
         "export",
-        "gen_trt_engine",
         "inference",
         "quantize",
         "train"
@@ -313,7 +312,6 @@
       "actions": [
         "evaluate",
         "export",
-        "gen_trt_engine",
         "inference",
         "quantize",
         "train"

@@ -30,11 +30,17 @@ This model is AutoML-enabled at the model layer. Before handling any train-stage
 
 Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows stay in this model skill. The per-run `automl_policy` override does not change model metadata.
 
+## Supported Actions
+
+The packaged SegFormer PyT CLI supports `train`, `evaluate`, `export`, `inference`, `quantize`, and `default_specs`. This parent model skill exposes `train`, `evaluate`, `export`, `inference`, and `quantize`; resume/retrain is performed through `train` with `train.resume_training_checkpoint_path`.
+
+The parent PyT CLI does not expose `gen_trt_engine`. Use `models/segformer/deploy` for TensorRT engine generation, TensorRT evaluation, and TensorRT inference.
+
 ## Training Requirements
 
 - **Dataset type:** segmentation
 - **Formats:** unet
-- **Monitoring metric:** val_miou
+- **Monitoring metric:** val_miou, maximize
 
 ### Per-Action Dataset Requirements
 
@@ -73,13 +79,6 @@ S3_EVAL = "s3://bucket/data/eval"
 {
     "evaluate.batch_size": 4,
     "dataset.segment.root_dir": f"{S3_EVAL}",
-}
-```
-
-**gen_trt_engine:**
-```python
-{
-    "gen_trt_engine.tensorrt.data_type": "fp16",
 }
 ```
 
@@ -148,7 +147,11 @@ Minimum 1 GPU(s), recommended 2 GPU(s). 16GB+ (V100 or A100) VRAM per GPU. SegFo
 
 **TensorBoard unsupported for segmentation training**: Keep `train.tensorboard.enabled: false`. The SegFormer training entrypoint asserts that TensorBoard visualization is not supported for segmentation, so do not enable TensorBoard just to extract AutoML metrics; use log parsing or a post-train evaluator instead.
 
-**Checkpoint handoff**: Use the best AutoML child job's `results_dir/train/*.pth` checkpoint such as `segformer_model_latest.pth` or `model_epoch_*.pth` as `evaluate.checkpoint`, `export.checkpoint`, or `inference.checkpoint`. Preserve `dataset.segment.num_classes`, `dataset.segment.img_size`, and `dataset.segment.root_dir` overrides for downstream actions.
+**AutoML metric extraction**: SegFormer train status files report `val_miou` alongside `val_loss`, `val_acc`, and other validation KPIs. Default AutoML train launches must optimize `val_miou` with `direction: maximize`; do not optimize `val_loss` for default model invocations.
+
+**Checkpoint handoff**: For evaluate/export/inference/quantize/resume, use the checkpoint resolver on the best AutoML child job's `results_dir/train/` folder and select the action-appropriate `model_epoch_*.pth` checkpoint. SegFormer may also write a latest symlink, but that should only be used when a caller explicitly requests latest. Preserve `dataset.segment.num_classes`, `dataset.segment.img_size`, and `dataset.segment.root_dir` overrides for downstream actions.
+
+**Parent `segformer gen_trt_engine` rejected by the PyT CLI**: In the validated 7.0.0 PyT container, `segformer gen_trt_engine` is not a valid parent-model subtask. Use the SegFormer deploy sub-skill (`deploy/SKILL.md`) for TensorRT engine generation, TensorRT evaluation, and TensorRT inference.
 
 ## Spec Param / Parent Model Inference
 
@@ -166,10 +169,6 @@ Inference mappings from TAO Core `segformer.config.json`:
 | export | `export.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
 | export | `export.onnx_file` | `create_onnx_file` | output ONNX path |
 | export | `results_dir` | `output_dir` | current job results directory |
-| gen_trt_engine | `encryption_key` | `key` | encryption key |
-| gen_trt_engine | `gen_trt_engine.onnx_file` | `parent_model` | model file inferred from the parent job results folder |
-| gen_trt_engine | `gen_trt_engine.trt_engine` | `create_engine_file` | output TensorRT engine path |
-| gen_trt_engine | `results_dir` | `output_dir` | current job results directory |
 | inference | `encryption_key` | `key` | encryption key |
 | inference | `inference.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
 | inference | `inference.trt_engine` | `parent_model` | model file inferred from the parent job results folder |

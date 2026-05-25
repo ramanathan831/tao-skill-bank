@@ -381,7 +381,19 @@ not yet reached a per-model validation report.
 - parent PyT gen_trt_engine: unsupported by the real PyT CLI; TensorRT is deploy-only
 
 ## segformer
-- not run yet in this validation branch
+- train: pass, default model invocation routed through AutoML with two Bayesian recommendations using `val_miou` maximize
+- evaluate: pass with resolver-selected `model_epoch_000_step_00020.pth`
+- inference: pass with resolver-selected `model_epoch_000_step_00020.pth`
+- export: pass with resolver-selected `model_epoch_000_step_00020.pth`
+- quantize: pass with resolver-selected `model_epoch_000_step_00020.pth`
+- resume training: pass through `train.resume_training_checkpoint_path`, restored the selected epoch/step checkpoint and produced `model_epoch_001_step_00040.pth`
+- deploy gen_trt_engine: pass after removing parent PyT action discovery and deploy engine-file pre-creation from metadata
+- deploy evaluate on TensorRT engine: pass
+- deploy inference on TensorRT engine: pass
+- prune: unsupported/not advertised
+- dataset convert: unsupported/not advertised
+- standalone retrain: unsupported by the real PyT CLI; resume uses train
+- parent PyT gen_trt_engine: unsupported by the real PyT CLI; TensorRT is deploy-only
 
 ## sparse4d
 - not run yet in this validation branch

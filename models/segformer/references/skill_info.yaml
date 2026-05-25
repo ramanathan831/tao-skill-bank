@@ -11,6 +11,15 @@ actions:
     inputs:
       dataset.segment.root_dir:
         type: folder
+      model.backbone.pretrained_backbone_path:
+        type: file
+        optional: true
+      train.pretrained_model_path:
+        type: file
+        optional: true
+      train.resume_training_checkpoint_path:
+        type: file
+        optional: true
     outputs:
       results_dir:
         type: folder
@@ -24,6 +33,8 @@ actions:
         type: folder
       dataset.segment.quant_calibration_dataset.images_dir:
         type: folder
+      quantize.model_path:
+        type: file
     outputs:
       results_dir:
         type: folder
@@ -35,6 +46,8 @@ actions:
     inputs:
       dataset.segment.root_dir:
         type: folder
+      evaluate.checkpoint:
+        type: file
     outputs:
       results_dir:
         type: folder
@@ -46,6 +59,8 @@ actions:
     inputs:
       dataset.segment.root_dir:
         type: folder
+      export.checkpoint:
+        type: file
     outputs:
       results_dir:
         type: folder
@@ -57,22 +72,33 @@ actions:
     inputs:
       dataset.segment.root_dir:
         type: folder
-    outputs:
-      results_dir:
-        type: folder
-    upload_excludes:
-    - inputs/
-  gen_trt_engine:
-    command: segformer gen_trt_engine -e {config_path}
-    config_format: yaml
-    inputs: {}
+      inference.checkpoint:
+        type: file
     outputs:
       results_dir:
         type: folder
     upload_excludes:
     - inputs/
 data_sources: {}
-spec_params: {}
+spec_params:
+  train:
+    results_dir: output_dir
+    model.backbone.pretrained_backbone_path: ptm_if_no_resume_model
+    train.pretrained_model_path: ptm_if_no_resume_model
+    train.resume_training_checkpoint_path: resume_model
+  evaluate:
+    results_dir: output_dir
+    evaluate.checkpoint: parent_model
+  export:
+    results_dir: output_dir
+    export.checkpoint: parent_model
+    export.onnx_file: create_onnx_file
+  inference:
+    results_dir: output_dir
+    inference.checkpoint: parent_model
+  quantize:
+    results_dir: output_dir
+    quantize.model_path: parent_model
 key_defaults: {}
 spec_shorthand_keys:
   num_epochs: train.num_epochs

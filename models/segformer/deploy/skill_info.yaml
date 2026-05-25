@@ -10,13 +10,9 @@ actions:
     inputs:
       gen_trt_engine.onnx_file:
         type: file
-      gen_trt_engine.trt_engine:
-        type: file
     outputs:
       results_dir:
         type: folder
-      gen_trt_engine.trt_engine:
-        type: file
     upload_excludes:
     - inputs/
   evaluate:
@@ -77,3 +73,5 @@ notes:
   1` for TensorRT inference.'
 - Keep palette, label mapping, input size, and normalization aligned with the trained
   segmentation model.
+- Do not declare `gen_trt_engine.trt_engine` as a file output. Let TensorRT
+  create the engine file at the path produced by `create_engine_file`.
