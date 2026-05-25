@@ -419,4 +419,15 @@ not yet reached a per-model validation report.
 - dataset convert: unsupported/not advertised
 
 ## visual-changenet
-- not run yet in this validation branch
+- train: pass for classify, default model invocation routed through AutoML with two Bayesian recommendations using `val_loss` minimize
+- segment_train: pass, default model invocation routed through AutoML with two Bayesian recommendations using `val_loss` minimize
+- evaluate: pass for classify with resolver-selected `model_epoch_000_step_00012.pth`
+- inference: pass for classify with resolver-selected `model_epoch_000_step_00012.pth`
+- segment_evaluate: pass with resolver-selected `model_epoch_000_step_00032.pth`
+- segment_inference: pass with resolver-selected `model_epoch_000_step_00032.pth`
+- export: unsupported/not advertised by the packaged parent model skill
+- deploy gen_trt_engine/evaluate/inference: blocked; deploy sub-skill requires an ONNX parent and no ONNX artifact was available
+- prune: unsupported/not advertised
+- quantize: unsupported/not advertised by the packaged parent model skill
+- retrain/resume: no standalone retrain action; resume resolver selected exact epoch/step checkpoints
+- dataset convert: unsupported/not advertised

@@ -42,9 +42,10 @@ Generated TAO Core schemas are packaged in `schemas/<action>.schema.json`, with 
 
 This model is AutoML-enabled at the model layer. Before handling any train-stage request, read `references/skill_info.yaml` and resolve the run override from either an explicit `automl_policy` value or the user's workflow request. Use `automl_policy: on` by default and only expose `on` / `off` in new launch prompts. Treat phrases like "turn off AutoML", "disable AutoML", "no HPO", or "plain training" as `automl_policy: off` for this run only. When `automl_policy: on`, `automl_enabled: true`, and both `schemas/train.schema.json` and `references/spec_template_train.yaml` are packaged, route the train action through `tao-skill-bank:tao-automl` by default with this model's `skill_dir`. Preserve workflow/application overrides for datasets, specs, output directories, GPU/platform settings, parent checkpoints, and `automl_policy`. Use direct model training only when `automl_policy: off` or the packaged train schema/template is missing; in the missing-schema case, report that AutoML is enabled but not runnable for this model until schemas are generated.
 
-Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows stay in this model skill. The per-run `automl_policy` override does not change model metadata.
+Non-train actions declared by this model skill (`evaluate`, `inference`, `segment_evaluate`, and `segment_inference`) stay in this model skill. Export, quantize, prune, and retrain are not declared in the current parent `references/skill_info.yaml`; do not present them as runnable parent-skill actions unless the metadata is extended with matching action wiring and schemas. The per-run `automl_policy` override does not change model metadata.
 
 For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference` for classify and segment variants), read `deploy/SKILL.md` first. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
+Deploy requires an exported ONNX artifact as `parent_model`. If no ONNX artifact exists and the parent skill does not expose an export action, report deploy as blocked instead of inventing an artifact.
 
 ## Training Requirements
 
@@ -58,6 +59,8 @@ Visual ChangeNet has two separate task modes with different dataset types and da
 - **Monitoring metric:** val_loss
 
 #### Per-Action Dataset Requirements (Classify)
+
+The `quantize` and `gen_trt_engine` rows below describe TAO spec data requirements only. They are not parent-skill actions unless the corresponding action is declared in `references/skill_info.yaml` or `deploy/skill_info.yaml`.
 
 | Action | Spec Key | Source | Files | List? |
 |---|---|---|---|---|
@@ -90,6 +93,8 @@ Segment uses a paired directory structure (`A/`, `B/`, `list/`, `label/`) instea
 **Required files per dataset:** `A.tar.gz`, `B.tar.gz`, `list.tar.gz`, `label.tar.gz`
 
 #### Per-Action Dataset Requirements (Segment)
+
+The `quantize` and `gen_trt_engine` rows below describe TAO spec data requirements only. They are not parent-skill actions unless the corresponding action is declared in `references/skill_info.yaml` or `deploy/skill_info.yaml`.
 
 | Action | Spec Key | Source | Files | List? |
 |---|---|---|---|---|
@@ -414,15 +419,23 @@ different override set.
 
 ## Spec Param / Parent Model Inference
 
-Model-specific inference mappings belong in this MD file, not in `config.json`. Generated runners should read this section and apply the mappings with SDK helpers before `create_job()`. This mirrors the old microservices `infer_params.py` flow.
+Model-specific parent-model mappings are declared in `references/skill_info.yaml` under `spec_params`. Keep this section aligned with that metadata so generated runners and agents resolve checkpoints before `create_job()` instead of guessing file names.
 
 Inference mappings from this model skill:
 
 | Action | Spec Field | Inference Function | Meaning |
 |---|---|---|---|
-| evaluate | `results_dir` | `output_dir` | current job results directory |
-| inference | `results_dir` | `output_dir` | current job results directory |
 | train | `results_dir` | `output_dir` | current job results directory |
-| train | `train.resume_training_checkpoint_path` | `resume_model` | model file inferred from the current job results folder |
+| train | `train.resume_training_checkpoint_path` | `resume_model` | resume checkpoint inferred from parent train results |
+| evaluate | `results_dir` | `output_dir` | current job results directory |
+| evaluate | `evaluate.checkpoint` | `parent_model` | checkpoint inferred from parent train or AutoML child results |
+| inference | `results_dir` | `output_dir` | current job results directory |
+| inference | `inference.checkpoint` | `parent_model` | checkpoint inferred from parent train or AutoML child results |
+| segment_train | `results_dir` | `output_dir` | current job results directory |
+| segment_train | `train.resume_training_checkpoint_path` | `resume_model` | resume checkpoint inferred from parent train results |
+| segment_evaluate | `results_dir` | `output_dir` | current job results directory |
+| segment_evaluate | `evaluate.checkpoint` | `parent_model` | checkpoint inferred from parent train or AutoML child results |
+| segment_inference | `results_dir` | `output_dir` | current job results directory |
+| segment_inference | `inference.checkpoint` | `parent_model` | checkpoint inferred from parent train or AutoML child results |
 
 For `parent_model` or `parent_model_folder`, pass the upstream train/export/AutoML child job id as `parent_job_id`. The SDK lists the parent result folder, filters checkpoint artifacts, and returns the selected model file or folder. Do not add these mappings back to `config.json` and do not patch generated runner scripts to guess checkpoint paths.

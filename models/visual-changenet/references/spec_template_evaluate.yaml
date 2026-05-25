@@ -217,4 +217,4 @@ quantize:
   results_dir: ''
   backend_kwargs: {}
   device: cuda
-task: segment
+task: classify

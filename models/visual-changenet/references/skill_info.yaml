@@ -8,6 +8,8 @@ actions:
     inputs:
       model.backbone.pretrained_backbone_path:
         type: file
+      train.resume_training_checkpoint_path:
+        type: file
       dataset.classify.train_dataset.csv_path:
         type: file
       dataset.classify.train_dataset.images_dir:
@@ -25,6 +27,8 @@ actions:
     command: visual_changenet evaluate -e {config_path}
     config_format: yaml
     inputs:
+      model.backbone.pretrained_backbone_path:
+        type: file
       dataset.classify.validation_dataset.csv_path:
         type: file
       dataset.classify.validation_dataset.images_dir:
@@ -44,6 +48,8 @@ actions:
     command: visual_changenet inference -e {config_path}
     config_format: yaml
     inputs:
+      model.backbone.pretrained_backbone_path:
+        type: file
       dataset.classify.infer_dataset.csv_path:
         type: file
       dataset.classify.infer_dataset.images_dir:
@@ -61,6 +67,8 @@ actions:
     inputs:
       dataset.segment.root_dir:
         type: folder
+      train.resume_training_checkpoint_path:
+        type: file
     outputs:
       results_dir:
         type: folder
@@ -92,6 +100,25 @@ actions:
         type: folder
     upload_excludes:
     - inputs/
+spec_params:
+  train:
+    results_dir: output_dir
+    train.resume_training_checkpoint_path: resume_model
+  evaluate:
+    results_dir: output_dir
+    evaluate.checkpoint: parent_model
+  inference:
+    results_dir: output_dir
+    inference.checkpoint: parent_model
+  segment_train:
+    results_dir: output_dir
+    train.resume_training_checkpoint_path: resume_model
+  segment_evaluate:
+    results_dir: output_dir
+    evaluate.checkpoint: parent_model
+  segment_inference:
+    results_dir: output_dir
+    inference.checkpoint: parent_model
 pretrained_models:
   classify:
     # HF source for staging; the spec field accepts only LOCAL paths. Download
