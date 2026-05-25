@@ -33,7 +33,7 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 
 Use this skill for NVIDIA TAO CLIP jobs: training, evaluation, embedding inference, ONNX export, and TensorRT engine generation. Start by identifying the requested action, then load only the referenced files needed for that action: `defaults.json` for default parameters, `config.json` for action/data-source wiring, `references/spec_template.yaml` for full spec shape, and `references/model_info.yaml` for SDK metadata.
 
-For dataset-backed actions, collect the required image, caption, list, or prompt files from the user and place the resolved paths in `spec_overrides`. For `export` and `gen_trt_engine`, infer parent artifacts from the upstream job when available; otherwise require explicit checkpoint, ONNX, or engine paths. Run `gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference` in the TAO Deploy image.
+For dataset-backed actions, collect the required image, caption, list, or prompt files from the user and place the resolved paths in `spec_overrides`. For local Docker runs, mount extracted folders in the container and point `image_dir` / `caption_dir` at those folders; if a data source provides `.tar.gz` archives, extract them before running the in-container CLIP commands. For `export` and `gen_trt_engine`, infer parent artifacts from the upstream job when available; otherwise require explicit checkpoint, ONNX, or engine paths. Run `gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference` in the TAO Deploy image.
 
 For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference`), read `deploy/SKILL.md` first. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
 
@@ -66,6 +66,8 @@ Radio-CLIP requires `model.adaptor_name` to be set to `siglip` or `clip`.
 | gen_trt_engine | gen_trt_engine.onnx_file | parent export job or explicit ONNX | clip_model.onnx | No |
 
 For custom training, set `dataset.train.type: custom` and provide `dataset.train.datasets` entries. Image and caption files must share the same base name. `caption_file_suffix` defaults to `.txt`, and `image_list_file` is optional.
+
+When no native CLIP image-caption dataset is available, do not silently treat image-classification data as CLIP data. If the user explicitly allows a plumbing-only validation fallback, derive caption files from class labels, document that the captions are generated from labels, and keep each image/caption pair on the same base filename. Without an `image_list_file`, the TAO custom loader scans the configured image directory for image files; keep validation folders flat unless you provide a list file.
 
 For WDS training, set `dataset.train.type: wds` and provide at least one of `dataset.train.wds.root_dir` or `dataset.train.wds.shard_list_file`. `root_dir` is scanned recursively for `.tar` shards. `shard_list_file` is a text file with one shard path per line; relative lines resolve under the list-file directory unless `root_dir` is also supplied, in which case they resolve under `root_dir`. Validation/evaluation data remains custom format via `dataset.val.datasets`.
 
@@ -132,6 +134,8 @@ Inference writes `image_embeddings.h5` and/or `text_embeddings.h5` under `result
 
 Set `export.encoder_type: separate` when deployment should use independent vision and text encoders. Separate export writes `_vision.onnx` and `_text.onnx` variants derived from the base `export.onnx_file`.
 
+For checkpoint-dependent actions, use the model-specific checkpoint resolver output from the parent train job. CLIP training writes checkpoints such as `model_epoch_000_step_00020.pth` and a `clip_latest.pth` symlink. Use the exact resolved checkpoint for `evaluate.checkpoint`, `inference.checkpoint`, `export.checkpoint`, and `train.resume_training_checkpoint_path`; use `clip_latest.pth` only when the user explicitly asks for latest.
+
 **gen_trt_engine:**
 ```python
 {
@@ -153,7 +157,7 @@ Optional for training. If provided, validation metrics are computed at validatio
 
 The skill exposes `gen_trt_engine` as the deploy action. In generated SDK runners, use `model_info["actions"]["gen_trt_engine"]` and run it in the TAO Deploy image, not the PyTorch training image. The in-container command is `clip gen_trt_engine -e {config_path}`; direct TAO Launcher usage spells the same action as `tao deploy clip gen_trt_engine -e /path/to/spec.yaml`.
 
-TAO Deploy supports both combined and separate encoder formats. For separate encoders, pass the base path without `_vision` or `_text` to `gen_trt_engine.onnx_file` and `gen_trt_engine.trt_engine`; TAO detects or writes the suffixed vision/text files.
+TAO Deploy inference can discover combined engines, paired separate engines, or single-pillar `_vision.engine` / `_text.engine` files. In the 7.0.0 deploy image validated by this skill, `clip gen_trt_engine` builds image-shaped ONNX inputs correctly but fails on CLIP text inputs because the shared engine builder assumes every input has `(B, C, H, W)` dimensions. The validated deploy path is image-only: export with `export.encoder_type: separate`, pass `clip_model_vision.onnx` to `gen_trt_engine.onnx_file`, write `clip_vision.engine`, and set `inference.text_file: null` for TensorRT image embeddings. Combined ONNX, text ONNX, full text inference, and TensorRT retrieval evaluation remain blocked until the deploy builder handles text input profiles.
 
 Use `evaluate.trt_engine` for TensorRT evaluation and `inference.trt_engine` for TensorRT embedding extraction. These TensorRT paths also run in the TAO Deploy image. Direct TAO Launcher usage spells these as `tao deploy clip evaluate` and `tao deploy clip inference`.
 
@@ -196,6 +200,10 @@ caption files from labels as a separate data-preparation step.
 **ONNX external data missing**: Models larger than 2 GB export an ONNX file plus an external data file. Keep both files in the same directory and do not rename the external data file before `gen_trt_engine`.
 
 **TensorRT shape mismatch**: When using dynamic batch export, provide min/opt/max shape profiles for every input. Text sequence length must match the tokenizer length, commonly 77 for CLIP tokenizers and 64 for SigLIP2 tokenizers.
+
+**PyTorch 2.6 checkpoint load failure**: If a trusted TAO CLIP Lightning checkpoint fails with a `Weights only load failed` / `numpy.dtypes.Float64DType` unpickling error, rerun checkpoint-dependent PyTorch actions with `TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1`. Do not use this override for untrusted checkpoints.
+
+**CLIP TensorRT text build failure**: If `clip gen_trt_engine` fails with `IndexError: Out of bounds` while parsing `input_ids` or `attention_mask`, the current deploy builder is treating text inputs as image tensors. Build the `_vision.onnx` file for image-only TensorRT inference and document text/full retrieval deployment as blocked for this deploy image.
 
 **attention_mask warning**: `attention_mask` is currently accepted by exported graphs for compatibility, but TAO ignores its values and may remove it in a future release. Do not build new direct-ONNX inference code that depends on mask values.
 

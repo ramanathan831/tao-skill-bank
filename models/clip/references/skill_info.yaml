@@ -99,14 +99,19 @@ actions:
     upload_excludes:
     - inputs/
   gen_trt_engine:
+    container_image: tao_toolkit.deploy
     command: clip gen_trt_engine -e {config_path}
     config_format: yaml
     inputs:
       gen_trt_engine.onnx_file:
         type: file
+      gen_trt_engine.trt_engine:
+        type: file
     outputs:
       results_dir:
         type: folder
+      gen_trt_engine.trt_engine:
+        type: file
     upload_excludes:
     - inputs/
 data_sources:
