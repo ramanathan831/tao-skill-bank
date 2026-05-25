@@ -45,9 +45,9 @@ For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and Tens
 
 ### Supported Models
 
-- **SigLIP2:** `siglip2-so400m-patch16-256` (default), `siglip2-so400m-patch14-224`, `siglip2-so400m-patch14-384`, `siglip2-so400m-patch16-384`, `siglip2-so400m-patch16-512`, `siglip2-so400m-patch16-naflex`
+- **OpenCLIP / NV-CLIP:** `ViT-L-14-SigLIP-CLIPA-224` (default), `ViT-L-14-SigLIP-CLIPA-336`, `ViT-H-14-SigLIP-CLIPA-224`, `ViT-H-14-SigLIP-CLIPA-336`, `ViT-H-14-SigLIP-CLIPA-574`
 - **Radio-CLIP:** `c-radio_v3-b`, `c-radio_v3-l`, `c-radio_v3-h`, `c-radio_v3-g`
-- **OpenCLIP / NV-CLIP:** `ViT-L-14-SigLIP-CLIPA-224`, `ViT-L-14-SigLIP-CLIPA-336`, `ViT-H-14-SigLIP-CLIPA-224`, `ViT-H-14-SigLIP-CLIPA-336`, `ViT-H-14-SigLIP-CLIPA-574`
+- **SigLIP2:** `siglip2-so400m-patch16-256`, `siglip2-so400m-patch14-224`, `siglip2-so400m-patch14-384`, `siglip2-so400m-patch16-384`, `siglip2-so400m-patch16-512`, `siglip2-so400m-patch16-naflex`
 
 Radio-CLIP requires `model.adaptor_name` to be set to `siglip` or `clip`.
 
@@ -163,7 +163,7 @@ Use `evaluate.trt_engine` for TensorRT evaluation and `inference.trt_engine` for
 
 ## Important Parameters
 
-- **model.type**: Backbone family and resolution. Use fixed-resolution SigLIP2/OpenCLIP variants for deployment.
+- **model.type**: Backbone family and resolution. Use a TAO-registered CLIP model ID such as `ViT-L-14-SigLIP-CLIPA-224`. Prefer the listed OpenCLIP / NV-CLIP IDs for AutoML smoke tests because the current TAO container registry routes them through the supported augmentation adapter.
 - **model.adaptor_name**: Required for Radio-CLIP. Set to `siglip` or `clip`.
 - **model.image_size**: Training transform image resolution. Keep it aligned with the selected fixed-resolution backbone.
 - **train.num_epochs**: CLIP fine-tuning often converges quickly. Start with 10-20 epochs for domain adaptation, then increase only if validation loss is still improving.
@@ -195,7 +195,7 @@ caption files from labels as a separate data-preparation step.
 
 **Radio-CLIP config validation error**: Set `model.adaptor_name` explicitly to `siglip` or `clip`.
 
-**Naflex export failure**: `siglip2-so400m-patch16-naflex` is training-only in the current TAO docs and cannot be exported to ONNX or TensorRT. Use a fixed-resolution variant such as `siglip2-so400m-patch16-384`.
+**Unsupported model identifier or transform error**: Use a TAO-registered CLIP model ID supported by the current container. For minimal AutoML validation, prefer `ViT-L-14-SigLIP-CLIPA-224`. Generic OpenCLIP built-ins that are not in TAO's CLIP registry can bypass TAO's augmentation adapter and fail on transform keys.
 
 **ONNX external data missing**: Models larger than 2 GB export an ONNX file plus an external data file. Keep both files in the same directory and do not rename the external data file before `gen_trt_engine`.
 
