@@ -68,9 +68,9 @@ those rebuilt tags before being counted as pass.
 - eval: pass after trusted-checkpoint PyTorch load override
 - inference: pass after trusted-checkpoint PyTorch load override
 - export: pass after trusted-checkpoint PyTorch load override
-- deploy/gen_trt_engine: partial pass in the original default image; image-only engine pass, combined/text ONNX fail due common deploy builder 2D-input bug; fixed in rebuilt deploy image `nvcr.io/nvstaging/tao/tao-toolkit-deploy:validation-fixes-20260525`, full rerun pending
-- deploy inference on TensorRT engine: partial pass in the original default image; image-only inference pass, full rerun pending after text-engine fix
-- deploy evaluate on TensorRT engine: fail in the original default image because full retrieval evaluation requires the text engine; source fixed in rebuilt deploy image, full rerun pending
+- deploy/gen_trt_engine: pass in rebuilt deploy image `nvcr.io/nvstaging/tao/tao-toolkit-deploy:validation-fixes-20260525`; source-fixed rerun generated `_vision`, `_text`, and combined engines with 2D text profiles
+- deploy inference on TensorRT engine: pass in rebuilt deploy image for both paired separate engines and the combined engine; image and text embeddings were written
+- deploy evaluate on TensorRT engine: pass in rebuilt deploy image for both paired separate engines and the combined engine; retrieval metrics were reported
 - prune: unsupported
 - retrain/resume: pass
 - quantize: unsupported
