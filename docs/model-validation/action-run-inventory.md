@@ -133,7 +133,7 @@ those rebuilt tags before being counted as pass.
 - export: pass
 - deploy gen_trt_engine/inference/evaluate: pass
 - prune: unsupported
-- quantize: fail in the original default image after correct checkpoint handoff; fixed in rebuilt PyT image `nvcr.io/nvstaging/tao/tao-toolkit-pyt:validation-fixes-20260525`, full rerun pending
+- quantize: pass in rebuilt PyT image `nvcr.io/nvstaging/tao/tao-toolkit-pyt:validation-fixes-20260525`; rerun used resolver-selected `model_epoch_000_step_00002.pth` and wrote `quantized_model_torchao.pth`
 - retrain/resume: pass
 - dataset convert: not packaged as a model skill action
 

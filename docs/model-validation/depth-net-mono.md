@@ -3,6 +3,8 @@
 Validated on 2026-05-25 with `platform=local-docker`, `image=default`.
 The PyT image resolved to
 `nvcr.io/nvstaging/tao/tao-toolkit-pyt:7.0.0-rc-226-multiarch`.
+The source-fixed quantize rerun used
+`nvcr.io/nvstaging/tao/tao-toolkit-pyt:validation-fixes-20260525`.
 The original validation pass used direct model training because AutoML routing
 was explicitly out of scope. After the default AutoML request, train was rerun
 through `AutoMLRunner` + `DockerSDK` with a two-trial Bayesian search.
@@ -16,7 +18,8 @@ through `AutoMLRunner` + `DockerSDK` with a two-trial Bayesian search.
 - export: pass.
 - deploy: pass for deploy `gen_trt_engine`, deploy `inference`, and deploy `evaluate`.
 - prune: not supported by the model skill.
-- quantize: fail, blocked in TAO SDK code after correct checkpoint handoff.
+- quantize: pass in the rebuilt PyT image after the DepthNet quantize
+  checkpoint-loading fix.
 - retrain/resume: pass.
 - dataset convert: not packaged as a model skill action. The PyT `depth_net` CLI exposes `convert`, but this skill has no convert schema/action wiring.
 - parent gen_trt_engine: fail before fix; the PyT `depth_net` CLI rejects `gen_trt_engine`. TensorRT engine generation is supported through the deploy sub-skill and passed.
@@ -48,17 +51,24 @@ through `AutoMLRunner` + `DockerSDK` with a two-trial Bayesian search.
   `/tmp/tao-model-validation/depth-net-mono/results/train_relative/train/model_epoch_000_step_00001.pth`,
   `dn_model_latest.pth -> model_epoch_000_step_00001.pth`, and
   `/tmp/tao-model-validation/depth-net-mono/results/resume/train/model_epoch_001_step_00002.pth`.
+- Source-fixed rerun prerequisite checkpoint:
+  `/tmp/tao-source-fixed-rerun/current/depth-net-mono/results/train/train/model_epoch_000_step_00002.pth`.
 
 ## Checkpoint/action verification
 
 - Eval checkpoint used: `/tao-workspace/results/train_relative/train/model_epoch_000_step_00001.pth`.
 - Inference checkpoint used: `/tao-workspace/results/train_relative/train/model_epoch_000_step_00001.pth`.
 - Export checkpoint used: `/tao-workspace/results/train_relative/train/model_epoch_000_step_00001.pth`.
-- Quantize checkpoint used: `/tao-workspace/results/train_relative/train/model_epoch_000_step_00001.pth`.
+- Original quantize checkpoint used:
+  `/tao-workspace/results/train_relative/train/model_epoch_000_step_00001.pth`.
+- Source-fixed quantize checkpoint used:
+  `/workspace/results/train/train/model_epoch_000_step_00002.pth`, selected
+  with `tao_sdk.checkpoints.get_checkpoint_path(..., epoch=0, step=2,
+  allow_latest=False)`.
 - Resume/retrain checkpoint used: `/tao-workspace/results/train_relative/train/model_epoch_000_step_00001.pth`.
 - Deploy handoff used: exported ONNX `/tao-workspace/results/export/depth_net_mono.onnx`, then generated TensorRT engine `/tao-workspace/results/deploy_gen_trt_engine/depth_net_mono.engine`.
 - AutoML best checkpoint used: the best trial checkpoint above, selected by `val_loss` from AutoML state and not by the latest symlink.
-- Were checkpoint paths selected through the proper resolver: yes for the manual user workflow; the validated paths used exact epoch/step checkpoint names rather than the latest symlink. The skill docs require SDK/model resolver selection for best, epoch, step, and explicit latest behavior.
+- Were checkpoint paths selected through the proper resolver: yes for the manual user workflow and the source-fixed quantize rerun; the validated paths used exact epoch/step checkpoint names rather than the latest symlink. The skill docs require SDK/model resolver selection for best, epoch, step, and explicit latest behavior.
 - Any incorrect latest-checkpoint behavior found: no runtime action blindly selected `dn_model_latest.pth`, but the model skill metadata was missing export/quantize checkpoint inputs before the direct-action fix.
 
 ## Issues found
@@ -77,7 +87,7 @@ through `AutoMLRunner` + `DockerSDK` with a two-trial Bayesian search.
 - Checkpoint issues:
   - No named best checkpoint was emitted by the one-epoch smoke run; exact epoch/step checkpoint selection was required.
 - Docker/local execution issues:
-  - Parent quantize failed inside the TAO PyT image with `AttributeError: 'MonoDepthNetPlModel' object has no attribute 'load_state_dict_from_checkpoint'`.
+  - Parent quantize failed inside the original TAO PyT image with `AttributeError: 'MonoDepthNetPlModel' object has no attribute 'load_state_dict_from_checkpoint'`.
   - Deploy actions completed successfully but printed a non-fatal telemetry warning.
 - Fresh-install issues:
   - Fresh users following packaged templates could start from stereo/metric defaults unless they supplied all mono overrides manually.
@@ -92,10 +102,12 @@ through `AutoMLRunner` + `DockerSDK` with a two-trial Bayesian search.
 - Updated deploy defaults to FP32 and `workspace_size: 4`.
 - Documented the exact checkpoint pattern, resolver expectations, relative mono `min_depth` / `max_depth` behavior, quantize SDK failure, and deploy handoff rules.
 - Reran train through AutoML with Bayesian search, `automl_max_recommendations=2`, metric `val_loss`, and explicit minimal search over `train.optim.lr` and `train.optim.lr_decay`.
+- Reran `depth_net quantize` on the rebuilt PyT image after the source fix;
+  it initialized the `torchao` backend and saved
+  `/workspace/results/quantize/quantize/quantized_model_torchao.pth`.
 
 ## Remaining issues
 
-- `depth_net quantize` remains unresolved in the TAO PyT image; the skill passes the exact checkpoint correctly, but the SDK fails before quantization can run.
 - Dataset convert remains unvalidated as a model skill action because the skill does not package a convert schema/action, even though the raw PyT CLI exposes `convert`.
 
 ## Files changed
@@ -117,4 +129,4 @@ through `AutoMLRunner` + `DockerSDK` with a two-trial Bayesian search.
 
 ## Final status
 
-- Partially validated: train, default AutoML train routing with two Bayesian recommendations, eval, inference, export, resume/retrain, deploy engine generation, deploy inference, and deploy evaluate passed. Quantize is blocked by an SDK-side failure after correct checkpoint handoff.
+- Fully validated for packaged model-skill actions: train, default AutoML train routing with two Bayesian recommendations, eval, inference, export, resume/retrain, deploy engine generation, deploy inference, deploy evaluate, and source-fixed quantize all passed. Dataset convert remains unadvertised by this model skill.
