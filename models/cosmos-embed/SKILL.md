@@ -140,7 +140,7 @@ Export ONNX:
 ```bash
 docker run "${DOCKER_COMMON[@]}" "$COSMOS_EMBED_IMAGE" \
   bash -lc "python -m pip install 'protobuf<7' && cosmos-embed1 export -e /specs/export_onnx.yaml \
-  export.checkpoint=/results/train/cosmos_embed1_model_latest.pth \
+  export.checkpoint=/results/train/checkpoints/iter_000000001.pt \
   export.onnx_file=/results/export/cosmos_embed1_combined.onnx \
   results_dir=/results"
 ```
@@ -150,7 +150,7 @@ Export HuggingFace format:
 ```bash
 docker run "${DOCKER_COMMON[@]}" "$COSMOS_EMBED_IMAGE" \
   bash -lc "python -m pip install 'protobuf<7' && cosmos-embed1 export -e /specs/export_hf.yaml \
-  export.checkpoint=/results/train/cosmos_embed1_model_latest.pth \
+  export.checkpoint=/results/train/checkpoints/iter_000000001.pt \
   export.hf_output_dir=/results/export_hf/cosmos_embed1_hf \
   results_dir=/results"
 ```
@@ -208,9 +208,9 @@ The dataset loader derives the video id from the local `.mp4` filename and filte
 
 - Local HF directory: mount it under `/model` and set `model.pretrained_model_path=/model/Cosmos-Embed1-224p`.
 - HuggingFace repo: set `model.pretrained_model_path=nvidia/Cosmos-Embed1-224p` and pass `HF_TOKEN` if access is gated.
-- Fine-tuned checkpoint: downstream actions default to `/results/train/cosmos_embed1_model_latest.pth`.
+- Fine-tuned checkpoint: set downstream actions to the resolver-selected `/results/train/checkpoints/iter_#########.pt` file.
 
-Training writes full checkpoints under `results/train/checkpoints/iter_#########.pt`, updates `results/train/checkpoints/latest_checkpoint.txt`, and creates a `cosmos_embed1_model_latest.pth` symlink. For `evaluate.checkpoint`, `inference.checkpoint`, `export.checkpoint`, and `train.resume_training_checkpoint_path`, resolve and pass the exact `iter_#########.pt` file for the intended iteration. Use the latest symlink only when the user explicitly asks for latest.
+Training writes full checkpoints under `results/train/checkpoints/iter_#########.pt`, updates `results/train/checkpoints/latest_checkpoint.txt`, and creates a `cosmos_embed1_model_latest.pth` symlink. For `evaluate.checkpoint`, `inference.checkpoint`, `export.checkpoint`, and `train.resume_training_checkpoint_path`, resolve and pass the exact `iter_#########.pt` file for the intended iteration. The action spec templates intentionally leave these checkpoint fields null so the model-skill runner or the user must provide the resolver-selected checkpoint. Use the latest symlink only when the user explicitly asks for latest.
 
 For single-GPU resume/retrain from a consolidated checkpoint, set `model.fsdp_shard_size: 1`. The container default is 8, which sends resumed training through an FSDP apply path that Cosmos-Embed1 does not implement for this model class.
 

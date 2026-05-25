@@ -1,7 +1,7 @@
 results_dir: /results
 
 export:
-  checkpoint: /results/train/cosmos_embed1_model_latest.pth
+  checkpoint: null
   onnx_file: /results/export/cosmos_embed1_combined.onnx
   mode: combined
   opset_version: 17

@@ -1,7 +1,7 @@
 results_dir: /results
 
 inference:
-  checkpoint: ${results_dir}/train/cosmos_embed1_model_latest.pth
+  checkpoint: null
   query:
     input_texts:
     - a man is singing on stage

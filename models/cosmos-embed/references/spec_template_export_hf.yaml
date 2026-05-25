@@ -1,7 +1,7 @@
 results_dir: /results
 
 export:
-  checkpoint: /results/train/cosmos_embed1_model_latest.pth
+  checkpoint: null
   mode: huggingface
   hf_output_dir: /results/export_hf/cosmos_embed1_hf
   on_cpu: true
