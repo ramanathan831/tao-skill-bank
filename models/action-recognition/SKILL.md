@@ -39,18 +39,24 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 
 | Action | Spec Key | Source | Files | List? |
 |---|---|---|---|---|
-| evaluate | evaluate.test_dataset_dir | train_datasets | test.tar.gz | No |
-| inference | inference.inference_dataset_dir | train_datasets | test/smile.tar.gz | No |
-| train | dataset.train_dataset_dir | train_datasets | train.tar.gz | No |
-| train | dataset.val_dataset_dir | train_datasets | test.tar.gz | No |
+| evaluate | evaluate.test_dataset_dir | train_datasets | test/ extracted from test.tar.gz | No |
+| inference | inference.inference_dataset_dir | train_datasets | test/smile/ extracted from test/smile.tar.gz | No |
+| train | dataset.train_dataset_dir | train_datasets | train/ extracted from train.tar.gz | No |
+| train | dataset.val_dataset_dir | train_datasets | test/ extracted from test.tar.gz | No |
 
 ### Typical Spec Overrides
 
 Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
 
 ```python
-S3_TRAIN = "s3://bucket/data/train"
+LOCAL_DATA = "/workspace/data/extracted"
 ```
+
+If the source dataset is provided as the TAO sample archives
+`train.tar.gz`, `test.tar.gz`, or `test/smile.tar.gz`, download and extract
+them before launching the TAO container. The action-recognition entrypoints
+expect directory paths and fail with `NotADirectoryError` when these spec keys
+point at `.tar.gz` files.
 
 **train (mandatory data sources):**
 ```python
@@ -64,8 +70,8 @@ S3_TRAIN = "s3://bucket/data/train"
         "smile": 1
     },
     "dataset.batch_size": 2,
-    "dataset.train_dataset_dir": f"{S3_TRAIN}/train.tar.gz",
-    "dataset.val_dataset_dir": f"{S3_TRAIN}/test.tar.gz",
+    "dataset.train_dataset_dir": f"{LOCAL_DATA}/train",
+    "dataset.val_dataset_dir": f"{LOCAL_DATA}/test",
 }
 ```
 
@@ -76,7 +82,7 @@ S3_TRAIN = "s3://bucket/data/train"
         "catch": 0,
         "smile": 1
     },
-    "evaluate.test_dataset_dir": f"{S3_TRAIN}/test.tar.gz",
+    "evaluate.test_dataset_dir": f"{LOCAL_DATA}/test",
 }
 ```
 
@@ -87,12 +93,29 @@ S3_TRAIN = "s3://bucket/data/train"
         "catch": 0,
         "smile": 1
     },
-    "inference.inference_dataset_dir": f"{S3_TRAIN}/test/smile.tar.gz",
+    "inference.inference_dataset_dir": f"{LOCAL_DATA}/smile_infer/smile",
 }
 ```
+
+**export (mandatory checkpoint + output path):**
+```python
+{
+    "export.checkpoint": "<selected train checkpoint>",
+    "export.onnx_file": "<results_dir>/action_recognition.onnx",
+}
+```
+
+For direct local-docker chaining without the SDK resolver, select the concrete
+checkpoint produced by training, for example
+`model_epoch_000_step_00005.pth`, and pass that exact file to `evaluate`,
+`inference`, and `export`. Do not use the `ar_model_latest.pth` symlink unless
+the user explicitly requests latest-checkpoint behavior. For resume training,
+set `train.resume_training_checkpoint_path` to the exact epoch/step checkpoint
+being resumed.
 ## Eval Dataset
 
-Optional. Test dataset is provided as test.tar.gz separate from training.
+Optional. Test dataset may be distributed as `test.tar.gz` separate from
+training; extract it and point the spec to the extracted `test/` directory.
 TAO training emits `val_loss` as the validation scalar for the packaged sample
 data; use `val_loss` with minimize direction for AutoML selection unless a
 custom evaluator supplies an accuracy metric.
