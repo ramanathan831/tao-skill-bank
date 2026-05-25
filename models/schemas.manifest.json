@@ -83,7 +83,6 @@
       "actions": [
         "evaluate",
         "export",
-        "gen_trt_engine",
         "inference",
         "quantize",
         "train"

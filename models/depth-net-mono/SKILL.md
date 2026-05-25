@@ -24,6 +24,8 @@ The mono and stereo skills both invoke the unified TAO `depth_net` CLI inside th
 
 For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference`), read `deploy/SKILL.md` first. The deploy spec template lives in this skill's `references/spec_template_deploy.yaml`.
 
+Parent PyT actions packaged by this model skill: `train`, `evaluate`, `inference`, `export`, and `quantize`. The PyT `depth_net` entrypoint does not accept a parent-side `gen_trt_engine` action in the current TAO image; build TensorRT engines only through the deploy sub-skill.
+
 ## Train Action Policy
 
 This model is AutoML-enabled at the model layer. Before handling any train-stage request, read `references/skill_info.yaml` and resolve the run override from either an explicit `automl_policy` value or the user's workflow request. Use `automl_policy: on` by default and only expose `on` / `off` in new launch prompts. Treat phrases like "turn off AutoML", "disable AutoML", "no HPO", or "plain training" as `automl_policy: off` for this run only. When `automl_policy: on`, `automl_enabled: true`, and both `schemas/train.schema.json` and `references/spec_template_train.yaml` are packaged, route the train action through `tao-skill-bank:tao-automl` by default with this model's `skill_dir`. Preserve workflow/application overrides for datasets, specs, output directories, GPU/platform settings, parent checkpoints, and `automl_policy`. Use direct model training only when `automl_policy: off` or the packaged train schema/template is missing; in the missing-schema case, report that AutoML is enabled but not runnable for this model until schemas are generated.
@@ -99,6 +101,8 @@ Dataset-specific class — switch when the data needs preprocessing the generic 
 
 Using a generic class on data that requires unit conversion (e.g. raw NYU uint16 PNGs) results in an empty valid mask and silent `train_loss = NaN`. Match the class to your data's encoding.
 
+For relative mono data (`RelativeMonoDataset` or `NYUDV2Relative`), leave `dataset.min_depth` and `dataset.max_depth` unset or set both to `null`. Non-null metric depth ranges are passed into the relative dataset constructor and fail with `BaseRelativeMonoDataset.__init__() got an unexpected keyword argument 'min_depth'`.
+
 ### Step 3 — Write spec yaml from Typical Spec Overrides
 
 Copy the action block from **Training Requirements → Typical Spec Overrides**. Replace:
@@ -167,6 +171,9 @@ S3_EVAL = "aws://bucket/data/eval"
     "train.num_gpus": 1,
     "model.model_type": "RelativeDepthAnything",
     "model.encoder": "vitl",
+    "dataset.dataset_name": "MonoDataset",
+    "dataset.min_depth": None,
+    "dataset.max_depth": None,
     "dataset.train_dataset.batch_size": 4,
     "dataset.train_dataset.workers": 4,
     "dataset.train_dataset.augmentation.crop_size": [518, 518],
@@ -187,6 +194,9 @@ S3_EVAL = "aws://bucket/data/eval"
 ```python
 {
     "model.model_type": "RelativeDepthAnything",
+    "dataset.dataset_name": "MonoDataset",
+    "dataset.min_depth": None,
+    "dataset.max_depth": None,
     "dataset.test_dataset.batch_size": 1,
     "dataset.test_dataset.workers": 4,
     "dataset.test_dataset.data_sources": [
@@ -200,6 +210,10 @@ S3_EVAL = "aws://bucket/data/eval"
 ```python
 {
     "model.model_type": "RelativeDepthAnything",
+    "dataset.dataset_name": "MonoDataset",
+    "dataset.min_depth": None,
+    "dataset.max_depth": None,
+    "export.checkpoint": "<selected train/AutoML checkpoint>",
     "export.input_channel": 3,
     "export.input_height": 518,
     "export.input_width": 518,
@@ -215,6 +229,9 @@ Defaults sourced from `nvidia_tao_pytorch/cv/depth_net/experiment_specs/experime
 ```python
 {
     "model.model_type": "RelativeDepthAnything",
+    "dataset.dataset_name": "MonoDataset",
+    "dataset.min_depth": None,
+    "dataset.max_depth": None,
     "dataset.infer_dataset.batch_size": 1,
     "dataset.infer_dataset.workers": 4,
     "dataset.infer_dataset.data_sources": [
@@ -230,15 +247,23 @@ Defaults sourced from `nvidia_tao_pytorch/cv/depth_net/experiment_specs/experime
 **quantize (mandatory data sources):**
 ```python
 {
+    "model.model_type": "RelativeDepthAnything",
+    "dataset.dataset_name": "MonoDataset",
+    "dataset.min_depth": None,
+    "dataset.max_depth": None,
     "dataset.train_dataset.data_sources": [
         {"data_file": f"{S3_TRAIN}/annotations.txt", "dataset_name": "RelativeMonoDataset"}
     ],
     "dataset.val_dataset.data_sources": [
         {"data_file": f"{S3_EVAL}/annotations.txt", "dataset_name": "RelativeMonoDataset"}
     ],
-    "dataset.quant_calibration_dataset.images_dir": f"{S3_TRAIN}/images.tar.gz",
+    "dataset.quant_calibration_dataset.images_dir": f"{S3_TRAIN}/images",
+    "quantize.model_path": "<selected train/AutoML checkpoint>",
 }
 ```
+
+Known issue in `nvcr.io/nvstaging/tao/tao-toolkit-pyt:7.0.0-rc-226-multiarch`: mono `depth_net quantize` reaches the checkpoint load path and then fails inside the SDK with `MonoDepthNetPlModel` missing `load_state_dict_from_checkpoint`. Keep `quantize.model_path` wired to the selected checkpoint; do not replace it with a latest-file guess.
+
 ## Eval Dataset
 
 Optional. Val dataset configured via `dataset.val_dataset.data_sources` (each entry needs `data_file` and `dataset_name`).
@@ -259,7 +284,7 @@ Optional. Val dataset configured via `dataset.val_dataset.data_sources` (each en
 - **dataset.{train,val,test,infer}_dataset.workers**: Per-split DataLoader worker count (the field name is `workers`, not `num_workers`).
 - **dataset.{train,val,test,infer}_dataset.augmentation.crop_size**: Per-split crop size. Default `[518, 518]`. For Depth Anything ViT encoders, each spatial dimension must be divisible by the patch size (14 for `vits`/`vitb`/`vitl`/`vitg`).
 - **dataset.{train,val,test,infer}_dataset.data_sources**: List of `{data_file, dataset_name}` dicts. Both fields are mandatory per entry.
-- **dataset.max_depth** / **dataset.min_depth**: Top-level depth range for metric depth estimation.
+- **dataset.max_depth** / **dataset.min_depth**: Top-level depth range for metric depth estimation. Set both to `null` or omit them for relative mono datasets.
 - **export.input_channel**: ONNX input channel count. Default `3` (RGB), matching the runtime input expected by `RelativeDepthAnythingV2` / `MetricDepthAnythingV2`. Source: `experiment_mono_relative.yaml` export block.
 - **export.input_height** / **export.input_width**: ONNX input spatial dims. Default `518` / `518`, matching the model's training-time crop. Override only when targeting a different deployment input shape — the model's positional embeddings constrain practical shapes to multiples of the patch size (14 for ViT-L).
 - **export.opset_version**: ONNX opset target. Default `17` (native LayerNormalization op for fp16 stability). Source: `experiment_mono_relative.yaml` export block.
@@ -386,7 +411,7 @@ Mitigations to try in order if NaN is observed:
 ## Export / TRT Defaults
 
 - TRT data types: FP32, BF16 (Ampere SM80+). FP16 is not supported for the ViT-L mono backbone.
-- Recommended TRT precision: `bf16`. Use `fp32` if BF16 hardware is unavailable.
+- Fresh-install TRT precision: `fp32`. BF16 is supported on Ampere SM80+ hardware, but keep smoke tests on FP32 unless the user explicitly requests BF16.
 
 ## Hardware
 
@@ -395,6 +420,8 @@ Minimum 1 GPU(s), recommended 2 GPU(s). 24GB+ VRAM per GPU. ViT-Large encoder is
 ## Error Patterns
 
 **Depth range mismatch**: Ensure `dataset.max_depth` / `dataset.min_depth` match the actual depth range in your data.
+
+**Relative dataset rejects `min_depth`**: For `RelativeMonoDataset` and `NYUDV2Relative`, remove `dataset.min_depth` and `dataset.max_depth` or set them to `null`. Non-null values are metric-only and make the relative dataset constructor fail before training starts.
 
 **Missing pretrained weights**: DepthAnything v2 encoder requires `model.mono_backbone.pretrained_path` to be set for fine-tuning.
 
@@ -412,6 +439,10 @@ Minimum 1 GPU(s), recommended 2 GPU(s). 24GB+ VRAM per GPU. ViT-Large encoder is
 
 Model-specific inference mappings belong in this MD file, not in `config.json`. Generated runners should read this section and apply the mappings with SDK helpers before `create_job()`. This mirrors the old microservices `infer_params.py` flow.
 
+DepthNet Mono training writes checkpoint files under `<results_dir>/train/` using `model_epoch_<epoch>_step_<step>.pth` and a `dn_model_latest.pth` symlink. For `evaluate`, `inference`, `export`, `quantize`, and resume/retrain, select checkpoints through the SDK/model resolver so a requested best, epoch, or step checkpoint resolves to that exact file. Use `dn_model_latest.pth` only when the user explicitly asks for latest.
+
+Parent PyT `gen_trt_engine` is intentionally absent from the supported action set because the current `depth_net` entrypoint rejects it. The TensorRT engine mappings are owned by `deploy/SKILL.md`.
+
 Inference mappings from TAO Core `depth_net_mono.config.json`:
 
 | Action | Spec Field | Inference Function | Meaning |
@@ -424,10 +455,6 @@ Inference mappings from TAO Core `depth_net_mono.config.json`:
 | export | `export.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
 | export | `export.onnx_file` | `create_onnx_file` | output ONNX path |
 | export | `results_dir` | `output_dir` | current job results directory |
-| gen_trt_engine | `dataset.dataset_name` | `MonoDataset` | MonoDataset |
-| gen_trt_engine | `gen_trt_engine.onnx_file` | `parent_model` | model file inferred from the parent job results folder |
-| gen_trt_engine | `gen_trt_engine.trt_engine` | `create_engine_file` | output TensorRT engine path |
-| gen_trt_engine | `results_dir` | `output_dir` | current job results directory |
 | inference | `dataset.dataset_name` | `MonoDataset` | MonoDataset |
 | inference | `inference.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
 | inference | `inference.trt_engine` | `parent_model` | model file inferred from the parent job results folder |

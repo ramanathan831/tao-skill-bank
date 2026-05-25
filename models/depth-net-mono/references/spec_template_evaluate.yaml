@@ -14,14 +14,14 @@ wandb:
   name: TAO Toolkit Training
   run_id: ''
 dataset:
-  dataset_name: StereoDataset
+  dataset_name: MonoDataset
   normalize_depth: false
   max_disparity: 416
   baseline: 0.193001
   focal_x: 1998.842
   train_dataset:
     data_sources: &id001
-    - dataset_name: ''
+    - dataset_name: RelativeMonoDataset
       data_file: ''
     batch_size: 1
     workers: 8
@@ -196,7 +196,7 @@ dataset:
   quant_calibration_dataset:
     images_dir: ''
 model:
-  model_type: MetricDepthAnything
+  model_type: RelativeDepthAnything
   mono_backbone:
     pretrained_path: ''
     use_bn: false

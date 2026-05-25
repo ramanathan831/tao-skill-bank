@@ -10,8 +10,6 @@ actions:
     inputs:
       gen_trt_engine.onnx_file:
         type: file
-      gen_trt_engine.trt_engine:
-        type: file
     outputs:
       results_dir:
         type: folder
@@ -71,6 +69,9 @@ notes:
 - The TAO Deploy command is `depth_net` for both mono and stereo DepthNet model skills.
 - 'Keep `dataset.dataset_name: MonoDataset` and use a monocular data source such as
   `RelativeMonoDataset` (or `NYUDV2Relative` for NYU eval) in the deploy spec.'
-- 'Build TRT engines with `gen_trt_engine.tensorrt.data_type: fp32` for ViT-Large mono
-  models. FP16 layernorm in the DepthAnythingV2 backbone can saturate at runtime
-  and produce NaN predictions; see deploy SKILL.md for the caveat.'
+- 'Use `gen_trt_engine.tensorrt.data_type: fp32` for fresh-install smoke tests.
+  BF16 is supported on Ampere SM80+ hardware, but FP16 is not supported for the
+  DepthAnythingV2 mono backbone.'
+- 'The current TAO Deploy image interprets `gen_trt_engine.tensorrt.workspace_size`
+  as GiB. Use `4` for a 4 GiB workspace; do not use byte or MiB-style values such
+  as 1024.'
