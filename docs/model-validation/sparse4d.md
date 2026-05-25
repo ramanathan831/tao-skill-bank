@@ -13,7 +13,7 @@ Default model invocation was routed through AutoML, not normal direct training. 
 - export: pass
 - deploy: unsupported by the packaged Sparse4D model skill
 - prune: unsupported by the packaged Sparse4D model skill
-- quantize: fail in the current PyT image after correct checkpoint handoff; ONNX quantize variant also fails because the image lacks `modelopt.onnx.quantization`
+- quantize: pass in rebuilt PyT image `nvcr.io/nvstaging/tao/tao-toolkit-pyt:validation-fixes-20260525`
 - retrain/resume: pass through `sparse4d train -e` with `train.resume_training_checkpoint_path`
 - other: no standalone retrain or deploy sub-skill is packaged
 
@@ -41,7 +41,7 @@ Default model invocation was routed through AutoML, not normal direct training. 
 - Eval checkpoint used: best AutoML rec 0 `model_epoch_000_step_00004.pth`; evaluate logs loaded that exact checkpoint and produced NuScenes mAP metrics.
 - Inference checkpoint used: best AutoML rec 0 `model_epoch_000_step_00004.pth`; inference logs loaded that exact checkpoint and wrote NuScenes/NVSchema predictions.
 - Export checkpoint used: best AutoML rec 0 `model_epoch_000_step_00004.pth`; export wrote `/tmp/tao-automl-validation/sparse4d/manual_outputs/export/sparse4d.onnx`.
-- Quantize checkpoint used: best AutoML rec 0 `model_epoch_000_step_00004.pth`; the action reached the Sparse4D quantize script and failed inside toolkit model loading.
+- Quantize checkpoint used: source-fixed rerun resolver-selected exact checkpoint `/tmp/tao-source-fixed-rerun/current/sparse4d/results/train/model_epoch_000_step_00004.pth`; quantize wrote `/workspace/results/quantize/quantized_model_torchao.pth`.
 - Resume/retrain checkpoint used: best AutoML rec 0 `model_epoch_000_step_00004.pth`; resume logs restored all states from that exact checkpoint and completed training.
 - Were checkpoint paths selected through the proper resolver: yes, validation used `tao_sdk.checkpoints.get_checkpoint_path` with `epoch=0`, `step=4`, and `allow_latest=False` for resume/evaluate/inference/export/quantize.
 - Any incorrect latest-checkpoint behavior found: Sparse4D emits `sparse4d_model_latest.pth` as a latest symlink, but the resolver selected the concrete `model_epoch_000_step_00004.pth`; latest was not used.
@@ -64,7 +64,8 @@ Default model invocation was routed through AutoML, not normal direct training. 
   - Sparse4D writes both concrete epoch/step checkpoints and a latest symlink; downstream actions must use the resolver-selected concrete path.
 - Docker/local execution issues:
   - Checkpoint-backed TorchAO quantize fails in `nvidia_tao_pytorch/cv/sparse4d/scripts/quantize.py` with `Sparse4DPlModel.__init__() missing 1 required positional argument: 'experiment_spec'`.
-  - ONNX quantize reaches the `modelopt.onnx` backend but fails because `modelopt.onnx.quantization` is not installed in the PyT image.
+  - In the original default PyT image, ONNX quantize reaches the `modelopt.onnx` backend but fails because `modelopt.onnx.quantization` is not installed.
+  - The rebuilt PyT image fixed checkpoint-backed TorchAO quantize; it loaded the TAO pipeline checkpoint and saved `quantized_model_torchao.pth`.
 - Fresh-install issues:
   - Without the metadata fixes, fresh model-skill installs would not reliably pass parent train checkpoints to evaluate, inference, export, quantize, or resume.
 
@@ -73,12 +74,13 @@ Default model invocation was routed through AutoML, not normal direct training. 
 - Added optional train pretrained/resume checkpoint inputs to `models/sparse4d/references/skill_info.yaml`.
 - Added checkpoint/model inputs for evaluate, inference, export, and quantize.
 - Added Sparse4D `spec_params` mappings for output directories, checkpoint handoff, resume checkpoint resolution, PTM fallback, and export ONNX creation.
-- Updated Sparse4D instructions for PTM handling, local-docker conversion behavior, and current quantize blockers.
+- Updated Sparse4D instructions for PTM handling, local-docker conversion behavior, and original default-image quantize blockers.
 - Updated the per-network action inventory.
+- Reran Sparse4D dataset conversion with `nvcr.io/nvstaging/tao/tao-toolkit-ds:validation-fixes-20260525`, then train and quantize with `nvcr.io/nvstaging/tao/tao-toolkit-pyt:validation-fixes-20260525`; quantize passed with the resolver-selected checkpoint.
 
 ## Remaining issues
 
-- Quantize remains unresolved in the current container image. The model-skill now passes the correct checkpoint/ONNX paths, but the PyT image needs a Sparse4D quantize entrypoint fix for checkpoint-backed PyTorch quantize and a `modelopt.onnx.quantization` dependency for ONNX quantize.
+- The original default PyT image still contains the Sparse4D checkpoint-backed quantize entrypoint bug. The source-fixed rebuilt PyT image validates TorchAO weight-only quantize.
 - No deploy, prune, or standalone retrain action is packaged for Sparse4D.
 - The available S3 dataset supports smoke validation but does not provide separate converted val/test splits.
 
@@ -91,4 +93,4 @@ Default model invocation was routed through AutoML, not normal direct training. 
 
 ## Final status
 
-Partially validated: dataset conversion, AutoML default training, evaluate, inference, export, and resume pass through the real Sparse4D model skill. Quantize is blocked by current PyT image defects after correct model-skill checkpoint handoff.
+Fully validated for packaged model-skill actions after the source-fixed quantize rerun; Sparse4D quantize requires the rebuilt PyT image until that source fix is promoted to the default image.

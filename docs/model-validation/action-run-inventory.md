@@ -403,7 +403,7 @@ those rebuilt tags before being counted as pass.
 - evaluate: pass with resolver-selected `model_epoch_000_step_00004.pth`
 - inference: pass with resolver-selected `model_epoch_000_step_00004.pth`
 - export: pass with resolver-selected `model_epoch_000_step_00004.pth`
-- quantize: fail in the original default image after correct checkpoint handoff due incorrect `Sparse4DPlModel` checkpoint loading and missing ModelOpt ONNX extras; fixed in rebuilt PyT image `nvcr.io/nvstaging/tao/tao-toolkit-pyt:validation-fixes-20260525`, full rerun pending
+- quantize: pass in rebuilt PyT image `nvcr.io/nvstaging/tao/tao-toolkit-pyt:validation-fixes-20260525`; source-fixed rerun used resolver-selected `model_epoch_000_step_00004.pth` and wrote `quantized_model_torchao.pth`
 - retrain/resume: pass through `train.resume_training_checkpoint_path`, restored the selected epoch/step checkpoint and completed training
 - deploy: unsupported/not advertised
 - prune: unsupported/not advertised
