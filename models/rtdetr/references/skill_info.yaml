@@ -17,6 +17,15 @@ actions:
         type: folder
       dataset.val_data_sources.json_file:
         type: file
+      model.pretrained_backbone_path:
+        type: file
+        optional: true
+      train.pretrained_model_path:
+        type: file
+        optional: true
+      train.resume_training_checkpoint_path:
+        type: file
+        optional: true
     outputs:
       results_dir:
         type: folder
@@ -33,6 +42,8 @@ actions:
       dataset.val_data_sources.image_dir:
         type: folder
       dataset.val_data_sources.json_file:
+        type: file
+      distill.pretrained_teacher_model_path:
         type: file
     outputs:
       results_dir:
@@ -55,6 +66,8 @@ actions:
         type: folder
       dataset.quant_calibration_data_sources.json_file:
         type: file
+      quantize.model_path:
+        type: file
     outputs:
       results_dir:
         type: folder
@@ -68,6 +81,8 @@ actions:
         type: folder
       dataset.test_data_sources.json_file:
         type: file
+      evaluate.checkpoint:
+        type: file
     outputs:
       results_dir:
         type: folder
@@ -76,7 +91,9 @@ actions:
   export:
     command: rtdetr export -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      export.checkpoint:
+        type: file
     outputs:
       results_dir:
         type: folder
@@ -90,24 +107,36 @@ actions:
         type: folder
       dataset.infer_data_sources.classmap:
         type: file
-    outputs:
-      results_dir:
-        type: folder
-    upload_excludes:
-    - inputs/
-  gen_trt_engine:
-    command: rtdetr gen_trt_engine -e {config_path}
-    config_format: yaml
-    inputs:
-      gen_trt_engine.tensorrt.calibration.cal_image_dir[0]:
-        type: folder
+      inference.checkpoint:
+        type: file
     outputs:
       results_dir:
         type: folder
     upload_excludes:
     - inputs/
 data_sources: {}
-spec_params: {}
+spec_params:
+  train:
+    results_dir: output_dir
+    model.pretrained_backbone_path: ptm_if_no_resume_model
+    train.pretrained_model_path: ptm_if_no_resume_model
+    train.resume_training_checkpoint_path: resume_model
+  distill:
+    results_dir: output_dir
+    distill.pretrained_teacher_model_path: parent_model
+  evaluate:
+    results_dir: output_dir
+    evaluate.checkpoint: parent_model
+  export:
+    results_dir: output_dir
+    export.checkpoint: parent_model
+    export.onnx_file: create_onnx_file
+  inference:
+    results_dir: output_dir
+    inference.checkpoint: parent_model
+  quantize:
+    results_dir: output_dir
+    quantize.model_path: parent_model
 key_defaults: {}
 spec_shorthand_keys:
   num_epochs: train.num_epochs

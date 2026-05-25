@@ -365,7 +365,20 @@ not yet reached a per-model validation report.
 - standalone retrain: unsupported by the real PyT CLI; resume uses train
 
 ## rtdetr
-- not run yet in this validation branch
+- train: pass, default model invocation routed through AutoML with two Bayesian recommendations using `mAP50` maximize
+- evaluate: pass with resolver-selected `model_epoch_000.pth`
+- inference: pass with resolver-selected `model_epoch_000.pth`
+- export: pass with resolver-selected `model_epoch_000.pth`
+- quantize: pass with resolver-selected `model_epoch_000.pth`
+- distill: pass after switching the template to the RT-DETR IOU `srcs` binding
+- resume training: pass through `train.resume_training_checkpoint_path`, restored the selected epoch checkpoint and produced `model_epoch_001.pth`
+- deploy gen_trt_engine: pass after removing invalid shape keys and engine-file pre-creation from deploy metadata/templates
+- deploy evaluate on TensorRT engine: pass
+- deploy inference on TensorRT engine: pass
+- prune: unsupported/not advertised
+- dataset convert: unsupported/not advertised
+- standalone retrain: unsupported by the real PyT CLI; resume uses train
+- parent PyT gen_trt_engine: unsupported by the real PyT CLI; TensorRT is deploy-only
 
 ## segformer
 - not run yet in this validation branch
