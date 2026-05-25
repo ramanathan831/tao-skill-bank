@@ -29,12 +29,11 @@ Generated TAO Core schemas are packaged in `schemas/<action>.schema.json`, with 
 
 This model is AutoML-enabled at the model layer. Before handling any train-stage request, read `references/skill_info.yaml` and resolve the run override from either an explicit `automl_policy` value or the user's workflow request. Use `automl_policy: on` by default and only expose `on` / `off` in new launch prompts. Treat phrases like "turn off AutoML", "disable AutoML", "no HPO", or "plain training" as `automl_policy: off` for this run only. When `automl_policy: on`, `automl_enabled: true`, and both `schemas/train.schema.json` and `references/spec_template_train.yaml` are packaged, route the train action through `tao-skill-bank:tao-automl` by default with this model's `skill_dir`. Preserve workflow/application overrides for datasets, specs, output directories, GPU/platform settings, parent checkpoints, and `automl_policy`. Use direct model training only when `automl_policy: off` or the packaged train schema/template is missing; in the missing-schema case, report that AutoML is enabled but not runnable for this model until schemas are generated.
 
-For budgeted AutoML algorithms that resume promoted trials (Hyperband-family,
-DEHB, ASHA, BOHB, BFBO, PBT), use `train_loss` as the optimization metric with
+For AutoML, use `train_loss` as the optimization metric with
 `direction=minimize`, and set `train.optim.monitor_name: train_loss` in
-`spec_overrides`. Short NVPanoptix3D resumed jobs may not emit `val_loss` after
-restoring from a parent checkpoint, while they do reliably emit `train_loss`
-and checkpoint artifacts.
+`spec_overrides`. NVPanoptix3D train jobs emit `PRQ`, `RSQ`, and `RRQ` in
+`status.json`, and the training progress log emits `train_loss`; short or
+minimal jobs may not emit `val_loss`, including full-trial smoke runs.
 
 Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows stay in this model skill. The per-run `automl_policy` override does not change model metadata.
 
@@ -42,8 +41,9 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 
 - **Dataset type:** nvpanoptix3d
 - **Formats:** front3d, matterport
-- **Monitoring metric:** val_loss for full-trial algorithms; train_loss for
-  short/resume-based AutoML algorithms when validation loss is not emitted.
+- **Monitoring metric:** train_loss (`direction=minimize`) for AutoML train
+  jobs. Validation status KPIs are `PRQ`, `RSQ`, and `RRQ`; do not use
+  `val_loss` unless a specific run is known to emit it.
 
 ### Per-Action Dataset Requirements
 
