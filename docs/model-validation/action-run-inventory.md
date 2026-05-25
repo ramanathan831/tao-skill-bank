@@ -279,6 +279,7 @@ not yet reached a per-model validation report.
 - prune: pass
 - quantize: fail
 - resume training through `train.resume_training_checkpoint_path`: pass
+- AutoML default train route: pass with Bayesian `automl_max_recommendations=2`
 - retrain: unsupported as a standalone PyT action
 - dataset convert: unsupported
 
