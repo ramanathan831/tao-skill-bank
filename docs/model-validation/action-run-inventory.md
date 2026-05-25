@@ -119,7 +119,7 @@ those rebuilt tags before being counted as pass.
 - eval: pass with exact trained checkpoint
 - inference: pass with exact trained checkpoint
 - export: pass with exact trained checkpoint
-- deploy: partial in the original default image; gen_trt_engine and inference pass, evaluate failed after predictions due deploy stereo metric scalar conversion; fixed in rebuilt deploy image `nvcr.io/nvstaging/tao/tao-toolkit-deploy:validation-fixes-20260525`, full rerun pending
+- deploy: pass in rebuilt deploy image `nvcr.io/nvstaging/tao/tao-toolkit-deploy:validation-fixes-20260525`; source-fixed rerun generated `ffs_fast_stereo_224.engine`, then deploy inference and deploy evaluate both finished successfully
 - prune: unsupported
 - quantize: unsupported by packaged metadata
 - retrain/resume: pass with exact trained checkpoint

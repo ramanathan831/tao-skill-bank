@@ -5,6 +5,11 @@ The parent PyT image resolved to
 `nvcr.io/nvstaging/tao/tao-toolkit-pyt:7.0.0-rc-226-multiarch`; the deploy
 image resolved to
 `nvcr.io/nvstaging/tao/tao-toolkit-deploy:7.0.0-rc-171-multiarch`.
+The source-fixed deploy rerun used
+`nvcr.io/nvstaging/tao/tao-toolkit-pyt:validation-fixes-20260525` for
+train/export prerequisites and
+`nvcr.io/nvstaging/tao/tao-toolkit-deploy:validation-fixes-20260525` for
+TensorRT actions.
 
 The first validation pass used direct model training because workflow/AutoML
 skills were intentionally not run and the fast-stereo package did not include
@@ -18,7 +23,7 @@ Supported actions tested:
 - eval: pass with exact trained checkpoint
 - inference: pass with exact trained checkpoint
 - export: pass with exact trained checkpoint
-- deploy: partial; deploy `gen_trt_engine` pass, deploy `inference` pass, deploy `evaluate` fail after predictions
+- deploy: pass in the rebuilt deploy image; deploy `gen_trt_engine`, deploy `inference`, and deploy `evaluate` all finished successfully in the source-fixed rerun
 - prune: unsupported; not declared in the model skill metadata
 - quantize: unsupported by the packaged model skill metadata
 - retrain/resume: pass with exact trained checkpoint
@@ -56,6 +61,8 @@ Training result:
   `/tmp/tao-model-validation/depth-net-fast-stereo/results/train/train/model_epoch_000_step_00002.pth`
   and
   `/tmp/tao-model-validation/depth-net-fast-stereo/results/resume/train/model_epoch_001_step_00004.pth`
+- Source-fixed rerun checkpoint:
+  `/tmp/tao-source-fixed-rerun/current/depth-net-fast-stereo/results/train/train/model_epoch_000_step_00002.pth`
 
 Checkpoint/action verification:
 - Eval checkpoint used:
@@ -69,13 +76,17 @@ Checkpoint/action verification:
   `/tao-workspace/results/export_224/ffs_fast_stereo_224.onnx`, then the
   generated TensorRT engine
   `/tao-workspace/results/deploy_gen_trt_engine_224/ffs_fast_stereo_224.engine`
+- Source-fixed deploy handoff used: resolver-selected checkpoint
+  `/workspace/results/train/train/model_epoch_000_step_00002.pth`, exported
+  ONNX `/workspace/results/export_224/ffs_fast_stereo_224.onnx`, and generated
+  TensorRT engine `/workspace/results/deploy_gen/ffs_fast_stereo_224.engine`.
 - Resume/retrain checkpoint used:
   `/tao-workspace/results/train/train/model_epoch_000_step_00002.pth`
 - AutoML best checkpoint used: the best trial checkpoint above, selected by
   `val_loss` from the AutoML state and not by a latest-checkpoint filename
 - Were checkpoint paths selected through the proper resolver: yes for the
-  direct model-skill actions. The exact nested epoch/step checkpoint was used
-  instead of `dn_model_latest.pth`.
+  direct model-skill actions and source-fixed rerun. The exact nested epoch/step
+  checkpoint was used instead of `dn_model_latest.pth`.
 - Any incorrect latest-checkpoint behavior found: the previous instructions
   pointed local users at `dn_model_latest.pth`; the skill now documents the
   exact checkpoint pattern and latest-symlink caveat.
@@ -111,9 +122,10 @@ Issues found:
 - Docker/local execution issues:
   - The deploy image emits non-fatal telemetry warnings after successful deploy
     actions.
-  - Deploy `evaluate` failed after successful prediction generation with
+  - Deploy `evaluate` failed in the original default deploy image after
+    successful prediction generation with
     `TypeError: only 0-dimensional arrays can be converted to Python scalars`
-    in the deploy stereo evaluator.
+    in the deploy stereo evaluator; the rebuilt deploy image passed.
 - Fresh-install issues:
   - No bp2 checkpoint was available in the default PyT image or the inspected S3
     data/checkpoint locations; users must provide it for bp2 raw-deploy or
@@ -136,14 +148,18 @@ Fixes made:
   `model_epoch_<epoch>_step_<step>.pth` checkpoints and `dn_model_latest.pth`.
 - Updated the deploy workspace template and docs to use `workspace_size: 4` for
   the current DepthNet deploy builder behavior.
-- Documented the current deploy `evaluate` metric-reduction failure and the
-  PyT-evaluate/TRT-inference workaround.
+- Documented the original default deploy `evaluate` metric-reduction failure
+  and the PyT-evaluate/TRT-inference workaround used before the deploy source
+  fix.
+- Reran source-fixed train/export prerequisites on
+  `nvcr.io/nvstaging/tao/tao-toolkit-pyt:validation-fixes-20260525`; export
+  used the exact resolver-selected `model_epoch_000_step_00002.pth` checkpoint.
+- Reran source-fixed deploy `gen_trt_engine`, `inference`, and `evaluate` on
+  `nvcr.io/nvstaging/tao/tao-toolkit-deploy:validation-fixes-20260525`; all
+  three completed successfully. The 224x224 FP32 engine build completed in
+  237.942 seconds.
 
 Remaining issues:
-- Deploy `evaluate` remains unresolved in the current deploy image. It produces
-  predictions, then fails while converting NumPy metric arrays to scalars in
-  `stereo_evaluator.compute()`. This requires a deploy-image code fix outside
-  the model-skill scope.
 - The validation trained from scratch because no bp2 checkpoint was available;
   metrics are smoke-test metrics only, not bp2 accuracy claims.
 
@@ -156,8 +172,8 @@ Files changed:
 - `docs/model-validation/depth-net-fast-stereo.md`
 
 Final status:
-- Partially validated. All declared parent model-skill actions passed on
-  `local-docker`, default AutoML train routing passed with two Bayesian
-  recommendations, and deploy engine generation/inference passed. Deploy
-  evaluate is blocked by the current TAO Deploy stereo evaluator scalar
-  conversion bug.
+- Fully validated for packaged model-skill actions after the source-fixed image
+  rerun. All declared parent model-skill actions passed on `local-docker`,
+  default AutoML train routing passed with two Bayesian recommendations, and
+  deploy engine generation, inference, and evaluate all passed. Metrics remain
+  smoke-test metrics because no bp2 checkpoint was available.
