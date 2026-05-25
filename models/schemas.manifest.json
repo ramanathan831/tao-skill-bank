@@ -209,11 +209,9 @@
       "actions": [
         "evaluate",
         "export",
-        "gen_trt_engine",
         "inference",
         "prune",
         "quantize",
-        "retrain",
         "train"
       ],
       "automl_enabled": true,

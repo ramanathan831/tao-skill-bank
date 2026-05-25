@@ -19,7 +19,7 @@ tags:
 
 # OCDNet Deploy
 
-OCDNet deploy covers the TAO Deploy actions for an exported optical character detection model. Use the parent `ocdnet` model skill for training, checkpoint evaluation, quantization, distillation, pruning, export, or non-TensorRT inference where those actions exist. Use this deploy sub-skill after export when the input artifact is an ONNX model and the desired output is a TensorRT engine or TensorRT-backed predictions.
+OCDNet deploy covers the TAO Deploy actions for an exported optical character detection model. Use the parent `ocdnet` model skill for training, checkpoint evaluation, quantization, pruning, export, resume training, or non-TensorRT inference where those actions exist. Use this deploy sub-skill after export when the input artifact is an ONNX model and the desired output is a TensorRT engine or TensorRT-backed predictions.
 
 Supported actions: `gen_trt_engine`, `evaluate`, `inference`.
 
@@ -79,6 +79,7 @@ Direct TAO Launcher spelling is `tao deploy ocdnet gen_trt_engine`, `tao deploy 
 |---|---|---|
 | `gen_trt_engine` | Exported ONNX model | `gen_trt_engine.onnx_file` |
 | `gen_trt_engine` | Output engine path | `gen_trt_engine.trt_engine` |
+| `gen_trt_engine` | Results directory | `results_dir` or `gen_trt_engine.results_dir` |
 | `gen_trt_engine` | Calibration images for INT8 | `gen_trt_engine.tensorrt.calibration.cal_image_dir` |
 | `evaluate` | TensorRT engine | `evaluate.trt_engine` |
 | `evaluate` | Validation data path | `dataset.validate_dataset.data_path` |
@@ -107,6 +108,7 @@ Model-specific notes:
 
 - The starter-kit deploy flow builds OCDNet engines with INT8; provide calibration images and a writable calibration cache path.
 - Evaluate and inference expect `evaluate.trt_engine` and `inference.trt_engine` overrides even where the template also shows checkpoint-style fields.
+- Engine generation requires either `results_dir` or `gen_trt_engine.results_dir`; keep both aligned with the writable output mount for direct Docker runs.
 - Keep width, height, and image mode aligned across engine build, evaluate, and inference.
 
 ## Job Chain Mapping
@@ -115,6 +117,7 @@ Model-specific notes:
 |---|---|---|
 | `gen_trt_engine` | `gen_trt_engine.onnx_file` | export job ONNX |
 | `gen_trt_engine` | `gen_trt_engine.trt_engine` | new engine output path |
+| `gen_trt_engine` | `results_dir` / `gen_trt_engine.results_dir` | current job results directory |
 | `gen_trt_engine` INT8 | calibration image/cache fields | calibration dataset and new cache output |
 | `evaluate` | `evaluate.trt_engine` | engine job output |
 | `inference` | `inference.trt_engine` | engine job output |

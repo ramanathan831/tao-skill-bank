@@ -21,6 +21,8 @@ Set train.pretrained_model_path for pretrained weights.
 
 For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference`), read `deploy/SKILL.md` first. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
 
+The PyT OCDNet CLI supports `train`, `evaluate`, `export`, `inference`, `prune`, `quantize`, and `default_specs`. It does not expose PyT-side `retrain` or `gen_trt_engine` actions. Resume/retrain behavior is done with `ocdnet train` plus `train.resume_training_checkpoint_path`; TensorRT engine generation is owned by the deploy sub-skill.
+
 ## Dataclass Schemas
 
 Generated TAO Core schemas are packaged in `schemas/<action>.schema.json`, with `schemas/manifest.json` listing available actions. Each generated schema also emits `references/spec_template_<action>.yaml` from the schema top-level `default` field. AutoML enablement is declared at the model layer in `references/skill_info.yaml` via `automl_enabled`. Runnable AutoML still requires `schemas/train.schema.json` and `references/spec_template_train.yaml` to exist and parse. Use the packaged train schema for `automl_default_parameters`, `automl_disabled_parameters`, defaults, min/max bounds, enums, option weights, math conditions, dependencies, and popular parameters. Do not expect `~/tao-core` at runtime; maintainers regenerate schemas/templates before packaging the skill bank.
@@ -42,14 +44,11 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 | Action | Spec Key | Source | Files | List? |
 |---|---|---|---|---|
 | evaluate | dataset.validate_dataset.data_path | eval_dataset | test.tar.gz | Yes |
-| gen_trt_engine | gen_trt_engine.tensorrt.calibration.cal_image_dir | calibration_dataset | train/img.tar.gz | Yes |
 | inference | inference.input_folder | eval_dataset | test/img.tar.gz | No |
 | prune | dataset.validate_dataset.data_path | eval_dataset | test.tar.gz | Yes |
 | quantize | dataset.train_dataset.data_path | train_datasets | train.tar.gz | Yes |
 | quantize | dataset.validate_dataset.data_path | eval_dataset | test.tar.gz | Yes |
 | quantize | dataset.quant_calibration_dataset.images_dir | train_datasets | train/img.tar.gz | No |
-| retrain | dataset.train_dataset.data_path | train_datasets | train.tar.gz | Yes |
-| retrain | dataset.validate_dataset.data_path | eval_dataset | test.tar.gz | Yes |
 | train | dataset.train_dataset.data_path | train_datasets | train.tar.gz | Yes |
 | train | dataset.validate_dataset.data_path | eval_dataset | test.tar.gz | Yes |
 
@@ -75,14 +74,6 @@ S3_EVAL = "s3://bucket/data/eval"
 }
 ```
 
-**gen_trt_engine (mandatory data sources):**
-```python
-{
-    "gen_trt_engine.tensorrt.data_type": "INT8",
-    "gen_trt_engine.tensorrt.calibration.cal_image_dir": [f"{S3_TRAIN}/train/img.tar.gz"],
-}
-```
-
 **evaluate (mandatory data sources):**
 ```python
 {
@@ -102,6 +93,7 @@ S3_EVAL = "s3://bucket/data/eval"
 **prune (mandatory data sources):**
 ```python
 {
+    "prune.checkpoint": "<selected train/AutoML checkpoint>",
     "dataset.validate_dataset.data_path": [f"{S3_EVAL}/test.tar.gz"],
 }
 ```
@@ -109,15 +101,17 @@ S3_EVAL = "s3://bucket/data/eval"
 **quantize (mandatory data sources):**
 ```python
 {
+    "quantize.model_path": "<selected train checkpoint or exported ONNX>",
     "dataset.train_dataset.data_path": [f"{S3_TRAIN}/train.tar.gz"],
     "dataset.validate_dataset.data_path": [f"{S3_EVAL}/test.tar.gz"],
     "dataset.quant_calibration_dataset.images_dir": f"{S3_TRAIN}/train/img.tar.gz",
 }
 ```
 
-**retrain (mandatory data sources):**
+**resume training (mandatory data sources):**
 ```python
 {
+    "train.resume_training_checkpoint_path": "<exact model_epoch checkpoint>",
     "dataset.train_dataset.data_path": [f"{S3_TRAIN}/train.tar.gz"],
     "dataset.validate_dataset.data_path": [f"{S3_EVAL}/test.tar.gz"],
 }
@@ -157,35 +151,35 @@ Minimum 1 GPU(s), recommended 1 GPU(s). 8GB+ VRAM per GPU. OCDNet is lightweight
 
 **Low detection rate**: Tune postprocess.thresh and box_thresh. Default thresholds may be too aggressive for some datasets.
 
+**One-epoch smoke train with default scheduler**: `train.num_epochs` must not equal `train.lr_scheduler.args.warmup_epoch`. For one-epoch validation, set `warmup_epoch: 0`; for normal starter runs, keep `num_epochs > warmup_epoch`.
+
+**Quantize in the default PyT image**: In `nvcr.io/nvstaging/tao/tao-toolkit-pyt:7.0.0-rc-226-multiarch`, `ocdnet quantize` is exposed but remains blocked in the toolkit/default image. The default `torchao` path fails if `quantize.model_path` is `model_best.pth` because that best-weight bundle lacks `pytorch-lightning_version`; using the full `model_epoch_<epoch>_step_<step>.pth` checkpoint reaches the SDK load path and then fails because `OCDnetModel.__init__` requires `dm` and `task`. The ONNX `modelopt.onnx` path reaches calibration but fails because `modelopt.onnx.quantization` is unavailable in the default image. Keep the model skill wired to explicit artifacts and document the failure; do not hide it by removing the supported CLI action.
+
+## Checkpoint Handoff
+
+OCDNet train writes `model_best.pth` plus full Lightning epoch checkpoints such as `model_epoch_001_step_00046.pth`. Use `model_best.pth` for `evaluate.checkpoint`, `inference.checkpoint`, `export.checkpoint`, and `prune.checkpoint` when the user asks for the best checkpoint. Use a specific `model_epoch_<epoch>_step_<step>.pth` for `train.resume_training_checkpoint_path` and for any action that explicitly needs a full Lightning checkpoint. Use a latest checkpoint only when the user explicitly asks for latest.
+
+If quantize is retried with a PyTorch backend, resolve the full `model_epoch_<epoch>_step_<step>.pth` that corresponds to the intended best epoch or requested epoch; do not pass `model_best.pth` to the PyTorch quantize path. If quantize is retried with `modelopt.onnx`, pass the exported ONNX as `quantize.model_path` and verify that the runtime image actually contains `modelopt.onnx.quantization`.
+
 ## Spec Param / Parent Model Inference
 
 Model-specific inference mappings belong in this MD file, not in `config.json`. Generated runners should read this section and apply the mappings with SDK helpers before `create_job()`. This mirrors the old microservices `infer_params.py` flow.
 
-Inference mappings from TAO Core `ocdnet.config.json`:
+Model handoff mappings:
 
 | Action | Spec Field | Inference Function | Meaning |
 |---|---|---|---|
 | evaluate | `evaluate.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
-| evaluate | `evaluate.trt_engine` | `parent_model` | model file inferred from the parent job results folder |
-| evaluate | `model.pruned_graph_path` | `pruned_model` | parent pruned model |
 | evaluate | `results_dir` | `output_dir` | current job results directory |
 | export | `export.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
 | export | `export.onnx_file` | `create_onnx_file` | output ONNX path |
 | export | `results_dir` | `output_dir` | current job results directory |
-| gen_trt_engine | `gen_trt_engine.onnx_file` | `parent_model` | model file inferred from the parent job results folder |
-| gen_trt_engine | `gen_trt_engine.tensorrt.calibration.cal_cache_file` | `create_cal_cache` | calibration cache path |
-| gen_trt_engine | `gen_trt_engine.trt_engine` | `create_engine_file` | output TensorRT engine path |
-| gen_trt_engine | `results_dir` | `output_dir` | current job results directory |
 | inference | `inference.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
-| inference | `inference.trt_engine` | `parent_model` | model file inferred from the parent job results folder |
-| inference | `model.pruned_graph_path` | `pruned_model` | parent pruned model |
 | inference | `results_dir` | `output_dir` | current job results directory |
 | prune | `prune.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
 | prune | `results_dir` | `output_dir` | current job results directory |
 | quantize | `quantize.model_path` | `parent_model` | model file inferred from the parent job results folder |
 | quantize | `results_dir` | `output_dir` | current job results directory |
-| retrain | `model.pruned_graph_path` | `parent_model` | model file inferred from the parent job results folder |
-| retrain | `results_dir` | `output_dir` | current job results directory |
 | train | `model.pretrained_model_path` | `ptm_if_no_resume_model` | PTM when no resume checkpoint exists |
 | train | `results_dir` | `output_dir` | current job results directory |
 | train | `train.resume_training_checkpoint_path` | `resume_model` | model file inferred from the current job results folder |
