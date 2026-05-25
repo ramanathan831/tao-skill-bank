@@ -86,11 +86,12 @@ failure.
 - Full deploy builder instantiation remains blocked on this host by TensorRT
   CUDA initialization error 35, which points to the local driver/runtime
   environment rather than the Python source fixes.
-- `tao-dataservices` had no failing-action root cause requiring a source
+- Data Services image build: pass,
+  `nvcr.io/nvstaging/tao/tao-toolkit-ds:validation-fixes-20260525`.
+  `tao-dataservices` had no failing-action root cause requiring a source
   change in this pass. Sparse4D dataset conversion passed through Data
   Services; the remaining dataset-convert blockers are data/action
-  availability issues rather than Data Services code failures, so no Data
-  Services image was rebuilt.
+  availability issues rather than Data Services code failures.
 
 ## Still Data Or Artifact Blocked
 
