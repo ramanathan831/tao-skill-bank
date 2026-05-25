@@ -2,7 +2,9 @@
 
 Validated on 2026-05-25 with `platform=local-docker`, `image=default`
 (`nvcr.io/nvstaging/tao/tao-toolkit-pyt:7.0.0-rc-226-multiarch`),
-`num_gpus=1`, and direct model-skill actions only. Workflow skills were not run.
+`num_gpus=1`. The original action validation used direct model-skill actions
+only. AutoML default train routing was rerun afterward with Bayesian search and
+two recommendations.
 
 ## Supported actions tested
 
@@ -15,6 +17,7 @@ Validated on 2026-05-25 with `platform=local-docker`, `image=default`
 - quantize: unsupported
 - retrain: unsupported as a separate action; resume training was tested through `train.resume_training_checkpoint_path`
 - dataset convert: unsupported
+- AutoML default train route: pass with Bayesian `automl_max_recommendations=2`
 - other: resume train checkpoint-dependent path: pass
 
 ## Dataset used
@@ -29,6 +32,20 @@ Validated on 2026-05-25 with `platform=local-docker`, `image=default`
 - Best checkpoint produced: yes; the one-epoch validation run produced one concrete checkpoint, so it is the selected best checkpoint for downstream validation.
 - Best checkpoint path: `/tmp/tao-model-validation/action-recognition/results/train/model_epoch_000_step_00005.pth`
 - Other checkpoints produced: `/tmp/tao-model-validation/action-recognition/results/train/ar_model_latest.pth` symlink to `model_epoch_000_step_00005.pth`; resume validation produced `/tmp/tao-model-validation/action-recognition/results/resume/model_epoch_001_step_00010.pth`.
+
+## AutoML default-path rerun
+
+- Training mode before rerun: normal/direct TAO model training. This happened because the earlier validation explicitly prohibited workflow/AutoML routing.
+- Secrets source: `~/.tao/secrets.env`, sourced without printing values. `ACCESS_KEY`, `SECRET_KEY`, `NGC_KEY`, and `HF_TOKEN` were passed through the local run environment.
+- AutoML route: `AutoMLRunner` with `skill_dir=/localhome/local-rarunachalam/tao-skills-external/models/action-recognition`, `platform=local-docker`, default PyT image, `algorithm=bayesian`, `metric=val_loss`, `direction=minimize`, and `automl_max_recommendations=2`.
+- Search parameters: `model.dropout_ratio` and `train.optim.lr`; the minimal validation ranges were `dropout_ratio=0.25..0.6` and `lr=0.0001..0.001`.
+- Result: pass. Two real Docker TAO child jobs completed and emitted `val_loss`.
+- Rec 0: job `bc268250-497a-4335-abb2-a5c60eee7e11`, `model.dropout_ratio=0.47866654219899346`, `train.optim.lr=0.0007576244504365072`, `val_loss=0.713`.
+- Rec 1: job `7b229726-65fb-43c1-ab35-902354b948e6`, `model.dropout_ratio=0.5157714571599434`, `train.optim.lr=0.00033437700723338773`, `val_loss=0.700`; selected as best.
+- AutoML checkpoints produced:
+  - `/tmp/tao-automl-validation/action-recognition/results/bc268250-497a-4335-abb2-a5c60eee7e11/results_dir/train/model_epoch_000_step_00005.pth`
+  - `/tmp/tao-automl-validation/action-recognition/results/7b229726-65fb-43c1-ab35-902354b948e6/results_dir/train/model_epoch_000_step_00005.pth`
+- Generated specs contained dataset paths and hyperparameters only; no credentials were written to the generated specs.
 
 ## Checkpoint/action verification
 
@@ -54,6 +71,7 @@ Validated on 2026-05-25 with `platform=local-docker`, `image=default`
   - The platform preflight's older `--runtime=nvidia` check failed on this host, but `docker run --gpus all ... nvidia-smi` and the default TAO image worked with CUDA forward compatibility.
 - Fresh-install issues:
   - `tao_sdk` is not installed. This did not block direct model actions, but it means SDK `parent_model` resolver behavior could not be exercised without invoking SDK/workflow paths.
+  - AutoML local-Docker execution required installing the Python runtime dependencies missing from the local checkout environment: `docker`, `fsspec`, `s3fs`, `toml`, `pandas`, `pyyaml`, and `huggingface_hub`.
 
 ## Fixes made
 
@@ -62,10 +80,11 @@ Validated on 2026-05-25 with `platform=local-docker`, `image=default`
 - Added an export override example with `export.onnx_file`.
 - Added `export.onnx_file` to `models/action-recognition/references/spec_template_export.yaml`.
 - Reran export with `export.onnx_file: /workspace/results/export/action_recognition.onnx`; ONNX output was produced under the export results directory.
+- Updated the model-skill train policy wording to make `automl_policy: on` the default and reserve direct model training for explicit `automl_policy: off` or missing packaged AutoML schemas/templates.
+- Reran the train path through AutoML with a two-recommendation Bayesian configuration.
 
 ## Remaining issues
 
-- `automl_policy=on` cannot be honored without routing train through the `tao-automl` workflow skill, which was explicitly prohibited for this validation. Direct model-skill train was validated instead.
 - SDK `parent_model` checkpoint resolution was not exercised because the SDK is not installed and workflow/SDK paths were out of scope.
 
 ## Files changed
@@ -76,4 +95,4 @@ Validated on 2026-05-25 with `platform=local-docker`, `image=default`
 
 ## Final status
 
-Fully validated for the action-recognition model skill's direct supported actions on local Docker. AutoML workflow behavior was intentionally not run.
+Fully validated for the action-recognition model skill's direct supported actions on local Docker, plus the AutoML default train route with two Bayesian recommendations.
