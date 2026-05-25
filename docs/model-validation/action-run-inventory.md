@@ -284,7 +284,19 @@ not yet reached a per-model validation report.
 - dataset convert: unsupported
 
 ## ocrnet
-- not run yet in this validation branch
+- train: pass through AutoML default route with Bayesian `automl_max_recommendations=2`
+- dataset convert: pass
+- evaluate: pass
+- inference: pass
+- export: pass after adding `export.onnx_file` output metadata
+- deploy/gen_trt_engine: pass after deploy template refresh
+- deploy/inference on TensorRT engine: pass
+- deploy/evaluate: pass
+- prune: pass after adding `prune.pruned_file` output metadata
+- quantize: fail
+- retrain: pass after routing the action through `ocrnet train -e` with `model.pruned_graph_path`
+- AutoML default train route: pass with Bayesian `automl_max_recommendations=2`
+- parent PyT gen_trt_engine: unsupported by the real PyT CLI; TensorRT is deploy-only
 
 ## oneformer
 - not run yet in this validation branch

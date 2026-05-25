@@ -28,6 +28,12 @@ actions:
         type: file
       dataset.character_list_file:
         type: file
+      train.pretrained_model_path:
+        type: file
+        optional: true
+      train.resume_training_checkpoint_path:
+        type: file
+        optional: true
     outputs:
       results_dir:
         type: folder
@@ -45,6 +51,8 @@ actions:
         type: file
       dataset.quant_calibration_dataset.images_dir:
         type: folder
+      quantize.model_path:
+        type: file
     outputs:
       results_dir:
         type: folder
@@ -58,6 +66,14 @@ actions:
         type: file
       evaluate.test_dataset_dir:
         type: folder
+      evaluate.test_dataset_gt_file:
+        type: file
+        optional: true
+      evaluate.checkpoint:
+        type: file
+      evaluate.trt_engine:
+        type: file
+        optional: true
     outputs:
       results_dir:
         type: folder
@@ -69,9 +85,13 @@ actions:
     inputs:
       dataset.character_list_file:
         type: file
+      export.checkpoint:
+        type: file
     outputs:
       results_dir:
         type: folder
+      export.onnx_file:
+        type: file
     upload_excludes:
     - inputs/
   prune:
@@ -80,13 +100,17 @@ actions:
     inputs:
       dataset.character_list_file:
         type: file
+      prune.checkpoint:
+        type: file
     outputs:
       results_dir:
         type: folder
+      prune.pruned_file:
+        type: file
     upload_excludes:
     - inputs/
   retrain:
-    command: ocrnet retrain -e {config_path}
+    command: ocrnet train -e {config_path}
     config_format: yaml
     inputs:
       dataset.train_dataset_dir:
@@ -94,6 +118,14 @@ actions:
       dataset.val_dataset_dir:
         type: folder
       dataset.character_list_file:
+        type: file
+      dataset.train_gt_file:
+        type: file
+        optional: true
+      dataset.val_gt_file:
+        type: file
+        optional: true
+      model.pruned_graph_path:
         type: file
     outputs:
       results_dir:
@@ -108,22 +140,46 @@ actions:
         type: file
       inference.inference_dataset_dir:
         type: folder
-    outputs:
-      results_dir:
-        type: folder
-    upload_excludes:
-    - inputs/
-  gen_trt_engine:
-    command: ocrnet gen_trt_engine -e {config_path}
-    config_format: yaml
-    inputs: {}
+      inference.checkpoint:
+        type: file
+      inference.trt_engine:
+        type: file
+        optional: true
     outputs:
       results_dir:
         type: folder
     upload_excludes:
     - inputs/
 data_sources: {}
-spec_params: {}
+spec_params:
+  dataset_convert:
+    results_dir: output_dir
+  train:
+    results_dir: output_dir
+    train.pretrained_model_path: ptm_if_no_resume_model
+    train.resume_training_checkpoint_path: resume_model
+  evaluate:
+    results_dir: output_dir
+    evaluate.checkpoint: parent_model
+    evaluate.trt_engine: parent_model
+  export:
+    results_dir: output_dir
+    export.checkpoint: parent_model
+    export.onnx_file: create_onnx_file
+  inference:
+    results_dir: output_dir
+    inference.checkpoint: parent_model
+    inference.trt_engine: parent_model
+  prune:
+    results_dir: output_dir
+    prune.checkpoint: parent_model
+    prune.pruned_file: create_pth_file
+  quantize:
+    results_dir: output_dir
+    quantize.model_path: parent_model
+  retrain:
+    results_dir: output_dir
+    model.pruned_graph_path: parent_model
 key_defaults: {}
 spec_shorthand_keys:
   num_epochs: train.num_epochs
