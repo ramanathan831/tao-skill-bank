@@ -70,15 +70,6 @@ actions:
         type: folder
     upload_excludes:
     - inputs/
-  gen_trt_engine:
-    command: deformable_detr gen_trt_engine -e {config_path}
-    config_format: yaml
-    inputs: {}
-    outputs:
-      results_dir:
-        type: folder
-    upload_excludes:
-    - inputs/
 data_sources: {}
 spec_params: {}
 key_defaults: {}

@@ -19,7 +19,7 @@ Deformable DETR for 2D object detection. Uses deformable attention for efficient
 
 Uses pretrained backbone weights. Set model.pretrained_backbone_path for backbone-only loading.
 
-For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference`), read `deploy/SKILL.md` first. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
+Supported parent model actions are `train`, `evaluate`, `inference`, `export`, and `quantize`. The PyT model container does not support a native `gen_trt_engine` subtask for this network. For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference`), read `deploy/SKILL.md` first. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
 
 ## Dataclass Schemas
 
@@ -45,7 +45,6 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 | evaluate | dataset.test_data_sources.json_file | eval_dataset | annotations.json | No |
 | export | dataset.train_data_sources | train_datasets | image_dir: images.tar.gz, json_file: annotations.json | Yes |
 | export | dataset.val_data_sources | train_datasets | image_dir: images.tar.gz, json_file: annotations.json | Yes |
-| gen_trt_engine | gen_trt_engine.tensorrt.calibration.cal_image_dir | calibration_dataset | images.tar.gz | Yes |
 | inference | dataset.infer_data_sources.image_dir | inference_dataset | images.tar.gz | Yes |
 | inference | dataset.infer_data_sources.classmap | inference_dataset | label_map.txt | No |
 | quantize | dataset.train_data_sources | train_datasets | image_dir: images.tar.gz, json_file: annotations.json | Yes |
@@ -70,7 +69,8 @@ S3_EVAL = "s3://bucket/data/eval"
     "train.checkpoint_interval": 10,
     "train.validation_interval": 10,
     "train.num_gpus": 1,
-    "dataset.num_classes": "<num_classes> + 1",
+    "dataset.num_classes": "<object classes> + 1",
+    "dataset.eval_class_ids": [1, 2, "..."],
     "dataset.train_data_sources": [{"image_dir": f"{S3_TRAIN}/images.tar.gz", "json_file": f"{S3_TRAIN}/annotations.json"}],
     "dataset.val_data_sources": [{"image_dir": f"{S3_TRAIN}/images.tar.gz", "json_file": f"{S3_TRAIN}/annotations.json"}],
 }
@@ -79,7 +79,8 @@ S3_EVAL = "s3://bucket/data/eval"
 **evaluate (mandatory data sources):**
 ```python
 {
-    "dataset.num_classes": "<num_classes> + 1",
+    "dataset.num_classes": "<object classes> + 1",
+    "dataset.eval_class_ids": [1, 2, "..."],
     "dataset.test_data_sources.image_dir": f"{S3_EVAL}/images.tar.gz",
     "dataset.test_data_sources.json_file": f"{S3_EVAL}/annotations.json",
 }
@@ -88,24 +89,36 @@ S3_EVAL = "s3://bucket/data/eval"
 If the train or AutoML run changed architecture-affecting fields such as
 `model.enc_layers`, `model.dec_layers`, `model.num_queries`, or
 `model.num_select`, carry the same values into evaluate, export, inference, and
-deploy actions with the selected checkpoint. Loading a checkpoint into the
-default architecture can fail with tensor shape mismatches, especially when
-smoke-test runs shrink the transformer for speed.
+deploy actions with the selected checkpoint. In addition to the fields above,
+carry `model.num_feature_levels`, `model.dim_feedforward`, input image
+dimensions, and dataset class metadata when they were changed. Loading a
+checkpoint into the default architecture can fail with tensor shape mismatches,
+especially when smoke-test runs shrink the transformer for speed.
 
 **export (mandatory data sources):**
 ```python
 {
-    "dataset.num_classes": "<num_classes> + 1",
+    "dataset.num_classes": "<object classes> + 1",
+    "dataset.eval_class_ids": [1, 2, "..."],
     "dataset.train_data_sources": [{"image_dir": f"{S3_TRAIN}/images.tar.gz", "json_file": f"{S3_TRAIN}/annotations.json"}],
     "dataset.val_data_sources": [{"image_dir": f"{S3_TRAIN}/images.tar.gz", "json_file": f"{S3_TRAIN}/annotations.json"}],
 }
 ```
 
-**gen_trt_engine (mandatory data sources):**
+**TensorRT engine generation:**
+
+Use `deploy/SKILL.md` after `export`. Do not call `deformable_detr
+gen_trt_engine` from the parent PyT model container; that CLI advertises
+`convert`, `evaluate`, `export`, `inference`, `quantize`, `train`, and
+`default_specs`, but not `gen_trt_engine`.
+
+Deploy engine generation needs the exported ONNX file as input and creates the
+engine at `gen_trt_engine.trt_engine`.
+
 ```python
 {
     "gen_trt_engine.tensorrt.data_type": "FP16",
-    "dataset.num_classes": "<num_classes> + 1",
+    "dataset.num_classes": "<object classes> + 1",
     "gen_trt_engine.tensorrt.calibration.cal_image_dir": [f"{S3_TRAIN}/images.tar.gz"],
 }
 ```
@@ -113,7 +126,7 @@ smoke-test runs shrink the transformer for speed.
 **inference (mandatory data sources):**
 ```python
 {
-    "dataset.num_classes": "<num_classes> + 1",
+    "dataset.num_classes": "<object classes> + 1",
     "dataset.infer_data_sources.image_dir": [f"{S3_EVAL}/images.tar.gz"],
     "dataset.infer_data_sources.classmap": f"{S3_EVAL}/label_map.txt",
 }
@@ -131,9 +144,21 @@ smoke-test runs shrink the transformer for speed.
 
 Optional. If provided, validation mAP is computed at each checkpoint interval.
 
+## Checkpoint Handling
+
+Training emits epoch-and-step checkpoints using the pattern
+`model_epoch_<epoch>_step_<step>.pth`, plus a `dd_model_latest.pth` symlink. For
+dependent actions, use the model-specific or SDK-provided checkpoint resolver to
+select the intended artifact. Evaluation, inference, export, and quantize should
+receive the selected exact checkpoint path, not the `dd_model_latest.pth` symlink,
+unless the user explicitly asked for latest. Resume/retrain should set
+`train.resume_training_checkpoint_path` to the exact checkpoint being resumed
+from.
+
 ## Important Parameters
 
-- **dataset.num_classes**: Number of object classes. Default 91 (COCO). Must match annotations.
+- **dataset.num_classes**: Number of object classes plus the background class. Default 91 (COCO). Must match annotations.
+- **dataset.eval_class_ids**: Foreground category ids to include in COCO metrics. Set this to every object category id in custom datasets; the template default evaluates class id 1 only.
 - **model.backbone**: Default resnet_50. Supported: resnet_50, gcvit_tiny, gcvit_small, gcvit_base, gcvit_large, gcvit_large_384 (more limited than DINO).
 - **train.optim.lr**: Learning rate. Default 2e-4 (AdamW). lr_backbone is 2e-5.
 - **train.optim.lr_steps**: MultiStep LR schedule. Default [40]. For short runs, set to match ~80% of total epochs.
@@ -191,11 +216,6 @@ Inference mappings from TAO Core `deformable_detr.config.json`:
 | export | `export.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
 | export | `export.onnx_file` | `create_onnx_file` | output ONNX path |
 | export | `results_dir` | `output_dir` | current job results directory |
-| gen_trt_engine | `encryption_key` | `key` | encryption key |
-| gen_trt_engine | `gen_trt_engine.onnx_file` | `parent_model` | model file inferred from the parent job results folder |
-| gen_trt_engine | `gen_trt_engine.tensorrt.calibration.cal_cache_file` | `create_cal_cache` | calibration cache path |
-| gen_trt_engine | `gen_trt_engine.trt_engine` | `create_engine_file` | output TensorRT engine path |
-| gen_trt_engine | `results_dir` | `output_dir` | current job results directory |
 | inference | `encryption_key` | `key` | encryption key |
 | inference | `inference.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
 | inference | `inference.trt_engine` | `parent_model` | model file inferred from the parent job results folder |
