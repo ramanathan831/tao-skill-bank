@@ -12,6 +12,7 @@
 - prune: unsupported by this model skill
 - quantize: unsupported by this model skill
 - retrain: unsupported as a separate action by this model skill
+- AutoML default train route: pass with Bayesian `automl_max_recommendations=2`
 - other: not applicable
 
 ## Dataset used
@@ -30,6 +31,21 @@
 - Other checkpoints produced:
   - `/tmp/tao-model-validation/bevfusion/results/train/epoch_1.pth`
   - `/tmp/tao-model-validation/bevfusion/results/resume/epoch_2.pth`
+
+## AutoML default-path rerun
+
+- Training mode before rerun: normal/direct TAO model training. This happened because the earlier validation explicitly prohibited workflow/AutoML routing.
+- Secrets source: `~/.tao/secrets.env`, sourced without printing values. `ACCESS_KEY`, `SECRET_KEY`, `NGC_KEY`, and `HF_TOKEN` were passed through the local run environment.
+- Dataset prep: reran the model-skill `dataset_convert` prerequisite on a fresh copy of `s3://nvcf-storage-handling/data/purpose_built_models_bevfusion_train/`; job `91427dc2-268e-4d52-87de-f392205d53cb` produced `kitti_person_infos_train.pkl`, `kitti_person_infos_val.pkl`, `kitti_person_infos_trainval.pkl`, and `training/velodyne_reduced`.
+- AutoML route: `AutoMLRunner` with `skill_dir=/localhome/local-rarunachalam/tao-skills-external/models/bevfusion`, `platform=local-docker`, BEVFusion 5.5 image, `algorithm=bayesian`, `metric=AP11`, `direction=maximize`, and `automl_max_recommendations=2`.
+- Search parameters: the six schema-enabled batch/worker fields for train/val/test datasets, with minimal validation ranges `1..2`.
+- Result: pass. Two real Docker TAO child jobs completed and emitted `AP11` in `status.json`.
+- Rec 0: job `80ee1f25-486c-49d0-84ec-3e28f81a1b33`, train/test batch size 2, val batch size 1, AP11 `0.0`; selected as best by the runner.
+- Rec 1: job `24f28ae3-5190-42f5-863b-7846099ee85f`, train/test batch size 1, val batch size 2, AP11 `0.0`.
+- AutoML checkpoints produced:
+  - `/tmp/tao-automl-validation/bevfusion/results/automl_train/80ee1f25-486c-49d0-84ec-3e28f81a1b33/results_dir/train/epoch_1.pth`
+  - `/tmp/tao-automl-validation/bevfusion/results/automl_train/24f28ae3-5190-42f5-863b-7846099ee85f/results_dir/train/epoch_1.pth`
+- Generated specs contained dataset paths and hyperparameters only; no credentials were written to the generated specs.
 
 ## Checkpoint/action verification
 
@@ -60,7 +76,6 @@
   - The 5.5 container prints a benign telemetry 403 after each action and an Open3D DISPLAY warning during inference, but actions complete successfully.
 - Fresh-install issues:
   - `tao_sdk` is not installed in this environment, so validation used the real model CLI through Docker.
-  - AutoML was requested as `on`, but workflow skills were explicitly prohibited for this validation, so no AutoML workflow was run.
 
 ## Fixes made
 
@@ -70,6 +85,7 @@
 - Updated train/evaluate/inference templates and schemas to remove invalid 5.5 keys.
 - Updated data prefix defaults to `training/velodyne_reduced` and `training/image_2`.
 - Added required train/evaluate/inference stubs to checkpoint-dependent action templates and schemas.
+- Reran the train path through AutoML with a two-recommendation Bayesian configuration.
 
 ## Remaining issues
 
@@ -91,4 +107,4 @@
 
 ## Final status
 
-Fully validated for all actions declared by the BEVFusion model skill on `local-docker` through the BEVFusion TAO container workflow.
+Fully validated for all actions declared by the BEVFusion model skill on `local-docker` through the BEVFusion TAO container workflow, plus the AutoML default train route with two Bayesian recommendations.

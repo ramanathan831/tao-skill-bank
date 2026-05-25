@@ -19,6 +19,7 @@ not yet reached a per-model validation report.
 ## bevfusion
 - dataset convert: pass
 - train: pass
+- AutoML default train route: pass with Bayesian `automl_max_recommendations=2`
 - eval: pass
 - inference: pass
 - resume train: pass
