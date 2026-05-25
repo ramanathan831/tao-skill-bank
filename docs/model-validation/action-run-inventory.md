@@ -173,7 +173,7 @@ those rebuilt tags before being counted as pass.
 - deploy gen_trt_engine: pass
 - deploy inference on TensorRT engine: pass
 - deploy eval on TensorRT engine: pass
-- quantize: fail in the original default image because quantize did not derive required caption/category lists for `GDINOPlModel`; fixed in rebuilt PyT image `nvcr.io/nvstaging/tao/tao-toolkit-pyt:validation-fixes-20260525`, full rerun pending
+- quantize: pass in rebuilt PyT image `nvcr.io/nvstaging/tao/tao-toolkit-pyt:validation-fixes-20260525`; rerun used resolver-selected `model_epoch_000_step_00002.pth` and wrote `quantized_model_torchao.pth`
 - resume/retrain: pass
 - AutoML default train route: pass with Bayesian `automl_max_recommendations=2`
 - dataset convert: unsupported/not advertised

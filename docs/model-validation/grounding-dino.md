@@ -9,7 +9,7 @@ Supported actions tested:
 - deploy gen_trt_engine: pass
 - deploy inference on tao-deployed gen_trt_engine model: pass
 - deploy eval on tao-deployed gen_trt_engine model: pass
-- quantize: fail
+- quantize: pass in the rebuilt PyT image `nvcr.io/nvstaging/tao/tao-toolkit-pyt:validation-fixes-20260525`
 - resume/retrain: pass through train.resume_training_checkpoint_path
 - AutoML default train route: pass with Bayesian automl_max_recommendations=2
 - dataset convert: unsupported/not advertised by the Grounding-DINO model skill
@@ -27,6 +27,7 @@ Training result:
 - Best checkpoint produced: no separate best checkpoint artifact; the one-epoch run produced an epoch/step checkpoint.
 - Best checkpoint path: /tmp/tao-model-validation/grounding-dino/results/train/train/model_epoch_000_step_00046.pth
 - Other checkpoints produced: /tmp/tao-model-validation/grounding-dino/results/resume/train/model_epoch_001_step_00092.pth; gdino_model_latest.pth symlinks were produced but not used for checkpoint-dependent actions.
+- Source-fixed rerun checkpoint: /tmp/tao-source-fixed-rerun/current/grounding-dino/results/train/model_epoch_000_step_00002.pth
 
 AutoML default training rerun:
 - Default direct model training used AutoML after the default policy was corrected to automl_policy=on.
@@ -47,8 +48,8 @@ Checkpoint/action verification:
 - Export checkpoint used: /tmp/tao-model-validation/grounding-dino/results/train/train/model_epoch_000_step_00046.pth
 - Resume/retrain checkpoint used: /tmp/tao-model-validation/grounding-dino/results/train/train/model_epoch_000_step_00046.pth
 - Deploy checkpoint path: deploy used /tmp/tao-model-validation/grounding-dino/results/export/model.onnx exported from the exact checkpoint above.
-- Quantize checkpoint used: /tmp/tao-model-validation/grounding-dino/results/train/train/model_epoch_000_step_00046.pth, but the action failed in the container before quantized artifact creation.
-- Were checkpoint paths selected through the proper resolver: yes in model metadata after the fix; direct local-docker validation used explicit exact paths to verify the resolver contract.
+- Quantize checkpoint used in source-fixed rerun: /workspace/results/train/model_epoch_000_step_00002.pth, selected through `tao_sdk.checkpoints.get_checkpoint_path(..., epoch=0, step=2, allow_latest=False)`.
+- Were checkpoint paths selected through the proper resolver: yes in model metadata after the fix; direct local-docker validation and the source-fixed rerun used explicit exact paths to verify the resolver contract.
 - Any incorrect latest-checkpoint behavior found: no runtime action selected gdino_model_latest.pth; the parent metadata was missing resolver mappings before the fix.
 
 Issues found:
@@ -65,7 +66,7 @@ Issues found:
   - No dataset gap for train/eval/inference/export/deploy; the S3 ODVG train and COCO val subsets are compatible.
 - Checkpoint issues:
   - No incorrect latest behavior found in validated actions.
-  - Quantize with a PyTorch checkpoint is blocked by an SDK/container bug where cap_lists is passed as None during checkpoint load.
+  - Quantize with a PyTorch checkpoint was blocked in the original default PyT image by an SDK/container bug where cap_lists was passed as None during checkpoint load; the rebuilt PyT image passed.
 - Docker/local execution issues:
   - The default PyTorch image requires access to bert-base-uncased for tokenizer/model loading; providing a Hugging Face token avoids rate-limit failures.
   - modelopt.onnx is listed as an available backend, but the default PyTorch image lacks modelopt.onnx.quantization, so ONNX quantize fails after calibration setup.
@@ -81,11 +82,11 @@ Fixes made:
 - Documented exact checkpoint selection and shape-carry-forward requirements.
 - Documented the remaining quantize SDK/image blockers.
 - Removed the second blank train_data_sources entry from all Grounding-DINO parent spec templates so direct model AutoML training inherits only the user-configured ODVG source.
+- Reran source-fixed quantize on `nvcr.io/nvstaging/tao/tao-toolkit-pyt:validation-fixes-20260525` with a COCO calibration subset and resolver-selected checkpoint; the action completed successfully and wrote `/workspace/results/quantize/quantized_model_torchao.pth`.
 
 Remaining issues:
-- Quantize remains unresolved in the default rc-226 PyTorch image:
-  - PyTorch checkpoint quantize fails because the container script loads Grounding-DINO with cap_lists=None.
-  - ONNX quantize reaches calibration when using COCO JSON, then fails because modelopt.onnx.quantization is unavailable in the image.
+- The original default rc-226 PyTorch image still has the quantize blockers listed above; the rebuilt source-fixed PyT image passes the packaged PyTorch-checkpoint quantize path.
+- ONNX quantize was not rerun because the packaged source-fixed action path validated here uses PyTorch checkpoint quantization with `torchao`.
 
 Files changed:
 - models/grounding-dino/SKILL.md
@@ -101,4 +102,4 @@ Files changed:
 - docs/model-validation/grounding-dino.md
 
 Final status:
-- Partially validated. Train, AutoML default train, eval, inference, export, resume, deploy gen_trt_engine, deploy inference, and deploy evaluation pass end-to-end on local-docker with image=default. Quantize is blocked by SDK/container issues outside the model skill metadata.
+- Fully validated for packaged model-skill actions after the source-fixed image rerun. Train, AutoML default train, eval, inference, export, resume, deploy gen_trt_engine, deploy inference, deploy evaluation, and quantize pass end-to-end on local-docker; quantize requires the rebuilt PyT image.
