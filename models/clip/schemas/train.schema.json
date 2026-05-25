@@ -1,5 +1,8 @@
 {
-  "automl_default_parameters": [],
+  "automl_default_parameters": [
+    "train.optim.text_lr",
+    "train.optim.vision_lr"
+  ],
   "automl_disabled_parameters": [
     "train.cudnn",
     "dataset.train.datasets",
@@ -670,6 +673,7 @@
               "type": "categorical"
             },
             "text_lr": {
+              "automl_enabled": true,
               "default": 0.0001,
               "description": "Learning rate for the text encoder.",
               "maximum": Infinity,
@@ -678,6 +682,7 @@
               "type": "float"
             },
             "vision_lr": {
+              "automl_enabled": true,
               "default": 0.0001,
               "description": "Learning rate for the vision encoder.",
               "maximum": Infinity,

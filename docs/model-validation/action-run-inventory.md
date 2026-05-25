@@ -62,6 +62,7 @@ not yet reached a per-model validation report.
 
 ## clip
 - train: pass
+- AutoML default train route: pass with Bayesian `automl_max_recommendations=2`
 - eval: pass after trusted-checkpoint PyTorch load override
 - inference: pass after trusted-checkpoint PyTorch load override
 - export: pass after trusted-checkpoint PyTorch load override
