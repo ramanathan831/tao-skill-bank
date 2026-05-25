@@ -38,6 +38,8 @@ actions:
     command: mask2former quantize -e {config_path}
     config_format: yaml
     inputs:
+      quantize.model_path:
+        type: file
       dataset.train.img_dir:
         type: folder
       dataset.label_map:
@@ -69,6 +71,8 @@ actions:
     command: mask2former evaluate -e {config_path}
     config_format: yaml
     inputs:
+      evaluate.checkpoint:
+        type: file
       dataset.train.img_dir:
         type: folder
       dataset.label_map:
@@ -97,16 +101,22 @@ actions:
   export:
     command: mask2former export -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      export.checkpoint:
+        type: file
     outputs:
       results_dir:
         type: folder
+      export.onnx_file:
+        type: file
     upload_excludes:
     - inputs/
   inference:
     command: mask2former inference -e {config_path}
     config_format: yaml
     inputs:
+      inference.checkpoint:
+        type: file
       dataset.train.img_dir:
         type: folder
       dataset.label_map:
@@ -132,17 +142,17 @@ actions:
         type: folder
     upload_excludes:
     - inputs/
-  gen_trt_engine:
-    command: mask2former gen_trt_engine -e {config_path}
-    config_format: yaml
-    inputs: {}
-    outputs:
-      results_dir:
-        type: folder
-    upload_excludes:
-    - inputs/
 data_sources: {}
-spec_params: {}
+spec_params:
+  evaluate:
+    evaluate.checkpoint: parent_model
+  export:
+    export.checkpoint: parent_model
+    export.onnx_file: create_onnx_file
+  inference:
+    inference.checkpoint: parent_model
+  quantize:
+    quantize.model_path: parent_model
 key_defaults: {}
 spec_shorthand_keys:
   num_epochs: train.num_epochs

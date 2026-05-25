@@ -25,9 +25,11 @@ actions:
     inputs:
       evaluate.trt_engine:
         type: file
-      dataset.val.annot_file:
+      dataset.val.panoptic_json:
         type: file
-      dataset.val.root_dir:
+      dataset.val.img_dir:
+        type: folder
+      dataset.val.panoptic_dir:
         type: folder
       dataset.label_map:
         type: file
@@ -43,7 +45,7 @@ actions:
       inference.trt_engine:
         type: file
       dataset.test.img_dir:
-        type: file
+        type: folder
       dataset.label_map:
         type: file
     outputs:
@@ -77,4 +79,6 @@ notes:
   path used 90 classes for one flow and the template default is only a placeholder.
 - 'For TensorRT inference, set `model.object_mask_threshold: 0.0` when you need all
   mask candidates forwarded for post-processing.'
-- Set `dataset.contiguous_id` to match the dataset id layout used during training.
+- For COCO panoptic deploy evaluation, set `dataset.val.type: coco_panoptic`
+  and provide `dataset.val.panoptic_json`, `dataset.val.img_dir`, and
+  `dataset.val.panoptic_dir`. Do not set a top-level `dataset.type`.

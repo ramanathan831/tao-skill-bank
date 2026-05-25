@@ -141,7 +141,9 @@ S3_EVAL = "s3://bucket/data/eval"
 **export:**
 ```python
 {
-    "model.sem_seg_head.num_classes": 90,
+    "export.checkpoint": "<selected train/AutoML checkpoint>",
+    "export.onnx_file": "<output ONNX path>",
+    "model.sem_seg_head.num_classes": "<same value used for train>",
 }
 ```
 
@@ -149,7 +151,7 @@ S3_EVAL = "s3://bucket/data/eval"
 ```python
 {
     "inference.checkpoint": "<selected train/AutoML checkpoint>",
-    "model.sem_seg_head.num_classes": 90,
+    "model.sem_seg_head.num_classes": "<same value used for train>",
     "dataset.contiguous_id": True,
     "dataset.train.img_dir": f"{S3_TRAIN}/images.tar.gz",
     "dataset.label_map": f"{S3_TRAIN}/label_map_panoptic.json",
@@ -167,6 +169,7 @@ S3_EVAL = "s3://bucket/data/eval"
 **quantize (mandatory data sources):**
 ```python
 {
+    "quantize.model_path": "<selected train/export artifact>",
     "dataset.train.img_dir": f"{S3_TRAIN}/images.tar.gz",
     "dataset.label_map": f"{S3_TRAIN}/label_map_panoptic.json",
     "dataset.train.instance_json": f"{S3_TRAIN}/annotations.json",
@@ -191,6 +194,12 @@ Optional. Val data sources are part of the dataset config alongside train.
 - **model.mode**: Segmentation mode. Default panoptic. Options: panoptic, instance, semantic.
 - **train.optim.lr**: Learning rate. Default 2e-4 (AdamW).
 - **dataset.train.batch_size**: Per-GPU batch size. Default 1. Mask2Former is memory-intensive due to per-pixel predictions.
+- **dataset.contiguous_id**: If true, set `model.sem_seg_head.num_classes`
+  to the number of label-map categories. If false, set
+  `model.sem_seg_head.num_classes` above the maximum raw category id and keep
+  the same setting for evaluate, inference, export, deploy, and quantize. The
+  COCO panoptic S3 sample has 133 categories with raw ids up to 200, so raw-id
+  validation uses `num_classes: 201`.
 
 ## Multi-GPU / Multi-Node
 
@@ -212,6 +221,11 @@ Optional. Val data sources are part of the dataset config alongside train.
 ## Export / TRT Defaults
 
 - TRT data types: FP32, FP16 only — **INT8 is NOT supported**
+- The parent PyTorch `mask2former` CLI supports `train`, `evaluate`,
+  `inference`, `export`, and `quantize`; run TensorRT engine generation,
+  TensorRT inference, and TensorRT evaluation through `deploy/SKILL.md`.
+  Export semantic ONNX (`model.mode: semantic`) when validating TensorRT
+  evaluation because the current deploy evaluator accepts semantic engines.
 
 ## Hardware
 
@@ -222,6 +236,18 @@ Minimum 1 GPU(s), recommended 4 GPU(s). 24GB+ (A100 recommended) VRAM per GPU. M
 **CUDA out of memory**: batch_size is already 1 by default. Reduce image resolution in augmentation config or use a smaller Swin variant.
 
 **Panoptic vs instance format mismatch**: Ensure you provide the correct annotation format matching model.mode setting.
+
+**Deploy schema error for top-level `dataset.type`**: TAO Deploy uses
+`dataset.val.type` and `dataset.test.type`. Do not put `dataset.type` at the
+top level of Mask2Former deploy specs.
+
+**Quantize checkpoint load error**: In the current default PyTorch image,
+checkpoint-based `mask2former quantize` can fail because the runtime quantize
+script passes `experiment_spec` to `Mask2formerPlModule.load_from_checkpoint`
+instead of the required `cfg` argument. ONNX quantization requires
+`backend: modelopt.onnx`, `mode: static_ptq`, a fixed
+`dataset.test.target_size`, and a default image that includes
+`modelopt.onnx.quantization`.
 
 ## Spec Param / Parent Model Inference
 
@@ -256,3 +282,8 @@ Inference mappings from TAO Core `mask2former.config.json`:
 | train | `train.resume_training_checkpoint_path` | `resume_model` | model file inferred from the current job results folder |
 
 For `parent_model` or `parent_model_folder`, pass the upstream train/export/AutoML child job id as `parent_job_id`. The SDK lists the parent result folder, filters checkpoint artifacts, and returns the selected model file or folder. Do not add these mappings back to `config.json` and do not patch generated runner scripts to guess checkpoint paths.
+
+When selecting a Mask2Former checkpoint outside the SDK resolver, match the
+intended epoch/step artifact exactly, for example
+`model_epoch_000_step_00100.pth`. The `mask2former_model_latest.pth` symlink
+is valid only when latest is explicitly requested.
