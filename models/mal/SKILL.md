@@ -50,6 +50,9 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 ### Typical Spec Overrides
 
 Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
+MAL expects COCO-style annotation JSON plus image paths that match the JSON
+`file_name` entries after the data source is prepared. Archive-only CSV/image
+datasets are not compatible unless they are converted to this format first.
 
 ```python
 S3_TRAIN = "s3://bucket/data/train"
@@ -90,6 +93,13 @@ S3_EVAL = "s3://bucket/data/eval"
     "inference.ann_path": f"{S3_EVAL}/annotations.json",
 }
 ```
+
+For checkpoint-dependent actions, use the model resolver declared in
+`references/skill_info.yaml`. Select the exact epoch/step checkpoint requested
+by the user or the best checkpoint when a best-checkpoint action is requested.
+The `mal_model_latest.pth` symlink is only appropriate when the user explicitly
+asks for the latest checkpoint.
+
 ## Eval Dataset
 
 Optional. Val images and annotations configured alongside train paths.

@@ -50,10 +50,17 @@ actions:
     outputs:
       results_dir:
         type: folder
+      inference.label_dump_path:
+        type: file
     upload_excludes:
     - inputs/
 data_sources: {}
-spec_params: {}
+spec_params:
+  evaluate:
+    evaluate.checkpoint: parent_model
+  inference:
+    inference.checkpoint: parent_model
+    inference.label_dump_path: create_inference_result_file_mal
 key_defaults: {}
 spec_shorthand_keys:
   num_epochs: train.num_epochs
