@@ -113,6 +113,7 @@ not yet reached a per-model validation report.
 
 ## depth-net-fast-stereo
 - train: pass
+- AutoML default train route: pass with Bayesian `automl_max_recommendations=2`
 - eval: pass with exact trained checkpoint
 - inference: pass with exact trained checkpoint
 - export: pass with exact trained checkpoint

@@ -27,6 +27,8 @@ For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, TensorRT
 
 This model is AutoML-enabled at the model layer. Before handling any train-stage request, read `references/skill_info.yaml` and resolve the run override from either an explicit `automl_policy` value or the user's workflow request. Use `automl_policy: on` by default and only expose `on` / `off` in new launch prompts. Treat phrases like "turn off AutoML", "disable AutoML", "no HPO", or "plain training" as `automl_policy: off` for this run only. When `automl_policy: on`, `automl_enabled: true`, and both `schemas/train.schema.json` and `references/spec_template_train.yaml` are packaged, route the train action through `tao-skill-bank:tao-automl` by default with this model's `skill_dir`. Preserve workflow/application overrides for datasets, specs, output directories, GPU/platform settings, parent checkpoints, and `automl_policy`. Use direct model training only when `automl_policy: off` or the packaged train schema/template is missing; in the missing-schema case, report that AutoML is enabled but not runnable for this model until schemas are generated.
 
+FFS shares the `depth_net_stereo` schema but its bp2 architecture widths are fixed invariants. For default AutoML, search only `train.optim.lr` and `train.optim.lr_decay` unless the user explicitly requests a wider search. Do not include FFS architecture fields such as `model.volume_dim`, `model.hidden_dims`, or other bp2 width settings in the default search space.
+
 Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows stay in this model skill. The per-run `automl_policy` override does not change model metadata.
 
 ## Two Use Cases
