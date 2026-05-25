@@ -42,7 +42,8 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 
 - **Dataset type:** nvpanoptix3d
 - **Formats:** front3d, matterport
-- **Monitoring metric:** kpi
+- **Monitoring metric:** val_loss for full-trial algorithms; train_loss for
+  short/resume-based AutoML algorithms when validation loss is not emitted.
 
 ### Per-Action Dataset Requirements
 
