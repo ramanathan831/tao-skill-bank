@@ -30,7 +30,7 @@ Generated TAO Core schemas are packaged in `schemas/<action>.schema.json`, with 
 
 This model is AutoML-enabled at the model layer. Before handling any train-stage request, read `references/skill_info.yaml` and resolve the run override from either an explicit `automl_policy` value or the user's workflow request. Treat phrases like "turn off AutoML", "disable AutoML", "no HPO", or "plain training" as `automl_policy: off` for this run only; otherwise default to `auto`. When `automl_policy: auto`, `automl_enabled: true`, and both `schemas/train.schema.json` and `references/spec_template_train.yaml` are packaged, route the train action through `tao-skill-bank:tao-automl` by default with this model's `skill_dir`. Preserve workflow/application overrides for datasets, specs, output directories, GPU/platform settings, parent checkpoints, and `automl_policy`. Use direct model training only when `automl_policy: off` or the packaged train schema/template is missing; in the missing-schema case, report that AutoML is enabled but not runnable for this model until schemas are generated.
 
-Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows stay in this model skill. The per-run `automl_policy` override does not change model metadata.
+Non-train actions such as `inference`, `export`, and deploy flows stay in this model skill. The per-run `automl_policy` override does not change model metadata.
 
 ## Training Requirements
 
@@ -42,13 +42,12 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 
 | Action | Spec Key | Source | Files | List? |
 |---|---|---|---|---|
-| distill | dataset.train_dataset.images_dir | train_datasets | images_train.tar.gz | No |
 | inference | dataset.test_dataset.images_dir | inference_dataset | images_test.tar.gz | No |
 | train | dataset.train_dataset.images_dir | train_datasets | images_train.tar.gz | No |
 
 ### Typical Spec Overrides
 
-Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
+Data source overrides are **mandatory for train and inference** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
 
 ```python
 S3_TRAIN = "s3://bucket/data/train"
@@ -86,10 +85,11 @@ run representative while avoiding the much slower ViT-Large default.
 }
 ```
 
-**distill (mandatory data sources):**
+**export (mandatory checkpoint handoff):**
 ```python
 {
-    "dataset.train_dataset.images_dir": f"{S3_TRAIN}/images_train.tar.gz",
+    "export.checkpoint": "<selected train/AutoML student_epoch_* checkpoint>",
+    "export.onnx_file": "/path/to/results/nvdinov2.onnx",
 }
 ```
 
@@ -144,6 +144,19 @@ not `nvdinov2_model_latest.pth`. The latest file is a training checkpoint and
 the inference loader reports unexpected keys such as `state_dict`, optimizer
 state, and scheduler state.
 
+**Export checkpoint has unexpected Lightning keys**: Export also consumes the
+selected `student_epoch_*.pth` checkpoint. Use the full `model_epoch_*.pth`
+checkpoint only for resume/retrain via `train.resume_training_checkpoint_path`.
+
+**TensorRT engine passed to PyT inference**: The packaged PyT `nvdinov2 inference`
+implementation only loads `.pth` or `.tlt` model paths. TAO Deploy
+`gen_trt_engine` builds a TensorRT engine for downstream consumers, but the PyT
+inference action does not run on that engine.
+
+**Separate distill action not available**: The current TAO PyT CLI exposes
+`export`, `inference`, `train`, and `default_specs` for NvDINOv2. Do not launch
+or advertise a standalone `nvdinov2 distill` action.
+
 **AutoML metric not found**: TAO's Lightning progress line reports the final
 training scalar as `train_loss_epoch`. Use `train_loss_epoch` with minimize
 direction for AutoML selection; log parsers may also map `train_loss` to this
@@ -155,24 +168,20 @@ epoch scalar.
 
 Model-specific inference mappings belong in this MD file, not in `config.json`. Generated runners should read this section and apply the mappings with SDK helpers before `create_job()`. This mirrors the old microservices `infer_params.py` flow.
 
-Inference mappings from TAO Core `nvdinov2.config.json`:
+Model-specific handoff mappings:
 
 | Action | Spec Field | Inference Function | Meaning |
 |---|---|---|---|
-| distill | `encryption_key` | `key` | encryption key |
-| distill | `model.distill.pretrained_non_distill_pl_model_path` | `parent_model` | model file inferred from the parent job results folder |
-| distill | `results_dir` | `output_dir` | current job results directory |
 | export | `encryption_key` | `key` | encryption key |
-| export | `export.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
+| export | `export.checkpoint` | `parent_model` | selected `student_epoch_*.pth` checkpoint from the parent job results folder |
 | export | `export.onnx_file` | `create_onnx_file` | output ONNX path |
 | export | `results_dir` | `output_dir` | current job results directory |
 | inference | `encryption_key` | `key` | encryption key |
-| inference | `inference.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
-| inference | `inference.trt_engine` | `parent_model` | model file inferred from the parent job results folder |
+| inference | `inference.checkpoint` | `parent_model` | selected `student_epoch_*.pth` checkpoint from the parent job results folder |
 | inference | `results_dir` | `output_dir` | current job results directory |
 | train | `encryption_key` | `key` | encryption key |
 | train | `results_dir` | `output_dir` | current job results directory |
 | train | `train.pretrained_model_path` | `ptm_if_no_resume_model` | PTM when no resume checkpoint exists |
-| train | `train.resume_training_checkpoint_path` | `resume_model` | model file inferred from the current job results folder |
+| train | `train.resume_training_checkpoint_path` | `resume_model` | selected full `model_epoch_*.pth` training checkpoint from the current job results folder |
 
 For `parent_model` or `parent_model_folder`, pass the upstream train/export/AutoML child job id as `parent_job_id`. The SDK lists the parent result folder, filters checkpoint artifacts, and returns the selected model file or folder. Do not add these mappings back to `config.json` and do not patch generated runner scripts to guess checkpoint paths.

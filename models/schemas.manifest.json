@@ -186,7 +186,6 @@
     },
     "nvdinov2": {
       "actions": [
-        "distill",
         "export",
         "inference",
         "train"
