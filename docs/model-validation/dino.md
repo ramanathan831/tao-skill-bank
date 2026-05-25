@@ -21,7 +21,7 @@ through `AutoMLRunner` + `DockerSDK` with a two-trial Bayesian search.
 - deploy inference on TensorRT engine: pass
 - deploy evaluate on TensorRT engine: pass
 - parent gen_trt_engine: fail; removed from parent model-skill action metadata because the PyT CLI does not support it
-- dataset convert: fail; SDK/container schema bug before spec load, not advertised as a model-skill action
+- dataset convert: unsupported/not advertised by the DINO model skill; a manual `dino convert` CLI probe failed before spec load, but it should not be counted as a supported model-skill action
 - prune: unsupported
 
 ## Dataset used
@@ -30,7 +30,7 @@ through `AutoMLRunner` + `DockerSDK` with a two-trial Bayesian search.
 - Source: `s3://nvcf-storage-handling/data/tao_od_synthetic_subset_val_no_convert/`
 - Files: `images.tar.gz`, `annotations.json`, `label_map.txt`
 - Notes: COCO-format object-detection subset with category ids 1-4. The direct validation used the packaged S3 subset. The AutoML rerun used a smaller derived subset from the same S3 data: 12 train images and 8 validation images.
-- Dataset convert attempt: used `s3://nvcf-storage-handling/data/purpose_built_models_bevfusion_train/training.tar.gz` as a compatible KITTI-style source, but `dino convert` failed during SDK schema initialization before reading the spec.
+- Manual non-skill CLI probe: `dino convert` was tried while checking container capabilities and failed during SDK schema initialization before reading the spec. This was a validation/reporting mistake because DINO dataset conversion is not advertised by the packaged model skill.
 - Any dataset compatibility issues: none for train/evaluate/inference/export/quantize/distill/deploy.
 
 ## Training result
@@ -80,7 +80,7 @@ through `AutoMLRunner` + `DockerSDK` with a two-trial Bayesian search.
   - Deploy templates defaulted to `fan_small`/`num_select: 100`, which does not match the parent DINO export default of `resnet_50`/`num_select: 300`.
 - Dataset issues:
   - No issue for the COCO train/validation dataset.
-  - `dino convert` is unusable in the tested container because SDK schema construction fails with `Incompatible value 'None' for field of type 'str'`.
+  - No DINO model-skill dataset conversion action exists. A manual `dino convert` CLI probe is unusable in the tested container because SDK schema construction fails with `Incompatible value 'None' for field of type 'str'`, but that is not a supported-action failure for the model skill.
 - Checkpoint issues:
   - No action used the latest symlink blindly after validation.
   - No separate best checkpoint was produced by the one-epoch smoke run.
@@ -98,12 +98,13 @@ through `AutoMLRunner` + `DockerSDK` with a two-trial Bayesian search.
 - Added the required `distill` block, FAN teacher defaults, and output bindings to `spec_template_distill.yaml`.
 - Updated deploy templates to match parent export defaults for `model.backbone` and `model.num_select`.
 - Updated DINO docs to require exact/best checkpoint resolver behavior and to route TensorRT actions through `models/dino/deploy`.
-- Documented the SDK/container blocker for `dino convert`.
+- Corrected the validation report to mark DINO dataset conversion unsupported/not advertised instead of a supported action failure.
+- Documented the SDK/container blocker for manual `dino convert` CLI probes.
 - Reran train through AutoML with Bayesian search, `automl_max_recommendations=2`, metric `mAP50`, and a custom DINO metric extractor as required by the model skill.
 
 ## Remaining issues
 
-- `dino convert` remains blocked by the SDK/container dataclass schema bug and is not advertised as a supported model-skill action.
+- Manual `dino convert` CLI probes remain blocked by the SDK/container dataclass schema bug, but dataset conversion is not advertised as a supported DINO model-skill action.
 - Parent PyT `dino gen_trt_engine` remains unsupported by the container; TensorRT is validated through the deploy sub-skill.
 - A longer run is needed to verify best-checkpoint selection when the SDK produces multiple scored checkpoints.
 - The tiny one-epoch AutoML smoke run produced `mAP50=0.0` for both recommendations; this validates wiring, not model quality.
@@ -122,4 +123,4 @@ through `AutoMLRunner` + `DockerSDK` with a two-trial Bayesian search.
 
 ## Final status
 
-Partially validated. All advertised DINO parent model-skill actions now pass except unsupported actions that were removed or documented. Default AutoML train routing passed with two Bayesian recommendations. Deploy TensorRT generation, deploy inference, and deploy evaluation pass through the DINO deploy sub-skill. Dataset conversion is blocked by an SDK/container schema issue outside the model-skill layer.
+Fully validated for the advertised DINO parent model-skill actions and DINO deploy sub-skill actions. Default AutoML train routing passed with two Bayesian recommendations. Dataset conversion is not a DINO model-skill action and is not counted in the supported-action result.

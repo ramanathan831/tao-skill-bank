@@ -1,8 +1,10 @@
 # Model Action Run Inventory
 
 Generated from the per-model validation reports on 2026-05-25. This lists
-actions already run in this validation branch; models marked "not run yet" have
-not yet reached a per-model validation report.
+actions already run in this validation branch. Actions marked as fixed in a
+rebuilt image failed in the original default validation image and have source
+fixes plus rebuilt runtime images, but still need a full end-to-end rerun with
+those rebuilt tags before being counted as pass.
 
 ## action-recognition
 - train: pass
@@ -66,9 +68,9 @@ not yet reached a per-model validation report.
 - eval: pass after trusted-checkpoint PyTorch load override
 - inference: pass after trusted-checkpoint PyTorch load override
 - export: pass after trusted-checkpoint PyTorch load override
-- deploy/gen_trt_engine: partial pass; image-only engine pass, combined/text ONNX fail
-- deploy inference on TensorRT engine: partial pass; image-only inference pass
-- deploy evaluate on TensorRT engine: fail; full retrieval evaluation requires text engine
+- deploy/gen_trt_engine: partial pass in the original default image; image-only engine pass, combined/text ONNX fail due common deploy builder 2D-input bug; fixed in rebuilt deploy image `nvcr.io/nvstaging/tao/tao-toolkit-deploy:validation-fixes-20260525`, full rerun pending
+- deploy inference on TensorRT engine: partial pass in the original default image; image-only inference pass, full rerun pending after text-engine fix
+- deploy evaluate on TensorRT engine: fail in the original default image because full retrieval evaluation requires the text engine; source fixed in rebuilt deploy image, full rerun pending
 - prune: unsupported
 - retrain/resume: pass
 - quantize: unsupported
@@ -117,7 +119,7 @@ not yet reached a per-model validation report.
 - eval: pass with exact trained checkpoint
 - inference: pass with exact trained checkpoint
 - export: pass with exact trained checkpoint
-- deploy: partial; gen_trt_engine and inference pass, evaluate fail after predictions
+- deploy: partial in the original default image; gen_trt_engine and inference pass, evaluate failed after predictions due deploy stereo metric scalar conversion; fixed in rebuilt deploy image `nvcr.io/nvstaging/tao/tao-toolkit-deploy:validation-fixes-20260525`, full rerun pending
 - prune: unsupported
 - quantize: unsupported by packaged metadata
 - retrain/resume: pass with exact trained checkpoint
@@ -131,7 +133,7 @@ not yet reached a per-model validation report.
 - export: pass
 - deploy gen_trt_engine/inference/evaluate: pass
 - prune: unsupported
-- quantize: fail in TAO SDK code after correct checkpoint handoff
+- quantize: fail in the original default image after correct checkpoint handoff; fixed in rebuilt PyT image `nvcr.io/nvstaging/tao/tao-toolkit-pyt:validation-fixes-20260525`, full rerun pending
 - retrain/resume: pass
 - dataset convert: not packaged as a model skill action
 
@@ -141,9 +143,9 @@ not yet reached a per-model validation report.
 - eval: pass
 - inference: pass
 - export: pass
-- deploy: partial; gen_trt_engine and inference pass, evaluate fail after predictions
+- deploy: partial in the original default image; gen_trt_engine and inference pass, evaluate failed after predictions due deploy stereo metric scalar conversion; fixed in rebuilt deploy image `nvcr.io/nvstaging/tao/tao-toolkit-deploy:validation-fixes-20260525`, full rerun pending
 - prune: unsupported
-- quantize: fail in TAO SDK code after correct checkpoint handoff
+- quantize: fail in the original default image after correct checkpoint handoff; fixed in rebuilt PyT image `nvcr.io/nvstaging/tao/tao-toolkit-pyt:validation-fixes-20260525`, full rerun pending
 - retrain/resume: pass
 - dataset convert: not packaged as a model skill action
 
@@ -159,7 +161,7 @@ not yet reached a per-model validation report.
 - deploy gen_trt_engine: pass
 - deploy inference on TensorRT engine: pass
 - deploy evaluate on TensorRT engine: pass
-- dataset convert: fail; SDK/container schema bug before spec load
+- dataset convert: unsupported/not advertised by the DINO model skill; a manual `dino convert` CLI probe failed in SDK schema initialization, but it should not be counted as a supported model-skill action
 - prune: unsupported
 
 ## grounding-dino
@@ -171,7 +173,7 @@ not yet reached a per-model validation report.
 - deploy gen_trt_engine: pass
 - deploy inference on TensorRT engine: pass
 - deploy eval on TensorRT engine: pass
-- quantize: fail
+- quantize: fail in the original default image because quantize did not derive required caption/category lists for `GDINOPlModel`; fixed in rebuilt PyT image `nvcr.io/nvstaging/tao/tao-toolkit-pyt:validation-fixes-20260525`, full rerun pending
 - resume/retrain: pass
 - AutoML default train route: pass with Bayesian `automl_max_recommendations=2`
 - dataset convert: unsupported/not advertised
@@ -227,7 +229,7 @@ not yet reached a per-model validation report.
 - deploy inference on TensorRT engine: pass
 - deploy eval on TensorRT engine: pass
 - prune: unsupported/not advertised
-- quantize: fail
+- quantize: fail in the original default image due incorrect Lightning constructor argument and missing ModelOpt ONNX extras; fixed in rebuilt PyT image `nvcr.io/nvstaging/tao/tao-toolkit-pyt:validation-fixes-20260525`, full rerun pending
 - retrain/resume: pass
 - AutoML default train route: pass with Bayesian `automl_max_recommendations=2`
 - dataset convert: unsupported/not advertised
@@ -277,7 +279,7 @@ not yet reached a per-model validation report.
 - deploy/inference on TensorRT engine: pass
 - deploy/evaluate: pass
 - prune: pass
-- quantize: fail
+- quantize: fail in the original default image due missing `dm`/`task` constructor context and missing ModelOpt ONNX extras; fixed in rebuilt PyT image `nvcr.io/nvstaging/tao/tao-toolkit-pyt:validation-fixes-20260525`, full rerun pending
 - resume training through `train.resume_training_checkpoint_path`: pass
 - AutoML default train route: pass with Bayesian `automl_max_recommendations=2`
 - retrain: unsupported as a standalone PyT action
@@ -293,7 +295,7 @@ not yet reached a per-model validation report.
 - deploy/inference on TensorRT engine: pass
 - deploy/evaluate: pass
 - prune: pass after adding `prune.pruned_file` output metadata
-- quantize: fail
+- quantize: fail in the original default image due missing data-module constructor context and missing ModelOpt ONNX extras; fixed in rebuilt PyT image `nvcr.io/nvstaging/tao/tao-toolkit-pyt:validation-fixes-20260525`, full rerun pending
 - retrain: pass after routing the action through `ocrnet train -e` with `model.pruned_graph_path`
 - AutoML default train route: pass with Bayesian `automl_max_recommendations=2`
 - parent PyT gen_trt_engine: unsupported by the real PyT CLI; TensorRT is deploy-only
@@ -305,9 +307,9 @@ not yet reached a per-model validation report.
 - export: pass with explicit non-existing `export.onnx_file` at default 640x640 shape
 - quantize: pass with best AutoML checkpoint after preserving parent AutoML job path
 - retrain/resume: pass from the selected best AutoML checkpoint
-- deploy gen_trt_engine: fail, current deploy image builder fails on OneFormer `task_tokens` ONNX input
-- deploy evaluate: blocked, no TensorRT engine produced
-- deploy inference: blocked, no TensorRT engine produced
+- deploy gen_trt_engine: fail in the original default image because the common deploy builder treated 2D `task_tokens` as BCHW; fixed in rebuilt deploy image `nvcr.io/nvstaging/tao/tao-toolkit-deploy:validation-fixes-20260525`, full rerun pending
+- deploy evaluate: blocked in the original default image because no TensorRT engine was produced; full rerun pending after deploy builder fix
+- deploy inference: blocked in the original default image because no TensorRT engine was produced; full rerun pending after deploy builder fix
 - prune: unsupported by the packaged OneFormer PyT CLI
 - dataset convert: unsupported by the packaged OneFormer PyT CLI
 
@@ -401,7 +403,7 @@ not yet reached a per-model validation report.
 - evaluate: pass with resolver-selected `model_epoch_000_step_00004.pth`
 - inference: pass with resolver-selected `model_epoch_000_step_00004.pth`
 - export: pass with resolver-selected `model_epoch_000_step_00004.pth`
-- quantize: fail in the current PyT image after correct checkpoint handoff; ONNX quantize variant also fails because `modelopt.onnx.quantization` is missing
+- quantize: fail in the original default image after correct checkpoint handoff due incorrect `Sparse4DPlModel` checkpoint loading and missing ModelOpt ONNX extras; fixed in rebuilt PyT image `nvcr.io/nvstaging/tao/tao-toolkit-pyt:validation-fixes-20260525`, full rerun pending
 - retrain/resume: pass through `train.resume_training_checkpoint_path`, restored the selected epoch/step checkpoint and completed training
 - deploy: unsupported/not advertised
 - prune: unsupported/not advertised
