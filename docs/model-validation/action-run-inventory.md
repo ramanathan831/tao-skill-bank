@@ -143,9 +143,9 @@ those rebuilt tags before being counted as pass.
 - eval: pass
 - inference: pass
 - export: pass
-- deploy: partial in the original default image; gen_trt_engine and inference pass, evaluate failed after predictions due deploy stereo metric scalar conversion; fixed in rebuilt deploy image `nvcr.io/nvstaging/tao/tao-toolkit-deploy:validation-fixes-20260525`, full rerun pending
+- deploy: pass in rebuilt deploy image `nvcr.io/nvstaging/tao/tao-toolkit-deploy:validation-fixes-20260525`; source-fixed rerun generated `depth_net_stereo.engine`, then deploy inference and deploy evaluate both finished successfully
 - prune: unsupported
-- quantize: fail in the original default image after correct checkpoint handoff; fixed in rebuilt PyT image `nvcr.io/nvstaging/tao/tao-toolkit-pyt:validation-fixes-20260525`, full rerun pending
+- quantize: pass in rebuilt PyT image `nvcr.io/nvstaging/tao/tao-toolkit-pyt:validation-fixes-20260525`; rerun used resolver-selected `model_epoch_000_step_00002.pth` and wrote `quantized_model_torchao.pth`
 - retrain/resume: pass
 - dataset convert: not packaged as a model skill action
 

@@ -3,6 +3,9 @@
 Validated on 2026-05-25 with `platform=local-docker`, `image=default`.
 The PyT image resolved to
 `nvcr.io/nvstaging/tao/tao-toolkit-pyt:7.0.0-rc-226-multiarch`.
+Source-fixed reruns used
+`nvcr.io/nvstaging/tao/tao-toolkit-pyt:validation-fixes-20260525`
+and `nvcr.io/nvstaging/tao/tao-toolkit-deploy:validation-fixes-20260525`.
 The original validation pass used direct model training because AutoML routing
 was explicitly out of scope. After the default AutoML request, train was rerun
 through `AutoMLRunner` + `DockerSDK` with a two-trial Bayesian search.
@@ -14,9 +17,9 @@ through `AutoMLRunner` + `DockerSDK` with a two-trial Bayesian search.
 - eval: pass.
 - inference: pass.
 - export: pass.
-- deploy: partial. Deploy `gen_trt_engine` pass and deploy `inference` pass; deploy `evaluate` failed after prediction generation in the deploy stereo evaluator.
+- deploy: pass in the rebuilt deploy image. The source-fixed rerun generated a TensorRT engine, then deploy `inference` and deploy `evaluate` both finished successfully.
 - prune: not supported by the model skill.
-- quantize: fail, blocked in TAO SDK code after correct checkpoint handoff.
+- quantize: pass in the rebuilt PyT image after the TAO PyT source fix.
 - retrain/resume: pass.
 - dataset convert: not packaged as a model skill action. The PyT `depth_net` CLI exposes `convert`, but this skill has no convert schema/action wiring.
 - parent gen_trt_engine: fail before fix; the PyT `depth_net` CLI rejects `gen_trt_engine`. TensorRT engine generation is supported through the deploy sub-skill and passed.
@@ -48,6 +51,8 @@ through `AutoMLRunner` + `DockerSDK` with a two-trial Bayesian search.
   `/tmp/tao-model-validation/depth-net-stereo/results/train_128/train/model_epoch_000_step_00002.pth`,
   `dn_model_latest.pth -> model_epoch_000_step_00002.pth`, and
   `/tmp/tao-model-validation/depth-net-stereo/results/resume/train/model_epoch_001_step_00004.pth`.
+- Source-fixed rerun checkpoint:
+  `/tmp/tao-source-fixed-rerun/current/depth-net-stereo/results/train/train/model_epoch_000_step_00002.pth`.
 - Notes: failed train attempts also wrote partial step-0 checkpoints; downstream actions intentionally used only the successful `train_128` checkpoint.
 
 ## Checkpoint/action verification
@@ -55,11 +60,12 @@ through `AutoMLRunner` + `DockerSDK` with a two-trial Bayesian search.
 - Eval checkpoint used: `/tao-workspace/results/train_128/train/model_epoch_000_step_00002.pth`.
 - Inference checkpoint used: `/tao-workspace/results/train_128/train/model_epoch_000_step_00002.pth`.
 - Export checkpoint used: `/tao-workspace/results/train_128/train/model_epoch_000_step_00002.pth`.
-- Quantize checkpoint used: `/tao-workspace/results/train_128/train/model_epoch_000_step_00002.pth`.
+- Quantize checkpoint used in source-fixed rerun: `/workspace/results/train/train/model_epoch_000_step_00002.pth`, selected through `tao_sdk.checkpoints.get_checkpoint_path(..., epoch=0, step=2, allow_latest=False)`.
 - Resume/retrain checkpoint used: `/tao-workspace/results/train_128/train/model_epoch_000_step_00002.pth`.
 - Deploy handoff used: exported ONNX `/tao-workspace/results/export/depth_net_stereo.onnx`, then generated TensorRT engine `/tao-workspace/results/deploy_gen_trt_engine/depth_net_stereo.engine`.
+- Source-fixed deploy handoff used: exported ONNX `/workspace/results/export/depth_net_stereo.onnx`, generated TensorRT engine `/workspace/results/deploy_gen/depth_net_stereo.engine`, then reused that engine for deploy inference and deploy evaluate.
 - AutoML best checkpoint used: the best trial checkpoint above, selected by `val_loss` from AutoML state and not by the latest symlink.
-- Were checkpoint paths selected through the proper resolver: yes for the manual user workflow; the validated paths used exact epoch/step checkpoint names rather than the latest symlink. The skill docs require SDK/model resolver selection for best, epoch, step, and explicit latest behavior.
+- Were checkpoint paths selected through the proper resolver: yes for the manual user workflow and the source-fixed rerun; the validated paths used exact epoch/step checkpoint names rather than the latest symlink. The skill docs require SDK/model resolver selection for best, epoch, step, and explicit latest behavior.
 - Any incorrect latest-checkpoint behavior found: no runtime action blindly selected `dn_model_latest.pth`, but the model skill metadata was missing export/quantize checkpoint inputs before the direct-action fix.
 
 ## Issues found
@@ -80,8 +86,8 @@ through `AutoMLRunner` + `DockerSDK` with a two-trial Bayesian search.
 - Checkpoint issues:
   - No named best checkpoint was emitted by the one-epoch smoke run; exact epoch/step checkpoint selection was required.
 - Docker/local execution issues:
-  - Parent quantize failed inside the TAO PyT image with `AttributeError: 'StereoDepthNetPlModel' object has no attribute 'load_state_dict_from_checkpoint'`.
-  - Deploy `evaluate` failed inside `stereo_evaluator.py` with `TypeError: only 0-dimensional arrays can be converted to Python scalars` after predictions were generated.
+  - Parent quantize failed in the original default TAO PyT image with `AttributeError: 'StereoDepthNetPlModel' object has no attribute 'load_state_dict_from_checkpoint'`; the rebuilt PyT image passed and wrote `quantized_model_torchao.pth`.
+  - Deploy `evaluate` failed in the original default TAO Deploy image inside `stereo_evaluator.py` with `TypeError: only 0-dimensional arrays can be converted to Python scalars` after predictions were generated; the rebuilt deploy image passed.
   - Deploy engine generation passed but took 331.857 seconds even at 128x128 FP32.
   - Deploy actions printed non-fatal telemetry warnings.
 - Fresh-install issues:
@@ -98,11 +104,11 @@ through `AutoMLRunner` + `DockerSDK` with a two-trial Bayesian search.
 - Updated deploy defaults to FP32 and `workspace_size: 4`.
 - Documented the exact checkpoint pattern, resolver expectations, shape/max-disparity smoke constraints, quantize SDK failure, deploy evaluate failure, and deploy handoff rules.
 - Reran train through AutoML with Bayesian search, `automl_max_recommendations=2`, metric `val_loss`, and explicit minimal search over `train.optim.lr` and `train.optim.lr_decay`.
+- Reran source-fixed quantize on `nvcr.io/nvstaging/tao/tao-toolkit-pyt:validation-fixes-20260525`; it used the exact resolver-selected checkpoint and completed successfully.
+- Reran source-fixed deploy `gen_trt_engine`, `inference`, and `evaluate` on `nvcr.io/nvstaging/tao/tao-toolkit-deploy:validation-fixes-20260525`; all three completed successfully.
 
 ## Remaining issues
 
-- `depth_net quantize` remains unresolved in the TAO PyT image; the skill passes the exact checkpoint correctly, but the SDK fails before quantization can run.
-- Deploy `depth_net evaluate` remains unresolved in the TAO Deploy image; predictions are generated, then the stereo evaluator fails while converting array metrics to scalars.
 - Dataset convert remains unvalidated as a model skill action because the skill does not package a convert schema/action, even though the raw PyT CLI exposes `convert`.
 
 ## Files changed
@@ -124,4 +130,4 @@ through `AutoMLRunner` + `DockerSDK` with a two-trial Bayesian search.
 
 ## Final status
 
-- Partially validated: train, default AutoML train routing with two Bayesian recommendations, eval, inference, export, resume/retrain, deploy engine generation, and deploy inference passed. Quantize and deploy evaluate are blocked by SDK/deploy evaluator failures after correct artifact handoff.
+- Fully validated for packaged model-skill actions after the source-fixed image reruns: train, default AutoML train routing with two Bayesian recommendations, eval, inference, export, quantize, resume/retrain, deploy engine generation, deploy inference, and deploy evaluate passed. Dataset convert remains unsupported by this model skill.
