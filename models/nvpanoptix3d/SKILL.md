@@ -34,6 +34,12 @@ For AutoML, use `train_loss` as the optimization metric with
 `spec_overrides`. NVPanoptix3D train jobs emit `PRQ`, `RSQ`, and `RRQ` in
 `status.json`, and the training progress log emits `train_loss`; short or
 minimal jobs may not emit `val_loss`, including full-trial smoke runs.
+Multi-fidelity AutoML algorithms such as Hyperband, ASHA, and BOHB may promote
+a checkpoint to a resume job that completes without emitting a fresh
+`train_loss` line. In that case, the AutoML metric is the carried-forward
+metric from the source rung job that emitted `train_loss`; still verify the
+promoted job resumed from the explicit epoch/step checkpoint, produced a real
+checkpoint, and is usable for evaluate/inference.
 
 Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows stay in this model skill. The per-run `automl_policy` override does not change model metadata.
 
@@ -42,8 +48,10 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 - **Dataset type:** nvpanoptix3d
 - **Formats:** front3d, matterport
 - **Monitoring metric:** train_loss (`direction=minimize`) for AutoML train
-  jobs. Validation status KPIs are `PRQ`, `RSQ`, and `RRQ`; do not use
-  `val_loss` unless a specific run is known to emit it.
+  jobs. For multi-fidelity resume jobs that do not emit a fresh `train_loss`,
+  compare AutoML's carried metric to the source rung job that emitted it.
+  Validation status KPIs are `PRQ`, `RSQ`, and `RRQ`; do not use `val_loss`
+  unless a specific run is known to emit it.
 
 ### Per-Action Dataset Requirements
 
