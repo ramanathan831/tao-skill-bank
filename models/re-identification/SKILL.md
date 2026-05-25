@@ -29,11 +29,17 @@ This model is AutoML-enabled at the model layer. Before handling any train-stage
 
 Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows stay in this model skill. The per-run `automl_policy` override does not change model metadata.
 
+## Supported Actions
+
+The packaged Re-Identification PyT CLI supports `train`, `evaluate`, `inference`, `export`, and `default_specs`. This model skill exposes the runnable user actions `train`, `evaluate`, `inference`, and `export`; resume/retrain is performed through `train` with `train.resume_training_checkpoint_path`.
+
+Do not advertise or synthesize `dataset_convert`, `deploy`, `prune`, `quantize`, `gen_trt_engine`, or standalone `retrain` for this model unless the packaged model skill and real CLI add those actions.
+
 ## Training Requirements
 
 - **Dataset type:** re_identification
 - **Formats:** default
-- **Monitoring metric:** cmc_rank_1
+- **Monitoring metric:** cmc_rank_1, maximize
 
 ### Per-Action Dataset Requirements
 
@@ -87,6 +93,9 @@ S3_TRAIN = "s3://bucket/data/train"
     "inference.query_dataset": f"{S3_TRAIN}/sample_query.tar.gz",
 }
 ```
+
+For export and inference, provide explicit file paths for `export.onnx_file` and `inference.output_file`. For evaluate, provide explicit file paths for `evaluate.output_cmc_curve_plot` and `evaluate.output_sampled_matches_plot` when those artifacts are needed. Keep these as spec values or `spec_params` mappings; do not declare them as file outputs in `skill_info.yaml` for local Docker until the runner distinguishes files from folders during output pre-creation.
+
 ## Eval Dataset
 
 Required. Evaluation requires test and query datasets for retrieval-based metrics (CMC, mAP).
@@ -125,7 +134,9 @@ Minimum 1 GPU(s), recommended 2 GPU(s). 16GB+ VRAM per GPU. Re-ID models are rel
 
 **Query/gallery mismatch**: Query and test (gallery) datasets must share the same identity namespace.
 
-**Checkpoint handoff**: Use the best AutoML child job's `results_dir/train/*.pth` checkpoint (for example `reid_model_latest.pth` or `model_epoch_*.pth`) as `evaluate.checkpoint`, `export.checkpoint`, or `inference.checkpoint`. Preserve the same dataset identity count and query/gallery archives for downstream actions.
+**AutoML metric extraction**: Re-ID train status files report retrieval KPIs such as `cmc_rank_1`, `cmc_rank_5`, `cmc_rank_10`, and `mAP`, plus train loss. Default AutoML train launches must optimize `cmc_rank_1` with `direction: maximize`; do not use `val_loss` as the metric for this model.
+
+**Checkpoint handoff**: Use the checkpoint resolver on the best AutoML child job's `results_dir/train/` folder and select the action-appropriate `model_epoch_*.pth` checkpoint. Re-ID also writes `reid_model_latest.pth`, but that is a latest symlink and should only be used when a caller explicitly requests latest. Preserve the same dataset identity count and query/gallery archives for downstream actions.
 
 ## Spec Param / Parent Model Inference
 

@@ -353,7 +353,16 @@ not yet reached a per-model validation report.
 - standalone retrain: unsupported by the real PyT CLI; resume uses train
 
 ## re-identification
-- not run yet in this validation branch
+- train: pass, default model invocation routed through AutoML with two Bayesian recommendations using `cmc_rank_1` maximize
+- evaluate: pass with resolver-selected `model_epoch_000_step_00099.pth`
+- inference: pass with resolver-selected `model_epoch_000_step_00099.pth`
+- export: pass with resolver-selected `model_epoch_000_step_00099.pth`
+- resume training: pass through `train.resume_training_checkpoint_path`, restored the selected epoch checkpoint and produced `model_epoch_001_step_00198.pth`
+- dataset convert: unsupported/not advertised
+- deploy: unsupported/not advertised; no deploy sub-skill is packaged
+- prune: unsupported/not advertised
+- quantize: unsupported/not advertised
+- standalone retrain: unsupported by the real PyT CLI; resume uses train
 
 ## rtdetr
 - not run yet in this validation branch

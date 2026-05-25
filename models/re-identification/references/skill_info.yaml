@@ -15,6 +15,12 @@ actions:
         type: folder
       dataset.query_dataset_dir:
         type: folder
+      model.pretrained_model_path:
+        type: file
+        optional: true
+      train.resume_training_checkpoint_path:
+        type: file
+        optional: true
     outputs:
       results_dir:
         type: folder
@@ -28,6 +34,8 @@ actions:
         type: folder
       evaluate.query_dataset:
         type: folder
+      evaluate.checkpoint:
+        type: file
     outputs:
       results_dir:
         type: folder
@@ -36,7 +44,9 @@ actions:
   export:
     command: re_identification export -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      export.checkpoint:
+        type: file
     outputs:
       results_dir:
         type: folder
@@ -50,13 +60,32 @@ actions:
         type: folder
       inference.query_dataset:
         type: folder
+      inference.checkpoint:
+        type: file
     outputs:
       results_dir:
         type: folder
     upload_excludes:
     - inputs/
 data_sources: {}
-spec_params: {}
+spec_params:
+  train:
+    results_dir: output_dir
+    model.pretrained_model_path: ptm_if_no_resume_model
+    train.resume_training_checkpoint_path: resume_model
+  evaluate:
+    results_dir: output_dir
+    evaluate.checkpoint: parent_model
+    evaluate.output_cmc_curve_plot: create_evaluate_cmc_plot_reid
+    evaluate.output_sampled_matches_plot: create_evaluate_matches_plot_reid
+  export:
+    results_dir: output_dir
+    export.checkpoint: parent_model
+    export.onnx_file: create_onnx_file
+  inference:
+    results_dir: output_dir
+    inference.checkpoint: parent_model
+    inference.output_file: create_inference_result_file_reid
 key_defaults: {}
 spec_shorthand_keys:
   num_epochs: train.num_epochs
