@@ -12,6 +12,7 @@ Supported actions tested:
 - prune: unsupported/not advertised by the Mask2Former model skill
 - quantize: fail
 - retrain/resume: pass through train.resume_training_checkpoint_path
+- AutoML default train route: pass with Bayesian automl_max_recommendations=2
 - dataset convert: unsupported/not advertised by the Mask2Former model skill
 - other: parent PyTorch gen_trt_engine was advertised before this validation, but the parent CLI rejects it. TensorRT engine generation belongs to the deploy skill and the parent action was removed from model metadata.
 
@@ -33,6 +34,19 @@ Training result:
 - Best checkpoint produced: no separate best checkpoint artifact; the one-epoch smoke run produced an exact epoch/step checkpoint.
 - Best checkpoint path: /tmp/tao-model-validation/mask2former/results/train/model_epoch_000_step_00100.pth
 - Other checkpoints produced: /tmp/tao-model-validation/mask2former/results/resume/model_epoch_001_step_00200.pth; mask2former_model_latest.pth symlinks were produced by the runtime but were not used for checkpoint-dependent actions.
+
+AutoML default training rerun:
+- Default direct model training used AutoML after the default policy was corrected to automl_policy=on.
+- Source: s3://nvcf-storage-handling/data/segmentation_mask2former_train/
+- Source: s3://nvcf-storage-handling/data/segmentation_mask2former_val/
+- Algorithm: bayesian
+- Recommendations requested: 2
+- Metric: mIoU, maximize
+- Tuned parameters: train.optim.lr, train.optim.weight_decay
+- Recommendation 0: job 1870ad51-dfeb-4ff6-9447-9b1a5848b04d, mIoU 0.005142086651176214, checkpoint /tmp/tao-automl-validation/mask2former/results/1870ad51-dfeb-4ff6-9447-9b1a5848b04d/results_dir/train/model_epoch_000_step_00100.pth
+- Recommendation 1: job 92a0840d-2f2d-4430-b829-7d435213c709, mIoU 0.005142086651176214, checkpoint /tmp/tao-automl-validation/mask2former/results/92a0840d-2f2d-4430-b829-7d435213c709/results_dir/train/model_epoch_000_step_00100.pth
+- Best recommendation: rec 0, selected by the AutoML controller summary
+- Generated spec verification: both recommendations used the real S3 COCO panoptic inputs after SDK extraction, dataset train/val/test type=coco_panoptic, dataset.contiguous_id=false, model.sem_seg_head.num_classes=201, dataset.train.batch_size=1, and distinct Bayesian learning-rate/weight-decay values within the requested ranges.
 
 Checkpoint/action verification:
 - Eval checkpoint used: /tmp/tao-model-validation/mask2former/results/train/model_epoch_000_step_00100.pth
@@ -71,6 +85,7 @@ Fixes made:
 - Completed export and quantize input/output metadata in models/mask2former/references/skill_info.yaml.
 - Updated Mask2Former deploy metadata and templates to use COCO panoptic split-level fields and removed invalid top-level dataset.type.
 - Documented exact checkpoint selection, raw-id num_classes behavior, semantic deploy evaluation, deploy schema requirements, and quantize runtime blockers.
+- No additional Mask2Former model skill code change was needed for the AutoML default rerun.
 
 Remaining issues:
 - Quantize remains unresolved in the default image. The model skill can now pass the correct artifact path, but the runtime checkpoint loader and missing ONNX quantization package block both tested quantize paths.
@@ -85,6 +100,7 @@ Files changed:
 - models/mask2former/schemas/manifest.json
 - models/schemas.manifest.json
 - docs/model-validation/mask2former.md
+- docs/model-validation/action-run-inventory.md
 
 Final status:
-- Partially validated on local-docker with image=default. All advertised parent and deploy actions passed except quantize, which is blocked by default-image runtime/package issues after model-skill metadata fixes.
+- Partially validated on local-docker with image=default. AutoML default train and all advertised parent/deploy actions passed except quantize, which is blocked by default-image runtime/package issues after model-skill metadata fixes.
