@@ -6,6 +6,7 @@ model:
 inference:
   trt_engine: /results/ml-recog.engine
   batch_size: 10
+  input_path: <required>
   inference_input_type: classification_folder
   topk: 10
 dataset:

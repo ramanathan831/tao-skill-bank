@@ -85,7 +85,7 @@ Direct TAO Launcher spelling is `tao deploy ml_recog gen_trt_engine`, `tao deplo
 | `evaluate` | Query set | `dataset.val_dataset.query` |
 | `inference` | TensorRT engine | `inference.trt_engine` |
 | `inference` | Reference set | `dataset.val_dataset.reference` |
-| `inference` | Query set | `dataset.val_dataset.query` |
+| `inference` | Input/query image folder | `inference.input_path` |
 
 For direct Docker runs, mount input folders at the same paths used in the spec. For chained jobs, map exported ONNX artifacts into `gen_trt_engine.onnx_file` and map the engine artifact into `evaluate.trt_engine` or `inference.trt_engine` where those actions are available.
 
@@ -117,6 +117,7 @@ Model-specific notes:
 | `gen_trt_engine` INT8 | calibration image/cache fields | calibration dataset and new cache output |
 | `evaluate` | `evaluate.trt_engine` | engine job output |
 | `inference` | `inference.trt_engine` | engine job output |
+| `inference` | `inference.input_path` | input/query image folder |
 
 ## Outputs
 
@@ -135,3 +136,7 @@ Model-specific notes:
 **INT8 calibration missing:** INT8 builds need an extracted calibration image directory, a writable cache path, and enough images for `cal_batch_size * cal_batches`.
 
 **Mounted paths do not exist:** TAO Deploy checks local paths inside the container. Make sure every path in the spec has a matching Docker mount or job artifact mapping.
+
+**Deploy inference input missing:** `ml_recog inference` in TAO Deploy requires
+`inference.input_path`. `dataset.val_dataset.query` alone is not consumed by the
+deploy inference entrypoint.

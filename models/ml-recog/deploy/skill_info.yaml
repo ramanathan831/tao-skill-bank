@@ -46,6 +46,9 @@ actions:
         type: folder
       dataset.val_dataset.query:
         type: folder
+        optional: true
+      inference.input_path:
+        type: folder
     outputs:
       results_dir:
         type: folder

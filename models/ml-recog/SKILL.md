@@ -43,7 +43,6 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 | Action | Spec Key | Source | Files | List? |
 |---|---|---|---|---|
 | evaluate | dataset.val_dataset | train_datasets | reference: metric_learning_recognition/retail-product-checkout-dataset_classification_demo/unknown_classes/reference.tar.gz, query: metric_learning_recognition/retail-product-checkout-dataset_classification_demo/unknown_classes/test.tar.gz | No |
-| gen_trt_engine | gen_trt_engine.tensorrt.calibration.cal_image_dir | calibration_dataset | metric_learning_recognition/retail-product-checkout-dataset_classification_demo/known_classes/test.tar.gz | Yes |
 | inference | dataset.val_dataset | train_datasets | reference: metric_learning_recognition/retail-product-checkout-dataset_classification_demo/unknown_classes/reference.tar.gz, query:  | No |
 | inference | inference.input_path | train_datasets | metric_learning_recognition/retail-product-checkout-dataset_classification_demo/unknown_classes/test.tar.gz | No |
 | train | dataset.train_dataset | train_datasets | metric_learning_recognition/retail-product-checkout-dataset_classification_demo/known_classes/train.tar.gz | No |
@@ -66,14 +65,6 @@ S3_TRAIN = "s3://bucket/data/train"
     "train.num_gpus": 1,
     "dataset.train_dataset": f"{S3_TRAIN}/metric_learning_recognition/retail-product-checkout-dataset_classification_demo/known_classes/train.tar.gz",
     "dataset.val_dataset": {"reference": f"{S3_TRAIN}/metric_learning_recognition/retail-product-checkout-dataset_classification_demo/known_classes/reference.tar.gz", "query": f"{S3_TRAIN}/metric_learning_recognition/retail-product-checkout-dataset_classification_demo/known_classes/val.tar.gz"},
-}
-```
-
-**gen_trt_engine (mandatory data sources):**
-```python
-{
-    "gen_trt_engine.tensorrt.data_type": "INT8",
-    "gen_trt_engine.tensorrt.calibration.cal_image_dir": [f"{S3_TRAIN}/metric_learning_recognition/retail-product-checkout-dataset_classification_demo/known_classes/test.tar.gz"],
 }
 ```
 
@@ -131,12 +122,12 @@ Minimum 1 GPU(s), recommended 2 GPU(s). 16GB+ VRAM per GPU. Metric learning bene
 
 **Reference/query mismatch**: Ensure reference and query datasets share compatible class namespaces for evaluation.
 
-**PyTorch 2.6 checkpoint load failure on evaluate/inference**: Current TAO
+**PyTorch 2.6 checkpoint load failure on checkpoint actions**: Current TAO
 ML-Recog checkpoints may contain OmegaConf objects. For checkpoints produced by
 the same trusted TAO train/AutoML workflow, set
-`TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1` in downstream evaluate/inference job env
-vars so Lightning can load the full checkpoint. Do not use this env var for
-untrusted checkpoints.
+`TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1` in downstream evaluate, inference, export,
+or resume/retrain job env vars so Lightning can load the full checkpoint. Do not
+use this env var for untrusted checkpoints.
 
 ## Spec Param / Parent Model Inference
 
@@ -147,17 +138,11 @@ Inference mappings from TAO Core `ml_recog.config.json`:
 | Action | Spec Field | Inference Function | Meaning |
 |---|---|---|---|
 | evaluate | `evaluate.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
-| evaluate | `evaluate.trt_engine` | `parent_model` | model file inferred from the parent job results folder |
 | evaluate | `results_dir` | `output_dir` | current job results directory |
 | export | `export.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
 | export | `export.onnx_file` | `create_onnx_file` | output ONNX path |
 | export | `results_dir` | `output_dir` | current job results directory |
-| gen_trt_engine | `gen_trt_engine.onnx_file` | `parent_model` | model file inferred from the parent job results folder |
-| gen_trt_engine | `gen_trt_engine.tensorrt.calibration.cal_cache_file` | `create_cal_cache` | calibration cache path |
-| gen_trt_engine | `gen_trt_engine.trt_engine` | `create_engine_file` | output TensorRT engine path |
-| gen_trt_engine | `results_dir` | `output_dir` | current job results directory |
 | inference | `inference.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
-| inference | `inference.trt_engine` | `parent_model` | model file inferred from the parent job results folder |
 | inference | `results_dir` | `output_dir` | current job results directory |
 | train | `model.pretrained_model_path` | `ptm_if_no_resume_model` | PTM when no resume checkpoint exists |
 | train | `results_dir` | `output_dir` | current job results directory |
