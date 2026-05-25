@@ -42,10 +42,10 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 | Action | Spec Key | Source | Files | List? |
 |---|---|---|---|---|
 | evaluate | dataset.test_data_sources | eval_dataset | image_dir: images.tar.gz, json_file: annotations.json | No |
-| inference | dataset.infer_data_sources | inference_dataset | image_dir: images.tar.gz, classmap: label_map.txt | No |
+| inference | dataset.infer_data_sources | inference_dataset | image_dir: images.tar.gz, captions: prompt list | Yes |
 | quantize | dataset.train_data_sources | train_datasets | image_dir: images.tar.gz, json_file: annotations_odvg.jsonl, label_map: annotations_odvg_labelmap.json | Yes |
 | quantize | dataset.val_data_sources | eval_dataset | image_dir: images.tar.gz, json_file: annotations.json | No |
-| quantize | dataset.quant_calibration_data_sources | train_datasets | image_dir: images.tar.gz, json_file: annotations_odvg.jsonl, label_map: annotations_odvg_labelmap.json | No |
+| quantize | dataset.quant_calibration_data_sources | calibration/eval dataset | image_dir: images.tar.gz, json_file: annotations.json | No |
 | train | dataset.train_data_sources | train_datasets | image_dir: images.tar.gz, json_file: annotations_odvg.jsonl, label_map: annotations_odvg_labelmap.json | Yes |
 | train | dataset.val_data_sources | eval_dataset | image_dir: images.tar.gz, json_file: annotations.json | No |
 
@@ -70,9 +70,11 @@ S3_EVAL = "s3://bucket/data/eval"
 }
 ```
 
-**gen_trt_engine:**
+**deploy/gen_trt_engine (use `deploy/SKILL.md`):**
 ```python
 {
+    "gen_trt_engine.onnx_file": "<exported_onnx_uri>",
+    "gen_trt_engine.trt_engine": "<output_engine_path>",
     "gen_trt_engine.tensorrt.data_type": "FP16",
 }
 ```
@@ -81,10 +83,13 @@ S3_EVAL = "s3://bucket/data/eval"
 ```python
 {
     "inference.checkpoint": "<selected train/AutoML checkpoint>",
+    "dataset.infer_data_sources.image_dir": [f"{S3_EVAL}/images.tar.gz"],
     "dataset.infer_data_sources.captions": [
-        "person"
+        "fire extinguisher",
+        "cone",
+        "cart",
+        "forklift"
     ],
-    "dataset.infer_data_sources": {"image_dir": f"{S3_EVAL}/images.tar.gz", "classmap": f"{S3_EVAL}/label_map.txt"},
 }
 ```
 
@@ -99,9 +104,10 @@ S3_EVAL = "s3://bucket/data/eval"
 **quantize (mandatory data sources):**
 ```python
 {
+    "quantize.model_path": "<selected train checkpoint or exported ONNX model>",
     "dataset.train_data_sources": [{"image_dir": f"{S3_TRAIN}/images.tar.gz", "json_file": f"{S3_TRAIN}/annotations_odvg.jsonl", "label_map": f"{S3_TRAIN}/annotations_odvg_labelmap.json"}],
     "dataset.val_data_sources": {"image_dir": f"{S3_EVAL}/images.tar.gz", "json_file": f"{S3_EVAL}/annotations.json"},
-    "dataset.quant_calibration_data_sources": {"image_dir": f"{S3_TRAIN}/images.tar.gz", "json_file": f"{S3_TRAIN}/annotations_odvg.jsonl", "label_map": f"{S3_TRAIN}/annotations_odvg_labelmap.json"},
+    "dataset.quant_calibration_data_sources": {"image_dir": f"{S3_EVAL}/images.tar.gz", "json_file": f"{S3_EVAL}/annotations.json"},
 }
 ```
 ## Eval Dataset
@@ -143,6 +149,9 @@ Same DDP/FSDP behavior as DINO. Multi-node requires `WORLD_SIZE`, `NODE_RANK`, `
 ## Export / TRT Defaults
 
 - Export input: 960x544 (larger than other OD models), opset 17
+- The parent PyTorch `grounding_dino` CLI supports `train`, `evaluate`,
+  `inference`, `export`, and `quantize`. Run TensorRT engine generation,
+  TensorRT inference, and TensorRT evaluation through `deploy/SKILL.md`.
 - TRT data types: FP32, FP16 only — **INT8 is NOT supported**
 - TRT workspace: 8192 MB (8x larger than other OD models)
 - TRT max_batch_size: 4
@@ -158,6 +167,13 @@ Minimum 1 GPU(s), recommended 4 GPU(s). 24GB+ (A100 recommended) VRAM per GPU. G
 **Val annotation category IDs**: Validation annotations should have category IDs starting from 0 for correct loss computation. Use annotation format conversion if needed.
 
 **Text encoder loading error**: Ensure the container has access to download bert-base-uncased weights or provide a local path.
+
+**Quantize with a PyTorch checkpoint fails in TAO Toolkit 7.0.0-rc-226**:
+The container's Grounding-DINO quantize script passes `cap_lists=None` when
+loading a checkpoint, which fails in `post_process.py`. ONNX quantization uses
+the exported ONNX artifact and COCO calibration data, but the default rc-226
+PyTorch image also lacks the `modelopt.onnx.quantization` module. Treat this as
+an image/SDK blocker, not a checkpoint resolver issue.
 
 **mat1 and mat2 shapes cannot be multiplied in `post_process.py`**: The text
 token length and label position maps are inconsistent, commonly because
@@ -185,10 +201,6 @@ Inference mappings from TAO Core `grounding_dino.config.json`:
 | export | `export.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
 | export | `export.onnx_file` | `create_onnx_file` | output ONNX path |
 | export | `results_dir` | `output_dir` | current job results directory |
-| gen_trt_engine | `encryption_key` | `key` | encryption key |
-| gen_trt_engine | `gen_trt_engine.onnx_file` | `parent_model` | model file inferred from the parent job results folder |
-| gen_trt_engine | `gen_trt_engine.trt_engine` | `create_engine_file` | output TensorRT engine path |
-| gen_trt_engine | `results_dir` | `output_dir` | current job results directory |
 | inference | `encryption_key` | `key` | encryption key |
 | inference | `inference.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
 | inference | `inference.trt_engine` | `parent_model` | model file inferred from the parent job results folder |
@@ -203,3 +215,12 @@ Inference mappings from TAO Core `grounding_dino.config.json`:
 | train | `train.resume_training_checkpoint_path` | `resume_model` | model file inferred from the current job results folder |
 
 For `parent_model` or `parent_model_folder`, pass the upstream train/export/AutoML child job id as `parent_job_id`. The SDK lists the parent result folder, filters checkpoint artifacts, and returns the selected model file or folder. Do not add these mappings back to `config.json` and do not patch generated runner scripts to guess checkpoint paths.
+
+When selecting a Grounding-DINO checkpoint outside the SDK resolver, match the
+intended epoch/step artifact exactly, for example
+`model_epoch_000_step_00046.pth`. The `gdino_model_latest.pth` symlink is valid
+only when latest is explicitly requested. Carry structural model settings such
+as `model.backbone`, `model.num_queries`, `model.num_select`,
+`model.num_feature_levels`, `model.max_text_len`, and export input resolution
+forward into evaluate, inference, export, and deploy specs so checkpoint and
+engine shapes match.
