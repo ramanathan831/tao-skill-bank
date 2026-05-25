@@ -11,6 +11,7 @@ Supported actions tested:
 - deploy eval on tao-deployed gen_trt_engine model: pass
 - quantize: fail
 - resume/retrain: pass through train.resume_training_checkpoint_path
+- AutoML default train route: pass with Bayesian automl_max_recommendations=2
 - dataset convert: unsupported/not advertised by the Grounding-DINO model skill
 - prune: unsupported/not advertised by the Grounding-DINO model skill
 - parent gen_trt_engine: fail; not supported by the PyTorch CLI and removed from parent model metadata
@@ -26,6 +27,19 @@ Training result:
 - Best checkpoint produced: no separate best checkpoint artifact; the one-epoch run produced an epoch/step checkpoint.
 - Best checkpoint path: /tmp/tao-model-validation/grounding-dino/results/train/train/model_epoch_000_step_00046.pth
 - Other checkpoints produced: /tmp/tao-model-validation/grounding-dino/results/resume/train/model_epoch_001_step_00092.pth; gdino_model_latest.pth symlinks were produced but not used for checkpoint-dependent actions.
+
+AutoML default training rerun:
+- Default direct model training used AutoML after the default policy was corrected to automl_policy=on.
+- Source: s3://nvcf-storage-handling/data/tao_od_synthetic_subset_train_odvg/
+- Source: s3://nvcf-storage-handling/data/tao_od_synthetic_subset_val_odvg/
+- Algorithm: bayesian
+- Recommendations requested: 2
+- Metric: mAP50, maximize
+- Tuned parameters: train.optim.lr, train.optim.lr_backbone
+- Recommendation 0: job a1b093ff-13b0-4efa-9ad8-33b3ab222afc, mAP50 0.0, checkpoint /tmp/tao-automl-validation/grounding-dino/results/a1b093ff-13b0-4efa-9ad8-33b3ab222afc/results_dir/train/model_epoch_000_step_00006.pth
+- Recommendation 1: job 8f5bd99a-1d45-4ae4-a34d-fcb4941cd2c6, mAP50 0.0, checkpoint /tmp/tao-automl-validation/grounding-dino/results/8f5bd99a-1d45-4ae4-a34d-fcb4941cd2c6/results_dir/train/model_epoch_000_step_00006.pth
+- Best recommendation: rec 0, selected by the AutoML controller summary
+- Generated spec verification: both recommendations used exactly one train_data_sources entry with /data/train/images, /data/train/annotations_odvg.jsonl, and /data/train/annotations_odvg_labelmap.json; validation used /data/val/images and /data/val/annotations.json.
 
 Checkpoint/action verification:
 - Eval checkpoint used: /tmp/tao-model-validation/grounding-dino/results/train/train/model_epoch_000_step_00046.pth
@@ -44,6 +58,7 @@ Issues found:
   - Export and quantize inputs were empty in skill_info.yaml, preventing reliable parent artifact handoff.
   - spec_params were empty, so parent checkpoint and ONNX output resolver mappings were not declared.
 - Config issues:
+  - The packaged parent spec templates had a second blank train_data_sources entry, which caused fresh AutoML train jobs to fail with FileNotFoundError for an empty json_file path.
   - Quantize calibration documentation pointed at ODVG JSONL; the quantize calibration dataloader expects COCO JSON.
   - Deploy specs must carry forward structural settings and export input resolution from the checkpoint/export spec.
 - Dataset issues:
@@ -65,6 +80,7 @@ Fixes made:
 - Documented COCO calibration requirements for quantize.
 - Documented exact checkpoint selection and shape-carry-forward requirements.
 - Documented the remaining quantize SDK/image blockers.
+- Removed the second blank train_data_sources entry from all Grounding-DINO parent spec templates so direct model AutoML training inherits only the user-configured ODVG source.
 
 Remaining issues:
 - Quantize remains unresolved in the default rc-226 PyTorch image:
@@ -75,8 +91,14 @@ Files changed:
 - models/grounding-dino/SKILL.md
 - models/grounding-dino/references/skill_info.yaml
 - models/grounding-dino/schemas/manifest.json
+- models/grounding-dino/references/spec_template_train.yaml
+- models/grounding-dino/references/spec_template_evaluate.yaml
+- models/grounding-dino/references/spec_template_export.yaml
+- models/grounding-dino/references/spec_template_gen_trt_engine.yaml
+- models/grounding-dino/references/spec_template_inference.yaml
+- models/grounding-dino/references/spec_template_quantize.yaml
 - models/schemas.manifest.json
 - docs/model-validation/grounding-dino.md
 
 Final status:
-- Partially validated. Train, eval, inference, export, resume, deploy gen_trt_engine, deploy inference, and deploy evaluation pass end-to-end on local-docker with image=default. Quantize is blocked by SDK/container issues outside the model skill metadata.
+- Partially validated. Train, AutoML default train, eval, inference, export, resume, deploy gen_trt_engine, deploy inference, and deploy evaluation pass end-to-end on local-docker with image=default. Quantize is blocked by SDK/container issues outside the model skill metadata.

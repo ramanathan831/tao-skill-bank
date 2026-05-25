@@ -173,6 +173,7 @@ not yet reached a per-model validation report.
 - deploy eval on TensorRT engine: pass
 - quantize: fail
 - resume/retrain: pass
+- AutoML default train route: pass with Bayesian `automl_max_recommendations=2`
 - dataset convert: unsupported/not advertised
 - prune: unsupported/not advertised
 
