@@ -396,7 +396,16 @@ not yet reached a per-model validation report.
 - parent PyT gen_trt_engine: unsupported by the real PyT CLI; TensorRT is deploy-only
 
 ## sparse4d
-- not run yet in this validation branch
+- dataset convert: pass through the Data Services `annotations convert` action
+- train: pass, default model invocation routed through AutoML with two Bayesian recommendations using `val_mAP` maximize
+- evaluate: pass with resolver-selected `model_epoch_000_step_00004.pth`
+- inference: pass with resolver-selected `model_epoch_000_step_00004.pth`
+- export: pass with resolver-selected `model_epoch_000_step_00004.pth`
+- quantize: fail in the current PyT image after correct checkpoint handoff; ONNX quantize variant also fails because `modelopt.onnx.quantization` is missing
+- retrain/resume: pass through `train.resume_training_checkpoint_path`, restored the selected epoch/step checkpoint and completed training
+- deploy: unsupported/not advertised
+- prune: unsupported/not advertised
+- standalone retrain: unsupported by the real PyT CLI; resume uses train
 
 ## vila
 - not run yet in this validation branch

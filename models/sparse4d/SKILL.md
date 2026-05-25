@@ -19,7 +19,10 @@ tags:
 
 Sparse4D for multi-camera temporal 3D object detection and tracking. Uses sparse queries with deformable attention across camera views and time for end-to-end 3D perception. Includes instance bank for temporal tracking.
 
-Requires pretrained ResNet-101 backbone. Set train.pretrained_model_path.
+Use a pretrained ResNet-101 backbone when one is available by setting
+`train.pretrained_model_path`. For local smoke validation, Sparse4D training
+can run with an empty `train.pretrained_model_path`, but production runs should
+still use a compatible PTM.
 
 ## Dataclass Schemas
 
@@ -176,6 +179,10 @@ test -f "${CONVERTED}/train/subsetscene+bev-sensor-random-2_infos_train.pkl"
 If any check fails, rerun `dataset_convert` with the `tao_toolkit.data_services`
 image instead of launching train. A wrong conversion artifact often surfaces as
 `FileNotFoundError: .../anchor_init.npy` during model construction.
+
+The AICity converter may extract the full camera videos to RGB frames even when
+`aicity.num_frames` is set to a small value for the converted pickle. Plan for
+the raw-data mount to hold the extracted frames as well as the H5 depth maps.
 ## Eval Dataset
 
 Optional. Val/test splits configured via dataset ann_file paths.
@@ -250,6 +257,18 @@ converted `depth_map_path` tuples to point at
 **Missing anchor file**: Set model.head.instance_bank.anchor to the anchor_init.npy path from dataset_convert results.
 
 **Temporal OOM**: Reduce dataset.num_frames or dataset.batch_size if running out of memory during temporal training.
+
+**Quantize blockers in the 7.0.0-rc PyT image**: The model-skill wiring should
+pass `quantize.model_path` through the parent-model resolver, and checkpoint
+handoff should select the exact epoch/step checkpoint just like evaluate,
+inference, export, and resume. In the current PyT image, checkpoint-backed
+TorchAO quantization fails inside
+`nvidia_tao_pytorch/cv/sparse4d/scripts/quantize.py` because it calls
+`Sparse4DPlModel.load_from_checkpoint(..., config=cfg)` while the model
+constructor requires `experiment_spec`. The ONNX path is also blocked in this
+image because `modelopt.onnx.quantization` is not installed. Do not remove or
+skip the advertised `quantize` action; report the container failure until the
+Sparse4D quantize entrypoint or image dependency is fixed.
 
 ## Spec Param / Parent Model Inference
 
