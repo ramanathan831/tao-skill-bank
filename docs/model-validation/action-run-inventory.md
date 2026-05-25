@@ -408,7 +408,15 @@ not yet reached a per-model validation report.
 - standalone retrain: unsupported by the real PyT CLI; resume uses train
 
 ## vila
-- not run yet in this validation branch
+- train: pass, default model invocation routed through AutoML with two Bayesian recommendations using `loss` minimize
+- evaluate: pass on `youcook2_val_rtl` after fixing RTL time-token handoff for PEFT/base model loading
+- inference: pass with the selected best AutoML LoRA folder and base model
+- export: unsupported/not advertised
+- deploy: unsupported/not advertised
+- prune: unsupported/not advertised
+- quantize: unsupported/not advertised
+- retrain/resume: unsupported as a separate VILA model skill action
+- dataset convert: unsupported/not advertised
 
 ## visual-changenet
 - not run yet in this validation branch

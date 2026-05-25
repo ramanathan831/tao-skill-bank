@@ -81,7 +81,9 @@
       "spec_template": "references/spec_template_inference.yaml"
     },
     "train": {
-      "automl_default_parameters": [],
+      "automl_default_parameters": [
+        "train.learning_rate"
+      ],
       "automl_disabled_parameters": [
         "evaluate",
         "inference",

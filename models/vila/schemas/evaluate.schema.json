@@ -9,9 +9,13 @@
   ],
   "default": {
     "evaluate": {
+      "data_path": "",
       "dataset_yaml_path": "",
       "num_gpus": 1,
-      "task": "youcook2_val"
+      "num_time_tokens": 0,
+      "task": "youcook2_val",
+      "time_token_format": "<t{t}>",
+      "video_dir": ""
     },
     "model_path": "",
     "results_dir": "",
@@ -88,9 +92,13 @@
     "evaluate": {
       "automl_enabled": false,
       "default": {
+        "data_path": "",
         "dataset_yaml_path": "",
         "num_gpus": 1,
-        "task": "youcook2_val"
+        "num_time_tokens": 0,
+        "task": "youcook2_val",
+        "time_token_format": "<t{t}>",
+        "video_dir": ""
       },
       "description": "Evaluation config",
       "properties": {
@@ -98,6 +106,12 @@
           "default": "",
           "description": "Path to the dataset yaml file",
           "title": "Dataset yaml path",
+          "type": "string"
+        },
+        "data_path": {
+          "default": "",
+          "description": "Path to the evaluation annotation file.",
+          "title": "Evaluation annotation path",
           "type": "string"
         },
         "model_base": {
@@ -113,11 +127,19 @@
           "title": "Number of GPUs",
           "type": "int"
         },
+        "num_time_tokens": {
+          "default": 0,
+          "description": "Number of time tokens to decode for RTL evaluation tasks.",
+          "minimum": 0,
+          "title": "Number of time tokens",
+          "type": "int"
+        },
         "task": {
           "default": "youcook2_val",
           "description": "Task name for evaluation.",
           "enum": [
             "youcook2_val",
+            "youcook2_val_rtl",
             "scienceqa_image",
             "scienceqa_image_text",
             "scienceqa_text",
@@ -126,6 +148,18 @@
           ],
           "title": "Task name",
           "type": "categorical"
+        },
+        "time_token_format": {
+          "default": "<t{t}>",
+          "description": "Python format string for converting generated RTL time tokens.",
+          "title": "Time token format",
+          "type": "string"
+        },
+        "video_dir": {
+          "default": "",
+          "description": "Path to the evaluation video directory.",
+          "title": "Evaluation video directory",
+          "type": "string"
         }
       },
       "required": [

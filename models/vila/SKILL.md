@@ -30,20 +30,27 @@ This model is AutoML-enabled at the model layer. Before handling any train-stage
 
 Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows stay in this model skill. The per-run `automl_policy` override does not change model metadata.
 
+The default VILA container exposes action entrypoints as `vila-train`, `vila-evaluate`, and `vila-inference`; it does not expose a `vila <action> -e <spec>` dispatcher. The model skill adapts the packaged YAML specs to those flat CLI entrypoints in `references/skill_info.yaml`.
+
 ## Training Requirements
 
 - **Dataset type:** vlm
 - **Formats:** default, raw
 - **Accepted dataset intents:** training, evaluation, testing
-- **Monitoring metric:** val_acc
+- **Monitoring metric:** loss
+- **Default AutoML parameter:** train.learning_rate
 
 ### Per-Action Dataset Requirements
 
 | Action | Spec Key | Source | Files | List? |
 |---|---|---|---|---|
 | train | train.dataset.dataset_yaml_path | train_datasets | dataset.yaml | No |
-| evaluate | eval.dataset_yaml_path | eval_dataset | dataset.yaml | No |
-| inference | inference.media | inference_dataset | (dataset root) | No |
+| train | train.dataset.data_path | train_datasets | annotations JSON | No |
+| train | train.dataset.media_dir | train_datasets | media directory or tar/tar.gz | No |
+| evaluate | evaluate.dataset_yaml_path | eval_dataset | dataset.yaml | No |
+| evaluate | evaluate.data_path | eval_dataset | annotations JSON | No |
+| evaluate | evaluate.video_dir | eval_dataset | video directory or tar/tar.gz | No |
+| inference | inference.media | inference_dataset | media file or dataset root | No |
 
 ### Typical Spec Overrides
 
@@ -59,6 +66,8 @@ S3_EVAL = "s3://bucket/data/eval"
 {
     "model_path": "/path/or/s3/to/base_vila_model",
     "train.dataset.dataset_yaml_path": f"{S3_TRAIN}/dataset.yaml",
+    "train.dataset.data_path": f"{S3_TRAIN}/annotations.json",
+    "train.dataset.media_dir": f"{S3_TRAIN}/dataset.tar.gz",
     "train.num_epochs": 1,
     "train.batch_size": 8,
     "train.learning_rate": 1e-4,
@@ -72,7 +81,12 @@ S3_EVAL = "s3://bucket/data/eval"
 ```python
 {
     "model_path": "/path/or/s3/to/trained_or_base_vila_model",
-    "eval.dataset_yaml_path": f"{S3_EVAL}/dataset.yaml",
+    "evaluate.task": "youcook2_val_rtl",
+    "evaluate.dataset_yaml_path": f"{S3_EVAL}/dataset.yaml",
+    "evaluate.data_path": f"{S3_EVAL}/youcookii_val_rtl.json",
+    "evaluate.video_dir": f"{S3_EVAL}/videos.tar.gz",
+    "evaluate.model_base": "/path/or/s3/to/base_vila_model_if_model_path_is_peft",
+    "evaluate.num_time_tokens": 0,
 }
 ```
 
@@ -80,7 +94,8 @@ S3_EVAL = "s3://bucket/data/eval"
 ```python
 {
     "model_path": "/path/or/s3/to/trained_or_base_vila_model",
-    "inference.media": f"{S3_EVAL}/",
+    "inference.model_base": "/path/or/s3/to/base_vila_model_if_model_path_is_peft",
+    "inference.media": f"{S3_EVAL}/sample.mp4",
 }
 ```
 
@@ -106,6 +121,8 @@ Optional. Evaluation dataset configured via evaluate.dataset_yaml_path.
 - **train.warmup_ratio**: LR warmup ratio. Default 0.03.
 - **train.dataset.dataset_yaml_path**: Path to dataset YAML configuration.
 - **evaluate.task**: Evaluation benchmark. Default "youcook2_val".
+- **evaluate.num_time_tokens**: Number of RTL time tokens to decode when evaluating `llava.eval.rtl` datasets. Default 0.
+- **evaluate.time_token_format**: Format string for RTL time tokens. Default "<t{t}>".
 - **inference.text**: Inference prompt. Default "What is this video about?"
 - **inference.conv_mode**: Conversation mode. Default "auto".
 
@@ -119,15 +136,20 @@ Minimum 1 GPU(s), recommended 8 GPU(s). 40GB+ (A100 80GB recommended) VRAM per G
 
 **Missing dataset YAML**: Ensure train.dataset.dataset_yaml_path points to a valid YAML file.
 
-**Container image not found**: The current `tao_toolkit.vila` mapping resolves
-to `nvcr.io/nvidia/tao/tao-toolkit:6.26.3-vila`; verify the image manifest
-before launching. If Docker/NGC reports the tag does not exist, stop and update
-the image mapping or require an explicit `image=<override>`.
+**Remote paths inside dataset YAML**: The VILA container expects `data_path` and
+`media_dir` to be local paths. When a dataset YAML contains `aws://` or `s3://`
+members, pass `train.dataset.data_path` / `train.dataset.media_dir` or
+`evaluate.data_path` / `evaluate.video_dir` as model skill inputs so the runner
+downloads them before launching the VILA entrypoint.
 
-**AutoML blocked until image mapping is fixed**: Do not launch VILA AutoML with
-the default image mapping. The packaged `6.26.3-vila` tag has no Docker
-manifest; mark the run blocked unless the user supplies a valid VILA image and
-a reachable base `model_path`.
+**Container entrypoint mismatch**: If `vila: command not found` or `vila train`
+fails, verify `references/skill_info.yaml` still wraps the flat
+`vila-train` / `vila-evaluate` / `vila-inference` commands.
+
+**RTL evaluation time tokens**: `llava.eval.rtl` expects `model.config.num_time_tokens`
+to be an integer. PEFT/base loading can drop the trained adapter's value, so the
+model skill restores `evaluate.num_time_tokens` and `evaluate.time_token_format`
+before invoking the RTL module.
 
 **Video frame loading**: Ensure num_video_frames and video_max_tiles are compatible with available GPU memory.
 
@@ -139,11 +161,11 @@ Inference mappings from TAO Core `vila.config.json`:
 
 | Action | Spec Field | Inference Function | Meaning |
 |---|---|---|---|
-| evaluate | `model_base` | `ptm_if_no_resume_model` | PTM when no resume checkpoint exists |
-| evaluate | `model_path` | `parent_model` | model file inferred from the parent job results folder |
+| evaluate | `evaluate.model_base` | `ptm_if_no_resume_model` | PTM when no resume checkpoint exists |
+| evaluate | `model_path` | `parent_model_folder` | LoRA output folder inferred from the parent job results folder |
 | evaluate | `results_dir` | `output_dir` | current job results directory |
-| inference | `model_base` | `ptm_if_no_resume_model` | PTM when no resume checkpoint exists |
-| inference | `model_path` | `parent_model` | model file inferred from the parent job results folder |
+| inference | `inference.model_base` | `ptm_if_no_resume_model` | PTM when no resume checkpoint exists |
+| inference | `model_path` | `parent_model_folder` | LoRA output folder inferred from the parent job results folder |
 | inference | `results_dir` | `output_dir` | current job results directory |
 | train | `model_path` | `ptm_if_no_resume_model` | PTM when no resume checkpoint exists |
 | train | `results_dir` | `output_dir` | current job results directory |

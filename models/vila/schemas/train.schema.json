@@ -1,5 +1,7 @@
 {
-  "automl_default_parameters": [],
+  "automl_default_parameters": [
+    "train.learning_rate"
+  ],
   "automl_disabled_parameters": [
     "evaluate",
     "inference",
@@ -243,6 +245,7 @@
           "type": "int"
         },
         "learning_rate": {
+          "automl_enabled": true,
           "default": 0.0001,
           "description": "Learning rate. Default is 1e-4.",
           "maximum": Infinity,

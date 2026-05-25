@@ -1,18 +1,22 @@
 name: vila
 network_arch: vila
 automl_enabled: true
-automl_blocked_reason: default tao_toolkit.vila image nvcr.io/nvidia/tao/tao-toolkit:6.26.3-vila has no Docker manifest; provide a valid VILA image mapping and a base model_path before running AutoML.
 container_image: tao_toolkit.vila
 data_format: default
 gpu_spec_key: train.system.num_gpus
 actions:
   train:
-    command: vila train -e {config_path}
+    command: >-
+      python -c 'import os,subprocess,yaml; c=yaml.safe_load(open("{config_path}")) or dict(); t=c.get("train") or dict(); s=t.get("system") or dict(); d=t.get("dataset") or dict(); dp=d.get("data_path"); md=d.get("media_dir"); dp and os.environ.__setitem__("VILA_DATA_PATH",str(dp)); md and os.environ.__setitem__("VILA_MEDIA_DIR",str(md)); rd=c.get("results_dir") or "/results/vila_lora"; rd=rd if "lora" in os.path.basename(os.path.normpath(rd)).lower() else os.path.join(rd,"lora"); args=["vila-train","--vision_mode",t.get("vision_mode","ft"),"--llm_mode",t.get("llm_mode","lora"),"--results_dir",rd,"--model_path",c.get("model_path",""),"--dataset_name",d.get("dataset_name","scienceqa"),"--num_epochs",t.get("num_epochs",1),"--num_gpus",s.get("num_gpus",1),"--num_nodes",s.get("num_nodes",1),"--node_rank",s.get("node_rank",0),"--port",s.get("port",24501),"--master_addr",s.get("master_addr","127.0.0.1"),"--save_on_each_node",s.get("save_on_each_node","False"),"--batch_size",t.get("batch_size",8),"--checkpoint_interval",t.get("checkpoint_interval",100),"--total_checkpoint_limit",t.get("total_checkpoint_limit",0),"--logging_interval",t.get("logging_interval",1),"--lora_r",t.get("lora_r",16),"--max_tiles",t.get("max_tiles",12),"--video_max_tiles",t.get("video_max_tiles",6),"--num_video_frames",t.get("num_video_frames",8),"--num_time_tokens",t.get("num_time_tokens",0),"--model_max_length",t.get("model_max_length",32768),"--gradient_accumulation_steps",t.get("gradient_accumulation_steps",2),"--learning_rate",t.get("learning_rate",0.0001),"--vision_learning_rate",t.get("vision_learning_rate",0.00001),"--weight_decay",t.get("weight_decay",0.0),"--warmup_ratio",t.get("warmup_ratio",0.03),"--disable_wandb",t.get("disable_wandb","true")]; dy=d.get("dataset_yaml_path"); mp=d.get("mixture_path"); args=args+(["--dataset_yaml_path",dy] if dy else [])+(["--mixture_yaml_path",mp] if mp else []); subprocess.check_call([str(x) for x in args])'
     config_format: yaml
     inputs:
       model_path:
         type: folder
       train.dataset.dataset_yaml_path:
+        type: file
+      train.dataset.data_path:
+        type: file
+      train.dataset.media_dir:
         type: file
     outputs:
       results_dir:
@@ -20,12 +24,123 @@ actions:
     upload_excludes:
     - inputs/
   evaluate:
-    command: vila evaluate -e {config_path}
+    command: |-
+      python - <<'PY'
+      import os
+      import json
+      import subprocess
+      import yaml
+      import textwrap
+      config_path = "{config_path}"
+      with open(config_path) as f:
+          c = yaml.safe_load(f) or dict()
+      e = c.get("evaluate") or dict()
+      task = e.get("task", "youcook2_val")
+      dy = e.get("dataset_yaml_path")
+      dp = e.get("data_path")
+      vd = e.get("video_dir")
+      if dy and (dp or vd):
+          with open(dy) as f:
+              data = yaml.safe_load(f) or dict()
+          item = data.get(task)
+          if item is None:
+              item = dict()
+              data[task] = item
+          if dp:
+              item["data_path"] = dp
+          if vd:
+              item["video_dir"] = vd
+          patched = os.path.join(c.get("results_dir") or "/tmp", "dataset.local.yaml")
+          os.makedirs(os.path.dirname(patched), exist_ok=True)
+          with open(patched, "w") as f:
+              yaml.safe_dump(data, f)
+          dy = patched
+      else:
+          data = yaml.safe_load(open(dy)) if dy else {{}}
+      target = (data.get(task) or {{}}).get("_target_")
+      mb = e.get("model_base")
+      cm = e.get("conv_mode")
+      if target == "llava.eval.rtl":
+          rtl_entry = "/tmp/vila_eval_rtl_entry.py"
+          with open(rtl_entry, "w") as f:
+              f.write(textwrap.dedent("""
+              import argparse
+              import json
+              import os
+              import sys
+
+              parser = argparse.ArgumentParser()
+              parser.add_argument("--dataset", required=True)
+              parser.add_argument("--dataset_yaml_path", required=True)
+              parser.add_argument("--model_path", required=True)
+              parser.add_argument("--model_base")
+              parser.add_argument("--generation_config", default=json.dumps(dict(max_new_tokens=1024)))
+              parser.add_argument("--output_dir", required=True)
+              parser.add_argument("--num_time_tokens", type=int, default=0)
+              parser.add_argument("--time_token_format", default="<t{{t}}>")
+              args = parser.parse_args()
+
+              os.environ["VILA_DATASETS"] = args.dataset_yaml_path
+              os.environ["VILA_DATASET_NAME"] = args.dataset
+
+              import llava
+
+              original_load = llava.load
+
+              def load_with_time_tokens(*load_args, **load_kwargs):
+                  model = original_load(*load_args, **load_kwargs)
+                  if getattr(model.config, "num_time_tokens", None) is None:
+                      model.config.num_time_tokens = args.num_time_tokens
+                  if not getattr(model.config, "time_token_format", None):
+                      model.config.time_token_format = args.time_token_format
+                  return model
+
+              llava.load = load_with_time_tokens
+
+              argv = [
+                  "llava.eval.rtl",
+                  "--dataset", args.dataset,
+                  "--model-path", args.model_path,
+                  "--generation-config", args.generation_config,
+                  "--output-dir", args.output_dir,
+              ]
+              if args.model_base:
+                  argv.extend(["--model-base", args.model_base])
+              sys.argv = argv
+              from llava.eval.rtl import main
+              main()
+              """))
+          args = [
+              "torchrun",
+              "--nproc_per_node=" + str(e.get("num_gpus", 1)),
+              "--master_port=" + str(e.get("port", 24501)),
+              rtl_entry,
+              "--dataset", task,
+              "--dataset_yaml_path", dy,
+              "--model_path", c.get("model_path", ""),
+              "--generation_config", json.dumps(dict(max_new_tokens=1024)),
+              "--output_dir", c.get("results_dir", ""),
+              "--num_time_tokens", e.get("num_time_tokens", 0),
+              "--time_token_format", e.get("time_token_format", "<t{{t}}>"),
+          ]
+          if mb:
+              args.extend(["--model_base", mb])
+      else:
+          args = ["vila-evaluate", "--task", task, "--model_path", c.get("model_path", ""), "--results_dir", c.get("results_dir", ""), "--num_gpus", e.get("num_gpus", 1)]
+          args = args + (["--dataset_yaml_path", dy] if dy else []) + (["--model_base", mb] if mb else []) + (["--conv_mode", cm] if cm else [])
+      subprocess.check_call([str(x) for x in args])
+      PY
     config_format: yaml
     inputs:
       model_path:
         type: folder
-      eval.dataset_yaml_path:
+      evaluate.model_base:
+        type: folder
+      evaluate.dataset_yaml_path:
+        type: file
+      evaluate.data_path:
+        type: file
+      evaluate.video_dir:
         type: file
     outputs:
       results_dir:
@@ -33,20 +148,34 @@ actions:
     upload_excludes:
     - inputs/
   inference:
-    command: vila inference -e {config_path}
+    command: >-
+      python -c 'import subprocess,yaml; c=yaml.safe_load(open("{config_path}")) or dict(); i=c.get("inference") or dict(); args=["vila-inference","--model_path",c.get("model_path",""),"--results_dir",c.get("results_dir",""),"--conv_mode",i.get("conv_mode","auto"),"--num_video_frames",i.get("num_video_frames",-1),"--video_max_tiles",i.get("video_max_tiles",-1),"--text",i.get("text","What is this video about?")]; mb=i.get("model_base"); media=i.get("media"); media_list=media if isinstance(media,list) else ([media] if media else []); args=args+(["--model_base",mb] if mb else [])+(["--media"]+[str(x) for x in media_list] if media_list else []); subprocess.check_call([str(x) for x in args])'
     config_format: yaml
     inputs:
       model_path:
         type: folder
-      inference.media:
+      inference.model_base:
         type: folder
+      inference.media:
+        type: file
     outputs:
       results_dir:
         type: folder
     upload_excludes:
     - inputs/
 data_sources: {}
-spec_params: {}
+spec_params:
+  train:
+    model_path: ptm_if_no_resume_model
+    results_dir: output_dir
+  evaluate:
+    model_path: parent_model_folder
+    evaluate.model_base: ptm_if_no_resume_model
+    results_dir: output_dir
+  inference:
+    model_path: parent_model_folder
+    inference.model_base: ptm_if_no_resume_model
+    results_dir: output_dir
 key_defaults: {}
 spec_shorthand_keys:
   num_epochs: train.num_epochs

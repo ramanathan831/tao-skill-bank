@@ -37,4 +37,8 @@ train:
 evaluate:
   task: youcook2_val
   dataset_yaml_path: ''
+  data_path: ''
+  video_dir: ''
   num_gpus: 1
+  num_time_tokens: 0
+  time_token_format: '<t{t}>'
