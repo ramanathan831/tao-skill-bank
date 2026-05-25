@@ -99,7 +99,9 @@ Use the workflow's checkpoint resolver for downstream actions instead of guessin
 
 ## Dataset Convert
 
-The PyT container exposes `optical_inspection dataset_convert`, but this model skill does not package a `dataset_convert` action/template. The converter expects the raw Factory PCB layout (`root_dataset_dir`, train/val/all PCB directories, `golden_csv_dir`, `project_name`, and `bot_top`). The S3 validation bucket currently contains preconverted Optical Inspection `images.tar.gz` plus `dataset.csv` splits, not the raw PCB/golden CSV source. Do not synthesize a fake PCB dataset; document dataset conversion as blocked when no compatible raw dataset is available.
+Dataset conversion is optional for Optical Inspection. If the dataset is already in TAO-ready Optical Inspection format, start directly from the `images.tar.gz` plus `dataset.csv` splits and run `train`, `evaluate`, `inference`, and downstream checkpoint/export/deploy actions on that converted data.
+
+The PyT container exposes `optical_inspection dataset_convert`, but this model skill does not package a `dataset_convert` action/template. The converter expects the raw Factory PCB layout (`root_dataset_dir`, train/val/all PCB directories, `golden_csv_dir`, `project_name`, and `bot_top`). The S3 validation bucket currently contains preconverted Optical Inspection `images.tar.gz` plus `dataset.csv` splits, not the raw PCB/golden CSV source. Do not synthesize a fake PCB dataset. In model validation reports, mark dataset conversion as `not run: preconverted dataset provided` rather than failed or blocked when only converted data is available.
 
 ## Eval Dataset
 

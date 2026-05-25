@@ -19,7 +19,7 @@ Pose classification using ST-GCN (Spatial Temporal Graph Convolutional Network).
 
 Typically trained from scratch on skeleton data.
 
-The packaged PyTorch Pose Classification CLI supports `dataset_convert`, `train`, `evaluate`, `export`, and `inference`. It does not expose deploy, prune, quantize, or standalone retrain actions. Resume/retrain behavior uses `pose_classification train -e ...` with `train.resume_training_checkpoint_path` populated.
+The packaged PyTorch Pose Classification CLI supports `dataset_convert`, `train`, `evaluate`, `export`, and `inference`. `dataset_convert` is conditional: run it only when the input is raw DeepStream BodyPose JSON. If the dataset is already converted to TAO-ready `.npy` / `.pkl` files, start directly with `train` on those files and mark dataset conversion as `not run: preconverted dataset provided` in validation reports. This model does not expose deploy, prune, quantize, or standalone retrain actions. Resume/retrain behavior uses `pose_classification train -e ...` with `train.resume_training_checkpoint_path` populated.
 
 ## Dataclass Schemas
 
@@ -41,7 +41,7 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 
 | Action | Spec Key | Source | Files | List? |
 |---|---|---|---|---|
-| dataset_convert | dataset_convert.data | id | DeepStream BodyPose JSON | No |
+| dataset_convert (optional) | dataset_convert.data | id | DeepStream BodyPose JSON | No |
 | evaluate | evaluate.test_dataset.data_path | train_datasets |  | No |
 | evaluate | evaluate.test_dataset.label_path | train_datasets |  | No |
 | inference | inference.test_dataset.data_path | train_datasets |  | No |
@@ -52,13 +52,13 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 
 ### Typical Spec Overrides
 
-Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
+Data source overrides are **mandatory for every action being run** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`. Do not run `dataset_convert` when the supplied dataset is already converted to `.npy` / `.pkl` files.
 
 ```python
 S3_TRAIN = "s3://bucket/data/purpose_built_models_pose_classification_train/nvidia"
 ```
 
-**dataset_convert (mandatory data source):**
+**dataset_convert (optional; raw DeepStream BodyPose JSON only):**
 ```python
 {
     "dataset_convert.data": "s3://bucket/data/<deepstream-bodypose-output>.json",
@@ -104,6 +104,10 @@ S3_TRAIN = "s3://bucket/data/purpose_built_models_pose_classification_train/nvid
     "inference.test_dataset.data_path": f"{S3_TRAIN}/test_data.npy",
 }
 ```
+## Dataset Convert
+
+Dataset conversion is optional for Pose Classification. Run `pose_classification dataset_convert` only when the user supplies raw DeepStream BodyPose JSON. For the common S3 validation dataset, the data is already converted to `train_data.npy`, `train_label.pkl`, `val_data.npy`, `val_label.pkl`, `test_data.npy`, and `test_label.pkl`; use those files directly for train/evaluate/inference/export flows and do not synthesize fake BodyPose JSON.
+
 ## Eval Dataset
 
 Optional. Validation data is provided alongside training as val_data.npy / val_label.pkl. TAO training emits `val_loss` as the TensorBoard validation scalar for this model; use `val_loss` with minimize direction for AutoML selection unless a custom evaluation hook supplies a different metric.
@@ -143,7 +147,7 @@ Minimum 1 GPU(s), recommended 1 GPU(s). 8GB+ VRAM per GPU. Pose classification i
 
 **Checkpoint handoff**: After AutoML/train, use the saved `.pth` checkpoint under the best child job's `results_dir/train/` (for example `model_epoch_*.pth` or `pc_model_latest.pth`) as `evaluate.checkpoint`, `export.checkpoint`, or `inference.checkpoint`. Keep the same `dataset.num_classes`, `dataset.label_map`, and `model.graph_layout` overrides for downstream actions.
 
-**Dataset conversion source**: `dataset_convert` expects the raw JSON output from the DeepStream BodyPose app. The common NVIDIA sample S3 folder is already converted to `train_data.npy`, `train_label.pkl`, `val_data.npy`, `val_label.pkl`, `test_data.npy`, and `test_label.pkl`; do not synthesize fake BodyPose JSON if no compatible raw JSON is available.
+**Dataset conversion source**: `dataset_convert` expects the raw JSON output from the DeepStream BodyPose app. The common NVIDIA sample S3 folder is already converted to `train_data.npy`, `train_label.pkl`, `val_data.npy`, `val_label.pkl`, `test_data.npy`, and `test_label.pkl`; skip conversion and start from the converted files when those are present.
 
 **Output files**: Export needs an explicit `export.onnx_file` path. Inference needs an explicit `inference.output_file` path if the caller wants a stable file artifact outside the default results directory.
 
