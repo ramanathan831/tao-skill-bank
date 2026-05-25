@@ -14,6 +14,7 @@
 - quantize: unsupported by this model skill
 - retrain: unsupported as a separate action by this model skill
 - dataset convert: unsupported by this model skill
+- AutoML default train route: pass with Bayesian `automl_max_recommendations=2`
 - other: not applicable
 
 ## Dataset used
@@ -32,6 +33,20 @@
   - `/tmp/tao-model-validation/centerpose/results/train/model_epoch_000_step_00008.pth`
   - `/tmp/tao-model-validation/centerpose/results/train/centerpose_model_latest.pth` symlink to `model_epoch_000_step_00008.pth`
   - `/tmp/tao-model-validation/centerpose/results/resume/model_epoch_001_step_00016.pth`
+
+## AutoML default-path rerun
+
+- Training mode before rerun: normal/direct TAO model training. This happened because the earlier validation explicitly prohibited workflow/AutoML routing.
+- Secrets source: `~/.tao/secrets.env`, sourced without printing values. `ACCESS_KEY`, `SECRET_KEY`, `NGC_KEY`, and `HF_TOKEN` were passed through the local run environment.
+- AutoML route: `AutoMLRunner` with `skill_dir=/localhome/local-rarunachalam/tao-skills-external/models/centerpose`, `platform=local-docker`, default PyT image, `algorithm=bayesian`, `metric=val_3DIoU`, `direction=maximize`, and `automl_max_recommendations=2`.
+- Search parameters: `train.optim.lr` and `train.optim.lr_decay`; the minimal validation ranges were `lr=0.00001..0.0001` and `lr_decay=0.05..0.2`.
+- Result: pass. Two real Docker TAO child jobs completed and emitted `val_3DIoU` in `status.json`.
+- Rec 0: job `1c78e7bc-d930-4929-89b4-eef252fff0d2`, `train.optim.lr=0.00004216849595128809`, `train.optim.lr_decay=0.12466171513728731`, `val_3DIoU=0.0`; selected as best by the runner.
+- Rec 1: job `099b8af9-2031-4897-908a-bb8b98b3d3f9`, `train.optim.lr=0.00009266435625398663`, `train.optim.lr_decay=0.18414348945579645`, `val_3DIoU=0.0`.
+- AutoML checkpoints produced:
+  - `/tmp/tao-automl-validation/centerpose/results/automl_train/1c78e7bc-d930-4929-89b4-eef252fff0d2/results_dir/train/model_epoch_000_step_00004.pth`
+  - `/tmp/tao-automl-validation/centerpose/results/automl_train/099b8af9-2031-4897-908a-bb8b98b3d3f9/results_dir/train/model_epoch_000_step_00004.pth`
+- Generated specs contained dataset paths and hyperparameters only; no credentials were written to the generated specs.
 
 ## Checkpoint/action verification
 
@@ -61,7 +76,7 @@
   - `nvcr.io/nvstaging/tao/tao-toolkit-deploy:7.0.0-rc-171-multiarch` failed deploy evaluate/inference with `TypeError: only 0-dimensional arrays can be converted to Python scalars`.
   - `nvcr.io/nvidia/tao/tao-toolkit:6.26.3-deploy` passed engine generation, deploy evaluate, and deploy inference.
 - Fresh-install issues:
-  - AutoML was requested as `on`, but workflow skills were explicitly prohibited for this validation, so no AutoML workflow was run.
+  - none after the AutoML default-path rerun used the local checkout with the Docker/runtime dependencies installed.
 
 ## Fixes made
 
@@ -71,6 +86,7 @@
 - Added parent `gen_trt_engine` action-level deploy image and ONNX/engine inputs/outputs.
 - Changed deploy `dataset.test_data` and `dataset.inference_data` metadata from file to folder.
 - Changed deploy and parent gen_trt calibration image-dir defaults to lists.
+- Reran the train path through AutoML with a two-recommendation Bayesian configuration.
 
 ## Remaining issues
 
@@ -91,4 +107,4 @@
 
 ## Final status
 
-Fully validated for all actions declared by the CenterPose model skill and CenterPose deploy model skill on `local-docker`.
+Fully validated for all actions declared by the CenterPose model skill and CenterPose deploy model skill on `local-docker`, plus the AutoML default train route with two Bayesian recommendations.

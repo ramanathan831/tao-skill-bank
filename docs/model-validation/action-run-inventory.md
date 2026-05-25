@@ -31,6 +31,7 @@ not yet reached a per-model validation report.
 
 ## centerpose
 - train: pass
+- AutoML default train route: pass with Bayesian `automl_max_recommendations=2`
 - eval: pass
 - inference: pass
 - export: pass
