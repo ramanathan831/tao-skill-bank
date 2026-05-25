@@ -34,10 +34,14 @@ actions:
   export:
     command: mae export -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      export.checkpoint:
+        type: file
     outputs:
       results_dir:
         type: folder
+      export.onnx_file:
+        type: file
     upload_excludes:
     - inputs/
   inference:
@@ -53,17 +57,15 @@ actions:
         type: folder
     upload_excludes:
     - inputs/
-  gen_trt_engine:
-    command: mae gen_trt_engine -e {config_path}
-    config_format: yaml
-    inputs: {}
-    outputs:
-      results_dir:
-        type: folder
-    upload_excludes:
-    - inputs/
 data_sources: {}
-spec_params: {}
+spec_params:
+  evaluate:
+    evaluate.checkpoint: parent_model
+  export:
+    export.checkpoint: parent_model
+    export.onnx_file: create_onnx_file
+  inference:
+    inference.checkpoint: parent_model
 key_defaults: {}
 spec_shorthand_keys:
   num_epochs: train.num_epochs

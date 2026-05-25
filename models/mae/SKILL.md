@@ -22,6 +22,10 @@ Set train.pretrained_model_path for pretrained MAE weights when fine-tuning.
 
 For TAO Deploy TensorRT actions (`gen_trt_engine`), read `deploy/SKILL.md` first. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
 
+The parent PyTorch `mae` CLI supports `train`, `evaluate`, `inference`, and
+`export`. Build TensorRT engines through the deploy subskill, not the parent
+model skill.
+
 ## Dataclass Schemas
 
 Generated TAO Core schemas are packaged in `schemas/<action>.schema.json`, with `schemas/manifest.json` listing available actions. Each generated schema also emits `references/spec_template_<action>.yaml` from the schema top-level `default` field. AutoML enablement is declared at the model layer in `references/skill_info.yaml` via `automl_enabled`. Runnable AutoML still requires `schemas/train.schema.json` and `references/spec_template_train.yaml` to exist and parse. Use the packaged train schema for `automl_default_parameters`, `automl_disabled_parameters`, defaults, min/max bounds, enums, option weights, math conditions, dependencies, and popular parameters. Do not expect `~/tao-core` at runtime; maintainers regenerate schemas/templates before packaging the skill bank.
@@ -80,6 +84,7 @@ S3_EVAL = "s3://bucket/data/eval"
 {
     "dataset.test_data_sources": f"{S3_EVAL}/images_test.tar.gz",
     "inference.checkpoint": "<selected train/AutoML checkpoint>",
+    "train.stage": "finetune",
 }
 ```
 
@@ -131,6 +136,11 @@ Minimum 2 GPU(s), recommended 8 GPU(s). 24GB+ (A100 recommended) VRAM per GPU. M
 
 **Stage mismatch**: Ensure train.stage matches your intent (pretrain vs finetune). Fine-tuning without a pretrained_model_path trains from scratch.
 
+**Inference with pretrain checkpoints**: The MAE predict dataloader raises
+`NotImplementedError` for `train.stage: pretrain`. Use a `finetune` checkpoint
+for inference and classification-style evaluation, or restrict a pretrain-only
+run to train/evaluate/export.
+
 **num_classes mismatch (finetune only)**: Ensure model.num_classes matches your dataset class count when fine-tuning.
 
 ## Spec Param / Parent Model Inference
@@ -149,10 +159,6 @@ Inference mappings from TAO Core `mae.config.json`:
 | export | `export.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
 | export | `export.onnx_file` | `create_onnx_file` | output ONNX path |
 | export | `results_dir` | `output_dir` | current job results directory |
-| gen_trt_engine | `encryption_key` | `key` | encryption key |
-| gen_trt_engine | `gen_trt_engine.onnx_file` | `parent_model` | model file inferred from the parent job results folder |
-| gen_trt_engine | `gen_trt_engine.trt_engine` | `create_engine_file` | output TensorRT engine path |
-| gen_trt_engine | `results_dir` | `output_dir` | current job results directory |
 | inference | `encryption_key` | `key` | encryption key |
 | inference | `inference.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
 | inference | `inference.trt_engine` | `parent_model` | model file inferred from the parent job results folder |
@@ -163,3 +169,10 @@ Inference mappings from TAO Core `mae.config.json`:
 | train | `train.resume_training_checkpoint_path` | `resume_model` | model file inferred from the current job results folder |
 
 For `parent_model` or `parent_model_folder`, pass the upstream train/export/AutoML child job id as `parent_job_id`. The SDK lists the parent result folder, filters checkpoint artifacts, and returns the selected model file or folder. Do not add these mappings back to `config.json` and do not patch generated runner scripts to guess checkpoint paths.
+
+When resolving checkpoints outside the SDK resolver, select the intended
+epoch/step artifact exactly, for example `model_epoch_000_step_00099.pth`.
+Use the `convnextv2_atto_latest.pth` or other latest symlink only when latest
+is explicitly requested. Carry `train.stage`, `model.arch`, `model.num_classes`,
+and export input size forward into evaluate, inference, export, and deploy
+specs so the checkpoint and ONNX/engine shapes match.
