@@ -341,7 +341,16 @@ not yet reached a per-model validation report.
 - parent PyT gen_trt_engine: unsupported by the real PyT CLI; TensorRT is deploy-only
 
 ## pose-classification
-- not run yet in this validation branch
+- train: pass, default model invocation routed through AutoML with two Bayesian recommendations
+- evaluate: pass after adding downstream `dataset.label_map`
+- inference: pass after adding downstream `dataset.label_map`
+- export: pass after adding downstream `dataset.label_map`
+- resume training: pass through `train.resume_training_checkpoint_path`
+- dataset convert: blocked; PyT CLI supports it and model metadata/template were added, but no compatible raw DeepStream BodyPose JSON exists in S3
+- deploy: unsupported/not advertised
+- prune: unsupported/not advertised
+- quantize: unsupported/not advertised
+- standalone retrain: unsupported by the real PyT CLI; resume uses train
 
 ## re-identification
 - not run yet in this validation branch

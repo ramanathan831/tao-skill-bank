@@ -19,6 +19,8 @@ Pose classification using ST-GCN (Spatial Temporal Graph Convolutional Network).
 
 Typically trained from scratch on skeleton data.
 
+The packaged PyTorch Pose Classification CLI supports `dataset_convert`, `train`, `evaluate`, `export`, and `inference`. It does not expose deploy, prune, quantize, or standalone retrain actions. Resume/retrain behavior uses `pose_classification train -e ...` with `train.resume_training_checkpoint_path` populated.
+
 ## Dataclass Schemas
 
 Generated TAO Core schemas are packaged in `schemas/<action>.schema.json`, with `schemas/manifest.json` listing available actions. Each generated schema also emits `references/spec_template_<action>.yaml` from the schema top-level `default` field. AutoML enablement is declared at the model layer in `references/skill_info.yaml` via `automl_enabled`. Runnable AutoML still requires `schemas/train.schema.json` and `references/spec_template_train.yaml` to exist and parse. Use the packaged train schema for `automl_default_parameters`, `automl_disabled_parameters`, defaults, min/max bounds, enums, option weights, math conditions, dependencies, and popular parameters. Do not expect `~/tao-core` at runtime; maintainers regenerate schemas/templates before packaging the skill bank.
@@ -39,6 +41,7 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 
 | Action | Spec Key | Source | Files | List? |
 |---|---|---|---|---|
+| dataset_convert | dataset_convert.data | id | DeepStream BodyPose JSON | No |
 | evaluate | evaluate.test_dataset.data_path | train_datasets |  | No |
 | evaluate | evaluate.test_dataset.label_path | train_datasets |  | No |
 | inference | inference.test_dataset.data_path | train_datasets |  | No |
@@ -53,6 +56,13 @@ Data source overrides are **mandatory for every action** — the agent MUST cons
 
 ```python
 S3_TRAIN = "s3://bucket/data/purpose_built_models_pose_classification_train/nvidia"
+```
+
+**dataset_convert (mandatory data source):**
+```python
+{
+    "dataset_convert.data": "s3://bucket/data/<deepstream-bodypose-output>.json",
+}
 ```
 
 **train (mandatory data sources):**
@@ -133,6 +143,10 @@ Minimum 1 GPU(s), recommended 1 GPU(s). 8GB+ VRAM per GPU. Pose classification i
 
 **Checkpoint handoff**: After AutoML/train, use the saved `.pth` checkpoint under the best child job's `results_dir/train/` (for example `model_epoch_*.pth` or `pc_model_latest.pth`) as `evaluate.checkpoint`, `export.checkpoint`, or `inference.checkpoint`. Keep the same `dataset.num_classes`, `dataset.label_map`, and `model.graph_layout` overrides for downstream actions.
 
+**Dataset conversion source**: `dataset_convert` expects the raw JSON output from the DeepStream BodyPose app. The common NVIDIA sample S3 folder is already converted to `train_data.npy`, `train_label.pkl`, `val_data.npy`, `val_label.pkl`, `test_data.npy`, and `test_label.pkl`; do not synthesize fake BodyPose JSON if no compatible raw JSON is available.
+
+**Output files**: Export needs an explicit `export.onnx_file` path. Inference needs an explicit `inference.output_file` path if the caller wants a stable file artifact outside the default results directory.
+
 ## Spec Param / Parent Model Inference
 
 Model-specific inference mappings belong in this MD file, not in `config.json`. Generated runners should read this section and apply the mappings with SDK helpers before `create_job()`. This mirrors the old microservices `infer_params.py` flow.
@@ -141,6 +155,7 @@ Inference mappings from TAO Core `pose_classification.config.json`:
 
 | Action | Spec Field | Inference Function | Meaning |
 |---|---|---|---|
+| dataset_convert | `dataset_convert.results_dir` | `output_dir` | current job results directory |
 | evaluate | `encryption_key` | `key` | encryption key |
 | evaluate | `evaluate.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
 | evaluate | `results_dir` | `output_dir` | current job results directory |

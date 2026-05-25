@@ -5,6 +5,17 @@ container_image: tao_toolkit.pyt
 data_format: default
 gpu_spec_key: train.num_gpus
 actions:
+  dataset_convert:
+    command: pose_classification dataset_convert -e {config_path}
+    config_format: yaml
+    inputs:
+      dataset_convert.data:
+        type: file
+    outputs:
+      results_dir:
+        type: folder
+    upload_excludes:
+    - inputs/
   train:
     command: pose_classification train -e {config_path}
     config_format: yaml
@@ -17,6 +28,12 @@ actions:
         type: file
       dataset.val_dataset.label_path:
         type: file
+      model.pretrained_model_path:
+        type: file
+        optional: true
+      train.resume_training_checkpoint_path:
+        type: file
+        optional: true
     outputs:
       results_dir:
         type: folder
@@ -30,6 +47,8 @@ actions:
         type: file
       evaluate.test_dataset.label_path:
         type: file
+      evaluate.checkpoint:
+        type: file
     outputs:
       results_dir:
         type: folder
@@ -38,7 +57,9 @@ actions:
   export:
     command: pose_classification export -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      export.checkpoint:
+        type: file
     outputs:
       results_dir:
         type: folder
@@ -50,13 +71,32 @@ actions:
     inputs:
       inference.test_dataset.data_path:
         type: file
+      inference.checkpoint:
+        type: file
     outputs:
       results_dir:
         type: folder
     upload_excludes:
     - inputs/
 data_sources: {}
-spec_params: {}
+spec_params:
+  dataset_convert:
+    dataset_convert.results_dir: output_dir
+  train:
+    results_dir: output_dir
+    model.pretrained_model_path: ptm_if_no_resume_model
+    train.resume_training_checkpoint_path: resume_model
+  evaluate:
+    results_dir: output_dir
+    evaluate.checkpoint: parent_model
+  export:
+    results_dir: output_dir
+    export.checkpoint: parent_model
+    export.onnx_file: create_onnx_file
+  inference:
+    results_dir: output_dir
+    inference.checkpoint: parent_model
+    inference.output_file: create_inference_result_file_pose
 key_defaults: {}
 spec_shorthand_keys:
   num_epochs: train.num_epochs
