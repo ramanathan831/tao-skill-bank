@@ -108,6 +108,8 @@ Model-specific notes:
 
 - Carry `model.sem_seg_head.num_classes` from train/export; the starter-kit COCO panoptic path uses 133.
 - Evaluate and inference share the deploy infer template but use different top-level engine fields.
+- Set `gen_trt_engine.trt_engine` explicitly to a non-existing file path in
+  the mounted results tree. Do not pre-create it as a declared file output.
 
 ## Job Chain Mapping
 
@@ -135,3 +137,11 @@ Model-specific notes:
 **INT8 calibration missing:** INT8 builds need an extracted calibration image directory, a writable cache path, and enough images for `cal_batch_size * cal_batches`.
 
 **Mounted paths do not exist:** TAO Deploy checks local paths inside the container. Make sure every path in the spec has a matching Docker mount or job artifact mapping.
+
+**Current deploy image OneFormer engine generation failure:** The 7.0.0 RC
+deploy image parses the exported OneFormer ONNX with two inputs,
+`images` and `task_tokens`, then the common TensorRT builder assumes every
+input is a 4D image tensor. This causes `gen_trt_engine` to fail with
+`IndexError: Out of bounds` while reading the 2D `task_tokens` input. Do not
+mark TensorRT evaluate or inference as validated unless engine generation
+produces an engine in the deploy image being used.

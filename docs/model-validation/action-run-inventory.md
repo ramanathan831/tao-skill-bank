@@ -299,7 +299,17 @@ not yet reached a per-model validation report.
 - parent PyT gen_trt_engine: unsupported by the real PyT CLI; TensorRT is deploy-only
 
 ## oneformer
-- not run yet in this validation branch
+- train: pass, default model invocation routed through AutoML with two Bayesian recommendations
+- eval: pass
+- inference: pass after declaring and using `inference.images_dir`
+- export: pass with explicit non-existing `export.onnx_file` at default 640x640 shape
+- quantize: pass with best AutoML checkpoint after preserving parent AutoML job path
+- retrain/resume: pass from the selected best AutoML checkpoint
+- deploy gen_trt_engine: fail, current deploy image builder fails on OneFormer `task_tokens` ONNX input
+- deploy evaluate: blocked, no TensorRT engine produced
+- deploy inference: blocked, no TensorRT engine produced
+- prune: unsupported by the packaged OneFormer PyT CLI
+- dataset convert: unsupported by the packaged OneFormer PyT CLI
 
 ## optical-inspection
 - not run yet in this validation branch

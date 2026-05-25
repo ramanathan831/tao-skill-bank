@@ -130,6 +130,7 @@ S3_EVAL = "s3://bucket/data/eval"
 {
     "model.sem_seg_head.num_classes": 133,
     "model.export": True,
+    "export.onnx_file": "/results/oneformer_export_640.onnx",
 }
 ```
 
@@ -145,6 +146,7 @@ S3_EVAL = "s3://bucket/data/eval"
     "dataset.val.annotations": f"{S3_EVAL}/annotations.json",
     "dataset.val.panoptic": f"{S3_EVAL}/images_panoptic.tar.gz",
     "dataset.test.images": f"{S3_EVAL}/images.tar.gz",
+    "inference.images_dir": f"{S3_EVAL}/images.tar.gz",
 }
 ```
 
@@ -214,6 +216,28 @@ the same trusted TAO train/AutoML workflow, set
 `TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1` in downstream evaluate/inference job env
 vars so Lightning can load the full checkpoint. Do not use this env var for
 untrusted checkpoints.
+
+**Inference returns PASS with no predictions**: OneFormer prediction reads
+`inference.images_dir`, not `dataset.test.images`. Declare and populate
+`inference.images_dir` with the image folder or tarball for every inference
+run. `dataset.test.images` may still be useful for shared dataset context, but
+it does not drive the PyTorch predict dataloader.
+
+**Export output path pre-created as a directory**: Do not declare
+`export.onnx_file` as a file output. The OneFormer exporter asserts that the
+ONNX path does not already exist, while the local runner pre-creates declared
+output paths. Set `export.onnx_file` explicitly in the spec to a non-existing
+file path under the mounted results tree. Keep the default 640x640 export
+shape for smoke validation; very small export shapes can trigger PyTorch ONNX
+shape-inference failures.
+
+**Quantize cannot find the training label map from an AutoML checkpoint**:
+OneFormer Lightning checkpoints retain train-time absolute dataset paths in
+their saved hparams. When running downstream actions from an AutoML child
+checkpoint, keep the parent AutoML job directory accessible at its original
+`/results/<job_id>` path inside the action container in addition to passing the
+resolved checkpoint path. Otherwise quantize can fail while loading checkpoint
+hparams even when the current spec includes a valid `dataset.label_map`.
 
 **Slow training**: 50 default epochs with batch_size=1 is slow on single GPU. Use multi-GPU distributed training.
 

@@ -25,6 +25,15 @@ actions:
         type: folder
       dataset.test.images:
         type: folder
+      train.pretrained_backbone:
+        type: file
+        optional: true
+      train.pretrained_model:
+        type: file
+        optional: true
+      train.resume_training_checkpoint_path:
+        type: file
+        optional: true
     outputs:
       results_dir:
         type: folder
@@ -52,6 +61,8 @@ actions:
         type: folder
       dataset.quant_calibration_dataset.images_dir:
         type: folder
+      quantize.model_path:
+        type: file
     outputs:
       results_dir:
         type: folder
@@ -81,6 +92,11 @@ actions:
         type: file
       dataset.test.panoptic:
         type: folder
+      evaluate.checkpoint:
+        type: file
+      evaluate.trt_engine:
+        type: file
+        optional: true
     outputs:
       results_dir:
         type: folder
@@ -89,7 +105,9 @@ actions:
   export:
     command: oneformer export -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      export.checkpoint:
+        type: file
     outputs:
       results_dir:
         type: folder
@@ -115,22 +133,38 @@ actions:
         type: folder
       dataset.test.images:
         type: folder
-    outputs:
-      results_dir:
+      inference.images_dir:
         type: folder
-    upload_excludes:
-    - inputs/
-  gen_trt_engine:
-    command: oneformer gen_trt_engine -e {config_path}
-    config_format: yaml
-    inputs: {}
+      inference.checkpoint:
+        type: file
+      inference.trt_engine:
+        type: file
+        optional: true
     outputs:
       results_dir:
         type: folder
     upload_excludes:
     - inputs/
 data_sources: {}
-spec_params: {}
+spec_params:
+  train:
+    results_dir: output_dir
+    train.pretrained_model: ptm_if_no_resume_model
+    train.resume_training_checkpoint_path: resume_model
+  evaluate:
+    results_dir: output_dir
+    evaluate.checkpoint: parent_model
+    evaluate.trt_engine: parent_model
+  export:
+    results_dir: output_dir
+    export.checkpoint: parent_model
+  inference:
+    results_dir: output_dir
+    inference.checkpoint: parent_model
+    inference.trt_engine: parent_model
+  quantize:
+    results_dir: output_dir
+    quantize.model_path: parent_model
 key_defaults: {}
 spec_shorthand_keys:
   num_epochs: train.num_epochs
