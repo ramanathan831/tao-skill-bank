@@ -94,6 +94,8 @@ S3_EVAL = "s3://bucket/data/eval"
 ```python
 {
     "dataset.segment.root_dir": f"{S3_TRAIN}",
+    "export.input_height": 256,
+    "export.input_width": 256,
 }
 ```
 
@@ -150,6 +152,12 @@ Minimum 1 GPU(s), recommended 2 GPU(s). 16GB+ (V100 or A100) VRAM per GPU. SegFo
 **AutoML metric extraction**: SegFormer train status files report `val_miou` alongside `val_loss`, `val_acc`, and other validation KPIs. Default AutoML train launches must optimize `val_miou` with `direction: maximize`; do not optimize `val_loss` for default model invocations.
 
 **Checkpoint handoff**: For evaluate/export/inference/quantize/resume, use the checkpoint resolver on the best AutoML child job's `results_dir/train/` folder and select the action-appropriate `model_epoch_*.pth` checkpoint. SegFormer may also write a latest symlink, but that should only be used when a caller explicitly requests latest. Preserve `dataset.segment.num_classes`, `dataset.segment.img_size`, and `dataset.segment.root_dir` overrides for downstream actions.
+
+**Export / TensorRT shape alignment**: Keep `export.input_height` and
+`export.input_width` aligned with `dataset.segment.img_size` unless the trained
+model and deploy specs have been validated at another resolution. The packaged
+fresh-install path is validated at `256x256`, matching the default SegFormer
+dataset and deploy templates.
 
 **Parent `segformer gen_trt_engine` rejected by the PyT CLI**: In the validated 7.0.0 PyT container, `segformer gen_trt_engine` is not a valid parent-model subtask. Use the SegFormer deploy sub-skill (`deploy/SKILL.md`) for TensorRT engine generation, TensorRT evaluation, and TensorRT inference.
 

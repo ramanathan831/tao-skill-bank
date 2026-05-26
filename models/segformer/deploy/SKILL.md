@@ -80,10 +80,10 @@ Direct TAO Launcher spelling is `tao deploy segformer gen_trt_engine`, `tao depl
 | `gen_trt_engine` | Output engine path | `gen_trt_engine.trt_engine` |
 | `evaluate` | TensorRT engine | `evaluate.trt_engine` |
 | `evaluate` | Dataset root | `dataset.segment.root_dir` |
-| `evaluate` | Validation split | `dataset.segment.validation_split` |
+| `evaluate` | Validation split name | `dataset.segment.validation_split` |
 | `inference` | TensorRT engine | `inference.trt_engine` |
 | `inference` | Dataset root | `dataset.segment.root_dir` |
-| `inference` | Prediction split | `dataset.segment.predict_split` |
+| `inference` | Prediction split name | `dataset.segment.predict_split` |
 
 For direct Docker runs, mount input folders at the same paths used in the spec. For chained jobs, map exported ONNX artifacts into `gen_trt_engine.onnx_file` and map the engine artifact into `evaluate.trt_engine` or `inference.trt_engine` where those actions are available.
 
@@ -108,6 +108,7 @@ Model-specific notes:
 - The deploy gen_trt_engine template is stored from the local `export` deploy config because that is where SegFormer keeps the TensorRT profile block.
 - Use FP16 for the starter-kit TensorRT path and set `dataset.segment.batch_size: 1` for TensorRT inference.
 - Keep palette, label mapping, input size, and normalization aligned with the trained segmentation model.
+- `dataset.segment.validation_split` and `dataset.segment.predict_split` are split-name strings such as `val` or `test`, not file inputs.
 - Do not declare `gen_trt_engine.trt_engine` as a file output in runner metadata. The local runner should not pre-create the engine path; TensorRT writes it.
 
 ## Job Chain Mapping

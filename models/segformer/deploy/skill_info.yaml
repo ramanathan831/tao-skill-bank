@@ -23,8 +23,6 @@ actions:
         type: file
       dataset.segment.root_dir:
         type: folder
-      dataset.segment.validation_split:
-        type: file
     outputs:
       results_dir:
         type: folder
@@ -38,8 +36,6 @@ actions:
         type: file
       dataset.segment.root_dir:
         type: folder
-      dataset.segment.predict_split:
-        type: file
     outputs:
       results_dir:
         type: folder
@@ -59,7 +55,7 @@ spec_params:
 spec_shorthand_keys:
   trt_data_type: gen_trt_engine.tensorrt.data_type
   trt_engine: gen_trt_engine.trt_engine
-  batch_size: dataset.batch_size
+  batch_size: dataset.segment.batch_size
 description: SegFormer deploy workflow for gen_trt_engine, evaluate, inference using
   TAO Deploy.
 spec_templates:
