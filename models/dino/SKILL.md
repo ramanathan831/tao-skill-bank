@@ -230,6 +230,9 @@ fields, copy those too so the checkpoint shape matches the evaluation model.
 }
 ```
 
+For deploy TensorRT evaluation, also read `deploy/SKILL.md`; the deploy metric
+path expects at least 100 selected detections per image.
+
 **inference (mandatory data sources):**
 ```python
 {
