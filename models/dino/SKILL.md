@@ -41,7 +41,7 @@ The agent MUST read this section before generating any training or AutoML script
 - **Dataset type:** object_detection
 - **Formats:** coco, coco_raw
 - **Accepted dataset intents:** training, evaluation, testing, calibration
-- **Monitoring metric:** val_mAP50
+- **Monitoring metric:** mAP50
 
 **Required datasets — MUST resolve both:**
 
