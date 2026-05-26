@@ -375,7 +375,7 @@ Set `dataset.classify.num_input` to match the number of lighting conditions. The
 - **model.classify.train_margin_euclid**: Margin for the Euclidean distance loss during training (default 2.0). Larger values push embeddings further apart. Increase if the model struggles to separate defective from non-defective.
 - **model.classify.eval_margin**: Classification threshold during evaluation (default 0.3). Samples with embedding distance below this margin are classified as non-defective; above as defective. This is the primary knob for precision/recall tradeoff -- lower values increase recall (catch more defects), higher values increase precision (fewer false alarms).
 - **model.classify.embedding_vectors**: Number of embedding dimensions (default 5). Increase for more complex defect patterns; decrease for simpler binary tasks.
-- **dataset.classify.batch_size**: Default 16. Can be increased for small images (224x224) on GPUs with sufficient VRAM.
+- **dataset.classify.batch_size**: Default 16. Training uses the Optical Inspection dataloader and requires this value to be greater than 1; use 2 as the minimum smoke-test value. Can be increased for small images (224x224) on GPUs with sufficient VRAM.
 - **dataset.classify.fpratio_sampling**: False positive ratio for balanced sampling during training (default 0.25). Controls the ratio of non-defective to defective samples in each batch.
 - **train.classify.cls_weight**: Class weights for cross-entropy loss (default [1.0, 10.0]). The higher weight on class 1 (defective) compensates for class imbalance typical in defect detection datasets.
 
