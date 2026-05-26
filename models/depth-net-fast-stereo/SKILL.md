@@ -148,9 +148,26 @@ Shape consistency: `crop_size` in `dataset.test_dataset.augmentation.crop_size` 
 
 ### Step 5 — Run
 
+Create writable home/cache directories inside the mounted output path before using
+`--user`. Some TAO containers do not have an `/etc/passwd` entry for the host UID,
+and PyTorch / matplotlib need writable cache paths when running as that UID.
+
+```bash
+mkdir -p <output_dir>/home \
+         <output_dir>/.cache/matplotlib \
+         <output_dir>/.cache/torchinductor \
+         <output_dir>/.cache/xdg
+```
+
 ```
 docker run --gpus 'device=0' --shm-size 16G --ipc=host \
-  --user $(id -u):$(id -g) \
+  --user "$(id -u):$(id -g)" \
+  -e USER="$(id -un)" \
+  -e LOGNAME="$(id -un)" \
+  -e HOME=<output_dir>/home \
+  -e MPLCONFIGDIR=<output_dir>/.cache/matplotlib \
+  -e TORCHINDUCTOR_CACHE_DIR=<output_dir>/.cache/torchinductor \
+  -e XDG_CACHE_HOME=<output_dir>/.cache/xdg \
   -v <data_root>:<data_root>:ro \
   -v <output_dir>:<output_dir> \
   -v <bp2_ckpt_dir>:<bp2_ckpt_dir>:ro \
@@ -158,7 +175,7 @@ docker run --gpus 'device=0' --shm-size 16G --ipc=host \
   depth_net <action> -e <spec.yaml>
 ```
 
-Without `--user $(id -u):$(id -g)` the container writes outputs as `nobody:nogroup`, blocking host-side cleanup / retry.
+Without `--user "$(id -u):$(id -g)"` the container writes outputs as `nobody:nogroup`, blocking host-side cleanup / retry.
 
 **Local bind-mount tip (QA / development only)**: When bind-mounting a modified TAO repo (`tao-pytorch`, `tao-core`, `tao-deploy`) into the container, stale `__pycache__/*.pyc` files from a previous container run can shadow your patched `.py` source. The symptom is a cryptic TRT-side error (e.g., `IOptimizationProfile::setDimensions Error Code 3`) when the new code path should have produced something different. Clear the caches before launching the container:
 

@@ -56,7 +56,7 @@ gen_trt_engine:
     min_batch_size: 1
     opt_batch_size: 1
     max_batch_size: 1
-  verbose: true
+  verbose: false                         # Set true only when collecting detailed TensorRT builder diagnostics.
   # Optional dynamic H/W profile (dynamic-shape deploy; tensorrt.data_type can be fp32 or fp16).
   # Size max_height/max_width to ≥ the largest input you'll inference at;
   # the defaults below cover most variable-aspect public stereo datasets
