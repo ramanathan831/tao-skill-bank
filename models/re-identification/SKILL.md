@@ -134,16 +134,23 @@ Minimum 1 GPU(s), recommended 2 GPU(s). 16GB+ VRAM per GPU. Re-ID models are rel
 
 **Query/gallery mismatch**: Query and test (gallery) datasets must share the same identity namespace.
 
-**PyTorch 2.6 checkpoint load failure on evaluate/inference**: Current Re-ID
+**PyTorch 2.6 checkpoint load failure on checkpoint consumers**: Current Re-ID
 checkpoints include OmegaConf containers. For checkpoints produced by the same
 trusted TAO train/AutoML workflow, set
-`TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1` in downstream evaluate/inference job env
-vars so Lightning can load the full checkpoint. Do not use this env var for
-untrusted checkpoints.
+`TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1` in downstream resume, evaluate, inference,
+and export job env vars so Lightning/PyTorch can load the full checkpoint. Do
+not use this env var for untrusted checkpoints.
 
 **AutoML metric extraction**: Re-ID train status files report retrieval KPIs such as `cmc_rank_1`, `cmc_rank_5`, `cmc_rank_10`, and `mAP`, plus train loss. Default AutoML train launches must optimize `cmc_rank_1` with `direction: maximize`; do not use `val_loss` as the metric for this model.
 
 **Checkpoint handoff**: Use the checkpoint resolver on the best AutoML child job's `results_dir/train/` folder and select the action-appropriate `model_epoch_*.pth` checkpoint. Re-ID also writes `reid_model_latest.pth`, but that is a latest symlink and should only be used when a caller explicitly requests latest. Preserve the same dataset identity count and query/gallery archives for downstream actions.
+
+**Default spec generation**: The packaged `default_specs` CLI action does not
+consume the normal `-e <spec.yaml>` experiment file for `results_dir`. Invoke it
+with a Hydra override such as
+`re_identification default_specs results_dir=/workspace/run/results/default_specs`.
+Passing only `-e` leaves `cfg.results_dir` unset and fails with
+`MissingMandatoryValue: results_dir`.
 
 ## Spec Param / Parent Model Inference
 
