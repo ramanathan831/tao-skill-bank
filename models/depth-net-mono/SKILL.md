@@ -70,6 +70,7 @@ depth_net convert -e <convert_spec.yaml>
 `convert_spec.yaml` template:
 
 ```yaml
+results_dir: <directory where generated annotation files are written>
 data_root: <directory whose immediate children are scene/sample folders that contain your image+depth files; convert walks data_root recursively but expects per-scene subdirectories at one level below>
 image_dir_pattern: [<substring matching left/RGB image paths>]
 depth_dir_pattern: [<substring matching GT depth paths>]
@@ -115,16 +116,33 @@ For mono training set `train.precision: fp32` (recommended) or `bf16` (Ampere SM
 
 ### Step 4 — Run
 
+Create writable home/cache directories inside the mounted output path before using
+`--user`. Some TAO containers do not have an `/etc/passwd` entry for the host UID,
+and PyTorch / matplotlib need writable cache paths when running as that UID.
+
+```bash
+mkdir -p <output_dir>/home \
+         <output_dir>/.cache/matplotlib \
+         <output_dir>/.cache/torchinductor \
+         <output_dir>/.cache/xdg
+```
+
 ```
 docker run --gpus 'device=0' --shm-size 16G --ipc=host \
-  --user $(id -u):$(id -g) \
+  --user "$(id -u):$(id -g)" \
+  -e USER="$(id -un)" \
+  -e LOGNAME="$(id -un)" \
+  -e HOME=<output_dir>/home \
+  -e MPLCONFIGDIR=<output_dir>/.cache/matplotlib \
+  -e TORCHINDUCTOR_CACHE_DIR=<output_dir>/.cache/torchinductor \
+  -e XDG_CACHE_HOME=<output_dir>/.cache/xdg \
   -v <data_root>:<data_root>:ro \
   -v <output_dir>:<output_dir> \
   <container> \
   depth_net <action> -e <spec.yaml>
 ```
 
-Without `--user $(id -u):$(id -g)` the container writes outputs as `nobody:nogroup`, blocking host-side cleanup and retry.
+Without `--user "$(id -u):$(id -g)"` the container writes outputs as `nobody:nogroup`, blocking host-side cleanup and retry.
 
 ### Step 5 — Verify
 
