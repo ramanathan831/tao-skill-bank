@@ -42,7 +42,8 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 | Action | Spec Key | Source | Files | List? |
 |---|---|---|---|---|
 | evaluate | dataset.test_data_sources | eval_dataset | image_dir: images.tar.gz, json_file: annotations.json | No |
-| inference | dataset.infer_data_sources | inference_dataset | image_dir: images.tar.gz, captions: prompt list | Yes |
+| inference | dataset.infer_data_sources.image_dir | inference_dataset | images.tar.gz | Yes |
+| inference | dataset.infer_data_sources.captions | workflow prompts | prompt list | Yes |
 | quantize | dataset.train_data_sources | train_datasets | image_dir: images.tar.gz, json_file: annotations_odvg.jsonl, label_map: annotations_odvg_labelmap.json | Yes |
 | quantize | dataset.val_data_sources | eval_dataset | image_dir: images.tar.gz, json_file: annotations.json | No |
 | quantize | dataset.quant_calibration_data_sources | calibration/eval dataset | image_dir: images.tar.gz, json_file: annotations.json | No |

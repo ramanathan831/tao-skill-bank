@@ -83,7 +83,7 @@ actions:
     inputs:
       inference.checkpoint:
         type: file
-      dataset.infer_data_sources.image_dir[0]:
+      dataset.infer_data_sources.image_dir:
         type: file
       dataset.infer_data_sources.captions:
         type: list
