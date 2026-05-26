@@ -150,6 +150,8 @@ Minimum 1 GPU(s), recommended 1 GPU(s). 8GB+ VRAM per GPU. Pose classification i
 
 **Dataset conversion source**: `dataset_convert` expects the raw JSON output from the DeepStream BodyPose app. The common NVIDIA sample S3 folder is already converted to `train_data.npy`, `train_label.pkl`, `val_data.npy`, `val_label.pkl`, `test_data.npy`, and `test_label.pkl`; skip conversion and start from the converted files when those are present.
 
+**Action-specific dataset paths**: The evaluate and inference templates also contain the training `dataset.train_dataset` and `dataset.val_dataset` blocks. For evaluate, populate `evaluate.test_dataset.data_path` and `evaluate.test_dataset.label_path`. For inference, populate `inference.test_dataset.data_path` and set `inference.output_file`; do not stop after replacing the first `data_path` or `label_path` in the file.
+
 **Output files**: Export needs an explicit `export.onnx_file` path. Inference must set `inference.output_file` to a writable file path; the packaged template default is an empty string, and the current PyTorch inference code opens that value directly.
 
 ## Spec Param / Parent Model Inference
