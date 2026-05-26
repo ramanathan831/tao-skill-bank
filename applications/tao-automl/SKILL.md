@@ -192,8 +192,9 @@ Any workflow/application that reaches a train-capable model skill must consult
 the selected model's `automl_enabled` metadata. If it is `true`, use this
 AutoML workflow as the default training path unless the run/workflow setting
 has `automl_policy: off` or the user explicitly asks for a plain single
-training run. This keeps AutoML enablement scalable across normal-train, DEFT,
-and future workflows without duplicating allowlists in each application skill.
+training run. Treat `automl_policy: on` as the default enabled state. This keeps
+AutoML enablement scalable across normal-train, DEFT, and future workflows
+without duplicating allowlists in each application skill.
 
 Extract these fields for a default run:
 
