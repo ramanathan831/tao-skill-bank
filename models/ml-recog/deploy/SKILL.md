@@ -107,6 +107,10 @@ Model-specific notes:
 
 - The starter-kit deploy flow builds MLRecog engines with INT8, so provide real calibration images and a writable calibration cache path.
 - Keep reference and query sets paired consistently between evaluate and inference.
+- Use `batch_size: 1` for deploy `evaluate` and `inference` when validating
+  small or non-divisible datasets. Larger batch sizes can silently drop the
+  final partial batch in TAO Deploy MLRecog evaluation/inference, so only raise
+  this value after confirming the full input count is preserved.
 
 ## Job Chain Mapping
 
@@ -140,3 +144,8 @@ Model-specific notes:
 **Deploy inference input missing:** `ml_recog inference` in TAO Deploy requires
 `inference.input_path`. `dataset.val_dataset.query` alone is not consumed by the
 deploy inference entrypoint.
+
+**Tail batch dropped:** If deploy evaluation or inference processes fewer query
+images than exist under the input folder, lower `evaluate.batch_size` or
+`inference.batch_size` to `1`. The TensorRT profile still needs
+`min_batch_size: 1`.
