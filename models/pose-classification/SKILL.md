@@ -42,9 +42,9 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 | Action | Spec Key | Source | Files | List? |
 |---|---|---|---|---|
 | dataset_convert (optional) | dataset_convert.data | id | DeepStream BodyPose JSON | No |
-| evaluate | evaluate.test_dataset.data_path | train_datasets |  | No |
-| evaluate | evaluate.test_dataset.label_path | train_datasets |  | No |
-| inference | inference.test_dataset.data_path | train_datasets |  | No |
+| evaluate | evaluate.test_dataset.data_path | train_datasets | val_data.npy | No |
+| evaluate | evaluate.test_dataset.label_path | train_datasets | val_label.pkl | No |
+| inference | inference.test_dataset.data_path | train_datasets | test_data.npy | No |
 | train | dataset.train_dataset.data_path | train_datasets | train_data.npy | No |
 | train | dataset.train_dataset.label_path | train_datasets | train_label.pkl | No |
 | train | dataset.val_dataset.data_path | train_datasets | val_data.npy | No |
@@ -102,6 +102,7 @@ S3_TRAIN = "s3://bucket/data/purpose_built_models_pose_classification_train/nvid
 ```python
 {
     "inference.test_dataset.data_path": f"{S3_TRAIN}/test_data.npy",
+    "inference.output_file": "/results/pose_classification_inference.txt",
 }
 ```
 ## Dataset Convert
@@ -149,7 +150,7 @@ Minimum 1 GPU(s), recommended 1 GPU(s). 8GB+ VRAM per GPU. Pose classification i
 
 **Dataset conversion source**: `dataset_convert` expects the raw JSON output from the DeepStream BodyPose app. The common NVIDIA sample S3 folder is already converted to `train_data.npy`, `train_label.pkl`, `val_data.npy`, `val_label.pkl`, `test_data.npy`, and `test_label.pkl`; skip conversion and start from the converted files when those are present.
 
-**Output files**: Export needs an explicit `export.onnx_file` path. Inference needs an explicit `inference.output_file` path if the caller wants a stable file artifact outside the default results directory.
+**Output files**: Export needs an explicit `export.onnx_file` path. Inference must set `inference.output_file` to a writable file path; the packaged template default is an empty string, and the current PyTorch inference code opens that value directly.
 
 ## Spec Param / Parent Model Inference
 
