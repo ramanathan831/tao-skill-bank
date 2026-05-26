@@ -104,6 +104,8 @@ Dataset conversion is optional for Optical Inspection. If the dataset is already
 
 The PyT container exposes `optical_inspection dataset_convert`, but this model skill does not package a `dataset_convert` action/template. The converter expects the raw Factory PCB layout (`root_dataset_dir`, train/val/all PCB directories, `golden_csv_dir`, `project_name`, and `bot_top`). The S3 validation bucket currently contains preconverted Optical Inspection `images.tar.gz` plus `dataset.csv` splits, not the raw PCB/golden CSV source. Do not synthesize a fake PCB dataset. In model validation reports, mark dataset conversion as `not run: preconverted dataset provided` rather than failed or blocked when only converted data is available.
 
+When using the preconverted S3 validation tarballs locally, verify the extracted directory before writing specs. The tarballs may unpack an `images/` wrapper directory; point `dataset.*.images_dir` at the inner directory that contains `golden/` and the board/image folders referenced by `dataset.csv`, for example `.../<split>/images/images`, not the outer wrapper.
+
 ## Eval Dataset
 
 Optional. Eval dataset uses same format (images + CSV).
@@ -138,6 +140,8 @@ Minimum 1 GPU(s), recommended 1 GPU(s). 8GB+ VRAM per GPU. Siamese networks for 
 ## Error Patterns
 
 **CSV format error**: Ensure dataset.csv has the correct column format for image pair paths and labels.
+
+**Extracted image root mismatch**: If train, evaluate, or inference cannot find paths from `dataset.csv`, inspect the extracted `images.tar.gz` tree. The TAO-ready root must contain `golden/` plus the board folders referenced in the CSV. For validation S3 tarballs this can be one level below the extraction target, such as `images/images`.
 
 **Training batch size assertion**: The Optical Inspection dataloader rejects
 `dataset.batch_size: 1` for train. Keep the template default of 8 for normal

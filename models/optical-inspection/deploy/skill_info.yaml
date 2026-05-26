@@ -69,5 +69,10 @@ notes:
 - The starter-kit deploy flow uses FP16 for Optical Inspection TensorRT builds.
 - Keep `dataset.num_input`, `dataset.input_map`, `dataset.concat_type`, and grid layout
   aligned with the trained AOI model.
+- Deploy evaluate reads `dataset.infer_dataset.*`, not `dataset.test_dataset.*`;
+  override the inference dataset CSV and image root for both evaluate and inference.
+- Default export produces a static-batch ONNX in common smoke runs. Keep
+  `dataset.batch_size` and evaluate/inference batch sizes aligned with the TensorRT
+  optimization profile, usually batch size 1 unless exported otherwise.
 - Set gen_trt_engine.trt_engine explicitly in the spec; do not pre-create it as
   a declared file output.
