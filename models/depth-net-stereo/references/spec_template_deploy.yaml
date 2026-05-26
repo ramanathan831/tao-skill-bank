@@ -44,7 +44,7 @@ gen_trt_engine:
     min_batch_size: 1
     opt_batch_size: 1
     max_batch_size: 4
-  verbose: true
+  verbose: false  # Set true only when collecting detailed TensorRT builder diagnostics.
   #
   # NGC pretrained static-shape ONNX path
   # (deployable_foundationstereo_small_576x960_v2.0.onnx):
