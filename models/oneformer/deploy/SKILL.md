@@ -139,10 +139,11 @@ Model-specific notes:
 
 **Mounted paths do not exist:** TAO Deploy checks local paths inside the container. Make sure every path in the spec has a matching Docker mount or job artifact mapping.
 
-**Current deploy image OneFormer engine generation failure:** The 7.0.0 RC
-deploy image parses the exported OneFormer ONNX with two inputs,
-`images` and `task_tokens`, then the common TensorRT builder assumes every
-input is a 4D image tensor. This causes `gen_trt_engine` to fail with
-`IndexError: Out of bounds` while reading the 2D `task_tokens` input. Do not
-mark TensorRT evaluate or inference as validated unless engine generation
-produces an engine in the deploy image being used.
+**Older deploy image OneFormer engine generation failure:** Some 7.0.0 RC
+deploy images parse the exported OneFormer ONNX with two inputs, `images` and
+`task_tokens`, then assume every input is a 4D image tensor. This causes
+`gen_trt_engine` to fail with `IndexError: Out of bounds` while reading the 2D
+`task_tokens` input. The `validation-fixes-20260525` deploy image builds the
+engine with `images` and `task_tokens` profiles and can run TensorRT evaluate
+and inference; still mark deploy validation per image by requiring a produced
+engine before running downstream TensorRT actions.

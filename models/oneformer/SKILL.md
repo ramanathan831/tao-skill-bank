@@ -206,6 +206,18 @@ Minimum 2 GPU(s), recommended 4 GPU(s). 24GB+ (A100 recommended) VRAM per GPU. O
 
 **CUDA out of memory**: batch_size is already 1. Reduce image resolution or use a smaller Swin configuration.
 
+**Extracted S3 tarball points one level too high**: For local Docker runs,
+`images.tar.gz` and `images_panoptic.tar.gz` may extract wrapper directories
+such as `images/` and `images_panoptic/`. Set `dataset.*.images`,
+`dataset.*.panoptic`, `inference.images_dir`, and quantization calibration
+paths to the actual folder containing image or panoptic files, not the wrapper
+directory. A one-level-too-high path fails with `FileNotFoundError` for the
+first annotation image even though recursive file counts look correct.
+
+**default_specs missing results_dir**: The CLI `default_specs` subtask ignores
+`-e` experiment specs for `results_dir`; pass a Hydra-style override instead:
+`oneformer default_specs results_dir=/path/to/default_specs`.
+
 **Invalid Lightning precision `fp32`**: Use `train.precision: "32"` in
 train/AutoML/evaluate/inference specs. The current Lightning stack rejects the
 legacy `fp32` string.

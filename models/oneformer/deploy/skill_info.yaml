@@ -74,5 +74,7 @@ notes:
   engine fields.
 - Set gen_trt_engine.trt_engine explicitly in the spec; do not pre-create it as
   a declared file output.
-- Current 7.0.0 RC deploy image fails OneFormer gen_trt_engine on the 2D
-  task_tokens ONNX input with IndexError: Out of bounds.
+- Some older 7.0.0 RC deploy images fail OneFormer gen_trt_engine on the 2D
+  task_tokens ONNX input with IndexError: Out of bounds. The
+  validation-fixes-20260525 deploy image builds the engine and supports TRT
+  evaluate/inference; validate deploy status per image.
