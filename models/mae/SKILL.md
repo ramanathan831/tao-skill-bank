@@ -52,6 +52,14 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 | evaluate | dataset.val_data_sources | eval_dataset | images_val.tar.gz | No |
 | inference | dataset.test_data_sources | inference_dataset | images_test.tar.gz | No |
 
+For SDK/app job inputs, the `images_*.tar.gz` archives are uploaded as the
+action inputs. For direct local Docker runs against host-mounted data, extract
+the archives first and point `dataset.train_data_sources`,
+`dataset.val_data_sources`, and `dataset.test_data_sources` at the extracted
+`images_train`, `images_val`, and `images_test` folders. Passing a local tar
+path directly to the MAE CLI can produce a zero-sample dataloader because the
+local dataloader does not unpack that archive path.
+
 ### Typical Spec Overrides
 
 Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
