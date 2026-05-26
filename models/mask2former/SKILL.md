@@ -40,6 +40,9 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 
 | Action | Spec Key | Source | Files | List? |
 |---|---|---|---|---|
+| evaluate | dataset.train.type | train_datasets | coco_panoptic | No |
+| evaluate | dataset.val.type | eval_dataset | coco_panoptic | No |
+| evaluate | dataset.test.type | eval_dataset | coco_panoptic | No |
 | evaluate | dataset.train.img_dir | train_datasets | images.tar.gz | No |
 | evaluate | dataset.label_map | train_datasets | coco_panoptic: label_map_panoptic.json; *: label_map.json | No |
 | evaluate | dataset.train.instance_json | train_datasets | annotations.json | No |
@@ -50,6 +53,9 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 | evaluate | dataset.val.panoptic_json | eval_dataset | annotations_panoptic.json | No |
 | evaluate | dataset.val.panoptic_dir | eval_dataset | images_panoptic.tar.gz | No |
 | evaluate | dataset.test.img_dir | eval_dataset | images.tar.gz | No |
+| inference | dataset.train.type | train_datasets | coco_panoptic | No |
+| inference | dataset.val.type | eval_dataset | coco_panoptic | No |
+| inference | dataset.test.type | eval_dataset | coco_panoptic | No |
 | inference | dataset.train.img_dir | train_datasets | images.tar.gz | No |
 | inference | dataset.label_map | train_datasets | coco_panoptic: label_map_panoptic.json; *: label_map.json | No |
 | inference | dataset.train.instance_json | train_datasets | annotations.json | No |
@@ -60,6 +66,9 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 | inference | dataset.val.panoptic_json | eval_dataset | annotations_panoptic.json | No |
 | inference | dataset.val.panoptic_dir | eval_dataset | images_panoptic.tar.gz | No |
 | inference | dataset.test.img_dir | eval_dataset | images.tar.gz | No |
+| quantize | dataset.train.type | train_datasets | coco_panoptic | No |
+| quantize | dataset.val.type | eval_dataset | coco_panoptic | No |
+| quantize | dataset.test.type | eval_dataset | coco_panoptic | No |
 | quantize | dataset.train.img_dir | train_datasets | images.tar.gz | No |
 | quantize | dataset.label_map | train_datasets | coco_panoptic: label_map_panoptic.json; *: label_map.json | No |
 | quantize | dataset.train.instance_json | train_datasets | annotations.json | No |
@@ -71,6 +80,9 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 | quantize | dataset.val.panoptic_dir | eval_dataset | images_panoptic.tar.gz | No |
 | quantize | dataset.test.img_dir | eval_dataset | images.tar.gz | No |
 | quantize | dataset.quant_calibration_dataset.images_dir | train_datasets | images.tar.gz | No |
+| train | dataset.train.type | train_datasets | coco_panoptic | No |
+| train | dataset.val.type | eval_dataset | coco_panoptic | No |
+| train | dataset.test.type | eval_dataset | coco_panoptic | No |
 | train | dataset.train.img_dir | train_datasets | images.tar.gz | No |
 | train | dataset.label_map | train_datasets | coco_panoptic: label_map_panoptic.json; *: label_map.json | No |
 | train | dataset.train.instance_json | train_datasets | annotations.json | No |
