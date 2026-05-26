@@ -18,7 +18,11 @@ tags:
 
 VILA vision-language model for multimodal understanding tasks. Supports video and image-based question answering, captioning, and reasoning. Fine-tunable with LoRA or full fine-tuning on custom VLM datasets.
 
-Set model_path to the base VILA model checkpoint.
+Set `model_path` to a base VILA/NVILA model checkpoint. The checkpoint must be
+a VILA wrapper model whose `config.json` has `model_type: llava_llama`, such as
+`Efficient-Large-Model/NVILA-Lite-2B` or a local folder with the same structure.
+Raw Qwen2.5-VL checkpoints with `model_type: qwen2_5_vl` are not compatible with
+the current VILA fine-tuning entrypoints.
 
 ## Dataclass Schemas
 
@@ -28,7 +32,8 @@ Generated TAO Core schemas are packaged in `schemas/<action>.schema.json`, with 
 
 This model is AutoML-enabled at the model layer. Before handling any train-stage request, read `references/skill_info.yaml` and resolve the run override from either an explicit `automl_policy` value or the user's workflow request. Use `automl_policy: on` by default and only expose `on` / `off` in new launch prompts. Treat phrases like "turn off AutoML", "disable AutoML", "no HPO", or "plain training" as `automl_policy: off` for this run only. When `automl_policy: on`, `automl_enabled: true`, and both `schemas/train.schema.json` and `references/spec_template_train.yaml` are packaged, route the train action through `tao-skill-bank:tao-automl` by default with this model's `skill_dir`. Preserve workflow/application overrides for datasets, specs, output directories, GPU/platform settings, parent checkpoints, and `automl_policy`. Use direct model training only when `automl_policy: off` or the packaged train schema/template is missing; in the missing-schema case, report that AutoML is enabled but not runnable for this model until schemas are generated.
 
-Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows stay in this model skill. The per-run `automl_policy` override does not change model metadata.
+Non-train actions such as `evaluate` and `inference` stay in this model skill.
+The per-run `automl_policy` override does not change model metadata.
 
 The default VILA container exposes action entrypoints as `vila-train`, `vila-evaluate`, and `vila-inference`; it does not expose a `vila <action> -e <spec>` dispatcher. The model skill adapts the packaged YAML specs to those flat CLI entrypoints in `references/skill_info.yaml`.
 
@@ -133,6 +138,12 @@ Minimum 1 GPU(s), recommended 8 GPU(s). 40GB+ (A100 80GB recommended) VRAM per G
 ## Error Patterns
 
 **CUDA out of memory**: Switch to llm_mode=lora, reduce batch_size, or reduce model_max_length / max_tiles.
+
+**Incompatible base checkpoint**: If training or inference fails with
+`Transformers does not recognize this architecture` for `model_type:
+qwen2_5_vl`, the provided `model_path` is a raw Qwen2.5-VL checkpoint rather
+than a VILA/NVILA wrapper checkpoint. Use a `llava_llama` VILA checkpoint or a
+local folder downloaded from one.
 
 **Missing dataset YAML**: Ensure train.dataset.dataset_yaml_path points to a valid YAML file.
 
