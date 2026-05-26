@@ -76,3 +76,6 @@ notes:
 - Use batch size 1 for TensorRT inference unless the engine profile and memory budget
   are explicitly widened.
 - Keep prompt captions aligned with the target objects for open-vocabulary inference.
+- Carry transformer and mask structure fields from export, including backbone,
+  feature levels, encoder/decoder layers, `num_queries`, `num_select`, `max_text_len`,
+  `num_region_queries`, and `has_mask`.

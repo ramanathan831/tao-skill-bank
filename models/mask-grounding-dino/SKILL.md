@@ -149,6 +149,12 @@ Minimum 1 GPU(s), recommended 4 GPU(s). 24GB+ (A100 recommended) VRAM per GPU. H
 `evaluate.text_threshold` and `inference.text_threshold`. Do not use
 `test_threshold` in deploy specs.
 
+**Deploy model shape mismatch**: Carry transformer and mask structure fields
+from export into deploy evaluate/inference specs, including `model.num_queries`,
+`model.num_select`, `model.max_text_len`, `model.num_region_queries`, and
+`model.has_mask`. These values must match the ONNX model used to build the
+TensorRT engine.
+
 ## Spec Param / Parent Model Inference
 
 Model-specific inference mappings belong in this MD file, not in `config.json`. Generated runners should read this section and apply the mappings with SDK helpers before `create_job()`. This mirrors the old microservices `infer_params.py` flow.
