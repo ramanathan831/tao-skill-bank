@@ -163,6 +163,27 @@ packaged AICity smoke dataset the basename is
 `train/subsetscene+bev-sensor-random-0_infos_train.pkl`; do not strip the
 BEV-sensor suffix back to `subsetscene_infos_train.pkl`.
 
+For small local smoke runs with fewer camera streams than the production
+default, keep `model.head.deformable_model.max_num_cams: 20` if the resulting
+checkpoint will be exported. The current Sparse4D ONNX exporter constructs a
+20-camera dummy input, so checkpoints trained with `max_num_cams` reduced to the
+dataset camera count can load for evaluate/inference but fail export with a
+deformable-attention reshape error. It is safe to keep `max_num_cams: 20` while
+training/evaluating on fewer real cameras because the runtime projection matrix
+controls the active camera count. Only reduce `num_cams` for smoke data when
+needed; leave `max_num_cams` at 20 for export-compatible checkpoints.
+
+For export-compatible smoke checkpoints, also keep the default anchor contract:
+`model.head.instance_bank.num_anchor: 900`,
+`model.head.instance_bank.num_temp_instances: 600`, and
+`model.head.num_output: 900`. Sparse4D export currently creates cached feature
+and anchor tensors sized for the default 600 temporal instances. If a tiny
+dataset conversion produces fewer anchors, for example a 3-frame conversion that
+emits a 72-row `anchor_init.npy`, evaluate/inference can still run with matching
+reduced config values but export will fail during memory-bank update. Prefer
+rerunning `dataset_convert` with enough real frames to initialize 900 anchors
+instead of padding or inventing anchors.
+
 When reusing a previous dataset conversion for AutoML or repeated training,
 copy or mount the conversion output by the explicit `dataset_convert_job_id`,
 not by the first `results_dir` found under a results root. Before launching
@@ -258,17 +279,15 @@ converted `depth_map_path` tuples to point at
 
 **Temporal OOM**: Reduce dataset.num_frames or dataset.batch_size if running out of memory during temporal training.
 
-**Quantize blockers in the 7.0.0-rc PyT image**: The model-skill wiring should
-pass `quantize.model_path` through the parent-model resolver, and checkpoint
-handoff should select the exact epoch/step checkpoint just like evaluate,
-inference, export, and resume. In the current PyT image, checkpoint-backed
-TorchAO quantization fails inside
-`nvidia_tao_pytorch/cv/sparse4d/scripts/quantize.py` because it calls
-`Sparse4DPlModel.load_from_checkpoint(..., config=cfg)` while the model
-constructor requires `experiment_spec`. The ONNX path is also blocked in this
-image because `modelopt.onnx.quantization` is not installed. Do not remove or
-skip the advertised `quantize` action; report the container failure until the
-Sparse4D quantize entrypoint or image dependency is fixed.
+**Quantize image compatibility**: The model-skill wiring should pass
+`quantize.model_path` through the parent-model resolver, and checkpoint handoff
+should select the exact epoch/step checkpoint just like evaluate, inference,
+export, and resume. TorchAO checkpoint quantization passes in the
+`validation-fixes-20260525` PyT image and writes
+`quantized_model_torchao.pth`. Older 7.0.0-rc PyT images may fail inside the
+Sparse4D quantize entrypoint or lack ONNX quantization dependencies; do not
+remove or skip the advertised `quantize` action if that occurs. Report the
+container/image failure and keep the exact checkpoint path visible.
 
 ## Spec Param / Parent Model Inference
 
