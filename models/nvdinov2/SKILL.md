@@ -80,6 +80,8 @@ run representative while avoiding the much slower ViT-Large default.
     "train.num_epochs": 1,
     "train.checkpoint_interval": 1,
     "train.num_prototypes": 1024,
+    "train.precision": "fp32",
+    "train.use_custom_attention": False,
     "train.num_gpus": 1,
     "dataset.train_dataset.images_dir": f"{S3_TRAIN}/images_train.tar.gz",
 }
