@@ -98,6 +98,7 @@ Recommended starting overrides:
 ```python
 {
     'model.sem_seg_head.num_classes': 133,
+    'dataset.contiguous_id': True,
     'gen_trt_engine.tensorrt.data_type': 'fp16',
     'dataset.val.batch_size': 1,
     'dataset.test.batch_size': 1,
@@ -106,7 +107,7 @@ Recommended starting overrides:
 
 Model-specific notes:
 
-- Carry `model.sem_seg_head.num_classes` from train/export; the starter-kit COCO panoptic path uses 133.
+- Carry `model.sem_seg_head.num_classes` and `dataset.contiguous_id` from train/export. The packaged COCO panoptic path uses `dataset.contiguous_id: True` with `model.sem_seg_head.num_classes: 133`; use a smaller value only if the train/export dataset was reduced to that exact class set.
 - Evaluate and inference share the deploy infer template but use different top-level engine fields.
 - Set `gen_trt_engine.trt_engine` explicitly to a non-existing file path in
   the mounted results tree. Do not pre-create it as a declared file output.

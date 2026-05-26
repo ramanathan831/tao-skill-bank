@@ -170,7 +170,7 @@ Optional. Val data configured alongside train in the dataset config.
 
 ## Important Parameters
 
-- **model.sem_seg_head.num_classes**: Number of segmentation classes. Default 133 (COCO panoptic).
+- **model.sem_seg_head.num_classes**: Number of segmentation class indices available to the head. Default 133 for COCO panoptic data when `dataset.contiguous_id: True` remaps raw category ids through the label map. Do not shrink this to a global workflow class count unless the label map and annotations have actually been reduced to that class set.
 - **model.one_former.hidden_dim**: Keep at 256 for local smoke runs unless
   the text encoder width is changed in lock-step. Reducing hidden_dim alone
   causes a text feature/context dimension mismatch during training.
@@ -216,6 +216,15 @@ the same trusted TAO train/AutoML workflow, set
 `TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1` in downstream evaluate/inference job env
 vars so Lightning can load the full checkpoint. Do not use this env var for
 untrusted checkpoints.
+
+**CUDA device-side assert in matcher/class cost**: If training fails in
+`oneformer/utils/matcher.py` while indexing `out_prob[:, tgt_ids]`, compare
+the effective target ids with `model.sem_seg_head.num_classes`. The packaged
+COCO panoptic sample has 133 compact classes after `dataset.contiguous_id:
+True` remapping, so use `model.sem_seg_head.num_classes: 133` even when a
+broader validation workflow passes a smaller generic `num_classes` value.
+Only use a smaller class count when the label map and annotations are reduced
+to that exact contiguous class set.
 
 **Inference returns PASS with no predictions**: OneFormer prediction reads
 `inference.images_dir`, not `dataset.test.images`. Declare and populate
