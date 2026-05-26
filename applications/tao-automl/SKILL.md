@@ -420,7 +420,7 @@ These require no external services — they use statistical/mathematical methods
 | `asha` | Async variant of hyperband, supports parallel execution. | 10–30 recs | Same successive-halving idea as hyperband, but trials run concurrently. Best when you have many GPUs. Uses `automl_max_concurrent`. |
 | `bohb` | Best of both — Bayesian intelligence + Hyperband efficiency. | 15–40 recs | Combines KDE-based model (like Bayesian) with Hyperband's multi-fidelity scheduling. Good all-rounder for medium budgets. |
 | `dehb` | Evolutionary + multi-fidelity. | 15–40 recs | Differential evolution mutations + hyperband scheduling. Good for complex search spaces with many interacting parameters. |
-| `pbt` | Dynamic schedules — mutates hyperparameters during training. | population_size × generations | Population-Based Training. Starts N configs in parallel, periodically copies weights from winners and perturbs their hyperparameters. Best for long runs where hyperparameters should change over time (e.g. learning rate schedules). |
+| `pbt` | Dynamic schedules — mutates hyperparameters during training. | population_size × generations | Population-Based Training. Starts N configs in parallel, periodically copies weights from winners and perturbs their hyperparameters. Best for long runs where hyperparameters should change over time (e.g. learning rate schedules). Final handoff selects the best member at the largest observed training budget; earlier lower-budget metrics are promotion evidence, not the final checkpoint choice. |
 
 ### LLM/Agentic Algorithms (NEW)
 
@@ -916,10 +916,12 @@ The result is a plain dict:
 
 Metric values in `best` and `history` are always in the original scale the user provided — direction inversion (if any) is undone before the dict is returned.
 
+For multi-fidelity algorithms (`hyperband`, `bohb`, `asha`, `dehb`, `hyperband_es`, and `pbt`), `best` is selected from the largest observed training budget once those candidates exist. Report any lower-budget metric that beats the selected final-budget metric as promotion context rather than treating it as the downstream checkpoint.
+
 ### How to report to the user
 
 1. **Best config** — show the winning hyperparameters and metric value.
-2. **Comparison table** — rank all recs by metric, highlight the best.
+2. **Comparison table** — rank recs by metric and highlight the best. For multi-fidelity algorithms, rank the largest-budget candidates first and include lower-budget winners as context when they differ from the selected final checkpoint.
 3. **Insights** — call out what the optimizer learned from the requested parameters and metric.
 4. **WandB link** — if tracking was enabled, provide the dashboard URL.
 5. **Next steps** — suggest:
