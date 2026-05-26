@@ -44,8 +44,8 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 | dataset_convert | dataset_convert.input_img_dir | id |  | No |
 | dataset_convert | dataset_convert.gt_file | id |  | No |
 | evaluate | dataset.character_list_file | eval_dataset | character_list | No |
-| evaluate | evaluate.test_dataset_dir | eval_dataset | test.tar.gz or results/{dataset_convert_job_id}/dataset_convert/lmdb | No |
-| evaluate | evaluate.test_dataset_gt_file | eval_dataset | test/gt_new.txt when using raw test images | No |
+| evaluate | evaluate.test_dataset_dir | eval_dataset | test.tar.gz | No |
+| evaluate | evaluate.test_dataset_gt_file | eval_dataset | test/gt_new.txt | No |
 | evaluate | evaluate.checkpoint | parent train/AutoML job | best_accuracy.pth or exact requested epoch checkpoint | No |
 | export | dataset.character_list_file | eval_dataset | character_list | No |
 | export | export.checkpoint | parent train/AutoML job | best_accuracy.pth or exact requested epoch checkpoint | No |
