@@ -149,7 +149,11 @@ Same DDP/FSDP behavior as DINO. Multi-node requires `WORLD_SIZE`, `NODE_RANK`, `
 
 ## Export / TRT Defaults
 
-- Export input: 960x544 (larger than other OD models), opset 17
+- Export input: 960x544 (larger than other OD models), opset 17. Keep
+  Grounding-DINO export specs at the template export resolution for smoke tests;
+  reducing export to very small image sizes such as 128x128 can trigger a
+  PyTorch ONNX shape-inference assertion in the contrastive text head during
+  `torch.onnx.export`.
 - The parent PyTorch `grounding_dino` CLI supports `train`, `evaluate`,
   `inference`, `export`, and `quantize`. Run TensorRT engine generation,
   TensorRT inference, and TensorRT evaluation through `deploy/SKILL.md`.
