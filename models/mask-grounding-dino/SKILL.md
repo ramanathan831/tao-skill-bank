@@ -41,12 +41,16 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 | Action | Spec Key | Source | Files | List? |
 |---|---|---|---|---|
 | evaluate | dataset.test_data_sources | eval_dataset | image_dir: images.tar.gz, json_file: annotations.json | No |
+| evaluate | dataset.test_data_sources.data_type | eval_dataset | OD | No |
 | inference | dataset.infer_data_sources | inference_dataset | image_dir: images.tar.gz, captions: text prompts | No |
+| inference | dataset.infer_data_sources.data_type | inference_dataset | OD | No |
 | quantize | dataset.train_data_sources | train_datasets | image_dir: images.tar.gz, json_file: annotations_odvg.jsonl, label_map: annotations_odvg_labelmap.json | Yes |
 | quantize | dataset.val_data_sources | eval_dataset | image_dir: images.tar.gz, json_file: annotations.json | No |
+| quantize | dataset.val_data_sources.data_type | eval_dataset | OD | No |
 | quantize | dataset.quant_calibration_data_sources | train_datasets | image_dir: images.tar.gz, json_file: annotations_odvg.jsonl, label_map: annotations_odvg_labelmap.json | No |
 | train | dataset.train_data_sources | train_datasets | image_dir: images.tar.gz, json_file: annotations_odvg.jsonl, label_map: annotations_odvg_labelmap.json | Yes |
 | train | dataset.val_data_sources | eval_dataset | image_dir: images.tar.gz, json_file: annotations.json | No |
+| train | dataset.val_data_sources.data_type | eval_dataset | OD | No |
 
 ### Typical Spec Overrides
 
