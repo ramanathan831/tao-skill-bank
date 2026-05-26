@@ -94,7 +94,7 @@ S3_TRAIN = "s3://bucket/data/train"
 }
 ```
 
-For export and inference, provide explicit file paths for `export.onnx_file` and `inference.output_file`. For evaluate, provide explicit file paths for `evaluate.output_cmc_curve_plot` and `evaluate.output_sampled_matches_plot` when those artifacts are needed. Keep these as spec values or `spec_params` mappings; do not declare them as file outputs in `skill_info.yaml` for local Docker until the runner distinguishes files from folders during output pre-creation.
+For export and inference, provide explicit file paths for `export.onnx_file` and `inference.output_file`. For evaluate, provide explicit file paths for `evaluate.output_cmc_curve_plot` and `evaluate.output_sampled_matches_plot`. Keep these as spec values or `spec_params` mappings; do not declare them as file outputs in `skill_info.yaml` for local Docker until the runner distinguishes files from folders during output pre-creation.
 
 ## Eval Dataset
 
@@ -133,6 +133,13 @@ Minimum 1 GPU(s), recommended 2 GPU(s). 16GB+ VRAM per GPU. Re-ID models are rel
 **Invalid triplet batch shape**: `dataset.batch_size` must be compatible with `dataset.num_instances` so each mini-batch can be reshaped for hard-example mining. For local AutoML smoke runs, keep `dataset.batch_size` fixed to a known valid multiple such as 16 with `dataset.num_instances: 4`, and tune `train.optim.base_lr` instead of unconstrained batch size.
 
 **Query/gallery mismatch**: Query and test (gallery) datasets must share the same identity namespace.
+
+**PyTorch 2.6 checkpoint load failure on evaluate/inference**: Current Re-ID
+checkpoints include OmegaConf containers. For checkpoints produced by the same
+trusted TAO train/AutoML workflow, set
+`TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1` in downstream evaluate/inference job env
+vars so Lightning can load the full checkpoint. Do not use this env var for
+untrusted checkpoints.
 
 **AutoML metric extraction**: Re-ID train status files report retrieval KPIs such as `cmc_rank_1`, `cmc_rank_5`, `cmc_rank_10`, and `mAP`, plus train loss. Default AutoML train launches must optimize `cmc_rank_1` with `direction: maximize`; do not use `val_loss` as the metric for this model.
 
