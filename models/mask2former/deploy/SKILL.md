@@ -112,6 +112,9 @@ Model-specific notes:
 
 - Carry `model.mode`, `model.sem_seg_head.num_classes`, `dataset.contiguous_id`, and export input shape from train/export.
 - TensorRT `evaluate` supports semantic engines. Export with `model.mode: semantic` when validating the deploy evaluator.
+- The parent export template dimensions (`960x544`) are known to export and
+  build with TensorRT. Avoid carrying tiny smoke-test export sizes such as
+  `128x128` into deploy unless that shape has been verified separately.
 - For TensorRT inference, set `model.object_mask_threshold: 0.0` when you need all mask candidates forwarded for post-processing.
 - Do not set a top-level `dataset.type`; the deploy schema accepts `dataset.val.type` and `dataset.test.type`.
 - For COCO panoptic data with raw category ids, use `dataset.contiguous_id: False` and set `model.sem_seg_head.num_classes` above the maximum category id.

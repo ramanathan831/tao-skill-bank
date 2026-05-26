@@ -77,6 +77,9 @@ spec_templates:
 notes:
 - Carry `model.sem_seg_head.num_classes` from train/export; the starter-kit ADE-style
   path used 90 classes for one flow and the template default is only a placeholder.
+- Carry the verified export input shape into deploy. The packaged `960x544`
+  export shape builds successfully; tiny smoke-test export shapes such as
+  `128x128` can fail during PyTorch ONNX shape inference before engine build.
 - 'For TensorRT inference, set `model.object_mask_threshold: 0.0` when you need all
   mask candidates forwarded for post-processing.'
 - For COCO panoptic deploy evaluation, set `dataset.val.type: coco_panoptic`

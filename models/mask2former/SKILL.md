@@ -238,6 +238,11 @@ Optional. Val data sources are part of the dataset config alongside train.
   TensorRT inference, and TensorRT evaluation through `deploy/SKILL.md`.
   Export semantic ONNX (`model.mode: semantic`) when validating TensorRT
   evaluation because the current deploy evaluator accepts semantic engines.
+- Keep export input dimensions compatible with the deploy templates. The
+  packaged default `export.input_width: 960` and `export.input_height: 544`
+  exports and builds a TensorRT engine successfully; shrinking export to tiny
+  validation-only sizes such as `128x128` can hit a PyTorch ONNX
+  `minus_one_pos != -1` shape-inference assertion before ONNX is produced.
 
 ## Hardware
 
@@ -253,12 +258,20 @@ Minimum 1 GPU(s), recommended 4 GPU(s). 24GB+ (A100 recommended) VRAM per GPU. M
 `dataset.val.type` and `dataset.test.type`. Do not put `dataset.type` at the
 top level of Mask2Former deploy specs.
 
-**Quantize checkpoint load error**: In the current default PyTorch image,
-checkpoint-based `mask2former quantize` can fail because the runtime quantize
-script passes `experiment_spec` to `Mask2formerPlModule.load_from_checkpoint`
-instead of the required `cfg` argument. ONNX quantization requires
+**Export ONNX shape assertion at very small resolution**: If export fails with
+`minus_one_pos != -1` from PyTorch ONNX shape inference, restore the template
+export dimensions (`960x544`) before retrying deploy validation. Keep training
+and evaluation image sizes small when needed for quick smoke tests, but do not
+carry those tiny dimensions into export unless the target shape has been
+verified.
+
+**Quantize checkpoint load error**: Older PyTorch images can fail
+checkpoint-based `mask2former quantize` because the runtime quantize script
+passes `experiment_spec` to `Mask2formerPlModule.load_from_checkpoint` instead
+of the required `cfg` argument. Images with the quantize fix support the default
+`torchao` checkpoint flow. ONNX quantization still requires
 `backend: modelopt.onnx`, `mode: static_ptq`, a fixed
-`dataset.test.target_size`, and a default image that includes
+`dataset.test.target_size`, and an image that includes
 `modelopt.onnx.quantization`.
 
 ## Spec Param / Parent Model Inference
