@@ -112,6 +112,7 @@ Model-specific notes:
 - PointPillars TensorRT engine generation supports FP32 and FP16; INT8 is rejected by the deploy script.
 - Keep class names, point cloud range, voxel settings, and post-processing config aligned with the exported model.
 - `dataset.data_info_path` is the folder produced by the parent `dataset_convert` action. It must be mounted into the deploy container at the exact path used in the spec.
+- For smoke validation with a barely trained checkpoint, raise `model.post_processing.score_thresh` if TensorRT evaluate or inference becomes CPU-bound. The deploy CPU NMS path filters by score before NMS but does not honor `nms_pre_max_size`, so low thresholds such as `0.1` can leave hundreds of thousands of candidate boxes and look like a hang.
 
 ## Job Chain Mapping
 
@@ -140,3 +141,5 @@ Model-specific notes:
 **INT8 calibration missing:** INT8 builds need an extracted calibration image directory, a writable cache path, and enough images for `cal_batch_size * cal_batches`.
 
 **Mounted paths do not exist:** TAO Deploy checks local paths inside the container. Make sure every path in the spec has a matching Docker mount or job artifact mapping.
+
+**CPU NMS trap on smoke models:** If deploy `evaluate` or `inference` starts but emits no progress after Hydra startup, inspect the checkpoint quality and `model.post_processing.score_thresh`. A one-epoch smoke model can produce many high-scoring boxes; use a stricter threshold for validation-only runs and document the threshold in the report.

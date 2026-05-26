@@ -179,6 +179,8 @@ Minimum 1 GPU(s), recommended 4 GPU(s). 16GB+ (V100 or A100) VRAM per GPU. Point
 
 **Status files matter**: Some PointPillars failures can be followed by `Execution status: PASS` in the entrypoint footer and a Docker exit code of 0. Check `results_dir/status.json` and the expected artifact before marking an action as passed.
 
+**Local results_dir wiring**: For direct local-Docker specs, set the top-level `results_dir` as well as any action-specific `*.results_dir` field. If only `evaluate.results_dir` is set and the top-level field is left blank, evaluate can try to write under `/opt/nvidia/eval` and then still print the generic PASS footer. Treat that as a failed action unless the expected result directory and status/artifact files exist.
+
 ## Spec Param / Parent Model Inference
 
 Model-specific inference mappings belong in this MD file, not in `config.json`. Generated runners should read this section and apply the mappings with SDK helpers before `create_job()`. This mirrors the old microservices `infer_params.py` flow.

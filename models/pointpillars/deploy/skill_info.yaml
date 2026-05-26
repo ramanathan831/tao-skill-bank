@@ -72,3 +72,7 @@ notes:
   by the deploy script.
 - Keep class names, point cloud range, voxel settings, and post-processing config
   aligned with the exported model.
+- For smoke validation with a low-quality checkpoint, raise
+  `model.post_processing.score_thresh` if TensorRT evaluate or inference becomes
+  CPU-bound. The deploy CPU NMS path filters by score before NMS but does not honor
+  `nms_pre_max_size`.
