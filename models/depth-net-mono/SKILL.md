@@ -138,7 +138,8 @@ For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and Tens
 ## Training Requirements
 
 - **Valid `dataset_name` values for mono `data_sources`** (case-insensitive): `ThreeDVLM`, `FSD`, `NvCLIP`, `IssacStereo`, `Crestereo`, `Middlebury`, `NYUDV2`, `NYUDV2Relative`, `RelativeMonoDataset`, `MetricMonoDataset`. `NYUDV2` carries metric depth GT (meters) — pair with `MetricDepthAnything`; `NYUDV2Relative` is the same data with relative-depth conventions — pair with `RelativeDepthAnything`.
-- **Monitoring metric:** val/loss
+- **Monitoring metric:** val/d1, val/loss
+- For AutoML sanity runs on the packaged relative-depth smoke data, use `val/d1` as the primary monitor. `val/loss` can be emitted as `NaN` even when the trainer exits successfully and writes a usable checkpoint, so it is not a reliable AutoML objective unless the run's status metrics show a finite value.
 
 ### Per-Action Dataset Requirements
 
@@ -384,7 +385,7 @@ A 1-epoch run with `metric_depth_head` random init will not reach released-check
 
 **Sanity-run PASS criteria — entrypoint `Execution status: PASS` is not sufficient**:
 
-The trainer's `Execution status: PASS` only signals epoch completion — it does not check for `train_loss = NaN`. A from-scratch metric head with low learning rate can produce `train_loss = NaN` while `val/loss` and the entrypoint PASS remain misleadingly clean. Inspect the `train_loss_step` values in the run log directly; PASS means *only* if the values are finite and decreasing.
+The trainer's `Execution status: PASS` only signals epoch completion — it does not check for `train_loss = NaN`. A from-scratch metric head with low learning rate can produce `train_loss = NaN`; on relative-depth smoke data, `val/loss` can also be `NaN` while finite validation accuracies such as `val/d1` are still emitted. Inspect the `train_loss_step` values in the run log directly; PASS means *only* if the values are finite and decreasing.
 
 Mitigations to try in order if NaN is observed:
 - Increase `dataset.train_dataset.batch_size` to 2 or higher (the per-batch variance computation has unstable degrees-of-freedom at batch_size 1).
