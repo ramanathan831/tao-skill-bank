@@ -68,6 +68,7 @@ S3_EVAL = "s3://bucket/data/eval"
     "train.checkpoint_interval": 10,
     "train.validation_interval": 10,
     "train.num_gpus": 1,
+    "dataset.batch_size": 8,
     "dataset.train_dataset.images_dir": f"{S3_TRAIN}/images.tar.gz",
     "dataset.train_dataset.csv_path": f"{S3_TRAIN}/dataset.csv",
     "dataset.validation_dataset.images_dir": f"{S3_EVAL}/images.tar.gz",
@@ -113,6 +114,7 @@ Optional. Eval dataset uses same format (images + CSV).
 - **model.model_backbone**: Default custom.
 - **model.embedding_vectors**: Number of embedding dimensions. Default 5.
 - **train.optim.lr**: Learning rate. Default 5e-4.
+- **dataset.batch_size**: Training batch size. Must be greater than 1; use `2` or higher for minimal smoke runs.
 - **dataset.num_input**: Number of input images per comparison.
 - **dataset.input_map**: Mapping of input channels / image pairs.
 
@@ -136,6 +138,10 @@ Minimum 1 GPU(s), recommended 1 GPU(s). 8GB+ VRAM per GPU. Siamese networks for 
 ## Error Patterns
 
 **CSV format error**: Ensure dataset.csv has the correct column format for image pair paths and labels.
+
+**Training batch size assertion**: The Optical Inspection dataloader rejects
+`dataset.batch_size: 1` for train. Keep the template default of 8 for normal
+runs, or set `dataset.batch_size: 2` for minimal AutoML smoke validation.
 
 ## Spec Param / Parent Model Inference
 
