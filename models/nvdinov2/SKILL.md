@@ -99,6 +99,10 @@ run representative while avoiding the much slower ViT-Large default.
 ```python
 {
     "inference.checkpoint": "<selected train/AutoML student_epoch_* checkpoint>",
+    "model.backbone.teacher_type": "<same value used for train>",
+    "model.backbone.student_type": "<same value used for train>",
+    "model.backbone.img_size": "<same value used for train>",
+    "train.use_custom_attention": "<same value used for train>",
     "dataset.test_dataset.images_dir": f"{S3_EVAL}/images_test.tar.gz",
 }
 ```
