@@ -212,6 +212,12 @@ Minimum 1 GPU(s), recommended 2 GPU(s). 16GB+ (V100 or A100) VRAM per GPU. RT-DE
 
 **return_interm_indices vs num_feature_levels**: Default is [1,2,3] with num_feature_levels=3. Must be consistent if changed.
 
+**Export shape mismatch**: Keep RT-DETR export and deploy consumer input size at
+the validated `640x640` default unless the model has been trained and checked
+for a different shape. The older packaged `960x544` template shape can fail
+during ONNX tracing with `The size of tensor a (...) must match the size of
+tensor b (...)` in `hybrid_encoder.py` positional embedding addition.
+
 **AutoML metric extraction**: RT-DETR train logs report validation detection metrics as `mAP50`/`Validation mAP50`. Default AutoML train launches must optimize `mAP50` with `direction: maximize`; do not optimize `val_loss` for default model invocations.
 
 **Checkpoint handoff**: For evaluate/export/inference/quantize/distill/resume, use the checkpoint resolver on the best AutoML child job's `results_dir/train/` folder and select the action-appropriate `model_epoch_*.pth` checkpoint. RT-DETR may also write a latest symlink, but that should only be used when a caller explicitly requests latest. Keep `dataset.num_classes`, `dataset.eval_class_ids`, `model.num_queries`, and `model.num_select` consistent with training.

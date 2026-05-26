@@ -11,8 +11,8 @@ dataset:
 inference:
   trt_engine: /results/rtdetr.engine
   conf_threshold: 0.5
-  input_width: 960
-  input_height: 544
+  input_width: 640
+  input_height: 640
   color_map:
     fire_extinguisher: green
     cone: blue

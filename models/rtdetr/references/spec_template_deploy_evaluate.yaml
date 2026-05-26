@@ -15,8 +15,8 @@ dataset:
 evaluate:
   trt_engine: /results/rtdetr.engine
   conf_threshold: 0.0
-  input_width: 960
-  input_height: 544
+  input_width: 640
+  input_height: 640
 model:
   backbone: resnet_50
   num_feature_levels: 3
