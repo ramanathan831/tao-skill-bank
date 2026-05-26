@@ -42,7 +42,13 @@ Generated TAO Core schemas are packaged in `schemas/<action>.schema.json`, with 
 
 This model is AutoML-enabled at the model layer. Before handling any train-stage request, read `references/skill_info.yaml` and resolve the run override from either an explicit `automl_policy` value or the user's workflow request. Use `automl_policy: on` by default and only expose `on` / `off` in new launch prompts. Treat phrases like "turn off AutoML", "disable AutoML", "no HPO", or "plain training" as `automl_policy: off` for this run only. When `automl_policy: on`, `automl_enabled: true`, and both `schemas/train.schema.json` and `references/spec_template_train.yaml` are packaged, route the train action through `tao-skill-bank:tao-automl` by default with this model's `skill_dir`. Preserve workflow/application overrides for datasets, specs, output directories, GPU/platform settings, parent checkpoints, and `automl_policy`. Use direct model training only when `automl_policy: off` or the packaged train schema/template is missing; in the missing-schema case, report that AutoML is enabled but not runnable for this model until schemas are generated.
 
-Non-train actions declared by this model skill (`evaluate`, `inference`, `segment_evaluate`, and `segment_inference`) stay in this model skill. Export, quantize, prune, and retrain are not declared in the current parent `references/skill_info.yaml`; do not present them as runnable parent-skill actions unless the metadata is extended with matching action wiring and schemas. The per-run `automl_policy` override does not change model metadata.
+Non-train actions declared by this model skill (`evaluate`, `inference`,
+`export`, `quantize`, `segment_evaluate`, `segment_inference`,
+`segment_export`, and `segment_quantize`) stay in this model skill. Prune and
+retrain are not declared in the current parent `references/skill_info.yaml`; do
+not present them as runnable parent-skill actions unless the metadata is
+extended with matching action wiring and schemas. The per-run `automl_policy`
+override does not change model metadata.
 
 For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference` for classify and segment variants), read `deploy/SKILL.md` first. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
 Deploy requires an exported ONNX artifact as `parent_model`. If no ONNX artifact exists and the parent skill does not expose an export action, report deploy as blocked instead of inventing an artifact.
@@ -387,9 +393,18 @@ Set `dataset.classify.num_input` to match the number of lighting conditions. The
 
 ## Error Patterns
 
-**Checkpoint not found**: The evaluate and inference actions require a valid checkpoint path. If training output was moved or the results_dir changed, update `evaluate.checkpoint` or `inference.checkpoint` to the correct path. The default template `${results_dir}/train/changenet_model_classify_latest.pth` resolves at runtime -- ensure results_dir is set correctly.
+**Checkpoint not found**: The evaluate, inference, export, and quantize actions
+require a valid checkpoint path. Current TAO 6.25.10 Visual ChangeNet training
+emits epoch/step checkpoint files such as `model_epoch_000_step_00012.pth`;
+it does not necessarily write `changenet_model_classify_latest.pth` or
+`changenet_model_segment_latest.pth`. Use the model-skill `parent_model`
+resolver for downstream actions and `resume_model` for resume, or pass the exact
+epoch/step checkpoint when running local Docker directly.
 
-**CSV format mismatch**: The CSV must have exactly three columns: `input_path`, `object_name`, `label`. Missing columns or extra headers cause a silent failure or KeyError. Verify the CSV has no BOM characters and uses comma delimiters (not semicolons or tabs).
+**CSV format mismatch**: The classify CSV must have exactly four columns:
+`input_path`, `golden_path`, `label`, and `object_name`. Missing columns or
+extra headers cause a silent failure or KeyError. Verify the CSV has no BOM
+characters and uses comma delimiters (not semicolons or tabs).
 
 **Image extension mismatch**: If `dataset.classify.image_ext` is `.jpg` but the actual images are `.png` (or vice versa), the data loader will find zero samples and training will fail with an empty dataset error. Always verify the extension matches your data.
 
