@@ -85,3 +85,5 @@ notes:
   it.
 - Keep `dataset.input_width`, `dataset.input_height`, `dataset.input_channel`, and
   `dataset.character_list_file` aligned with training/export.
+- `gen_trt_engine.tensorrt.calibration.cal_image_dir` must be serialized as a YAML
+  list, even when only one calibration folder is provided.

@@ -209,6 +209,10 @@ Minimum 1 GPU(s), recommended 1 GPU(s). 8GB+ VRAM per GPU. OCR text recognition 
 
 **dataset_convert required**: If using raw images + gt files, run dataset_convert first to produce LMDB format.
 
+**dataset_convert output folder**: Direct `ocrnet dataset_convert` writes `data.mdb` and `lock.mdb` directly under `dataset_convert.results_dir`. Use that folder itself for `dataset.train_dataset_dir`, `dataset.val_dataset_dir`, quantize, and retrain inputs. SDK-backed runs may wrap the same LMDB folder inside job artifact directories; resolve the actual folder containing `data.mdb` and `lock.mdb`.
+
+**GT file BOM**: Some text-recognition GT files can start with a UTF-8 BOM on the first filename. If dataset conversion logs a missing path with an invisible prefix before the first image name, strip the BOM from a local copy of the GT file before conversion or evaluation.
+
 **Character list mismatch**: All characters in training data must be present in the character_list file.
 
 **Export/prune output fields required**: `export.onnx_file` and `prune.pruned_file` must be writable output paths. These are declared in `references/skill_info.yaml` so SDK-backed model runs can create the paths automatically.

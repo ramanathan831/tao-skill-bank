@@ -77,6 +77,7 @@ Direct TAO Launcher spelling is `tao deploy ocrnet gen_trt_engine`, `tao deploy 
 |---|---|---|
 | `gen_trt_engine` | Exported ONNX model | `gen_trt_engine.onnx_file` |
 | `gen_trt_engine` | OCR character list | `dataset.character_list_file` |
+| `gen_trt_engine` | Calibration image folder list, required by schema when present | `gen_trt_engine.tensorrt.calibration.cal_image_dir` |
 | `evaluate` | TensorRT engine | `evaluate.trt_engine` |
 | `evaluate` | Test dataset directory | `evaluate.test_dataset_dir` |
 | `evaluate` | OCR character list | `dataset.character_list_file` |
@@ -106,6 +107,7 @@ Model-specific notes:
 - OCRNet deploy uses the shared experiment spec for all three actions.
 - Use FP16 for the starter-kit TensorRT engine path when the target hardware supports it.
 - Keep `dataset.input_width`, `dataset.input_height`, `dataset.input_channel`, and `dataset.character_list_file` aligned with training/export.
+- `gen_trt_engine.tensorrt.calibration.cal_image_dir` is a YAML list in the deploy schema. Use `[ "/path/to/images" ]` even when only one folder is supplied.
 
 ## Job Chain Mapping
 
