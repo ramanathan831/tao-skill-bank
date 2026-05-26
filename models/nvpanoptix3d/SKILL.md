@@ -222,6 +222,15 @@ running inference.
 2D ONNX exporter and writes `export.onnx_file_2d`. Do not require
 `export.onnx_file_3d` unless the toolkit image adds a 3D exporter.
 
+**Resume stops at the epoch boundary**: A one-epoch smoke run writes an
+end-of-epoch checkpoint such as `model_epoch_000_step_00020.pth`. Resuming with
+`train.num_epochs` set only one epoch beyond the original run can restore the
+checkpoint and stop without producing a new epoch checkpoint. When validating
+actual retraining from an epoch-boundary checkpoint, set `train.num_epochs` high
+enough to advance at least one additional epoch and verify that a new exact
+epoch/step checkpoint such as `model_epoch_001_step_00040.pth` is produced
+before handing the model to evaluate, inference, or export.
+
 ## Spec Param / Parent Model Inference
 
 Model-specific inference mappings belong in this MD file, not in `config.json`. Generated runners should read this section and apply the mappings with SDK helpers before `create_job()`. This mirrors the old microservices `infer_params.py` flow.
