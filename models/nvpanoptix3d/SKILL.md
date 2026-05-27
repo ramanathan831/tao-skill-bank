@@ -47,8 +47,9 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 
 - **Dataset type:** nvpanoptix3d
 - **Formats:** front3d, matterport
-- **Monitoring metric:** train_loss (`direction=minimize`) for AutoML train
-  jobs. For multi-fidelity resume jobs that do not emit a fresh `train_loss`,
+- **Monitoring metric:** train_loss
+- **AutoML direction:** minimize
+- For AutoML train jobs, use `train_loss`. For multi-fidelity resume jobs that do not emit a fresh `train_loss`,
   compare AutoML's carried metric to the source rung job that emitted it.
   Validation status KPIs are `PRQ`, `RSQ`, and `RRQ`; do not use `val_loss`
   unless a specific run is known to emit it.
