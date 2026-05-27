@@ -74,7 +74,10 @@
       "train_spec_template": "references/spec_template_train.yaml"
     },
     {
-      "automl_default_parameters": [],
+      "automl_default_parameters": [
+        "train.optim.text_lr",
+        "train.optim.vision_lr"
+      ],
       "automl_enabled": true,
       "model": "clip",
       "network_arch": "clip",
@@ -295,7 +298,10 @@
       "train_spec_template": "references/spec_template_train.yaml"
     },
     {
-      "automl_default_parameters": [],
+      "automl_default_parameters": [
+        "train.lr",
+        "train.wd"
+      ],
       "automl_enabled": true,
       "model": "mal",
       "network_arch": "mal",
@@ -555,7 +561,9 @@
       "train_spec_template": "references/spec_template_train.yaml"
     },
     {
-      "automl_default_parameters": [],
+      "automl_default_parameters": [
+        "train.learning_rate"
+      ],
       "automl_enabled": true,
       "model": "vila",
       "network_arch": "vila",
