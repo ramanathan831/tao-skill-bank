@@ -88,7 +88,10 @@
         "policy.lora.r",
         "train.epoch",
         "train.optm_decay_type",
-        "train.optm_lr"
+        "train.optm_lr",
+        "train.optm_warmup_epochs",
+        "train.optm_weight_decay",
+        "train.train_batch_per_replica"
       ],
       "automl_enabled": true,
       "model": "cosmos-rl",

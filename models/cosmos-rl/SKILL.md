@@ -320,6 +320,99 @@ absent, stop before runner generation and ask the user to add it to the train
 and validation annotation files or provide corrected direct spec paths. Do not
 start AutoML to discover this inside torchrun.
 
+## AutoML / HPO Notes
+
+When the user asks for "Cosmos Reason 3", "Cosmos3 Nano Reasoner", or
+`nvidia/Cosmos3-Nano-Reasoner`, route the request to this `cosmos-rl` skill and
+override the base model to `nvidia/Cosmos3-Nano-Reasoner` unless the user
+provides a different HuggingFace model id, `hf_model://...` URI, or
+cluster-local snapshot. The packaged template default is still
+`nvidia/Cosmos-Reason2-8B`; do not silently launch a Reason 3 request on
+Reason2 weights. Apply the same base model override consistently to train
+(`policy.model_name_or_path`) and post-training evaluation
+(`model.base_model_path`).
+
+Do not hardcode dataset paths in this reusable model skill. Dataset locations
+must come from the user's current request, a selected dataset profile, or direct
+spec overrides for that run. For a user-provided Cosmos-RL train/eval root, map
+the run inputs to concrete spec keys:
+
+```text
+custom.train_dataset.annotation_path=<train_root>/annotations.json
+custom.train_dataset.media_path=<train_root>/videos
+custom.val_dataset.annotation_path=<eval_root>/annotations.json
+custom.val_dataset.media_path=<eval_root>/videos
+```
+
+When annotation `video` values are relative to a `videos/` subdirectory, use
+direct spec mode for `media_path` rather than plain dataset-root mode. If media
+is packaged as `videos.tar.gz`, use the extracted `videos/` directory when
+present, or the archive only if the selected runtime extracts it before dataset
+lookup. If the original annotation files do not contain `video_fps`, create
+patched annotation copies under the run workspace and point
+`custom.*.annotation_path` at those copies; do not edit the user's source dataset
+in place.
+
+If the user's objective names `accuracy` or an accuracy target such as
+`>=90%`, optimize an evaluation metric, not `val/avg_loss`. Use AutoMLRunner's
+`eval_fn` to run the model skill's `evaluate` action on the validation dataset
+after each recommendation, with `task=""`, `model.enable_lora=true`, and
+`model.base_model_path` set to the same base model used for training. Return
+the evaluator's `accuracy` value and set `direction="maximize"`. Use
+`val/avg_loss` only when the user accepts a proxy metric or no task metric is
+available.
+
+For the evaluator prompt "search over learning rate, batch size, number of
+epochs, weight decay, warmup ratio", map the requested knobs to:
+
+```text
+learning rate     -> train.optm_lr
+batch size        -> train.train_batch_per_replica
+number of epochs  -> train.epoch
+weight decay      -> train.optm_weight_decay
+warmup ratio      -> train.optm_warmup_epochs, computed as round(train.epoch * ratio)
+```
+
+The schema exposes `train.optm_warmup_epochs`, not a native warmup-ratio field.
+If the evaluator requires a ratio to be preserved exactly, stop and report that
+the current Cosmos-RL schema needs a first-class warmup-ratio parameter.
+
+Example custom ranges for the Cosmos Reason 3 AutoML evaluation prompt:
+
+```python
+automl_hyperparameters=[
+    "train.optm_lr",
+    "train.train_batch_per_replica",
+    "train.epoch",
+    "train.optm_weight_decay",
+    "train.optm_warmup_epochs",
+]
+custom_param_ranges={
+    "train.optm_lr": {"valid_min": 1e-5, "valid_max": 1e-3},
+    "train.train_batch_per_replica": {
+        "value_type": "ordered_int",
+        "valid_options": [8, 16, 32],
+    },
+    "train.epoch": {
+        "value_type": "ordered_int",
+        "valid_options": [3, 5, 10],
+    },
+    "train.optm_weight_decay": {"valid_min": 0.0, "valid_max": 0.1},
+    "train.optm_warmup_epochs": {
+        "value_type": "ordered_int",
+        "valid_options": [0, 1, 2, 3, 4, 5],
+    },
+}
+```
+
+Keep `train.train_policy.mini_batch=1` unless the user explicitly changes it,
+so all listed batch sizes remain divisible by the micro-batch size. For small
+datasets, also cap `train.train_batch_per_replica` so it does not exceed
+`num_train_samples / policy.parallelism.dp_shard_size`.
+For integer knobs with discrete choices, include `value_type: "ordered_int"`
+with `valid_options`; integer `valid_options` alone are ignored by the current
+Bayesian sampler.
+
 ## Important Parameters
 
 ### Training Loop
@@ -332,7 +425,7 @@ start AutoML to discover this inside torchrun.
 - **train.output_dir**: Output directory for checkpoints and logs.
 
 ### Model & Policy
-- **policy.model_name_or_path**: HuggingFace model path. Must be `nvidia/Cosmos-Reason2-8B`.
+- **policy.model_name_or_path**: HuggingFace model path. The packaged default is `nvidia/Cosmos-Reason2-8B`. For a Cosmos Reason 3 evaluation, override this with `nvidia/Cosmos3-Nano-Reasoner` or the exact user-provided Reason 3 `hf_model://...` URI or cluster-local snapshot path; do not rely on the Reason2 default.
 - **policy.model_max_length**: Context window size. Must be 40960 for video SFT. Affected by FPS, resolution, and prompt length.
 - **policy.model_gradient_checkpointing**: Save VRAM by recomputing activations. Keep true for large models.
 

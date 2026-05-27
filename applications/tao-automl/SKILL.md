@@ -856,7 +856,8 @@ Exceptions from `eval_fn` are caught and logged — the runner falls back to the
 
 ## Step 4: Monitor Progress
 
-`runner.run()` blocks until all recommendations complete. Use callbacks to report progress to the user:
+`runner.run()` blocks until all recommendations complete. Use callbacks for
+live launch/result events from the process that owns the runner:
 
 ```python
 def on_rec(rec):
@@ -867,6 +868,30 @@ def on_result(rec, metric, status):
 
 result = runner.run(..., on_recommendation=on_rec, on_result=on_result)
 ```
+
+For status questions from a separate shell, agent turn, or detached monitor,
+default to the structured AutoML state instead of reading launcher logs:
+
+```python
+from tao_automl import query_status
+
+status = query_status("<full_workspace_path>/run_<timestamp>")
+```
+
+Use `status["progress"]`, `status["best"]`, `status["recommendations"]`, and
+`status["active_jobs"]` as the source of truth for recommendation ids, specs,
+metrics, success/failure/pending counts, and active TAO job ids. The state comes
+from `<workspace>/.automl/controller/`, `<workspace>/.automl/best_rec/`,
+`<workspace>/.automl/brain/`, and `<workspace>/active_jobs.json`.
+
+Do not comb through launcher logs for normal AutoML status. Logs are fallback
+debug material only: use them when the user explicitly asks for logs, when
+`query_status()` reports no usable state, when diagnosing a failed child job, or
+when checking metric-extractor / LLM-client warnings that are not represented in
+the structured state. If live backend queue state is needed, join the active TAO
+job ids from `query_status()["active_jobs"]` with the selected SDK's job status
+API or the platform scheduler (`squeue` for SLURM); do not derive recommendation
+results from logs.
 
 Each rec takes 10–90 minutes depending on model size, dataset, epochs, and checkpoint save cost. Don't assume failure during long uploads.
 
@@ -978,7 +1003,9 @@ Model-specific notes do not belong in this AutoML skill. For every requested `ne
 
 ## Querying Experiment Status
 
-Use `query_status()` to check experiment progress from a separate process — no need to read JSON files or parse logs.
+Use `query_status()` to check experiment progress from a separate process. This
+is the default status path for AutoML; do not parse launcher logs unless the user
+asks for log output or you are debugging missing/failed structured state.
 
 ```python
 from tao_automl import query_status

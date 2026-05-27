@@ -3,6 +3,9 @@
     "policy.lora.r",
     "policy.lora.lora_alpha",
     "train.optm_lr",
+    "train.train_batch_per_replica",
+    "train.optm_weight_decay",
+    "train.optm_warmup_epochs",
     "train.optm_decay_type",
     "policy.lora.lora_dropout",
     "train.epoch"
@@ -909,8 +912,8 @@
           "automl_enabled": true,
           "default": 1e-06,
           "description": "Learning rate for optimizer. Can be a single float (applied to whole model) or a list of 2-4 floats [llm_lr, vision_lr, projector_lr, lm_head_lr] for separate learning rates for each model part during full SFT finetuning. List length must match number of model parts (set via num_model_parts).",
-          "maximum": Infinity,
-          "minimum": 0.0,
+          "maximum": 0.001,
+          "minimum": 1e-06,
           "title": "Learning rate"
         },
         "optm_min_lr_factor": {
@@ -940,18 +943,20 @@
               "type": "number"
             }
           ],
+          "automl_enabled": true,
           "default": 0,
           "depends_on": "train.epoch",
           "description": "Number of warmup epochs for learning rate scheduler (epochs / 2).",
           "math_cond": "/ 2",
-          "maximum": Infinity,
+          "maximum": 5,
           "minimum": 0,
           "title": "Warmup epochs"
         },
         "optm_weight_decay": {
+          "automl_enabled": true,
           "default": 0.01,
           "description": "Weight decay.",
-          "maximum": Infinity,
+          "maximum": 0.1,
           "minimum": 0.0,
           "title": "Weight decay",
           "type": "float"
@@ -995,9 +1000,10 @@
           "type": "int"
         },
         "train_batch_per_replica": {
+          "automl_enabled": true,
           "default": 1,
           "description": "The number of batches per replica during training.",
-          "maximum": Infinity,
+          "maximum": 32,
           "minimum": 1,
           "popular": true,
           "title": "Train batch per replica",
