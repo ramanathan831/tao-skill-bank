@@ -84,6 +84,7 @@ S3_EVAL = "s3://bucket/data/eval"
 {
     "dataset.val_data_sources": f"{S3_EVAL}/images_val.tar.gz",
     "evaluate.checkpoint": "<selected train/AutoML checkpoint>",
+    "train.stage": "finetune",
 }
 ```
 
