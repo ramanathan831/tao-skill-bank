@@ -36,7 +36,7 @@ Non-train actions such as `inference`, `export`, and deploy flows stay in this m
 
 - **Dataset type:** image_classification
 - **Formats:** ssl
-- **Monitoring metric:** train_loss_epoch
+- **Monitoring metric:** train_loss
 
 ### Per-Action Dataset Requirements
 
@@ -163,10 +163,11 @@ inference action does not run on that engine.
 `export`, `inference`, `train`, and `default_specs` for NvDINOv2. Do not launch
 or advertise a standalone `nvdinov2 distill` action.
 
-**AutoML metric not found**: TAO's Lightning progress line reports the final
-training scalar as `train_loss_epoch`. Use `train_loss_epoch` with minimize
-direction for AutoML selection; log parsers may also map `train_loss` to this
-epoch scalar.
+**AutoML metric not found**: TAO's status KPI reports the final training scalar
+as `train_loss`. Use `train_loss` with minimize direction for AutoML selection.
+Some Lightning progress lines also render the same scalar as
+`train_loss_epoch`; treat that as a fallback alias only, not the primary
+monitoring metric.
 
 **Slow convergence**: SSL needs many epochs. Default 10 is for quick testing; production runs typically use 100+ epochs.
 
