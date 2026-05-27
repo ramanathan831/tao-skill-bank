@@ -248,6 +248,16 @@ passwordless SSH to at least one login host and remote `test -e` checks for
 each required annotation/media path. If preflight fails, stop with remediation
 steps instead of creating a runner that will immediately fail.
 
+If the selected model skill's Per-Action Dataset Requirements or Typical Spec
+Overrides show train/evaluate/inference inputs that come from a prior
+`dataset_convert` action, run that conversion before calling
+`AutoMLRunner.run`. Use the `dataset_convert` action's own `container_image`
+when it overrides the model default, persist the conversion output under the
+current run's results root, verify every required converted artifact named by
+the model skill exists, and pass those current-run converted paths in
+`spec_overrides`. Do not reuse stale conversion paths from another AutoML
+algorithm/run folder.
+
 Also verify container image confirmation using the shared launch preflight.
 AutoML launches real train jobs for each recommendation, so the confirmed train
 image must be passed into `AutoMLRunner.run(..., image=chosen_image, ...)` or
