@@ -93,6 +93,8 @@ actions:
     command: visual_changenet train -e {config_path}
     config_format: yaml
     inputs:
+      model.backbone.pretrained_backbone_path:
+        type: file
       dataset.segment.root_dir:
         type: folder
       train.resume_training_checkpoint_path:
@@ -128,34 +130,6 @@ actions:
         type: folder
     upload_excludes:
     - inputs/
-  segment_export:
-    command: visual_changenet export -e {config_path}
-    config_format: yaml
-    inputs:
-      dataset.segment.root_dir:
-        type: folder
-      export.checkpoint:
-        type: file
-    outputs:
-      results_dir:
-        type: folder
-      export.onnx_file:
-        type: file
-    upload_excludes:
-    - inputs/
-  segment_quantize:
-    command: visual_changenet quantize -e {config_path}
-    config_format: yaml
-    inputs:
-      dataset.segment.root_dir:
-        type: folder
-      quantize.model_path:
-        type: file
-    outputs:
-      results_dir:
-        type: folder
-    upload_excludes:
-    - inputs/
 spec_params:
   train:
     results_dir: output_dir
@@ -182,13 +156,6 @@ spec_params:
   segment_inference:
     results_dir: output_dir
     inference.checkpoint: parent_model
-  segment_export:
-    results_dir: output_dir
-    export.checkpoint: parent_model
-    export.onnx_file: create_onnx_file
-  segment_quantize:
-    results_dir: output_dir
-    quantize.model_path: parent_model
 pretrained_models:
   classify:
     # HF source for staging; the spec field accepts only LOCAL paths. Download

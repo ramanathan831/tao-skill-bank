@@ -34,6 +34,13 @@ shutil.copy(hf_hub_download('nvidia/C-RADIOv2-B', 'model.safetensors'), '<worksp
 
 Mount it into the container (`-v <workspace>/backbone/c_radio_v2_b.safetensors:/data/pretrained_models/C-RADIOv2_B.safetensors`) and set the spec `model.backbone.pretrained_backbone_path` to the container path. `HF_TOKEN` is only needed at staging time, not at training time.
 
+Segment specs use `model.backbone.type: vit_large_nvdinov2` and the NVDINOv2
+checkpoint family. Keep the checkpoint architecture aligned with the backbone
+type: `NV_DINOV2_518_16_256.ckpt` is compatible with the packaged segment
+templates, but it must not be used with `fan_small_12_p4_hybrid`. If you switch
+to a different segment backbone, use a matching checkpoint or leave
+`model.backbone.pretrained_backbone_path` empty for default initialization.
+
 ## Dataclass Schemas
 
 Generated TAO Core schemas are packaged in `schemas/<action>.schema.json`, with `schemas/manifest.json` listing available actions. Each generated schema also emits `references/spec_template_<action>.yaml` from the schema top-level `default` field. AutoML enablement is declared at the model layer in `references/skill_info.yaml` via `automl_enabled`. Runnable AutoML still requires `schemas/train.schema.json` and `references/spec_template_train.yaml` to exist and parse. Use the packaged train schema for `automl_default_parameters`, `automl_disabled_parameters`, defaults, min/max bounds, enums, option weights, math conditions, dependencies, and popular parameters. Do not expect `~/tao-core` at runtime; maintainers regenerate schemas/templates before packaging the skill bank.
@@ -43,12 +50,13 @@ Generated TAO Core schemas are packaged in `schemas/<action>.schema.json`, with 
 This model is AutoML-enabled at the model layer. Before handling any train-stage request, read `references/skill_info.yaml` and resolve the run override from either an explicit `automl_policy` value or the user's workflow request. Use `automl_policy: on` by default and only expose `on` / `off` in new launch prompts. Treat phrases like "turn off AutoML", "disable AutoML", "no HPO", or "plain training" as `automl_policy: off` for this run only. When `automl_policy: on`, `automl_enabled: true`, and both `schemas/train.schema.json` and `references/spec_template_train.yaml` are packaged, route the train action through `tao-skill-bank:tao-automl` by default with this model's `skill_dir`. Preserve workflow/application overrides for datasets, specs, output directories, GPU/platform settings, parent checkpoints, and `automl_policy`. Use direct model training only when `automl_policy: off` or the packaged train schema/template is missing; in the missing-schema case, report that AutoML is enabled but not runnable for this model until schemas are generated.
 
 Non-train actions declared by this model skill (`evaluate`, `inference`,
-`export`, `quantize`, `segment_evaluate`, `segment_inference`,
-`segment_export`, and `segment_quantize`) stay in this model skill. Prune and
-retrain are not declared in the current parent `references/skill_info.yaml`; do
-not present them as runnable parent-skill actions unless the metadata is
-extended with matching action wiring and schemas. The per-run `automl_policy`
-override does not change model metadata.
+`export`, `quantize`, `segment_evaluate`, and `segment_inference`) stay in this
+model skill. Do not present `segment_export` or `segment_quantize` as runnable
+parent-skill actions until matching entries are packaged in
+`schemas/manifest.json`. Prune and retrain are not declared in the current
+parent `references/skill_info.yaml`; do not present them as runnable parent-skill
+actions unless the metadata is extended with matching action wiring and schemas.
+The per-run `automl_policy` override does not change model metadata.
 
 For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference` for classify and segment variants), read `deploy/SKILL.md` first. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
 Deploy requires an exported ONNX artifact as `parent_model`. If no ONNX artifact exists and the parent skill does not expose an export action, report deploy as blocked instead of inventing an artifact.
@@ -238,8 +246,12 @@ When running without the TAO SDK (local docker), resolve the TAO pyt image from 
 ```bash
 set -a; source <workspace>/.env; set +a
 
-# Resolve the TAO pyt container URI from versions.yaml (single source of truth).
-TAO_PYT_IMAGE=$("${TAO_SKILL_BANK_PATH:?}/scripts/resolve_versions_key.py" images.tao_toolkit.pyt)
+# Resolve the TAO pyt container URI from versions.yaml. The awk fallback keeps
+# local Docker usable on hosts where the helper's PyYAML dependency is missing.
+TAO_PYT_IMAGE=$(
+    "${TAO_SKILL_BANK_PATH:?}/scripts/resolve_versions_key.py" images.tao_toolkit.pyt 2>/dev/null ||
+    awk '/^[[:space:]]*pyt:/{print $2; exit}' "${TAO_SKILL_BANK_PATH:?}/versions.yaml"
+)
 
 docker run --rm --gpus all --shm-size=8g \
     -e NGC_API_KEY="${NGC_API_KEY}" \
@@ -250,7 +262,7 @@ docker run --rm --gpus all --shm-size=8g \
     -v <workspace>/kpi:/data/datasets/NV_PCB_Siamese/kpi \
     -v <workspace>/augmentation/backbone/c_radio_v2_b.safetensors:/data/pretrained_models/C-RADIOv2_B.safetensors \
     "$TAO_PYT_IMAGE" \
-    visual_changenet <action> -e /data/workspace/specs/<spec>.yaml \
+    visual_changenet <train|evaluate|inference|export|quantize> -e /data/workspace/specs/<spec>.yaml \
     [key=value overrides...]
 ```
 
@@ -276,7 +288,13 @@ Uses actions: `train`, `evaluate`, `inference`. Defaults template: `references/s
 
 ### Segment
 
-Uses actions: `segment_train`, `segment_evaluate`, `segment_inference`. Defaults template: `references/spec_template_segment.yaml`.
+Uses skill action names `segment_train`, `segment_evaluate`, and
+`segment_inference`. When invoking local Docker directly, run TAO CLI subcommands
+`train`, `evaluate`, and `inference` with `task: segment` in the spec. The
+schema-driven action templates are `references/spec_template_segment_train.yaml`,
+`references/spec_template_segment_evaluate.yaml`, and
+`references/spec_template_segment_inference.yaml`; the compact direct-Docker
+example template is `references/spec_template_segment.yaml`.
 
 Segmentation requires compiling custom CUDA ops (`MultiScaleDeformableAttention`) on first run, which takes ~5 minutes. The ViT adapter backbone uses these for multi-scale feature extraction.
 
@@ -423,6 +441,14 @@ require `model.backbone.type: c_radio_v2_vit_base_patch16_224`,
 different override set.
 
 **Training does not converge**: Check that `train.classify.cls_weight` is appropriate for your class distribution. If defects are very rare (<1% of samples), increase the defective class weight. Also verify that `fpratio_sampling` is not too low, which would under-sample the majority class.
+
+**Backbone dimension mismatch** (segment only): If the log shows size mismatch
+errors while loading the backbone, such as a checkpoint tensor with shape
+`[1024, 1024]` being copied into a model tensor with shape `[384, 384]`, the
+checkpoint does not match `model.backbone.type`. Keep the packaged
+`vit_large_nvdinov2` segment templates when using `NV_DINOV2_518_16_256.ckpt`,
+or clear `model.backbone.pretrained_backbone_path` to use default
+initialization.
 
 **OSError: Could not load MultiScaleDeformableAttention...so** (segment only): CUDA ops not compiled. The ViT adapter backbone requires custom CUDA kernels that must be compiled on first run. Run `python setup.py develop` inside the container (~5 min compilation). This only applies to the segmentation task.
 

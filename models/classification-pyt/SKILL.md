@@ -185,9 +185,10 @@ Minimum 1 GPU(s), recommended 2 GPU(s). 16GB+ (V100 or A100) VRAM per GPU. Class
 
 **Empty class directory**: Every class in classes.txt must have at least one image in the corresponding subdirectory.
 
-**Distill scheduler default**: The 7.0 PyT distiller does not assign a scheduler
-interval for `train.optim.policy: linear`. Use `train.optim.policy: step` for
-distill specs unless the container implementation is updated.
+**Distill scheduler default**: The bundled distill template and schema use
+`train.optim.policy: step`. Keep that setting for distill specs unless the
+container implementation is updated; the 7.0 PyT distiller does not assign a
+scheduler interval for `train.optim.policy: linear`.
 
 **Checkpoint handoff**: Training produces `model_epoch_*.pth` checkpoints and a
 `classifier_model_latest.pth` symlink. For evaluate, inference, export, quantize,
