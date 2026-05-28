@@ -37,7 +37,6 @@
         "./models/tao-finetune-cosmos-reason",
         "./models/tao-train-deformable-detr",
         "./models/tao-train-deformable-detr/deploy",
-
         "./models/tao-train-fast-foundation-stereo",
         "./models/tao-train-depth-anything-v2",
         "./models/tao-train-depth-anything-v2/deploy",

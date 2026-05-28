@@ -21,26 +21,31 @@ That's it — no `git clone`, no `pip install`. The `tao-skills` plugin bundles 
 
 Codex setup has **two independent pieces** — the plugin (which surfaces the skills to Codex) and `AGENTS.md` (which loads the agent identity). You need both for parity with Claude Code.
 
-#### 1. Install the plugin
+#### One command (recommended)
 
-**Option A — VS Code Codex extension (recommended for VS Code users).** Open the extension's plugin UI, add the marketplace URL, and install `tao-skill-bank` — all from the UI. Most discoverable, one click.
+```bash
+curl -fsSL https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-skills-external/-/raw/main/scripts/install-codex-agents.sh | bash
+```
 
-**Option B — CLI + TUI.** Add the marketplace from the shell, then install the plugin from inside the Codex TUI (no CLI `install` subcommand exists yet — [openai/codex#17431](https://github.com/openai/codex/issues/17431)):
+…or, if you've already cloned the repo, `scripts/install-codex-agents.sh`. The script registers the marketplace, installs `tao-skill-bank`, and copies `AGENTS.md` to `~/.codex/AGENTS.md` so the TAO identity loads in every Codex session. It's idempotent and backs up any existing `~/.codex/AGENTS.md` before overwriting. Override the source with `TAO_SKILL_BANK_MARKETPLACE=…` and `TAO_SKILL_BANK_REF=…` to use a fork or pinned ref.
+
+#### Manual steps
+
+If you'd rather drive each step yourself:
+
+**1. Install the plugin.** Either use the VS Code Codex extension's plugin UI, or from the CLI:
 
 ```bash
 codex plugin marketplace add ssh://git@gitlab-master.nvidia.com:12051/nvidia-tao-toolkit/tao-skills-external.git
-codex                # opens TUI
-/plugins             # then: select tao-skill-bank → Install plugin
+codex plugin add tao-skill-bank@tao-local-plugins
 ```
 
-Either path installs the bundle to `~/.codex/plugins/cache/<marketplace>/tao-skill-bank/<version>/` (the `<marketplace>` segment comes from the `name` field in `.agents/plugins/marketplace.json`).
+This installs the bundle to `~/.codex/plugins/cache/tao-local-plugins/tao-skill-bank/<version>/` (the `tao-local-plugins` segment comes from the `name` field in `.agents/plugins/marketplace.json`).
 
-#### 2. Load the agent identity (`AGENTS.md`)
+**2. Load the agent identity (`AGENTS.md`).** The plugin install does **not** auto-load [`AGENTS.md`](AGENTS.md) — Codex's `AGENTS.md` discovery walks down from the project root, not into the plugin cache (see [openai/codex#16430](https://github.com/openai/codex/issues/16430) for why plugin-bundled `SessionStart` hooks don't fix this yet). Pick one:
 
-The plugin install does **not** auto-load [`AGENTS.md`](AGENTS.md) — Codex's `AGENTS.md` discovery walks down from the project root, not into the plugin cache (see [openai/codex#16430](https://github.com/openai/codex/issues/16430) for why plugin-bundled `SessionStart` hooks don't fix this yet). Pick one:
-
-- **Per-project (preferred)**: `git clone` this repo and launch `codex` from inside the clone. Codex auto-loads `AGENTS.md` from the project root per the [agents.md](https://agents.md/) cross-runtime spec.
-- **Globally** (one-time copy): `cp ~/.codex/plugins/cache/<marketplace>/tao-skill-bank/<version>/AGENTS.md ~/.codex/AGENTS.md`. The identity then loads in every Codex session, anywhere.
+- **Per-project**: `git clone` this repo and launch `codex` from inside the clone. Codex auto-loads `AGENTS.md` from the project root per the [agents.md](https://agents.md/) cross-runtime spec.
+- **Globally** (one-time copy): `cp ~/.codex/plugins/cache/tao-local-plugins/tao-skill-bank/<version>/AGENTS.md ~/.codex/AGENTS.md`. The identity then loads in every Codex session, anywhere.
 
 Once Codex starts honoring plugin-bundled hooks, the identity will install automatically alongside the plugin — until then, this manual step is needed.
 
@@ -177,6 +182,7 @@ tao-skills-external/
 ├── scripts/
 │   ├── validate-skills.sh            # CI validator
 │   ├── verify-standalone.sh          # end-to-end smoke (docker-only path)
+│   ├── install-codex-agents.sh       # one-shot Codex install: marketplace + plugin + AGENTS.md
 │   └── migrate-to-version-keys.py    # one-shot: literal nvcr.io paths → versions.yaml keys
 ├── applications/
 ├── data/

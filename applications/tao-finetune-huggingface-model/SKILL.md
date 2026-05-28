@@ -238,7 +238,6 @@ doesn't fail with a bare `docker: command not found`:
 ```bash
 TAO_SKILL_BANK_ROOT="${TAO_SKILL_BANK_PATH:-${TAO_SKILL_BANK_ROOT:-$PWD}}"
 SETUP_SCRIPT="${TAO_SKILL_BANK_ROOT}/platform/tao-setup-nvidia-gpu-host/scripts/setup-nvidia-gpu-host.sh"
-[ -x "$SETUP_SCRIPT" ] || SETUP_SCRIPT="${TAO_SKILL_BANK_ROOT}/skills/tao-setup-nvidia-gpu-host/scripts/setup-nvidia-gpu-host.sh"
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "MISSING: docker is required for Step 1's containerized probe."
@@ -444,7 +443,6 @@ run actually needs.
 # 1) GPU host runtime — delegated to tao-setup-nvidia-gpu-host
 TAO_SKILL_BANK_ROOT="${TAO_SKILL_BANK_PATH:-${TAO_SKILL_BANK_ROOT:-$PWD}}"
 SETUP_SCRIPT="${TAO_SKILL_BANK_ROOT}/platform/tao-setup-nvidia-gpu-host/scripts/setup-nvidia-gpu-host.sh"
-[ -x "$SETUP_SCRIPT" ] || SETUP_SCRIPT="${TAO_SKILL_BANK_ROOT}/skills/tao-setup-nvidia-gpu-host/scripts/setup-nvidia-gpu-host.sh"
 
 bash "$SETUP_SCRIPT" --backend docker --check-only || {
   echo "MISSING: TAO GPU host runtime not ready."
