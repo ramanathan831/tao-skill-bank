@@ -423,6 +423,10 @@ sbatch/`squeue`/`sacct` plumbing handled for you, run-folder durability via
 either pre-stage the data on Lustre or call `fsspec` / `huggingface-cli`
 yourself).
 
+When the SDK is in scope, read `tao-skill-bank:tao-run-platform` for the `SlurmSDK`
+kwarg reference (`num_nodes`, `partition`, `account`), `build_entrypoint`,
+and `ActionWorkflow`.
+
 > **Use Lustre, not S3, for SLURM job inputs.** SLURM's scheduler enforces a
 > GPU-idle timeout: the GPU allocation starts the moment your job is
 > dispatched, and a long `s3://` download at the top of the script will burn
