@@ -185,7 +185,7 @@ for root, dirs, files in os.walk('.'):
             continue
         # Application skills that are SDK-orchestrated (AutoML, etc.) are exempt.
         # Add new ones here only after confirming they cannot run without the SDK.
-        if path in ('./applications/tao-automl/SKILL.md',):
+        if path in ('./applications/tao-run-automl/SKILL.md',):
             continue
         # Models may have an "Optional: running via the TAO SDK" section
         is_model = path.startswith('./models/')
