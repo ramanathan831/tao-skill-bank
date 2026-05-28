@@ -58,7 +58,7 @@ The `.env.example` is also at the [repo root](.env.example) for direct reference
 
 ### When does the SDK get installed?
 
-The TAO SDK is **opt-in** and installed lazily. Most skills (any model or data skill) run with just `docker run` and need no Python. Only `platform/lepton`, `platform/tao-sdk`, the managed-platform skills (slurm/kubernetes/docker), and `applications/tao-automl` require the SDK; their Preflight blocks tell the agent to run a `pip install "nvidia-tao-sdk[<platform>] @ git+https://..."` direct-URL the first time the skill is invoked. (The SDK isn't on public PyPI yet — see each skill's Preflight for the exact command.)
+The TAO SDK is **opt-in** and installed lazily. Most skills (any model or data skill) run with just `docker run` and need no Python. Only `platform/tao-run-on-lepton` (`tao-run-on-lepton`), `platform/tao-run-platform` (`tao-run-platform`), the managed-platform skills (slurm/kubernetes/docker), and `applications/tao-run-automl` (`tao-run-automl`) require the SDK; their Preflight blocks tell the agent to run a `pip install "nvidia-tao-sdk[<platform>] @ git+https://..."` direct-URL the first time the skill is invoked. (The SDK isn't on public PyPI yet — see each skill's Preflight for the exact command.)
 
 ### Updating
 
@@ -97,26 +97,26 @@ docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-smi
 echo "$NGC_KEY" | docker login nvcr.io -u '$oauthtoken' --password-stdin
 ```
 
-If any check fails, see `platform/docker/SKILL.md` for install/troubleshooting.
+If any check fails, see `platform/tao-run-on-docker/SKILL.md` for install/troubleshooting.
 
 ### Smoke test
 
 In a Claude Code session with the plugin installed, ask:
 
-> *"Run visual-changenet inference on this sample image: /tmp/sample.png. Write results to /tmp/vcn-out/."*
+> *"Run Visual ChangeNet inference on this sample image: /tmp/sample.png. Write results to /tmp/vcn-out/."*
 
-The agent will read `models/visual-changenet/SKILL.md` (and `references/skill_info.yaml` if present), construct a `docker run --gpus all ...` invocation, and execute via Bash. **No Python needed.** No SDK install. Just docker + the plugin.
+The agent will read `models/tao-train-visual-changenet/SKILL.md` (skill name `tao-train-visual-changenet`, plus its `references/skill_info.yaml` if present), construct a `docker run --gpus all ...` invocation, and execute via Bash. **No Python needed.** No SDK install. Just docker + the plugin.
 
-For more complex workflows (iterative fine-tuning with synthetic data augmentation), see `applications/workflow-deft-aoi-loop/SKILL.md`.
+For more complex workflows (iterative fine-tuning with synthetic data augmentation), see `applications/tao-run-deft-aoi/SKILL.md` (`tao-run-deft-aoi`).
 
 ## What's in the bank
 
 | Layer | Purpose | Examples |
 |---|---|---|
-| `models/` | Network-centric skills: containers, commands, data formats, checkpoints | `cosmos-rl`, `visual-changenet`, `clip`, `vila`, `dino`, `segformer`, … |
-| `data/` | Data preparation, analysis, and enhancement | `knn-mining`, `siglip-embed`, `nim-embedding`, `vcn-*`, `deft-aoi-*` |
-| `platform/` | Where and how jobs run | `docker` (conventions), `brev` (instance-based GPU), `lepton` (DGX Cloud API), `slurm` (remote SLURM cluster), `local-docker` (local Docker daemon), `tao-sdk` (optional Python) |
-| `applications/` | End-to-end workflows composing the layers above | `workflow-deft-aoi-loop`, `deft-vcn-aoi`, `rca-changenet`, `normal-train`, `tao-automl` |
+| `models/` | Network-centric skills: containers, commands, data formats, checkpoints | `tao-finetune-cosmos-reason`, `tao-train-visual-changenet`, `tao-finetune-clip`, `tao-train-dino`, `tao-train-segformer`, … |
+| `data/` | Data preparation, analysis, and enhancement | `tao-mine-aoi-images`, `tao-analyze-gaps-visual-changenet`, `tao-route-visual-changenet-samples`, `tao-analyze-gaps-vlm-bcq`, `tao-convert-dataset-format`, `tao-validate-dataset-format`, `tao-generate-image-grounding`, `tao-generate-referring-expressions`, `tao-generate-video-reasoning-annotations` |
+| `platform/` | Where and how jobs run | `tao-run-on-docker` (conventions), `tao-run-on-brev` (instance-based GPU), `tao-run-on-lepton` (DGX Cloud API), `tao-run-on-slurm` (remote SLURM cluster), `tao-run-on-kubernetes` (k8s), `tao-run-on-local-docker` (local Docker daemon), `tao-run-platform` (optional Python SDK) |
+| `applications/` | End-to-end workflows composing the layers above | `tao-run-deft-aoi`, `tao-run-automl-deft-pipeline`, `tao-analyze-changenet-rca`, `tao-train-single-step`, `tao-run-automl`, `tao-finetune-huggingface-model`, `tao-port-huggingface-model`, `tao-run-inference-service` |
 
 Each skill is a directory with `SKILL.md` (agent-readable instructions). Optional `references/skill_info.yaml` provides structured metadata for SDK-orchestrated execution; optional `scripts/` bundles supporting code.
 
@@ -138,7 +138,7 @@ pip install "nvidia-tao-sdk[docker] @ $REPO"          # + local Docker
 pip install "nvidia-tao-sdk[all] @ $REPO"             # all platforms
 ```
 
-You don't have to pre-install — the relevant skills (`platform/lepton`, `platform/tao-sdk`, `applications/tao-automl`) run a Preflight that prompts the agent to install the right extra on first use. If you're running locally on your own GPU or on Brev via `brev exec`, you don't need the SDK at all.
+You don't have to pre-install — the relevant skills (`tao-run-on-lepton`, `tao-run-platform`, `tao-run-automl`) run a Preflight that prompts the agent to install the right extra on first use. If you're running locally on your own GPU or on Brev via `brev exec`, you don't need the SDK at all.
 
 ## Contributing a new skill
 
@@ -197,9 +197,9 @@ PRs must pass all three before merge.
 
 ## Design rules
 
-- **Docker-native first.** Every model/data skill should be runnable with just `docker run` + the contents of `SKILL.md`. SDK invocation is an optional enhancement, documented in `platform/tao-sdk`.
-- **Generic docker conventions live once** in `platform/docker`. Other skills defer to it for `--gpus`, NGC auth, mount patterns, data-root relocation, etc.
-- **No SDK leaks in model/data/application skills.** `tao_sdk`-specific imports, `sdk.create_job` calls, and credential-file references belong only in `platform/tao-sdk` and (for platform-specific reasons) `platform/lepton`.
+- **Docker-native first.** Every model/data skill should be runnable with just `docker run` + the contents of `SKILL.md`. SDK invocation is an optional enhancement, documented in `platform/tao-run-platform`.
+- **Generic docker conventions live once** in `platform/tao-run-on-docker`. Other skills defer to it for `--gpus`, NGC auth, mount patterns, data-root relocation, etc.
+- **No SDK leaks in model/data/application skills.** `tao_sdk`-specific imports, `sdk.create_job` calls, and credential-file references belong only in `platform/tao-run-platform` and (for platform-specific reasons) `platform/tao-run-on-lepton`.
 - **Minimum-viable skill is `SKILL.md` only.** Add `references/skill_info.yaml` only when SDK orchestration or multi-action structured metadata earn their keep.
 - **One canonical location per skill.** Model, data, platform, and application skills live only in their layer directories; `skills/` is for Codex helper/router skills, not mirrored copies.
 - **Prefer portability over cleverness.** A skill that works across three coding agents is more valuable than a skill that works perfectly in one.
