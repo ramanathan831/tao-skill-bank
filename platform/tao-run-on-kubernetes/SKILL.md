@@ -110,6 +110,10 @@ is not sufficient proof.
 
 ## SDK API
 
+K8s is SDK-only — there is no `kubectl`-only launch path. Read
+`tao-skill-bank:tao-run-platform` before drafting `create_job` calls; it covers
+`build_entrypoint`, the shared kwarg contract, monitoring, and `ActionWorkflow`.
+
 ```python
 from tao_sdk.platforms.kubernetes import KubernetesSDK
 

@@ -33,7 +33,7 @@ The runner is **platform-agnostic** — it takes any object implementing the sta
 | SDK | Best for AutoML |
 |---|---|
 | `LeptonSDK` | Multi-node sweeps on DGX Cloud; managed scheduling |
-| `BrevSDK` | Cost-tuned sweeps on Brev instances (single-instance per rec, multi-GPU OK) |
+| `BrevSDK` | Cost-tuned sweeps on Brev instances (single-instance per rec, multi-GPU OK). Multi-credential / multi-workspace accounts must pass `cloud_cred_id=` and `workspace_group_id=` to `create_job` — see `platform/tao-run-on-brev/SKILL.md`. |
 | `SlurmSDK` | Large sweeps on shared HPC clusters with queue/quota |
 | `KubernetesSDK` | Sweeps on EKS / GKE / AKS / on-prem clusters with the NVIDIA GPU Operator |
 | `DockerSDK` | Local debugging or single-host sweeps with a few recs |
