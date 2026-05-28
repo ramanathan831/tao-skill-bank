@@ -361,20 +361,6 @@ Cosmos-RL models are 8B parameters and benefit from multi-GPU training with FSDP
 
 **You are trying to access a gated repo**: The HuggingFace model `nvidia/Cosmos-Reason2-8B` requires authentication. All ranks will retry in a loop until they time out. Fix: ensure `HF_TOKEN` is set in your environment (e.g., in `~/.config/tao/.env`) and passed into the container with `-e HF_TOKEN`. The user must also accept the model agreement at <https://huggingface.co/nvidia/Cosmos-Reason2-8B>.
 
-## DEFT Support
-
-Cosmos-RL implements the DEFT workflow contract for video QA tasks. See `config.json` for the full DEFT section and `workflow/deft/deft.md` for the pipeline overview.
-
-### Gap Analysis (`scripts/analyze_gaps.py`)
-
-Model-specific script that identifies failure cases from cosmos-rl evaluation output.
-
-- **Eval output format:** `results.json` with fields: `video_id`, `response`, `question`, `gt`
-- **Comparison:** exact string match after `.lower().strip()` — requires eval prompts that force short constrained answers (e.g., yes/no)
-- **Output:** parquet with `video_id` (full path), `question`, `ground_truth`
-
-**Limitation:** Brittle exact match. If the model responds with full sentences instead of constrained answers, mismatches will be over-reported. The eval prompt design must account for this.
-
 ## Spec Param / Parent Model Inference
 
 Model-specific inference mappings belong in this MD file, not in `config.json`. Generated runners should read this section and apply the mappings with SDK helpers before `create_job()`. This mirrors the old microservices `infer_params.py` flow.

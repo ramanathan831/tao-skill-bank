@@ -66,19 +66,12 @@ bash platform/tao-setup-nvidia-gpu-host/scripts/setup-nvidia-gpu-host.sh --backe
 bash platform/tao-setup-nvidia-gpu-host/scripts/setup-nvidia-gpu-host.sh --backend kubernetes --check-only
 ```
 
-In an installed plugin copy that exposes `skills/`, use:
-
-```bash
-bash skills/tao-setup-nvidia-gpu-host/scripts/setup-nvidia-gpu-host.sh --backend docker --check-only
-```
-
 ## Workflow Contract
 
 Docker and Kubernetes workflows must run the check before submitting GPU work:
 
 ```bash
-SETUP_SCRIPT="${TAO_SKILL_BANK_ROOT:-$PWD}/skills/tao-setup-nvidia-gpu-host/scripts/setup-nvidia-gpu-host.sh"
-[ -x "$SETUP_SCRIPT" ] || SETUP_SCRIPT="${TAO_SKILL_BANK_ROOT:-$PWD}/platform/tao-setup-nvidia-gpu-host/scripts/setup-nvidia-gpu-host.sh"
+SETUP_SCRIPT="${TAO_SKILL_BANK_ROOT:-$PWD}/platform/tao-setup-nvidia-gpu-host/scripts/setup-nvidia-gpu-host.sh"
 
 bash "$SETUP_SCRIPT" --backend docker --check-only || {
   echo "MISSING: TAO GPU host runtime is not ready."
