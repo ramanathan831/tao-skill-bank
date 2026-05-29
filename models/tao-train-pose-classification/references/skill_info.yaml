@@ -78,6 +78,8 @@ actions:
     inputs:
       inference.test_dataset.data_path:
         type: file
+      inference.test_dataset.label_path:
+        type: file
       inference.checkpoint:
         type: file
     outputs:

@@ -47,6 +47,7 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 | evaluate | evaluate.test_dataset.data_path | train_datasets | val_data.npy | No |
 | evaluate | evaluate.test_dataset.label_path | train_datasets | val_label.pkl | No |
 | inference | inference.test_dataset.data_path | train_datasets | test_data.npy | No |
+| inference | inference.test_dataset.label_path | train_datasets | test_label.pkl | No |
 | train | dataset.train_dataset.data_path | train_datasets | train_data.npy | No |
 | train | dataset.train_dataset.label_path | train_datasets | train_label.pkl | No |
 | train | dataset.val_dataset.data_path | train_datasets | val_data.npy | No |
