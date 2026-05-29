@@ -52,7 +52,7 @@ The parent PyT CLI does not expose `gen_trt_engine`. Use `models/rtdetr/deploy` 
 | distill | dataset.train_data_sources | train_datasets | image_dir: images.tar.gz, json_file: annotations.json | Yes |
 | distill | dataset.val_data_sources | eval_dataset | image_dir: images.tar.gz, json_file: annotations.json | No |
 | evaluate | dataset.test_data_sources | eval_dataset | image_dir: images.tar.gz, json_file: annotations.json | No |
-| inference | dataset.infer_data_sources | inference_dataset | image_dir: images.tar.gz, classmap: label_map.txt | No |
+| inference | dataset.infer_data_sources | inference_dataset | image_dir: images.tar.gz, classmap: label_map.txt | Yes |
 | quantize | dataset.train_data_sources | train_datasets | image_dir: images.tar.gz, json_file: annotations.json | Yes |
 | quantize | dataset.val_data_sources | eval_dataset | image_dir: images.tar.gz, json_file: annotations.json | No |
 | quantize | dataset.quant_calibration_data_sources | train_datasets | image_dir: images.tar.gz, json_file: annotations.json | No |
@@ -66,6 +66,8 @@ Data source overrides are **mandatory for every action** — the agent MUST cons
 ```python
 S3_TRAIN = "s3://bucket/data/train"
 S3_EVAL = "s3://bucket/data/eval"
+CHECKPOINT = "/results/{train_job_id}/results_dir/model_epoch_000.pth"
+ONNX_FILE = "/results/{export_job_id}/results_dir/rtdetr.onnx"
 ```
 
 **train (mandatory data sources):**
@@ -81,18 +83,34 @@ S3_EVAL = "s3://bucket/data/eval"
 }
 ```
 
-**evaluate (mandatory data sources):**
+**resume train (mandatory checkpoint):**
 ```python
 {
+    "train.num_epochs": 11,
+    "train.resume_training_checkpoint_path": CHECKPOINT,
     "dataset.num_classes": "<num_classes> + 1",
-    "dataset.test_data_sources": {"image_dir": f"{S3_EVAL}/images.tar.gz", "json_file": f"{S3_EVAL}/annotations.json"},
+    "dataset.eval_class_ids": [1, 2, 3, 4],
+    "dataset.train_data_sources": [{"image_dir": f"{S3_TRAIN}/images.tar.gz", "json_file": f"{S3_TRAIN}/annotations.json"}],
+    "dataset.val_data_sources": {"image_dir": f"{S3_EVAL}/images.tar.gz", "json_file": f"{S3_EVAL}/annotations.json"},
 }
 ```
 
-**export:**
+**evaluate (mandatory data sources and checkpoint):**
 ```python
 {
     "dataset.num_classes": "<num_classes> + 1",
+    "dataset.eval_class_ids": [1, 2, 3, 4],
+    "dataset.test_data_sources": {"image_dir": f"{S3_EVAL}/images.tar.gz", "json_file": f"{S3_EVAL}/annotations.json"},
+    "evaluate.checkpoint": CHECKPOINT,
+}
+```
+
+**export (mandatory checkpoint and output):**
+```python
+{
+    "dataset.num_classes": "<num_classes> + 1",
+    "export.checkpoint": CHECKPOINT,
+    "export.onnx_file": ONNX_FILE,
     "export.input_height": 640,
     "export.input_width": 640,
 }
@@ -116,22 +134,25 @@ S3_EVAL = "s3://bucket/data/eval"
     "dataset.train_data_sources": [{"image_dir": f"{S3_TRAIN}/images.tar.gz", "json_file": f"{S3_TRAIN}/annotations.json"}],
     "dataset.val_data_sources": {"image_dir": f"{S3_EVAL}/images.tar.gz", "json_file": f"{S3_EVAL}/annotations.json"},
     "dataset.quant_calibration_data_sources": {"image_dir": f"{S3_TRAIN}/images.tar.gz", "json_file": f"{S3_TRAIN}/annotations.json"},
+    "quantize.model_path": CHECKPOINT,
 }
 ```
 
-**inference (mandatory data sources):**
+**inference (mandatory data sources and checkpoint):**
 ```python
 {
     "dataset.num_classes": "<num_classes> + 1",
-    "dataset.infer_data_sources": {"image_dir": f"{S3_EVAL}/images.tar.gz", "classmap": f"{S3_EVAL}/label_map.txt"},
+    "dataset.infer_data_sources": {"image_dir": [f"{S3_EVAL}/images.tar.gz"], "classmap": f"{S3_EVAL}/label_map.txt"},
+    "inference.checkpoint": CHECKPOINT,
 }
 ```
 
-**distill (mandatory data sources):**
+**distill (mandatory data sources and teacher checkpoint):**
 ```python
 {
     "dataset.train_data_sources": [{"image_dir": f"{S3_TRAIN}/images.tar.gz", "json_file": f"{S3_TRAIN}/annotations.json"}],
     "dataset.val_data_sources": {"image_dir": f"{S3_EVAL}/images.tar.gz", "json_file": f"{S3_EVAL}/annotations.json"},
+    "distill.pretrained_teacher_model_path": CHECKPOINT,
 }
 ```
 ## Eval Dataset
