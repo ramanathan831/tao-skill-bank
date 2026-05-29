@@ -380,6 +380,9 @@ evaluate:
   tracking:
     enabled: true
     threshold: 0.2
+inference:
+  jsonfile_prefix: ${results_dir}/sparse4d_pred
+  output_nvschema: true
 visualize:
   show: false
   vis_dir: ./vis

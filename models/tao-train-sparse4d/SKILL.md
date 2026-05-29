@@ -160,6 +160,12 @@ models/sparse4d/scripts/normalize_depth_paths.py \
   /path/to/results/<dataset_convert_job_id>/results_dir/train
 ```
 
+For evaluate and inference, set `inference.jsonfile_prefix` to an output path
+under the action results directory, for example
+`${results_dir}/sparse4d_pred`. Sparse4D uses this prefix when formatting
+NuScenes and NVSchema prediction files; leaving it as a bare relative directory
+can fail in local Docker when the container working directory is not writable.
+
 Use the actual converted annotation filename emitted by Data Services. For the
 packaged AICity smoke dataset the basename is
 `subsetscene+bev-sensor-random-0`, so the train file is
