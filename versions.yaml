@@ -24,8 +24,7 @@ images:
 
 wheels:
   # Single SDK wheel with extras. The `nvidia-tao-sdk` package consolidates
-  # what used to be three wheels (tao-sdk, tao-sdk-lepton, tao-sdk-brev).
+  # what used to be multiple wheels (tao-sdk, tao-sdk-brev).
   tao_sdk:        nvidia-tao-sdk==7.0.0
-  tao_sdk_lepton: nvidia-tao-sdk[lepton]==7.0.0
   tao_sdk_brev:   nvidia-tao-sdk[brev]==7.0.0
   tao_sdk_all:    nvidia-tao-sdk[all]==7.0.0

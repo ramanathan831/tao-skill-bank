@@ -4,7 +4,7 @@ description: Run AutoML / hyperparameter optimization (HPO) for NVIDIA TAO netwo
   selection (bayesian, hyperband, asha, bohb, llm, hybrid, autoresearch), WandB experiment tracking, job execution on any TAO SDK
   platform, result interpretation, and per-rec custom evaluation hooks. Use when the user mentions TAO AutoML, hyperparameter
   optimization, HPO, automl, automl_settings, AutoMLRunner, tao_automl, bayesian search, hyperband, ASHA, LLM-guided search,
-  autoresearch, or wants to tune training hyperparameters for any TAO network. Platform-agnostic — runs on any SDK (Lepton, Brev,
+  autoresearch, or wants to tune training hyperparameters for any TAO network. Platform-agnostic — runs on any SDK (Brev,
   SLURM, Kubernetes, Docker).
 license: Apache-2.0
 compatibility: Requires docker + nvidia-container-toolkit. Sub-skills declare additional requirements.
@@ -32,13 +32,12 @@ The runner is **platform-agnostic** — it takes any object implementing the sta
 
 | SDK | Best for AutoML |
 |---|---|
-| `LeptonSDK` | Multi-node sweeps on DGX Cloud; managed scheduling |
 | `BrevSDK` | Cost-tuned sweeps on Brev instances (single-instance per rec, multi-GPU OK). Multi-credential / multi-workspace accounts must pass `cloud_cred_id=` and `workspace_group_id=` to `create_job` — see `platform/tao-run-on-brev/SKILL.md`. |
 | `SlurmSDK` | Large sweeps on shared HPC clusters with queue/quota |
 | `KubernetesSDK` | Sweeps on EKS / GKE / AKS / on-prem clusters with the NVIDIA GPU Operator |
 | `DockerSDK` | Local debugging or single-host sweeps with a few recs |
 
-Multi-node per rec works on Lepton, SLURM, and K8s (each rec is an N-node distributed training job). Brev and local Docker are single-host per rec — multi-GPU within one host still works (`gpu_count > 1`), but you can't parallelize one rec across multiple hosts.
+Multi-node per rec works on SLURM and K8s (each rec is an N-node distributed training job). Brev and local Docker are single-host per rec — multi-GPU within one host still works (`gpu_count > 1`), but you can't parallelize one rec across multiple hosts.
 
 ## Preflight
 
@@ -48,18 +47,17 @@ This skill needs `nvidia-tao-automl` (which pulls `nvidia-tao-sdk` as a transiti
 python -c "import tao_automl" 2>/dev/null || {
   REPO='git+https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-run-automl.git'
   echo "MISSING: nvidia-tao-automl not installed. Pick the platform extra you need:"
-  echo "  pip install \"nvidia-tao-automl[lepton] @ \$REPO\"      # DGX Cloud / Lepton"
   echo "  pip install \"nvidia-tao-automl[slurm] @ \$REPO\"       # on-prem SLURM cluster"
   echo "  pip install \"nvidia-tao-automl[kubernetes] @ \$REPO\"  # K8s (EKS / GKE / on-prem)"
   echo "  pip install \"nvidia-tao-automl[docker] @ \$REPO\"      # local Docker daemon"
   echo "  pip install \"nvidia-tao-automl[brev] @ \$REPO\"        # Brev GPU instances"
-  echo "  pip install \"nvidia-tao-automl[all] @ \$REPO\"         # all 5 platforms"
+  echo "  pip install \"nvidia-tao-automl[all] @ \$REPO\"         # all platforms"
   echo "  REPO=$REPO"
   exit 1
 }
 ```
 
-(For local development against a checkout: `pip install -e '~/tao-run-automl[lepton]'` from the cloned repo.)
+(For local development against a checkout: `pip install -e '~/tao-run-automl[brev]'` from the cloned repo.)
 
 If missing, the agent prompts the user to authorize the install via Bash, then re-runs the preflight before continuing.
 
@@ -68,15 +66,15 @@ If missing, the agent prompts the user to authorize the install via Bash, then r
 Before running AutoML:
 
 1. **Shared launch preflight**: Run the `tao-launch-workflow` intake pattern first. AutoML must not create runner files, workspaces, state files, logs, compatibility shims, or install dependencies until the selected platform's credentials, access check, dataset visibility, model credentials, container image confirmation, and compute shape are satisfied. This prevents wasting the AutoML budget on fake recommendation failures caused by SSH, storage, image, or credential setup.
-2. **SDK credentials**: env vars sourced from `~/.config/tao/.env` (auto-loaded by the skill bank's SessionStart hook). Required env vars depend on which SDK you choose — see each platform's SKILL.md (`platform/tao-run-on-lepton`, `platform/tao-run-on-brev`, `platform/tao-run-on-slurm`, `platform/tao-run-on-kubernetes`, `platform/tao-run-on-local-docker`). Before asking for credentials, run:
+2. **SDK credentials**: env vars sourced from `~/.config/tao/.env` (auto-loaded by the skill bank's SessionStart hook). Required env vars depend on which SDK you choose — see each platform's SKILL.md (`platform/tao-run-on-brev`, `platform/tao-run-on-slurm`, `platform/tao-run-on-kubernetes`, `platform/tao-run-on-local-docker`). Before asking for credentials, run:
    ```bash
    ${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/list_tao_platforms.py \
      --skill-bank ${TAO_SKILL_BANK_PATH:-~/tao-skills-external} \
      --platform <platform> --format text
    ```
-   Ask only for credentials from that output. For example, SLURM needs SLURM credentials and not Lepton or S3 credentials; Kubernetes and local Docker do not need SLURM or Lepton credentials. Ask S3 credentials only when the selected platform and dataset/result URIs use `s3://`. For container pulls: `NGC_KEY`. The agent never reads values — only checks presence with `[ -n "$VAR_NAME" ]`. Construct the SDK with no arguments — e.g., `LeptonSDK()`, `BrevSDK()`, `SlurmSDK()`, `KubernetesSDK()`, or `DockerSDK()`.
+   Ask only for credentials from that output. For example, SLURM needs SLURM credentials and not Brev or S3 credentials; Kubernetes and local Docker do not need SLURM or Brev credentials. Ask S3 credentials only when the selected platform and dataset/result URIs use `s3://`. For container pulls: `NGC_KEY`. The agent never reads values — only checks presence with `[ -n "$VAR_NAME" ]`. Construct the SDK with no arguments — e.g., `BrevSDK()`, `SlurmSDK()`, `KubernetesSDK()`, or `DockerSDK()`.
 2. **Dataset**: Training data accessible from the compute backend. URI format depends on the SDK's platform:
-   - Lepton / DGX Cloud: `s3://bucket/path` (S3-compatible; do not generate `aws://...`)
+   - Brev / cloud: `s3://bucket/path` (S3-compatible; do not generate `aws://...`)
    - Slurm / internal shared storage: an absolute shared filesystem path visible to the Slurm job, e.g. `/lustre/fsw/tao_datasets/<model>/train` and `/lustre/fsw/tao_datasets/<model>/eval`
    - Azure: `azure://container/path`
    - Local / Docker: local filesystem path
@@ -117,11 +115,11 @@ Before running AutoML:
 4. **`nvidia-tao-automl` installed** with the platform extra you want. Not on public PyPI yet — install from the GitLab repo via `pip` direct-URL:
    ```bash
    REPO='git+https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-run-automl.git'
-   pip install "nvidia-tao-automl[lepton] @ $REPO"        # or [slurm], [kubernetes], [docker], [brev], [all]
+   pip install "nvidia-tao-automl[brev] @ $REPO"        # or [slurm], [kubernetes], [docker], [all]
    # With LLM/agentic algorithms:
-   pip install "nvidia-tao-automl[lepton,llm] @ $REPO"
+   pip install "nvidia-tao-automl[brev,llm] @ $REPO"
    ```
-   For local development against a checkout: `pip install -e '~/tao-run-automl[lepton]'`.
+   For local development against a checkout: `pip install -e '~/tao-run-automl[brev]'`.
 
 Verify setup:
 ```bash
@@ -147,7 +145,7 @@ TAO AutoML automates the "try different hyperparameter values → train → comp
 
 AutoML then:
 1. Picks hyperparameter values using a search algorithm (Bayesian, Hyperband, LLM, etc.)
-2. Launches a real training job on whichever backend the SDK targets (Lepton, Brev, SLURM, Kubernetes, or local Docker)
+2. Launches a real training job on whichever backend the SDK targets (Brev, SLURM, Kubernetes, or local Docker)
 3. Reads the result metric from training logs
 4. Feeds the result back to the algorithm so it learns what works
 5. Repeats until budget is exhausted
@@ -201,7 +199,7 @@ Extract these fields for a default run:
 | Field | Required | Example | How to get it |
 |---|---|---|---|
 | `network_arch` | Yes | `"<network_arch>"` | User states the model |
-| `platform` | Yes | `"lepton"`, `"slurm"`, `"local-docker"`, `"kubernetes"` | After the user confirms they want AutoML, run `scripts/list_tao_platforms.py --format text` and ask them to choose from that output. |
+| `platform` | Yes | `"brev"`, `"slurm"`, `"local-docker"`, `"kubernetes"` | After the user confirms they want AutoML, run `scripts/list_tao_platforms.py --format text` and ask them to choose from that output. |
 | `train_dataset_uri` or direct train spec paths | Yes | `"s3://bucket/data/subset"`, `"/lustre/fsw/tao_datasets/<model>/train"`, or `custom.train_dataset.annotation_path=/...` | User provides a root URI/path, exact spec-key paths, or the model skill declares a default profile for this exact network/use case. |
 | `eval_dataset_uri` or direct eval spec paths | Model-dependent | `"s3://bucket/data/eval"`, `"/lustre/fsw/tao_datasets/<model>/eval"`, or `custom.val_dataset.media_path=/...` | Ask only if the model skill's Per-Action Dataset Requirements require an eval/validation source and no default profile supplies it. |
 | `image` | Yes | `"nvcr.io/..."` | Resolve the default with `scripts/resolve_tao_image.py --model <network_arch> --action train`, show it to the user, and require confirmation or `image=<override>` before creating the AutoML runner. |
@@ -443,17 +441,16 @@ from datetime import datetime
 from pathlib import Path
 
 # Pick whichever SDK matches where you want trials to run. AutoMLRunner is
-# platform-agnostic — none of the 5 SDKs is a default; the user picks.
-from tao_sdk.platforms.lepton     import LeptonSDK     # DGX Cloud Lepton
+# platform-agnostic — none of the SDKs is a default; the user picks.
+from tao_sdk.platforms.brev       import BrevSDK       # Brev GPU instances
 # from tao_sdk.platforms.slurm      import SlurmSDK      # SLURM cluster
 # from tao_sdk.platforms.kubernetes import KubernetesSDK # K8s (EKS / GKE / on-prem)
 # from tao_sdk.platforms.docker     import DockerSDK     # local Docker daemon
-# from tao_sdk.platforms.brev       import BrevSDK       # Brev GPU instances
 from tao_automl.runner import AutoMLRunner
 
 TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-sdk = LeptonSDK()                                # reads platform credentials from env
+sdk = BrevSDK()                                  # reads platform credentials from env
 runner = AutoMLRunner(
     sdk=sdk,
     skill_dir=SKILL_BANK / "models" / network_arch,           # SKILL_BANK = Path("<bank-root>")
@@ -471,7 +468,7 @@ result = runner.run(
     # See each platform's SKILL.md for the kwargs each accepts.
     gpu_count=8,
     num_nodes=1,
-    dedicated_node_group="my-h100-pool",          # Lepton-specific
+    gpu_type="H100",                             # Brev-specific
 )
 ```
 
@@ -518,14 +515,13 @@ result = runner.run(
     on_result=lambda r, metric, status: print(f"rec {r.id} {status} → {metric}"),
 
     # --- Platform create_job kwargs (forwarded as **platform_kwargs) ---
-    # Lepton:     dedicated_node_group, resource_shape, num_nodes, gpu_count
     # SLURM:      partition, account, num_nodes, gpu_count
     # Kubernetes: namespace, node_selector, tolerations, num_nodes, gpu_count
     # Docker:     mounts, gpu_count
     # Brev:       instance_id, gpu_type, gpu_count
     gpu_count=8,
     num_nodes=1,
-    dedicated_node_group="my-h100-pool",
+    gpu_type="H100",
 )
 ```
 
@@ -952,7 +948,7 @@ Model-specific notes do not belong in this AutoML skill. For every requested `ne
 7. **Spec-override typos.** `save_freq_in_epochs` (plural) used to silently do nothing; now raises `ValueError` with suggestion. If you see that error, it's the fix working.
 8. **Orchestrator dies mid-sweep.** Relaunch with the same `workspace_path` and `resume=True`. In-flight jobs are recovered from `active_jobs.json`.
 9. **Rec never reports a metric.** Check the model skill's metric-emission requirements and custom extractor guidance.
-10. **Parallel Bayesian arms.** Bayesian is inherently sequential. If you want parallelism, use `asha`. If you use multiple `AutoMLRunner` instances, give each its own `<SDK>(state_file=...)` (e.g., `LeptonSDK(state_file=...)`, `KubernetesSDK(state_file=...)`) to avoid SQLite write races on the SDK's job store.
+10. **Parallel Bayesian arms.** Bayesian is inherently sequential. If you want parallelism, use `asha`. If you use multiple `AutoMLRunner` instances, give each its own `<SDK>(state_file=...)` (e.g., `BrevSDK(state_file=...)`, `KubernetesSDK(state_file=...)`) to avoid SQLite write races on the SDK's job store.
 11. **LLM brain returning random configs.** If every LLM recommendation looks random, the LLM endpoint is probably failing silently. Check the logs for "LLM call failed" warnings. Verify your API key and endpoint are correct. Common cause: using the wrong endpoint URL (see pitfall #2).
 12. **`openai` package not installed.** The `llm`, `hybrid`, and `autoresearch` algorithms require the `openai` Python package. Install with `pip install openai` or reinstall tao-run-automl with the `[llm]` extra (see Preflight for the `git+https://...` direct-URL form).
 13. **WandB not logging.** Ensure `wandb_config={"enabled": True}` is passed and either `api_key` is in the config or `WANDB_API_KEY` is set in the environment. Check logs for "WandB initialized" confirmation.

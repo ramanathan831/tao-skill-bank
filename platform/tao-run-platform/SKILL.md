@@ -1,6 +1,6 @@
 ---
 name: tao-run-platform
-description: TAO Execution SDK for submitting and monitoring GPU training jobs on supported platforms (Lepton, Brev, SLURM,
+description: TAO Execution SDK for submitting and monitoring GPU training jobs on supported platforms (Brev, SLURM,
   local Docker, Kubernetes). Use when the user wants to run TAO jobs through the SDK, get job tracking, S3 I/O wrapping,
   multi-node distributed training, or platform-specific features that docker-run can't provide. Trigger phrases include
   "use the TAO SDK", "call tao_sdk", "AutoMLRunner", "ActionWorkflow", "Job handles", "S3 I/O wrapping", "TAO platform run".
@@ -18,16 +18,15 @@ tags:
 
 # TAO Execution SDK
 
-The SDK is the **optional** Python layer for users who need job handles, S3 I/O wrapping, or platform-specific features (Lepton multi-node, SLURM/Lustre queues, Kubernetes Jobs, local Docker debugging, Brev instance reuse). Most TAO skills run with just `docker run` and don't need it. Reach for the SDK when:
+The SDK is the **optional** Python layer for users who need job handles, S3 I/O wrapping, or platform-specific features (SLURM/Lustre queues, Kubernetes Jobs, local Docker debugging, Brev instance reuse). Most TAO skills run with just `docker run` and don't need it. Reach for the SDK when:
 
 - You want a `Job` handle to poll status and stream logs over time.
-- The platform is API-only (Lepton has no docker-run equivalent).
 - You need S3-aware input download / output upload baked into the entrypoint.
 - You're chaining multiple jobs and want persisted state.
 
 ## Preflight
 
-Install `nvidia-tao-sdk[all]` before using this platform — the `[all]` extra pulls in every platform-specific dependency (Lepton, Brev, S3 utilities, etc.):
+Install `nvidia-tao-sdk[all]` before using this platform — the `[all]` extra pulls in every platform-specific dependency (Brev, S3 utilities, etc.):
 
 ```bash
 python -c "import tao_sdk" 2>/dev/null || {
@@ -46,19 +45,15 @@ If missing, the agent prompts the user to authorize the install via Bash, then r
 Credentials come from **environment variables** — sourced from `~/.config/tao/.env` (auto-loaded by the skill bank's SessionStart hook).
 
 ```python
-from tao_sdk.platforms.lepton import LeptonSDK   # DGX Cloud
 from tao_sdk.platforms.brev   import BrevSDK     # Brev GPU instances
 
-sdk = LeptonSDK()    # reads LEPTON_WORKSPACE_ID, LEPTON_AUTH_TOKEN
-# or
 sdk = BrevSDK()      # reads BREV_API_TOKEN (optional — falls back to brev login)
 ```
 
-Both SDKs validate credentials lazily on first use and raise `CredentialError` with a clear message if a required env var is missing. Required env vars:
+The SDK validates credentials lazily on first use and raises `CredentialError` with a clear message if a required env var is missing. Required env vars:
 
 | Platform | Required | Optional |
 |---|---|---|
-| Lepton | `LEPTON_WORKSPACE_ID`, `LEPTON_AUTH_TOKEN` | — |
 | Brev | — (manual `brev login` works) | `BREV_API_TOKEN` |
 | S3 I/O (any platform) | `S3_BUCKET_NAME`, `ACCESS_KEY`, `SECRET_KEY` | `S3_ENDPOINT_URL`, `CLOUD_REGION` |
 | Container env | `NGC_KEY` | `HF_TOKEN` |
@@ -119,8 +114,8 @@ ${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/list_tao_platforms.py \
 ```
 
 Ask only for credentials returned for the selected platform. For example, SLURM
-needs `SLURM_USER` and `SLURM_HOSTNAME`; it does not need Lepton credentials.
-Kubernetes and local Docker do not need Lepton or SLURM credentials. Ask storage
+needs `SLURM_USER` and `SLURM_HOSTNAME`; it does not need Brev credentials.
+Kubernetes and local Docker do not need Brev or SLURM credentials. Ask storage
 credentials such as S3 keys only when the selected platform and the data/result
 URIs require them.
 
@@ -138,9 +133,6 @@ sdk.get_job_results_dir(job_id) -> str
 sdk.check_path(remote_path) -> bool
 sdk.list_path(remote_path) -> list[str]
 ```
-
-Lepton-only:
-- `sdk.get_job_replicas(job_id)` — replica-level diagnostics for stuck-pending jobs.
 
 Brev-only:
 - `sdk.delete_instance(instance_id)` — clean up an ephemeral instance.
@@ -170,7 +162,6 @@ Per-platform policy:
 | SDK | What gets injected |
 |---|---|
 | `SlurmSDK` | `TAO_RESULTS_ROOT={SLURM_BASE_RESULTS_DIR}/results` (always — Lustre, never S3, avoids GPU-idle scheduler kill) |
-| `LeptonSDK` | `TAO_RESULTS_ROOT={mount}/results` if a workspace volume is attached; otherwise S3 fallback |
 | `KubernetesSDK` / `DockerSDK` / `BrevSDK` | `TAO_RESULTS_ROOT=/results` if a mount targets `/results`; otherwise S3 fallback |
 
 Agents who want a custom destination can put an `s3://...` URI or absolute path directly at the output spec key — explicit values override the auto-fill. Otherwise, model-natural defaults like cosmos-rl's `output_dir: "output"` or DINO's empty `results_dir` are auto-rewritten by `script_runner`.
@@ -249,7 +240,6 @@ import yaml
 from tao_sdk.script_runner import build_entrypoint
 from tao_sdk.versions import resolve_container_image
 # pick the SDK matching your target platform:
-from tao_sdk.platforms.lepton     import LeptonSDK     # or
 from tao_sdk.platforms.slurm      import SlurmSDK      # or
 from tao_sdk.platforms.kubernetes import KubernetesSDK # or
 from tao_sdk.platforms.docker     import DockerSDK     # or
@@ -289,7 +279,6 @@ job = sdk.create_job(
     command=ep["command"],
     gpu_count=8,
     # Platform-specific kwargs go here — see each platform's SKILL.md:
-    #   Lepton:     dedicated_node_group, resource_shape, num_nodes
     #   SLURM:      partition, account, num_nodes
     #   Kubernetes: namespace, node_selector, tolerations, num_nodes
     #   Docker:     mounts
@@ -350,18 +339,6 @@ print(status.message)  # platform-specific detail
 
 logs = sdk.get_job_logs(job.id, tail=200)
 print(logs)
-```
-
-For stuck-Pending Lepton jobs, replica diagnostics reveal the cause (image pull, scheduling, mount errors):
-
-```python
-for r in sdk.get_job_replicas(job.id):
-    issue = r["status"].get("readiness_issue")
-    if issue:
-        print(issue["reason"], issue["message"])
-        # e.g. "InProgress" / "Pulling image"  (normal for big images)
-        #      "Failed"     / "ImagePullBackOff" (NGC_KEY problem)
-        #      "ConfigError" / "Mount point not found" (bad node)
 ```
 
 On failure, `get_failure_analysis()` classifies the root cause:
@@ -434,12 +411,6 @@ specs["dataset"]["train_csv"] = f"{base}/train.csv"   # nested — see "spec is 
 
 ## Platform-specific notes
 
-### Lepton (`from tao_sdk.platforms.lepton import LeptonSDK`)
-- Jobs run as containers on DGX Cloud.
-- NFS/Lustre mounts auto-detected from the node group; the SDK builds the appropriate `Mount` objects.
-- `gpu_count` resolves to a Lepton resource shape; or pass `dedicated_node_group="<name>"` for guaranteed allocation.
-- `num_nodes=N` (N>1) enables distributed training.
-
 ### Brev (`from tao_sdk.platforms.brev import BrevSDK`)
 - Jobs run on GPU instances via `brev exec`.
 - No shared storage — S3 only.
@@ -460,7 +431,7 @@ specs["dataset"]["train_csv"] = f"{base}/train.csv"   # nested — see "spec is 
 - Jobs submit over SSH to a login node with `sbatch` and run containers through
   Pyxis/Enroot `srun --container-image`.
 - Use the platform helper output to ask only for SLURM credentials and storage
-  settings. Do not ask for Lepton, Brev, or Kubernetes credentials.
+  settings. Do not ask for Brev or Kubernetes credentials.
 - Dataset paths must be visible from the cluster job, usually absolute Lustre or
   shared filesystem paths; do not pass agent-host local paths to SLURM jobs.
 - Use the packaged SLURM runtime defaults unless the user gives a validated
@@ -472,7 +443,7 @@ specs["dataset"]["train_csv"] = f"{base}/train.csv"   # nested — see "spec is 
 - Auth uses kubeconfig (`KUBECONFIG` or `~/.kube/config`) or an in-cluster
   service account.
 - Requires NVIDIA GPU Operator or equivalent `nvidia.com/gpu` device plugin.
-- Do not ask for Lepton, Brev, or SLURM credentials for Kubernetes runs.
+- Do not ask for Brev or SLURM credentials for Kubernetes runs.
 - A local path on the agent host is not proof that the path is mounted inside
   the job pod.
 

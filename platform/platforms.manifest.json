@@ -3,14 +3,6 @@
   "default_long_running_enabled": true,
   "default_status_interval_minutes": 5,
   "credential_definitions": {
-    "LEPTON_WORKSPACE_ID": {
-      "description": "Lepton/DGX Cloud workspace where TAO jobs will be submitted.",
-      "how_to_get": "Open the Lepton workspace UI or CLI context and use the workspace id for the target GPU workspace."
-    },
-    "LEPTON_AUTH_TOKEN": {
-      "description": "API token used to submit and monitor Lepton jobs.",
-      "how_to_get": "Create or copy a Lepton API token from the Lepton account/workspace settings."
-    },
     "BREV_API_TOKEN": {
       "description": "Brev API token used to create and manage GPU instances/jobs.",
       "how_to_get": "Create or copy a token from the Brev console settings page."
@@ -113,77 +105,6 @@
     }
   },
   "platforms": [
-    {
-      "name": "lepton",
-      "display_name": "Lepton / DGX Cloud",
-      "aliases": [
-        "dgx-cloud"
-      ],
-      "backend_type": "lepton",
-      "description": "Managed GPU compute on DGX Cloud through Lepton jobs.",
-      "required_credentials": [
-        {
-          "name": "LEPTON_WORKSPACE_ID",
-          "source": "env_var",
-          "description": "Lepton/DGX Cloud workspace where TAO jobs will be submitted.",
-          "how_to_get": "Open the Lepton workspace UI or CLI context and use the workspace id for the target GPU workspace."
-        },
-        {
-          "name": "LEPTON_AUTH_TOKEN",
-          "source": "env_var",
-          "description": "API token used to submit and monitor Lepton jobs.",
-          "how_to_get": "Create or copy a Lepton API token from the Lepton account/workspace settings."
-        }
-      ],
-      "optional_credentials": [
-        {
-          "name": "NGC_KEY",
-          "source": "env_var"
-        },
-        {
-          "name": "ACCESS_KEY",
-          "source": "env_var",
-          "only_when": "dataset or result URIs use s3://"
-        },
-        {
-          "name": "SECRET_KEY",
-          "source": "env_var",
-          "only_when": "dataset or result URIs use s3://"
-        },
-        {
-          "name": "S3_ENDPOINT_URL",
-          "source": "env_var",
-          "only_when": "using a custom S3-compatible endpoint"
-        },
-        {
-          "name": "S3_BUCKET_NAME",
-          "source": "env_var",
-          "only_when": "workflow needs a default output bucket"
-        },
-        {
-          "name": "CLOUD_REGION",
-          "source": "env_var",
-          "only_when": "S3-compatible storage requires a region"
-        }
-      ],
-      "storage": {
-        "protocol": "aws",
-        "uri_format": "s3://{bucket_name}/{path}",
-        "metadata_key": "aws"
-      },
-      "dataset_examples": [
-        "s3://my-bucket/cosmos_rl/train",
-        "s3://my-bucket/cosmos_rl/eval",
-        "custom.train_dataset.annotation_path=s3://my-bucket/cosmos_rl/train/annotations.json",
-        "custom.train_dataset.media_path=s3://my-bucket/cosmos_rl/media/videos.tar.gz"
-      ],
-      "preflight_checks": [
-        "Confirm LEPTON_WORKSPACE_ID and LEPTON_AUTH_TOKEN are set in the launch environment.",
-        "Verify Lepton API access for the workspace before generating runner scripts.",
-        "Verify s3:// dataset/result URIs with ACCESS_KEY/SECRET_KEY and aws s3 ls, or provide manual proof for mounted shared storage paths.",
-        "Verify model-specific credentials such as HF_TOKEN before generating runner scripts."
-      ]
-    },
     {
       "name": "brev",
       "display_name": "Brev",

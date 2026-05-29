@@ -115,7 +115,7 @@ here.
 (`run-<short>:latest`) and runs it on the local Docker daemon — the same
 pattern documented in `platform/tao-run-on-local-docker/SKILL.md`. Ask the user only when
 they explicitly need a different backend (Brev for a remote GPU instance,
-Lepton/SLURM/Kubernetes for managed scheduling); in that case run the chosen
+SLURM/Kubernetes for managed scheduling); in that case run the chosen
 platform's Preflight section first, generate the choices via
 `${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/list_tao_platforms.py
 --format text`, then route the `docker run` commands in Steps 4–5 through that

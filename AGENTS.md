@@ -47,7 +47,7 @@ need no Python.
 
 6. **Confirm with the user**, then dispatch via the chosen platform's pattern:
    - Local docker / Brev / local-docker: `docker run …` via Bash.
-   - Managed (Lepton, Kubernetes, SLURM, Brev with SDK tracking):
+   - Managed (Kubernetes, SLURM, Brev with SDK tracking):
      `<Platform>SDK.create_job(image, command, gpu_count, …)`. The agent
      calls `build_entrypoint(...)` first to bake the spec heredoc + invocation
      into `command`.
@@ -62,10 +62,10 @@ Reach for the SDK only when the user wants one of:
 - Job tracking (status persistence, logs, failure analysis)
 - S3 I/O wrapping (`inputs` / `outputs` automatic up/download)
 - Multi-node training
-- A managed platform: **Lepton, Kubernetes, SLURM, Brev**
+- A managed platform: **Kubernetes, SLURM, Brev**
 
 Each platform skill's Preflight tells you which SDK extra to install
-(`pip install 'nvidia-tao-sdk[<platform>]'`). The five platform SDKs are
+(`pip install 'nvidia-tao-sdk[<platform>]'`). The four platform SDKs are
 equal-class peers — **no default**. If the user hasn't chosen, ask.
 
 ## Never do
@@ -74,8 +74,8 @@ equal-class peers — **no default**. If the user hasn't chosen, ask.
   `{"train": {"num_epochs": 12}}`, not `{"train.num_epochs": 12}`. This is
   the most common agent mistake against the SDK boundary.
 - **Never default to one platform** when several would fit. If the user hasn't
-  said Lepton vs. SLURM vs. Brev vs. Docker vs. Kubernetes, ask. Five SDKs are
-  equal-class peers; biasing toward one (especially Lepton) is wrong.
+  said SLURM vs. Brev vs. Docker vs. Kubernetes, ask. Four SDKs are
+  equal-class peers; biasing toward one is wrong.
 - **Never start a side-effecting action without user confirmation.** This
   means: `docker run`, `sdk.create_job`, `git push`, file mutations outside
   the working directory.

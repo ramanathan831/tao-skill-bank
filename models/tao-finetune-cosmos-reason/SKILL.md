@@ -308,7 +308,7 @@ start AutoML to discover this inside torchrun.
 
 For multi-node, set `dp_replicate_size = num_nodes` and `dp_shard_size = gpus_per_node`. Cosmos-RL handles the distributed init internally via FSDP — it does **not** rely on the platform-level `MASTER_ADDR` / `WORLD_SIZE` env vars the way `torchrun`-launched jobs do. Just submit with `gpu_count=<gpus_per_node>` and `num_nodes=<N>` on the SDK; the Cosmos-RL spec keys drive the actual sharding.
 
-For platform-side multi-node setup (sbatch flags on SLURM, Indexed Job + Service on Kubernetes, native multi-replica on Lepton), see the platform skill's "Multi-node training" section: `platform/tao-run-on-lepton`, `platform/tao-run-on-slurm`, `platform/tao-run-on-kubernetes`. Brev and local Docker are single-host only.
+For platform-side multi-node setup (sbatch flags on SLURM, Indexed Job + Service on Kubernetes), see the platform skill's "Multi-node training" section: `platform/tao-run-on-slurm`, `platform/tao-run-on-kubernetes`. Brev and local Docker are single-host only.
 
 ### Optimization & Data Loading
 - **train.optm_lr**: Learning rate. Default 1e-6.

@@ -216,7 +216,6 @@ Most TAO training workloads don't need this — single container per job.
 This skill covers the *how* of running docker on a GPU host. Platform-specific layering (how to get onto the host, dispatch via a CLI wrapper) lives in:
 
 - `tao-skill-bank:tao-run-on-brev` — running docker via `brev exec` on a Brev instance
-- `tao-skill-bank:tao-run-on-lepton` — submitting jobs to Lepton (API-first; `docker run` doesn't apply)
 - `tao-skill-bank:tao-run-platform` — optional Python layer wrapping docker invocations with Job handles, state persistence, and S3 I/O
 
 Model and data skills specify **what** image and command; they defer to this skill for the **how**.

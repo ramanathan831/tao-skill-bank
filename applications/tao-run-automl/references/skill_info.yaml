@@ -7,7 +7,7 @@ prerequisites:
   - name: train_dataset_uri
     description: Training dataset URI accessible from the chosen compute backend.
   - name: platform
-    description: Compute backend available through the TAO SDK, usually lepton, slurm, kubernetes, docker, or brev.
+    description: Compute backend available through the TAO SDK, usually slurm, kubernetes, docker, or brev.
   - name: skill_bank_path
     description: Path to this skill bank so AutoMLRunner can load model skills and train specs.
   optional:
@@ -33,6 +33,6 @@ depends_on:
   - <network>
   platform:
   - tao-sdk
-  - lepton
+  - brev
 description: TAO AutoML/HPO workflow for launching model-agnostic hyperparameter optimization through AutoMLRunner while grounding
   model-specific details in the selected model skill.

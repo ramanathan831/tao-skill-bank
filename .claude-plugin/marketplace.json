@@ -80,7 +80,6 @@
         "./platform/tao-run-on-brev",
         "./platform/tao-run-on-docker",
         "./platform/tao-run-on-kubernetes",
-        "./platform/tao-run-on-lepton",
         "./platform/tao-run-on-local-docker",
         "./platform/tao-setup-nvidia-gpu-host",
         "./platform/tao-run-on-slurm",
