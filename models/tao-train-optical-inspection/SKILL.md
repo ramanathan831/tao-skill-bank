@@ -61,6 +61,7 @@ Data source overrides are **mandatory for every action** — the agent MUST cons
 ```python
 S3_TRAIN = "s3://bucket/data/train"
 S3_EVAL = "s3://bucket/data/eval"
+S3_INFERENCE = "s3://bucket/data/inference"
 ```
 
 **train (mandatory data sources):**
@@ -91,12 +92,23 @@ S3_EVAL = "s3://bucket/data/eval"
 
 Use the workflow's checkpoint resolver for downstream actions instead of guessing a filename. For Optical Inspection smoke runs, AutoML may produce `model_epoch_000_step_00006.pth`; resume can then produce `model_epoch_001_step_00012.pth`. Best-checkpoint actions should use the AutoML best child job's selected checkpoint, epoch-specific actions should pass the exact epoch/step checkpoint requested, and only explicit "latest" requests should resolve to the latest checkpoint.
 
+**export:**
+```python
+{
+    "export.checkpoint": "<selected train/AutoML checkpoint>",
+    "export.onnx_file": "/results/optical_inspection.onnx",
+    "export.input_width": 128,
+    "export.input_height": 512,
+    "export.batch_size": 1,
+}
+```
+
 **inference (mandatory data sources):**
 ```python
 {
     "inference.checkpoint": "<selected train/AutoML checkpoint>",
-    "dataset.infer_dataset.images_dir": f"{S3_EVAL}/images.tar.gz",
-    "dataset.infer_dataset.csv_path": f"{S3_EVAL}/dataset.csv",
+    "dataset.infer_dataset.images_dir": f"{S3_INFERENCE}/images.tar.gz",
+    "dataset.infer_dataset.csv_path": f"{S3_INFERENCE}/dataset.csv",
 }
 ```
 
@@ -148,6 +160,12 @@ Minimum 1 GPU(s), recommended 1 GPU(s). 8GB+ VRAM per GPU. Siamese networks for 
 **Training batch size assertion**: The Optical Inspection dataloader rejects
 `dataset.batch_size: 1` for train. Keep the template default of 8 for normal
 runs, or set `dataset.batch_size: 2` for minimal AutoML smoke validation.
+
+**PyTorch checkpoint load failure on downstream actions**: For checkpoints
+produced by the same trusted TAO train/AutoML workflow, set
+`TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1` for evaluate, inference, export, and
+resume jobs if the current PyTorch default blocks loading the full checkpoint.
+Do not use this env var for untrusted checkpoints.
 
 ## Spec Param / Parent Model Inference
 
