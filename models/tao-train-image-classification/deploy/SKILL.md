@@ -84,7 +84,7 @@ Direct TAO Launcher spelling is `tao deploy classification_pyt gen_trt_engine`, 
 | `inference` | TensorRT engine | `inference.trt_engine` |
 | `inference` | Image classification test folder | `dataset.test_dataset.images_dir` |
 
-For direct Docker runs, mount input folders at the same paths used in the spec. For chained jobs, map exported ONNX artifacts into `gen_trt_engine.onnx_file` and map the engine artifact into `evaluate.trt_engine` or `inference.trt_engine` where those actions are available.
+For direct Docker runs, mount input folders at the same paths used in the spec. If the source data is packaged as `images_test.tar.gz`, extract it first and point `dataset.test_dataset.images_dir` at the extracted class-root folder. For chained jobs, map exported ONNX artifacts into `gen_trt_engine.onnx_file` and map the engine artifact into `evaluate.trt_engine` or `inference.trt_engine` where those actions are available. `gen_trt_engine.trt_engine` is the generated output path, not an upstream input artifact.
 
 ## Spec Overrides
 
