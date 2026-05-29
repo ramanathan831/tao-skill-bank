@@ -78,9 +78,9 @@ Direct TAO Launcher spelling is `tao deploy mask2former gen_trt_engine`, `tao de
 | Action | Required artifact or data | Spec key |
 |---|---|---|
 | `gen_trt_engine` | Exported ONNX model | `gen_trt_engine.onnx_file` |
-| `gen_trt_engine` | Output engine path | `gen_trt_engine.trt_engine` |
 | `evaluate` | TensorRT engine | `evaluate.trt_engine` |
 | `evaluate` | COCO panoptic validation JSON | `dataset.val.panoptic_json` |
+| `evaluate` | COCO instance validation JSON | `dataset.val.instance_json` |
 | `evaluate` | Validation image directory | `dataset.val.img_dir` |
 | `evaluate` | Validation panoptic-mask directory | `dataset.val.panoptic_dir` |
 | `evaluate` | Label map | `dataset.label_map` |
@@ -88,7 +88,7 @@ Direct TAO Launcher spelling is `tao deploy mask2former gen_trt_engine`, `tao de
 | `inference` | Test image directory | `dataset.test.img_dir` |
 | `inference` | Label map | `dataset.label_map` |
 
-For direct Docker runs, mount input folders at the same paths used in the spec. For chained jobs, map exported ONNX artifacts into `gen_trt_engine.onnx_file` and map the engine artifact into `evaluate.trt_engine` or `inference.trt_engine` where those actions are available.
+For direct Docker runs, mount input folders at the same paths used in the spec. For chained jobs, map exported ONNX artifacts into `gen_trt_engine.onnx_file`; `gen_trt_engine.trt_engine` is the generated engine output path and is then mapped into `evaluate.trt_engine` or `inference.trt_engine`.
 
 ## Spec Overrides
 

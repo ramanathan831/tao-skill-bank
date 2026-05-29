@@ -10,8 +10,6 @@ actions:
     inputs:
       gen_trt_engine.onnx_file:
         type: file
-      gen_trt_engine.trt_engine:
-        type: file
     outputs:
       results_dir:
         type: folder
@@ -26,6 +24,8 @@ actions:
       evaluate.trt_engine:
         type: file
       dataset.val.panoptic_json:
+        type: file
+      dataset.val.instance_json:
         type: file
       dataset.val.img_dir:
         type: folder
@@ -53,6 +53,33 @@ actions:
         type: folder
     upload_excludes:
     - inputs/
+data_sources:
+  evaluate:
+    dataset.val.panoptic_json:
+      source: eval_dataset
+      path: annotations_panoptic.json
+    dataset.val.instance_json:
+      source: eval_dataset
+      path: annotations.json
+    dataset.val.img_dir:
+      source: eval_dataset
+      path: images.tar.gz
+      runtime: extracted_folder
+    dataset.val.panoptic_dir:
+      source: eval_dataset
+      path: images_panoptic.tar.gz
+      runtime: extracted_folder
+    dataset.label_map:
+      source: eval_dataset
+      path: label_map_panoptic.json
+  inference:
+    dataset.test.img_dir:
+      source: inference_dataset
+      path: images.tar.gz
+      runtime: extracted_folder
+    dataset.label_map:
+      source: train_datasets
+      path: label_map_panoptic.json
 spec_params:
   gen_trt_engine:
     results_dir: output_dir
@@ -67,7 +94,12 @@ spec_params:
 spec_shorthand_keys:
   trt_data_type: gen_trt_engine.tensorrt.data_type
   trt_engine: gen_trt_engine.trt_engine
-  batch_size: dataset.batch_size
+  batch_size: dataset.val.batch_size
+  test_batch_size: dataset.test.batch_size
+  mode: model.mode
+  num_classes: model.sem_seg_head.num_classes
+  contiguous_id: dataset.contiguous_id
+  object_mask_threshold: model.object_mask_threshold
 description: Mask2Former deploy workflow for gen_trt_engine, evaluate, inference using
   TAO Deploy.
 spec_templates:
