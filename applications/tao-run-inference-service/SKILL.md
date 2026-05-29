@@ -213,7 +213,7 @@ After resolving, read the endpoint from the registry (`references/code-templates
 
 ### 6.1 Sampling parameters — REQUIRED user prompt before each request
 
-Before constructing the request body, you **MUST** explicitly prompt the user for the vLLM-style sampling parameters. Do **not** silently apply defaults. Use a structured prompt (e.g. `AskUserQuestion` in Claude Code, one question per field) that:
+Before constructing the request body, you **MUST** explicitly prompt the user for the vLLM-style sampling parameters. Do **not** silently apply defaults. Use a structured prompt, one question per field, that:
 
 1. Lists every applicable field with its **type** and **default value**.
 2. Lets the user skip / accept any field to take that field's default — entering a value is never required.

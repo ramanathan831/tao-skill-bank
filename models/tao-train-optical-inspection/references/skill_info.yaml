@@ -8,6 +8,7 @@ actions:
   train:
     command: optical_inspection train -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.train_dataset.images_dir:
         type: folder
@@ -35,6 +36,7 @@ actions:
   evaluate:
     command: optical_inspection evaluate -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.test_dataset.images_dir:
         type: folder
@@ -53,6 +55,7 @@ actions:
   export:
     command: optical_inspection export -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       export.checkpoint:
         type: file
@@ -66,6 +69,7 @@ actions:
   inference:
     command: optical_inspection inference -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.infer_dataset.images_dir:
         type: folder

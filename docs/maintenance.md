@@ -1,5 +1,16 @@
 # Maintenance — bumping container images
 
+## Contents
+
+- Bumping a container image
+  - Verify the bump
+  - Commit + PR
+- Bumping an SDK install command
+- Adding a new image
+- When to use absolute paths instead of keys
+- Related: Python wheel install matrix
+
+
 All TAO container image tags live in **one file**: [`versions.yaml`](../versions.yaml) at the repo root. RC bumps and image upgrades are a one-line edit there.
 
 Wheel install commands are NOT centrally pinned — each skill's Preflight section declares the explicit `pip install "...[<extra>] @ git+https://..."` direct-URL it needs. See "Bumping an SDK install command" below.

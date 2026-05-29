@@ -8,6 +8,7 @@ actions:
   train:
     command: deformable_detr train -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.train_data_sources[0].image_dir:
         type: folder
@@ -31,6 +32,7 @@ actions:
   quantize:
     command: deformable_detr quantize -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.train_data_sources[0].image_dir:
         type: folder
@@ -54,6 +56,7 @@ actions:
   evaluate:
     command: deformable_detr evaluate -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.test_data_sources.image_dir:
         type: folder
@@ -73,6 +76,7 @@ actions:
   export:
     command: deformable_detr export -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       export.checkpoint:
         type: file
@@ -87,6 +91,7 @@ actions:
     container_image: tao_toolkit.deploy
     command: deformable_detr gen_trt_engine -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       gen_trt_engine.onnx_file:
         type: file
@@ -103,6 +108,7 @@ actions:
   inference:
     command: deformable_detr inference -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.infer_data_sources.image_dir:
         type: folder

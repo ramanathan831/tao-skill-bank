@@ -262,7 +262,7 @@ Read `references/sdg-refine.md` for the full inputs table, draws.json
 alignment detail (`SDG_result.csv` index column), output layout, and
 re-AMP heuristics.
 
-### Claude's draw strategy
+### Agent draw strategy
 
 For each round `r`:
 1. Read `per_sample.csv` from round `r-1` (or `original/per_sample.csv` for `r=1`).

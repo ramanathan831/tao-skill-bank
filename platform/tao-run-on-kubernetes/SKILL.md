@@ -244,7 +244,7 @@ The capacity check sums across nodes: `gpu_count × num_nodes` ≤ cluster's all
 - PyTorch distributed (env-var rendezvous): <https://pytorch.org/docs/stable/elastic/run.html>
 - NCCL networking tuning (NCCL_SOCKET_IFNAME, NCCL_IB_HCA): <https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html>
 
-### When to use a Kubernetes operator instead
+### Kubernetes operator alternatives
 
 For more sophisticated topologies (gang scheduling, PyTorch elastic / fault-tolerant training, MPI / Horovod, RDMA setup), reach for an operator instead of plain Indexed Job:
 

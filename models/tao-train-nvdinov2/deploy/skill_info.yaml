@@ -7,6 +7,7 @@ actions:
   gen_trt_engine:
     command: nvdinov2 gen_trt_engine -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       gen_trt_engine.onnx_file:
         type: file

@@ -18,7 +18,7 @@ tags:
 
 You are an analyst for NVIDIA TAO VCN Classify (Visual Component Net) inference results. Your job is to identify the **weakest samples per ground-truth label** by measuring signed distance from the decision threshold *in the wrong direction*, then surface them for downstream augmentation or relabeling.
 
-This skill is intentionally lightweight. VCN's classify head is a single-score binary boundary (PASS vs NO_PASS by `siamese_score`), so the analysis is computational, not investigative. The whole computation lives behind one direct `docker run` invocation against the `tao_toolkit.data_services` image declared in `versions.yaml` (resolved at runtime — see Setup). The container's entrypoint takes `<category> <action> [hydra overrides...]`; we pass `gap_analysis vcn_aoi key=value …`. Each override is a bare Hydra `key=value` that selectively overrides the script's `GapAnalysisConfig` schema (defaults are baked into the container; introspect with `docker run ... gap_analysis vcn_aoi --cfg=job`). (There is no `dataset` keyword inside the container — that's the TAO launcher's pillar prefix and is dropped here.) You do **not** need subagents, multi-phase image audits, or component-type clustering — VCN does not expose those dimensions. View only a small set of representative weak samples to qualify the gaps after the container returns.
+This skill is intentionally lightweight. VCN's classify head is a single-score binary boundary (PASS vs NO_PASS by `siamese_score`), so the analysis is computational, not investigative. The whole computation lives behind one direct `docker run` invocation against the `tao_toolkit.data_services` image declared in `versions.yaml` (resolved at runtime — see Setup). The container's entrypoint takes `<category> <action> [hydra overrides...]`; we pass `gap_analysis vcn_aoi key=value …`. Each override is a bare Hydra `key=value` that selectively overrides the script's `GapAnalysisConfig` schema (defaults are baked into the container; introspect with `docker run ... gap_analysis vcn_aoi --cfg=job`). (There is no `dataset` keyword inside the container — that's the TAO launcher's pillar prefix and is dropped here.) You do **not** need delegated analysis, multi-phase image audits, or component-type clustering — VCN does not expose those dimensions. View only a small set of representative weak samples to qualify the gaps after the container returns.
 
 CLI surface can shift between data-services container builds. If a `gap_analysis vcn_aoi` invocation fails on argument parsing, introspect the actual schema once per image with `docker run --rm "$DS_IMAGE" gap_analysis vcn_aoi --cfg=job` and reconcile any renamed keys (e.g. `inference_csv` vs `inference_results_dir`, `output_dir` vs `results_dir`) before retrying. Output parquet name is `kpi_gaps.parquet`.
 
@@ -48,7 +48,7 @@ docker image inspect "$DS_IMAGE" > /dev/null \
   || docker pull "$DS_IMAGE"
 ```
 
-`TAO_SKILL_BANK_PATH` is exported by the plugin's `session_start` hook. If it is unset (e.g. running outside the Claude Code plugin), point it at the skill-bank repo root before resolving.
+`TAO_SKILL_BANK_PATH` is usually exported by the installed skill bank. If it is unset, point it at the skill-bank repo root before resolving.
 
 A GPU is required (the same image is used across the AOI loop and other actions assume CUDA is present). Aborting early on a GPU-less host saves a confusing late error.
 
@@ -193,7 +193,7 @@ PYEOF
 
 ## Outputs
 
-Write everything into a timestamped folder under the experiment result directory. The container's outputs go straight there; the visual spot-check writes `rca_images/`; the packaging hook will add `rca_config/` and `claude_session.jsonl` automatically when `RCA_Report.md` is written.
+Write everything into a timestamped folder under the experiment result directory. The container's outputs go straight there; the visual spot-check writes `rca_images/`; any runtime packaging hook may add session/config capture artifacts after `RCA_Report.md` is written.
 
 ```
 <experiment_result_dir>/rca_results/YYYY-MM-DD_HHMMSS/
@@ -205,7 +205,7 @@ Write everything into a timestamped folder under the experiment result directory
 ├── unreachable_kpi.txt        # Container: ONLY when no threshold meets min_recall
 ├── rca_images/                # You: thumbnails of the 10 viewed weak samples
 ├── rca_config/                # Auto-copied by hook
-└── claude_session.jsonl       # Auto-copied by hook
+└── session log/artifacts      # Optional, runtime-dependent packaging capture
 ```
 
 At the start of the run, get the real timestamp by running `date +%Y-%m-%d_%H%M%S` in Bash. Do NOT hardcode or guess. If the user specifies a custom output path, use that instead but maintain the same internal structure.

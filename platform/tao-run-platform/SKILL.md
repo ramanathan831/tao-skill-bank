@@ -140,7 +140,7 @@ Brev-only:
 
 ## Submitting a Job
 
-The agent always **constructs the container command via `build_entrypoint`** before calling `create_job`. The agent reads the action's schema from `skill_info.yaml` (`command`, `config_format`, `inputs`, `outputs`, `upload_excludes`) and passes those fields as kwargs. `build_entrypoint` then bakes:
+The agent always **constructs the container command via `build_entrypoint`** before calling `create_job`. The agent reads the action's schema from `skill_info.yaml` (`command`, `mode`, `config_format`, `inputs`, `outputs`, `upload_excludes`) and passes those fields as kwargs. `build_entrypoint` then bakes:
 
 1. The in-container `script_runner` runtime (inlined as a base64 heredoc — no need for `tao_sdk` to be installed in the container).
 2. The CLI invocation that, at runtime in the container, will: download declared inputs (S3 / HF-Hub / NGC), write the spec file at `{config_path}` with remote URIs rewritten to local paths, run the user command, and upload outputs.
@@ -191,7 +191,7 @@ The two shapes look superficially similar but mean different things. When in dou
 
 ### Constructing the spec / args
 
-The skill's action declares its config mechanism in `skill_info.yaml`'s `actions.<action>.mode` field (defaulting to `config` when absent). The agent's construction strategy follows from that:
+The skill's action declares its config mechanism in `skill_info.yaml`'s `actions.<action>.mode` field. Treat missing `mode` as invalid metadata and fix the skill instead of inferring a default. The agent's construction strategy follows from that:
 
 | `mode` | How to construct |
 |---|---|
@@ -202,7 +202,7 @@ The skill's action declares its config mechanism in `skill_info.yaml`'s `actions
 
 **Recommended decision order:**
 
-1. Read `action_cfg = skill_info["actions"][action]`. Check `action_cfg.get("mode", "config")`.
+1. Read `action_cfg = skill_info["actions"][action]`. Check `action_cfg["mode"]`.
 2. For `config` mode: check `references/spec_template_<action>.yaml`. If it exists, **load it as your base** — don't rebuild from scratch.
 3. Apply user overrides on top (plus any "Critical Overrides" rows from the model's `SKILL.md`).
 4. For `args` mode: copy `action_cfg["args"]`, fill placeholders, hand to `build_entrypoint(args=...)`.
@@ -214,7 +214,7 @@ from pathlib import Path
 skill_dir = Path(bank) / "models/<model>"
 skill_info = yaml.safe_load((skill_dir / "references/skill_info.yaml").read_text())
 action_cfg = skill_info["actions"][action]
-mode = action_cfg.get("mode", "config")
+mode = action_cfg["mode"]
 
 if mode == "args":
     args = dict(action_cfg["args"])
@@ -306,18 +306,17 @@ sdk.create_job(image=img, command=ep["command"], gpu_count=1)
 
 In passthrough mode the runtime dispatches each input URI by scheme — `s3://`, `hf_model://`, `ngc://` — to the right downloader. No spec rewriting, no `{config_path}`. After the command, listed output paths are uploaded per the same destination resolution rules (S3 if `S3_BUCKET_NAME`, else mount, else container-ephemeral with warning).
 
-### Mode inference (you don't pass `mode`)
+### Entrypoint shape follows declared `mode`
 
-`build_entrypoint` infers the mode from what the agent passes:
+Read `actions.<action>.mode` from `skill_info.yaml` first, then pass the matching argument shape to `build_entrypoint`:
 
-| What the agent passes | Inferred mode |
+| Declared mode | What the agent passes |
 |---|---|
-| `specs=...` (with optional spec-keyed `inputs` / `outputs`) | `config` — write spec file, rewrite URIs, run command |
-| `args=...` (with optional spec-keyed `inputs` / `outputs`) | `args` — substitute CLI args into the command template |
-| `inputs=...` and/or `outputs=...` only (path-keyed) | `passthrough` — download to listed paths, run, upload |
-| nothing extra (just `command`) | `passthrough` with no I/O — bare command |
+| `config` | `specs=...` with spec-keyed `inputs` / `outputs`; the helper writes the spec file, rewrites URIs, and runs the command |
+| `args` | `args=...` with optional spec-keyed `inputs` / `outputs`; the helper substitutes CLI args into the command template |
+| `passthrough` | path-keyed `inputs=...` and/or `outputs=...`; the helper downloads to listed paths, runs the command, and uploads listed outputs |
 
-One helper, one signature.
+Do not infer mode from missing metadata. Missing `mode` means the skill contract is stale.
 
 ## Resolving container images
 
@@ -469,5 +468,5 @@ similar — the entries map exception text to the underlying cause.
   `automl_policy: on` by default unless the workflow passes `automl_policy: off`
   or the user explicitly asks for a plain single training run.
 - It does **not** decide what goes in the spec. The agent constructs the spec dict (loading templates, applying overrides) and passes it to `build_entrypoint`, which serializes the spec and inlines the in-container runner that writes it to `{config_path}` at job start. The SDK has no opinion about which keys you set.
-- It does **not** select platforms automatically. Pick the SDK matching your target backend explicitly: `LeptonSDK`, `BrevSDK`, `DockerSDK`, `SlurmSDK`, or `KubernetesSDK`.
+- It does **not** select platforms automatically. Pick the SDK matching your target backend explicitly: `BrevSDK`, `DockerSDK`, `SlurmSDK`, or `KubernetesSDK`.
 - It does **not** orchestrate multi-step workflows. The agent chains jobs by polling and constructing the next command.

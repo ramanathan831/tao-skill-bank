@@ -3,17 +3,25 @@ type: platform
 actions:
   check_docker:
     command: bash platform/tao-setup-nvidia-gpu-host/scripts/setup-nvidia-gpu-host.sh --backend docker --check-only
+    mode: passthrough
+    inputs: {}
     outputs:
       runtime_status: {type: text}
   install_docker:
     command: bash platform/tao-setup-nvidia-gpu-host/scripts/setup-nvidia-gpu-host.sh --backend docker --install --yes
+    mode: passthrough
+    inputs: {}
     outputs:
       runtime_status: {type: text}
   check_kubernetes:
     command: bash platform/tao-setup-nvidia-gpu-host/scripts/setup-nvidia-gpu-host.sh --backend kubernetes --check-only
+    mode: passthrough
+    inputs: {}
     outputs:
       runtime_status: {type: text}
   install_kubernetes:
     command: bash platform/tao-setup-nvidia-gpu-host/scripts/setup-nvidia-gpu-host.sh --backend kubernetes --install --yes
+    mode: passthrough
+    inputs: {}
     outputs:
       runtime_status: {type: text}

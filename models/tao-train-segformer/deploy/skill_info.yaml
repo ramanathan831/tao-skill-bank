@@ -7,6 +7,7 @@ actions:
   gen_trt_engine:
     command: segformer gen_trt_engine -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       gen_trt_engine.onnx_file:
         type: file
@@ -18,6 +19,7 @@ actions:
   evaluate:
     command: segformer evaluate -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       evaluate.trt_engine:
         type: file
@@ -31,6 +33,7 @@ actions:
   inference:
     command: segformer inference -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       inference.trt_engine:
         type: file
