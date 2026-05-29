@@ -58,6 +58,7 @@ Data source overrides are **mandatory for every action being run** — the agent
 
 ```python
 S3_TRAIN = "s3://bucket/data/purpose_built_models_pose_classification_train/nvidia"
+CHECKPOINT = "/results/{train_job_id}/results_dir/model_epoch_000_step_00007.pth"
 ```
 
 **dataset_convert (optional; raw DeepStream BodyPose JSON only):**
@@ -92,11 +93,32 @@ S3_TRAIN = "s3://bucket/data/purpose_built_models_pose_classification_train/nvid
 }
 ```
 
+**resume train (mandatory checkpoint):**
+```python
+{
+    "train.num_epochs": 31,
+    "train.resume_training_checkpoint_path": CHECKPOINT,
+    "dataset.train_dataset.data_path": f"{S3_TRAIN}/train_data.npy",
+    "dataset.train_dataset.label_path": f"{S3_TRAIN}/train_label.pkl",
+    "dataset.val_dataset.data_path": f"{S3_TRAIN}/val_data.npy",
+    "dataset.val_dataset.label_path": f"{S3_TRAIN}/val_label.pkl",
+}
+```
+
 **evaluate (mandatory data sources):**
 ```python
 {
     "evaluate.test_dataset.data_path": f"{S3_TRAIN}/val_data.npy",
     "evaluate.test_dataset.label_path": f"{S3_TRAIN}/val_label.pkl",
+    "evaluate.checkpoint": CHECKPOINT,
+}
+```
+
+**export (mandatory checkpoint and output):**
+```python
+{
+    "export.checkpoint": CHECKPOINT,
+    "export.onnx_file": "/results/{export_job_id}/results_dir/pose_classification.onnx",
 }
 ```
 
@@ -104,6 +126,8 @@ S3_TRAIN = "s3://bucket/data/purpose_built_models_pose_classification_train/nvid
 ```python
 {
     "inference.test_dataset.data_path": f"{S3_TRAIN}/test_data.npy",
+    "inference.test_dataset.label_path": f"{S3_TRAIN}/test_label.pkl",
+    "inference.checkpoint": CHECKPOINT,
     "inference.output_file": "/results/pose_classification_inference.txt",
 }
 ```
@@ -148,7 +172,7 @@ Minimum 1 GPU(s), recommended 1 GPU(s). 8GB+ VRAM per GPU. Pose classification i
 
 **Missing label map**: The training dataloader expects `dataset.label_map` to be a dictionary. If the dataset only supplies numeric class IDs, set a synthetic contiguous map such as `class_0: 0` through `class_5: 5` for the six-class NVIDIA sample data.
 
-**Checkpoint handoff**: After AutoML/train, use the saved `.pth` checkpoint under the best child job's `results_dir/train/` (for example `model_epoch_*.pth` or `pc_model_latest.pth`) as `evaluate.checkpoint`, `export.checkpoint`, or `inference.checkpoint`. Keep the same `dataset.num_classes`, `dataset.label_map`, and `model.graph_layout` overrides for downstream actions.
+**Checkpoint handoff**: After AutoML/train, use the checkpoint resolver to select the intended saved `.pth` checkpoint under the parent result folder, such as `model_epoch_000_step_00007.pth`, and pass that exact file as `evaluate.checkpoint`, `export.checkpoint`, `inference.checkpoint`, or `train.resume_training_checkpoint_path`. `pc_model_latest.pth` is a latest-checkpoint symlink; use it only when the user explicitly asks for latest rather than a specific/best checkpoint. Keep the same `dataset.num_classes`, `dataset.label_map`, and `model.graph_layout` overrides for downstream actions.
 
 **Dataset conversion source**: `dataset_convert` expects the raw JSON output from the DeepStream BodyPose app. The common NVIDIA sample S3 folder is already converted to `train_data.npy`, `train_label.pkl`, `val_data.npy`, `val_label.pkl`, `test_data.npy`, and `test_label.pkl`; skip conversion and start from the converted files when those are present.
 

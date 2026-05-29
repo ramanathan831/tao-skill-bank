@@ -63,6 +63,8 @@ actions:
     outputs:
       results_dir:
         type: folder
+      export.onnx_file:
+        type: file
     upload_excludes:
     - inputs/
   inference:
@@ -78,22 +80,53 @@ actions:
         type: folder
     upload_excludes:
     - inputs/
-data_sources: {}
+data_sources:
+  train:
+    dataset.train_dataset.data_path:
+      source: train_datasets
+      path: train_data.npy
+    dataset.train_dataset.label_path:
+      source: train_datasets
+      path: train_label.pkl
+    dataset.val_dataset.data_path:
+      source: train_datasets
+      path: val_data.npy
+    dataset.val_dataset.label_path:
+      source: train_datasets
+      path: val_label.pkl
+  evaluate:
+    evaluate.test_dataset.data_path:
+      source: train_datasets
+      path: val_data.npy
+    evaluate.test_dataset.label_path:
+      source: train_datasets
+      path: val_label.pkl
+  inference:
+    inference.test_dataset.data_path:
+      source: train_datasets
+      path: test_data.npy
+    inference.test_dataset.label_path:
+      source: train_datasets
+      path: test_label.pkl
 spec_params:
   dataset_convert:
     dataset_convert.results_dir: output_dir
   train:
+    encryption_key: key
     results_dir: output_dir
     model.pretrained_model_path: ptm_if_no_resume_model
     train.resume_training_checkpoint_path: resume_model
   evaluate:
+    encryption_key: key
     results_dir: output_dir
     evaluate.checkpoint: parent_model
   export:
+    encryption_key: key
     results_dir: output_dir
     export.checkpoint: parent_model
     export.onnx_file: create_onnx_file
   inference:
+    encryption_key: key
     results_dir: output_dir
     inference.checkpoint: parent_model
     inference.output_file: create_inference_result_file_pose
@@ -101,6 +134,22 @@ key_defaults: {}
 spec_shorthand_keys:
   num_epochs: train.num_epochs
   batch_size: dataset.batch_size
+  evaluate_batch_size: evaluate.batch_size
+  inference_batch_size: inference.batch_size
   learning_rate: train.optim.lr
+  num_gpus: train.num_gpus
+  num_workers: dataset.num_workers
+  num_classes: dataset.num_classes
+  graph_layout: model.graph_layout
+  resume_checkpoint: train.resume_training_checkpoint_path
+  pretrained_model: model.pretrained_model_path
+  export_onnx: export.onnx_file
+  inference_output_file: inference.output_file
+spec_templates:
+  dataset_convert: ../references/spec_template_dataset_convert.yaml
+  train: ../references/spec_template_train.yaml
+  evaluate: ../references/spec_template_evaluate.yaml
+  export: ../references/spec_template_export.yaml
+  inference: ../references/spec_template_inference.yaml
 description: Pose classification using ST-GCN (Spatial Temporal Graph Convolutional Network). Classifies skeleton sequences
   into action categories from pose keypoint data.
