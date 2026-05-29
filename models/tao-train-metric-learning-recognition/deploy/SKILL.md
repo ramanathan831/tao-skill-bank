@@ -78,7 +78,6 @@ Direct TAO Launcher spelling is `tao deploy ml_recog gen_trt_engine`, `tao deplo
 | Action | Required artifact or data | Spec key |
 |---|---|---|
 | `gen_trt_engine` | Exported ONNX model | `gen_trt_engine.onnx_file` |
-| `gen_trt_engine` | Output engine path | `gen_trt_engine.trt_engine` |
 | `gen_trt_engine` | Calibration images for INT8 | `gen_trt_engine.tensorrt.calibration.cal_image_dir` |
 | `evaluate` | TensorRT engine | `evaluate.trt_engine` |
 | `evaluate` | Reference set | `dataset.val_dataset.reference` |
@@ -87,7 +86,7 @@ Direct TAO Launcher spelling is `tao deploy ml_recog gen_trt_engine`, `tao deplo
 | `inference` | Reference set | `dataset.val_dataset.reference` |
 | `inference` | Input/query image folder | `inference.input_path` |
 
-For direct Docker runs, mount input folders at the same paths used in the spec. For chained jobs, map exported ONNX artifacts into `gen_trt_engine.onnx_file` and map the engine artifact into `evaluate.trt_engine` or `inference.trt_engine` where those actions are available.
+For direct Docker runs, mount input folders at the same paths used in the spec. For chained jobs, map exported ONNX artifacts into `gen_trt_engine.onnx_file`; `gen_trt_engine.trt_engine` is the generated engine output path and is then mapped into `evaluate.trt_engine` or `inference.trt_engine`.
 
 ## Spec Overrides
 
