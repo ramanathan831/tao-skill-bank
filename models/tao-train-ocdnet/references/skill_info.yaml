@@ -1,0 +1,122 @@
+name: tao-train-ocdnet
+network_arch: ocdnet
+automl_enabled: true
+container_image: tao_toolkit.pyt
+data_format: default
+gpu_spec_key: train.num_gpus
+actions:
+  train:
+    command: ocdnet train -e {config_path}
+    config_format: yaml
+    inputs:
+      dataset.train_dataset.data_path:
+        type: folder
+      dataset.validate_dataset.data_path:
+        type: folder
+      model.pretrained_model_path:
+        type: file
+      train.resume_training_checkpoint_path:
+        type: file
+    outputs:
+      results_dir:
+        type: folder
+    upload_excludes:
+    - inputs/
+  quantize:
+    command: ocdnet quantize -e {config_path}
+    config_format: yaml
+    inputs:
+      dataset.train_dataset.data_path:
+        type: folder
+      dataset.validate_dataset.data_path:
+        type: folder
+      dataset.quant_calibration_dataset.images_dir:
+        type: folder
+      quantize.model_path:
+        type: file
+    outputs:
+      results_dir:
+        type: folder
+    upload_excludes:
+    - inputs/
+  evaluate:
+    command: ocdnet evaluate -e {config_path}
+    config_format: yaml
+    inputs:
+      dataset.validate_dataset.data_path:
+        type: folder
+      evaluate.checkpoint:
+        type: file
+    outputs:
+      results_dir:
+        type: folder
+    upload_excludes:
+    - inputs/
+  export:
+    command: ocdnet export -e {config_path}
+    config_format: yaml
+    inputs:
+      export.checkpoint:
+        type: file
+    outputs:
+      results_dir:
+        type: folder
+      export.onnx_file:
+        type: file
+    upload_excludes:
+    - inputs/
+  prune:
+    command: ocdnet prune -e {config_path}
+    config_format: yaml
+    inputs:
+      dataset.validate_dataset.data_path:
+        type: folder
+      prune.checkpoint:
+        type: file
+    outputs:
+      results_dir:
+        type: folder
+    upload_excludes:
+    - inputs/
+  inference:
+    command: ocdnet inference -e {config_path}
+    config_format: yaml
+    inputs:
+      inference.input_folder:
+        type: folder
+      inference.checkpoint:
+        type: file
+    outputs:
+      results_dir:
+        type: folder
+    upload_excludes:
+    - inputs/
+data_sources: {}
+spec_params:
+  train:
+    results_dir: output_dir
+    model.pretrained_model_path: ptm_if_no_resume_model
+    train.resume_training_checkpoint_path: resume_model
+  evaluate:
+    results_dir: output_dir
+    evaluate.checkpoint: parent_model
+  export:
+    results_dir: output_dir
+    export.checkpoint: parent_model
+    export.onnx_file: create_onnx_file
+  inference:
+    results_dir: output_dir
+    inference.checkpoint: parent_model
+  prune:
+    results_dir: output_dir
+    prune.checkpoint: parent_model
+  quantize:
+    results_dir: output_dir
+    quantize.model_path: parent_model
+key_defaults: {}
+spec_shorthand_keys:
+  num_epochs: train.num_epochs
+  batch_size: dataset.batch_size
+  learning_rate: train.optimizer.args.lr
+description: OCDNet for scene text detection. Detects arbitrary-oriented text regions in natural images using a differentiable
+  binarization approach.

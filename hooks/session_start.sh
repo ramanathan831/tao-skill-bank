@@ -14,8 +14,8 @@
 #   3. Surface clear setup hints if docker is missing.
 #
 # This hook does NOT install Python packages. The TAO SDK is opt-in and
-# installed lazily by the skills that need it (platform/lepton, platform/tao-sdk,
-# applications/tao-automl) via their Preflight blocks.
+# installed lazily by the skills that need it (platform/tao-run-platform,
+# applications/tao-run-automl) via their Preflight blocks.
 
 set -u
 
@@ -85,7 +85,7 @@ if ! command -v docker >/dev/null 2>&1; then
   echo "- CUDA Toolkit 13.0"
   echo "- NVIDIA Container Toolkit 1.19.0"
   echo
-  echo "Use the \`nvidia-gpu-setup\` skill to check / install the NVIDIA pieces;"
+  echo "Use the \`tao-setup-nvidia-gpu-host\` skill to check / install the NVIDIA pieces;"
   echo "its \`--backend docker --install --yes\` path also installs Docker on"
   echo "Debian/RHEL/SUSE-family hosts and adds you to the \`docker\` group."
   echo "Manual install reference: https://docs.docker.com/engine/install/"

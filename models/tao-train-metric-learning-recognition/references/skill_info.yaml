@@ -1,0 +1,84 @@
+name: tao-train-metric-learning-recognition
+network_arch: ml_recog
+automl_enabled: true
+container_image: tao_toolkit.pyt
+data_format: default
+gpu_spec_key: train.num_gpus
+actions:
+  train:
+    command: ml_recog train -e {config_path}
+    config_format: yaml
+    inputs:
+      dataset.train_dataset:
+        type: folder
+      dataset.val_dataset.reference:
+        type: folder
+      dataset.val_dataset.query:
+        type: folder
+      train.resume_training_checkpoint_path:
+        type: file
+        optional: true
+    outputs:
+      results_dir:
+        type: folder
+    upload_excludes:
+    - inputs/
+  evaluate:
+    command: ml_recog evaluate -e {config_path}
+    config_format: yaml
+    inputs:
+      evaluate.checkpoint:
+        type: file
+      dataset.val_dataset.reference:
+        type: folder
+      dataset.val_dataset.query:
+        type: folder
+    outputs:
+      results_dir:
+        type: folder
+    upload_excludes:
+    - inputs/
+  export:
+    command: ml_recog export -e {config_path}
+    config_format: yaml
+    inputs:
+      export.checkpoint:
+        type: file
+    outputs:
+      results_dir:
+        type: folder
+      export.onnx_file:
+        type: file
+    upload_excludes:
+    - inputs/
+  inference:
+    command: ml_recog inference -e {config_path}
+    config_format: yaml
+    inputs:
+      inference.checkpoint:
+        type: file
+      dataset.val_dataset.reference:
+        type: folder
+      inference.input_path:
+        type: folder
+    outputs:
+      results_dir:
+        type: folder
+    upload_excludes:
+    - inputs/
+data_sources: {}
+spec_params:
+  evaluate:
+    evaluate.checkpoint: parent_model
+  export:
+    export.checkpoint: parent_model
+    export.onnx_file: create_onnx_file
+  inference:
+    inference.checkpoint: parent_model
+key_defaults: {}
+spec_shorthand_keys:
+  num_epochs: train.num_epochs
+  batch_size: dataset.batch_size
+  learning_rate: train.optim.lr
+description: Metric learning recognition for fine-grained visual recognition. Learns embeddings for retrieval-based matching
+  (e.g., retail product recognition). Uses triplet/contrastive losses.

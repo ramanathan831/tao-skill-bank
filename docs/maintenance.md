@@ -42,11 +42,11 @@ CI runs `validate-skills.sh` automatically. Merge once green.
 
 ## Bumping an SDK install command
 
-`nvidia-tao-sdk` and `nvidia-tao-automl` are not on public PyPI yet, so each skill's Preflight section uses a `pip install "...[<extra>] @ git+https://..."` direct-URL pointing at the GitLab repo. When packages eventually publish to PyPI, replace each skill's Preflight URL form with a versioned form (e.g., `pip install 'nvidia-tao-sdk[lepton]>=0.4.0'`). Use a repo-wide grep:
+`nvidia-tao-sdk` and `nvidia-tao-automl` are not on public PyPI yet, so each skill's Preflight section uses a `pip install "...[<extra>] @ git+https://..."` direct-URL pointing at the GitLab repo. When packages eventually publish to PyPI, replace each skill's Preflight URL form with a versioned form (e.g., `pip install 'nvidia-tao-sdk[brev]>=0.4.0'`). Use a repo-wide grep:
 
 ```bash
 grep -rl "git+https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-sdk.git" .
-grep -rl "git+https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-automl.git" .
+grep -rl "git+https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-run-automl.git" .
 ```
 
 Update each match. There is no central manifest to bump.
@@ -92,7 +92,6 @@ Users install the SDK via the `pip` direct-URL form (the wheels aren't on public
 ```bash
 REPO='git+https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-sdk.git'
 pip install "nvidia-tao-sdk @ $REPO"                  # core only
-pip install "nvidia-tao-sdk[lepton] @ $REPO"          # + Lepton handler deps
 pip install "nvidia-tao-sdk[brev] @ $REPO"            # + Brev handler
 pip install "nvidia-tao-sdk[slurm] @ $REPO"           # + SLURM handler
 pip install "nvidia-tao-sdk[kubernetes] @ $REPO"      # + Kubernetes handler
