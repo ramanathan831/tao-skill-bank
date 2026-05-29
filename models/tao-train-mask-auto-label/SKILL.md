@@ -108,7 +108,8 @@ Optional. Val images and annotations configured alongside train paths.
 
 ## Important Parameters
 
-- **model.arch**: ViT-MAE backbone variant. Default vit-mae-base/16. Options include vit-mae-large/16 and other ViT-MAE variants.
+- **model.arch**: ViT-MAE backbone variant. Default vit-mae-base/16.
+  Avoid `vit-deit-tiny/16`; the current runtime rejects tiny ViT variants.
 - **train.lr**: Learning rate. Default 1e-6 (very low — fine-tuning ViT).
 - **dataset.crop_size**: Training crop size. Default 512. Use this key, not
   `model.crop_size`.
@@ -165,6 +166,8 @@ Inference mappings from TAO Core `mal.config.json`:
 | inference | `inference.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
 | inference | `inference.label_dump_path` | `create_inference_result_file_mal` | MAL inference JSON path |
 | inference | `results_dir` | `output_dir` | current job results directory |
+| train | `train.pretrained_model_path` | `ptm_if_no_resume_model` | optional pretrained model when not resuming |
+| train | `train.resume_training_checkpoint_path` | `resume_model` | exact checkpoint for resume runs |
 | train | `results_dir` | `output_dir` | current job results directory |
 
 For `parent_model` or `parent_model_folder`, pass the upstream train/export/AutoML child job id as `parent_job_id`. The SDK lists the parent result folder, filters checkpoint artifacts, and returns the selected model file or folder. Do not add these mappings back to `config.json` and do not patch generated runner scripts to guess checkpoint paths.
