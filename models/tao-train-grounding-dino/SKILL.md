@@ -52,6 +52,12 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 | train | dataset.train_data_sources | train_datasets | image_dir: images.tar.gz, json_file: annotations_odvg.jsonl, label_map: annotations_odvg_labelmap.json | Yes |
 | train | dataset.val_data_sources | eval_dataset | image_dir: images.tar.gz, json_file: annotations.json | No |
 
+The runner may source image archives as `images.tar.gz`, but direct local
+Docker TAO CLI specs must point `image_dir` to an extracted image directory.
+Skill metadata marks these archive-backed image sources with
+`runtime: extracted_folder` so a fresh runner can unpack the archive before
+launching TAO.
+
 ### Typical Spec Overrides
 
 Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
@@ -191,6 +197,11 @@ regenerate the label maps with the same length.
 **index is out of bounds for dimension 0 in `criterion.py`**: `model.num_queries`
 is too small for the matched ODVG targets in the current batch. Increase
 `model.num_queries` and keep `model.num_select` compatible with it.
+
+**NotADirectoryError with `images.tar.gz/<image>.jpg`**: The direct TAO CLI is
+trying to traverse an archive path as a directory. Extract the archive and set
+the relevant `image_dir` field to the extracted image folder; archive-backed
+skill data sources use `runtime: extracted_folder` for this reason.
 
 ## Spec Param / Parent Model Inference
 
