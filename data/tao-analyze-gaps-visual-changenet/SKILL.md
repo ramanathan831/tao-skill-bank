@@ -1,10 +1,6 @@
 ---
 name: tao-analyze-gaps-visual-changenet
-description: Performs gap analysis on NVIDIA TAO Visual ChangeNet (VCN) Classify experiments by invoking the data-services
-  container (`tao_toolkit.data_services` from `versions.yaml`) directly via `docker run … gap_analysis vcn_aoi …` — picks
-  the optimal decision threshold, ranks per-sample weakness, and emits a top-K weakest parquet expanded per-lighting for
-  downstream augmentation. Use when analyzing VCN classification failures, picking SDA augmentation targets, auditing
-  PASS/NO_PASS boundary cases, or running DEFT gap analysis on an AOI ChangeNet model.
+description: Performs gap analysis on NVIDIA TAO VCN Classify (Visual Component Net) experiments by invoking the data-services container (`tao_toolkit.data_services` from `versions.yaml`) directly via `docker run … gap_analysis vcn_aoi …` — picks the optimal decision threshold, ranks per-sample weakness, and emits a top-K weakest parquet expanded per-lighting for downstream augmentation. Use when analyzing VCN classification failures, picking SDA augmentation targets, or auditing PASS/NO_PASS boundary cases.
 license: Apache-2.0
 compatibility: Requires docker + nvidia-container-toolkit and a CUDA GPU. Pulls the `tao_toolkit.data_services` image declared in `versions.yaml` at the skill bank root.
 metadata:
@@ -60,12 +56,18 @@ A GPU is required (the same image is used across the AOI loop and other actions 
 
 ```bash
 WORKSPACE=<absolute path that contains inference.csv, train YAML, dataset images, and the output dir>
-DOCKER="docker run --gpus all --rm --ipc=host --user $(id -u):$(id -g) -v $WORKSPACE:$WORKSPACE -w $WORKSPACE $DS_IMAGE"
+DOCKER="docker run --gpus all --rm --ipc=host -v $WORKSPACE:$WORKSPACE -w $WORKSPACE $DS_IMAGE"
+```
+
+**Do not pass `--user $(id -u):$(id -g)`.** The container imports `transformers` at startup, which lazy-loads a module path that ends up in `getpass.getuser()` → `pwd.getpwuid(os.getuid())`. With a non-root host UID and no matching `/etc/passwd` entry inside the container, this raises `KeyError: 'getpwuid(): uid not found: <uid>'` *before* `gap_analysis` runs. Drop the flag and `chown` the outputs back to the host UID afterwards if you need them host-writable:
+
+```bash
+docker run --rm -v "$WORKSPACE:/w" alpine chown -R $(id -u):$(id -g) /w/<results_subdir>
 ```
 
 If `inference.csv`, the train YAML, and the dataset images live in different roots, pass multiple `-v` flags — but every absolute path you pass in args must resolve inside the container.
 
-**CLI overrides cover the common case.** `min_recall`, `top_k_per_label`, and optionally `threshold` are passed as Hydra overrides on the command line; defaults baked into the container (`min_recall=1.0`, `top_k_per_label=50`, `threshold=-1.0` to sweep) handle most runs. If the container also accepts a spec file via `-e <spec>` (verify with `--cfg=job`), passing one is a convenience, not a requirement — override only what you need.
+**`-e <spec>` is required, not optional.** Older revisions of this doc described `-e <spec>` as a convenience and Hydra CLI overrides as sufficient on their own. In current `tao_toolkit.data_services` images (verified on `7.0.0-rc-180-multiarch` and later) the entrypoint hard-requires the flag and exits with `ValueError: The subtask vcn_aoi requires the following argument: -e/--experiment_spec_file` before parsing any CLI override. Always pass a minimal spec file — even a thin YAML containing just `min_recall` / `top_k_per_label` / `threshold` is enough; the CLI overrides win at merge time. The `## Reference invocation` block writes this file once per run.
 
 ---
 
@@ -156,7 +158,6 @@ top_k_per_label: $TOP_K
 EOF
 
 docker run --gpus all --rm --ipc=host \
-    --user "$(id -u):$(id -g)" \
     -v "$WORKSPACE:$WORKSPACE" -w "$WORKSPACE" \
     "$IMG" gap_analysis vcn_aoi \
     -e "$SPEC" \
@@ -164,6 +165,9 @@ docker run --gpus all --rm --ipc=host \
     train_config="$EXP_DIR/train.yaml" \
     kpi_media_path="$DATASET_ROOT" \
     results_dir="$OUT"
+
+# Container writes as root with --user dropped; chown back to host UID if needed.
+docker run --rm -v "$WORKSPACE:/w" alpine chown -R "$(id -u):$(id -g)" "/w/$(realpath --relative-to="$WORKSPACE" "$OUT")"
 
 # Sanity print so the script-check hook sees real numbers
 python3 - "$OUT" << 'PYEOF'
@@ -211,6 +215,8 @@ At the start of the run, get the real timestamp by running `date +%Y-%m-%d_%H%M%
 ## Common pitfalls
 
 - **Forgetting `top_k_per_label` when `min_recall=1.0`** — the most consequential failure mode of this skill. At `min_recall=1.0` the chosen threshold sits at or below every NO_PASS sample's score (so recall=100% by construction means there are NO false negatives). Without `top_k_per_label`, the container falls back to a "samples below threshold" filter, which at this threshold matches ONLY misclassified PASS rows (false positives) — `kpi_gaps.parquet` ends up containing zero NO_PASS rows and the augmentation queue is broken. **Always include an explicit positive `top_k_per_label`** in `vcn_aoi_spec.yaml` (default 50), or pass it as a Hydra override, so the container ranks by signed weakness and returns the K weakest *per label*.
+- **Passing `--user $(id -u):$(id -g)` to the container** — kills the run with `KeyError: 'getpwuid(): uid not found: <uid>'` during `transformers`' lazy import chain, before `gap_analysis` even starts. The image has no `/etc/passwd` entry for non-root host UIDs. Drop the `--user` flag; chown outputs back to the host UID via a small `alpine` container afterwards if needed. See *Setup → Path mounting*.
+- **Calling the entrypoint with only Hydra CLI overrides (no `-e <spec>`)** — current data-services images (`tao_toolkit.data_services` 7.0.0-rc-180-multiarch+) hard-require the flag and exit with `ValueError: The subtask vcn_aoi requires the following argument: -e/--experiment_spec_file` before parsing CLI overrides. Always pass a minimal spec file via `-e`; CLI overrides win at merge time but cannot replace the file itself. See *Setup → `-e <spec>` is required*.
 - **Spec file outside `$WORKSPACE`** — `-e <path>` is resolved inside the container, so `vcn_aoi_spec.yaml` must live under the bind-mounted workspace. Place it next to the other run artifacts (the recipe puts it inside the timestamped output dir) and pass an absolute path.
 - **Spec file with unresolved `???` sentinels** — the bundled defaults under `experiment_specs/vcn_aoi.yaml` mark required fields with `???`. Replace every `???` before the run, or supply that field as a Hydra override on the CLI. Hydra rejects unresolved sentinels with a clear `MissingMandatoryValue` error.
 - **Image not pulled / wrong tag** — resolve `tao_toolkit.data_services` from `versions.yaml` and `docker pull "$DS_IMAGE"` before the run. The data-services tag declared there is required; the generic `:latest` does not contain the AOI gap-analysis entrypoint, and the docker run will fail with `gap_analysis: action not found` or similar.

@@ -1,8 +1,6 @@
 ---
 name: tao-mine-aoi-images
-description: Runs the DEFT embed-then-mine workflow for VCN AOI iterations — embeds the gap-analysis target parquet, embeds
-  a source pool, and mines nearest-neighbour source images for downstream augmentation. Use as the immediate next step after
-  `tao-route-visual-changenet-samples` when expanding a real-image augmentation queue from the mining subset.
+description: Runs the DEFT embed-then-mine workflow for VCN AOI iterations — embeds the gap-analysis target parquet, embeds a source pool, and mines nearest-neighbour source images for downstream augmentation. Use as the immediate next step after `tao-route-visual-changenet-samples` when expanding a real-image augmentation queue from the mining subset.
 license: Apache-2.0
 compatibility: Requires docker + nvidia-container-toolkit and a CUDA GPU. Pulls the `tao_toolkit.data_services` image declared in `versions.yaml` at the skill bank root.
 metadata:

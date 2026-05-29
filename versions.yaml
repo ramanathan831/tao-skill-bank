@@ -22,6 +22,9 @@ images:
     cosmos_embed:       nvcr.io/nvidia/tao/tao-toolkit:7.0.0-cosmos-embed
     vila:               nvcr.io/nvidia/tao/tao-toolkit:6.26.3-vila
 
+  metropolis_sdg:
+    paidf_anomalygen: nvcr.io/nv-metropolis-dev/metropolis-sdg/paidf-anomalygen:1.0.0-26487d2d.main
+    
 wheels:
   # Single SDK wheel with extras. The `nvidia-tao-sdk` package consolidates
   # what used to be multiple wheels (tao-sdk, tao-sdk-brev).
