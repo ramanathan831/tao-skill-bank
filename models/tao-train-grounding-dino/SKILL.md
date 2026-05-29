@@ -48,6 +48,7 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 | inference | dataset.infer_data_sources.captions | workflow prompts | prompt list | Yes |
 | quantize | dataset.train_data_sources | train_datasets | image_dir: images.tar.gz, json_file: annotations_odvg.jsonl, label_map: annotations_odvg_labelmap.json | Yes |
 | quantize | dataset.val_data_sources | eval_dataset | image_dir: images.tar.gz, json_file: annotations.json | No |
+| quantize | dataset.test_data_sources | eval_dataset | image_dir: images.tar.gz, json_file: annotations.json | No |
 | quantize | dataset.quant_calibration_data_sources | calibration/eval dataset | image_dir: images.tar.gz, json_file: annotations.json | No |
 | train | dataset.train_data_sources | train_datasets | image_dir: images.tar.gz, json_file: annotations_odvg.jsonl, label_map: annotations_odvg_labelmap.json | Yes |
 | train | dataset.val_data_sources | eval_dataset | image_dir: images.tar.gz, json_file: annotations.json | No |
@@ -116,6 +117,7 @@ S3_EVAL = "s3://bucket/data/eval"
     "quantize.model_path": "<selected train checkpoint or exported ONNX model>",
     "dataset.train_data_sources": [{"image_dir": f"{S3_TRAIN}/images.tar.gz", "json_file": f"{S3_TRAIN}/annotations_odvg.jsonl", "label_map": f"{S3_TRAIN}/annotations_odvg_labelmap.json"}],
     "dataset.val_data_sources": {"image_dir": f"{S3_EVAL}/images.tar.gz", "json_file": f"{S3_EVAL}/annotations.json"},
+    "dataset.test_data_sources": {"image_dir": f"{S3_EVAL}/images.tar.gz", "json_file": f"{S3_EVAL}/annotations.json"},
     "dataset.quant_calibration_data_sources": {"image_dir": f"{S3_EVAL}/images.tar.gz", "json_file": f"{S3_EVAL}/annotations.json"},
 }
 ```
@@ -187,6 +189,11 @@ loading a checkpoint, which fails in `post_process.py`. ONNX quantization uses
 the exported ONNX artifact and COCO calibration data, but the default rc-226
 PyTorch image also lacks the `modelopt.onnx.quantization` module. Treat this as
 an image/SDK blocker, not a checkpoint resolver issue.
+
+**Quantize requires test_data_sources**: The Grounding-DINO quantize script
+initializes the test dataloader before quantization, so `dataset.test_data_sources`
+must be populated with the eval COCO image folder and annotation JSON in addition
+to `dataset.val_data_sources` and `dataset.quant_calibration_data_sources`.
 
 **mat1 and mat2 shapes cannot be multiplied in `post_process.py`**: The text
 token length and label position maps are inconsistent, commonly because

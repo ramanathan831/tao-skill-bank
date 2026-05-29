@@ -49,6 +49,10 @@ actions:
         type: folder
       dataset.val_data_sources.json_file:
         type: file
+      dataset.test_data_sources.image_dir:
+        type: folder
+      dataset.test_data_sources.json_file:
+        type: file
       dataset.quant_calibration_data_sources.image_dir:
         type: folder
       dataset.quant_calibration_data_sources.json_file:
@@ -136,6 +140,13 @@ data_sources:
       path: images.tar.gz
       runtime: extracted_folder
     dataset.val_data_sources.json_file:
+      source: eval_dataset
+      path: annotations.json
+    dataset.test_data_sources.image_dir:
+      source: eval_dataset
+      path: images.tar.gz
+      runtime: extracted_folder
+    dataset.test_data_sources.json_file:
       source: eval_dataset
       path: annotations.json
     dataset.quant_calibration_data_sources.image_dir:
