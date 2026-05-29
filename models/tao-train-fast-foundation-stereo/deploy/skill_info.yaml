@@ -43,17 +43,32 @@ actions:
         type: folder
     upload_excludes:
     - inputs/
+data_sources:
+  evaluate:
+    dataset.test_dataset.data_sources[0].data_file:
+      source: eval_dataset
+      path: annotations.txt
+  inference:
+    dataset.infer_dataset.data_sources[0].data_file:
+      source: inference_dataset
+      path: annotations.txt
 spec_params:
   gen_trt_engine:
+    dataset.dataset_name: StereoDataset
     results_dir: output_dir
     gen_trt_engine.onnx_file: parent_model
     gen_trt_engine.trt_engine: create_engine_file
+    model.model_type: FastFoundationStereo
   evaluate:
+    dataset.dataset_name: StereoDataset
     results_dir: output_dir
     evaluate.trt_engine: parent_model
+    model.model_type: FastFoundationStereo
   inference:
+    dataset.dataset_name: StereoDataset
     results_dir: output_dir
     inference.trt_engine: parent_model
+    model.model_type: FastFoundationStereo
 spec_shorthand_keys:
   trt_data_type: gen_trt_engine.tensorrt.data_type
   trt_engine: gen_trt_engine.trt_engine
