@@ -93,6 +93,8 @@ actions:
     outputs:
       results_dir:
         type: folder
+      export.onnx_file:
+        type: file
     upload_excludes:
     - inputs/
   inference:
@@ -113,27 +115,62 @@ actions:
         type: folder
     upload_excludes:
     - inputs/
-data_sources: {}
+data_sources:
+  dataset_convert:
+    dataset.data_path:
+      source: train_datasets
+      path: ''
+  train:
+    dataset.data_path:
+      source: train_datasets
+      path: ''
+  prune:
+    dataset.data_path:
+      source: train_datasets
+      path: ''
+  evaluate:
+    dataset.data_path:
+      source: train_datasets
+      path: ''
+  retrain:
+    dataset.data_path:
+      source: train_datasets
+      path: ''
+  export:
+    dataset.data_path:
+      source: train_datasets
+      path: ''
+  inference:
+    dataset.data_path:
+      source: inference_dataset
+      path: ''
 spec_params:
   dataset_convert:
     results_dir: output_dir
   train:
+    key: key
     results_dir: output_dir
     model.pretrained_model_path: ptm_if_no_resume_model
     train.resume_training_checkpoint_path: resume_model
   prune:
+    key: key
     results_dir: output_dir
     prune.model: parent_model
   evaluate:
+    key: key
     results_dir: output_dir
     evaluate.checkpoint: parent_model
   retrain:
+    key: key
     results_dir: output_dir
     train.pruned_model_path: parent_model
   export:
+    key: key
     results_dir: output_dir
     export.checkpoint: parent_model
+    export.onnx_file: create_onnx_file
   inference:
+    key: key
     results_dir: output_dir
     inference.checkpoint: parent_model
     inference.trt_engine: parent_model
@@ -141,6 +178,25 @@ key_defaults: {}
 spec_shorthand_keys:
   num_epochs: train.num_epochs
   batch_size: train.batch_size
+  evaluate_batch_size: evaluate.batch_size
+  inference_batch_size: inference.batch_size
+  export_batch_size: export.batch_size
   learning_rate: train.lr
+  num_gpus: train.num_gpus
+  num_workers: dataset.num_workers
+  resume_checkpoint: train.resume_training_checkpoint_path
+  pretrained_model: model.pretrained_model_path
+  pruned_model: train.pruned_model_path
+  export_onnx: export.onnx_file
+  export_data_type: export.data_type
+  score_thresh: model.post_processing.score_thresh
+spec_templates:
+  dataset_convert: ../references/spec_template_dataset_convert.yaml
+  train: ../references/spec_template_train.yaml
+  prune: ../references/spec_template_prune.yaml
+  evaluate: ../references/spec_template_evaluate.yaml
+  retrain: ../references/spec_template_retrain.yaml
+  export: ../references/spec_template_export.yaml
+  inference: ../references/spec_template_inference.yaml
 description: PointPillars for 3D object detection from LiDAR point clouds. Encodes point clouds into a pseudo-image via pillar-based
   representation, then applies 2D detection. Used in autonomous driving / robotics.

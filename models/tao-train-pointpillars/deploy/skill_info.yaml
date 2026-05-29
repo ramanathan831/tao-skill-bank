@@ -13,6 +13,8 @@ actions:
     outputs:
       results_dir:
         type: folder
+      gen_trt_engine.save_engine:
+        type: file
     upload_excludes:
     - inputs/
   evaluate:
@@ -49,6 +51,7 @@ spec_params:
   gen_trt_engine:
     results_dir: output_dir
     gen_trt_engine.onnx_file: parent_model
+    gen_trt_engine.save_engine: create_engine_file
   evaluate:
     results_dir: output_dir
     evaluate.trt_engine: parent_model
@@ -56,9 +59,14 @@ spec_params:
     results_dir: output_dir
     inference.trt_engine: parent_model
 spec_shorthand_keys:
-  trt_data_type: gen_trt_engine.tensorrt.data_type
+  trt_data_type: gen_trt_engine.data_type
   trt_engine: gen_trt_engine.save_engine
-  batch_size: dataset.batch_size
+  trt_batch_size: gen_trt_engine.batch_size
+  trt_workspace_size: gen_trt_engine.workspace_size
+  evaluate_batch_size: evaluate.batch_size
+  inference_batch_size: inference.batch_size
+  num_workers: dataset.num_workers
+  score_thresh: model.post_processing.score_thresh
 description: PointPillars deploy workflow for gen_trt_engine, evaluate, inference
   using TAO Deploy.
 spec_templates:

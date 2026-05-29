@@ -68,7 +68,11 @@ Data source overrides are **mandatory for every action** — the agent MUST cons
 ```python
 DATA_ROOT = "s3://bucket/data/pointpillars"
 DATA_INFO = "/results/{dataset_convert_job_id}/results_dir/data_info"
+CHECKPOINT = "/results/{train_job_id}/results_dir/checkpoint_epoch_1.pth"
+PRUNED_MODEL = "/results/{prune_job_id}/results_dir/pruned_0.1.tlt"
 ```
+
+The raw PointPillars data root must be an extracted folder containing matching `train/lidar`, `train/label`, `val/lidar`, and `val/label` subfolders before `dataset_convert` runs. If the source dataset is packaged as separate train/val archives, extract both under the same mounted data root and point `dataset.data_path` at that root.
 
 **train (mandatory data sources):**
 ```python
@@ -82,11 +86,21 @@ DATA_INFO = "/results/{dataset_convert_job_id}/results_dir/data_info"
 }
 ```
 
+**resume train (mandatory checkpoint):**
+```python
+{
+    "dataset.data_path": DATA_ROOT,
+    "dataset.data_info_path": DATA_INFO,
+    "train.resume_training_checkpoint_path": CHECKPOINT,
+}
+```
+
 **evaluate (mandatory data sources):**
 ```python
 {
     "dataset.data_path": DATA_ROOT,
     "dataset.data_info_path": DATA_INFO,
+    "evaluate.checkpoint": CHECKPOINT,
 }
 ```
 
@@ -95,6 +109,8 @@ DATA_INFO = "/results/{dataset_convert_job_id}/results_dir/data_info"
 {
     "dataset.data_path": DATA_ROOT,
     "dataset.data_info_path": DATA_INFO,
+    "export.checkpoint": CHECKPOINT,
+    "export.onnx_file": "/results/{export_job_id}/results_dir/pointpillars.onnx",
 }
 ```
 
@@ -103,6 +119,7 @@ DATA_INFO = "/results/{dataset_convert_job_id}/results_dir/data_info"
 {
     "dataset.data_path": DATA_ROOT,
     "dataset.data_info_path": DATA_INFO,
+    "inference.checkpoint": CHECKPOINT,
 }
 ```
 
@@ -111,6 +128,7 @@ DATA_INFO = "/results/{dataset_convert_job_id}/results_dir/data_info"
 {
     "dataset.data_path": DATA_ROOT,
     "dataset.data_info_path": DATA_INFO,
+    "prune.model": CHECKPOINT,
 }
 ```
 
@@ -119,6 +137,7 @@ DATA_INFO = "/results/{dataset_convert_job_id}/results_dir/data_info"
 {
     "dataset.data_path": DATA_ROOT,
     "dataset.data_info_path": DATA_INFO,
+    "train.pruned_model_path": PRUNED_MODEL,
 }
 ```
 
