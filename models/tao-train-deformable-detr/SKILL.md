@@ -21,7 +21,7 @@ Deformable DETR for 2D object detection. Uses deformable attention for efficient
 
 Uses pretrained backbone weights. Set model.pretrained_backbone_path for backbone-only loading.
 
-Supported parent model actions are `train`, `evaluate`, `inference`, `export`, and `quantize`. The PyT model container does not support a native `gen_trt_engine` subtask for this network. For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference`), read `deploy/SKILL.md` first. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
+Supported parent model actions are `train`, `evaluate`, `inference`, `export`, and `quantize`. The PyT model container does not support a native `gen_trt_engine` subtask for this network. The `gen_trt_engine` action declared in `references/skill_info.yaml` must run with the TAO Deploy container. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
 
 ## Dataclass Schemas
 
@@ -109,10 +109,11 @@ especially when smoke-test runs shrink the transformer for speed.
 
 **TensorRT engine generation:**
 
-Use `deploy/SKILL.md` after `export`. Do not call `deformable_detr
+Use the deploy spec templates after `export`. Do not call `deformable_detr
 gen_trt_engine` from the parent PyT model container; that CLI advertises
 `convert`, `evaluate`, `export`, `inference`, `quantize`, `train`, and
-`default_specs`, but not `gen_trt_engine`.
+`default_specs`, but not `gen_trt_engine`. The model action metadata selects the
+TAO Deploy container for engine generation.
 
 Deploy engine generation needs the exported ONNX file as input and creates the
 engine at `gen_trt_engine.trt_engine`.
