@@ -101,6 +101,8 @@ actions:
     outputs:
       results_dir:
         type: folder
+      export.onnx_file:
+        type: file
     upload_excludes:
     - inputs/
   inference:
@@ -125,31 +127,141 @@ actions:
         type: folder
     upload_excludes:
     - inputs/
-data_sources: {}
+data_sources:
+  dataset_convert:
+    aicity.root:
+      source: train_datasets
+      path: ''
+  train:
+    dataset.data_root:
+      source: train_datasets
+      path: ''
+    model.head.instance_bank.anchor:
+      source: train_datasets
+      path: anchor_init.npy
+    dataset.train_dataset.ann_file:
+      source: train_datasets
+      path: ''
+    dataset.val_dataset.ann_file:
+      source: eval_dataset
+      path: ''
+    dataset.test_dataset.ann_file:
+      source: inference_dataset
+      path: ''
+  quantize:
+    dataset.data_root:
+      source: train_datasets
+      path: ''
+    model.head.instance_bank.anchor:
+      source: train_datasets
+      path: anchor_init.npy
+    dataset.train_dataset.ann_file:
+      source: train_datasets
+      path: ''
+    dataset.val_dataset.ann_file:
+      source: eval_dataset
+      path: ''
+    dataset.test_dataset.ann_file:
+      source: inference_dataset
+      path: ''
+    dataset.quant_calibration_dataset.images_dir:
+      source: calibration_dataset
+      path: ''
+  evaluate:
+    dataset.data_root:
+      source: eval_dataset
+      path: ''
+    model.head.instance_bank.anchor:
+      source: train_datasets
+      path: anchor_init.npy
+    dataset.train_dataset.ann_file:
+      source: train_datasets
+      path: ''
+    dataset.val_dataset.ann_file:
+      source: eval_dataset
+      path: ''
+    dataset.test_dataset.ann_file:
+      source: inference_dataset
+      path: ''
+  export:
+    model.head.instance_bank.anchor:
+      source: train_datasets
+      path: anchor_init.npy
+  inference:
+    dataset.data_root:
+      source: inference_dataset
+      path: ''
+    model.head.instance_bank.anchor:
+      source: train_datasets
+      path: anchor_init.npy
+    dataset.train_dataset.ann_file:
+      source: train_datasets
+      path: ''
+    dataset.val_dataset.ann_file:
+      source: eval_dataset
+      path: ''
+    dataset.test_dataset.ann_file:
+      source: inference_dataset
+      path: ''
 spec_params:
   dataset_convert:
     results_dir: output_dir
   train:
+    encryption_key: key
     results_dir: output_dir
     train.pretrained_model_path: ptm_if_no_resume_model
     train.resume_training_checkpoint_path: resume_model
   evaluate:
+    encryption_key: key
     results_dir: output_dir
     evaluate.checkpoint: parent_model
   export:
+    encryption_key: key
     results_dir: output_dir
     export.checkpoint: parent_model
     export.onnx_file: create_onnx_file
   inference:
+    encryption_key: key
     results_dir: output_dir
     inference.checkpoint: parent_model
   quantize:
+    encryption_key: key
     results_dir: output_dir
     quantize.model_path: parent_model
 key_defaults: {}
 spec_shorthand_keys:
   num_epochs: train.num_epochs
+  num_gpus: train.num_gpus
   batch_size: dataset.batch_size
   learning_rate: train.optim.lr
+  num_frames: dataset.num_frames
+  num_workers: dataset.num_workers
+  data_root: dataset.data_root
+  anchor: model.head.instance_bank.anchor
+  num_anchor: model.head.instance_bank.num_anchor
+  num_temp_instances: model.head.instance_bank.num_temp_instances
+  num_output: model.head.num_output
+  num_cams: model.head.deformable_model.num_cams
+  max_num_cams: model.head.deformable_model.max_num_cams
+  train_ann_file: dataset.train_dataset.ann_file
+  val_ann_file: dataset.val_dataset.ann_file
+  test_ann_file: dataset.test_dataset.ann_file
+  calibration_images: dataset.quant_calibration_dataset.images_dir
+  pretrained_model: train.pretrained_model_path
+  resume_checkpoint: train.resume_training_checkpoint_path
+  checkpoint: evaluate.checkpoint
+  inference_checkpoint: inference.checkpoint
+  export_checkpoint: export.checkpoint
+  quantize_model: quantize.model_path
+  input_width: export.input_width
+  input_height: export.input_height
+  export_onnx: export.onnx_file
+spec_templates:
+  dataset_convert: ../references/spec_template_dataset_convert.yaml
+  train: ../references/spec_template_train.yaml
+  evaluate: ../references/spec_template_evaluate.yaml
+  inference: ../references/spec_template_inference.yaml
+  export: ../references/spec_template_export.yaml
+  quantize: ../references/spec_template_quantize.yaml
 description: Sparse4D for multi-camera temporal 3D object detection and tracking. Uses sparse queries with deformable attention
   across camera views and time for end-to-end 3D perception. Includes instance bank for temporal tracking.
