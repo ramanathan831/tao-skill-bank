@@ -11,7 +11,7 @@ The skill bank works with both Claude Code and Codex. Pick the runtime you use.
 In a Claude Code session, add the marketplace and install the plugin:
 
 ```
-/plugin marketplace add ssh://git@gitlab-master.nvidia.com:12051/nvidia-tao-toolkit/tao-skills-external.git
+/plugin marketplace add git@github.com:NVIDIA-TAO/tao-skills-bank.git
 /plugin install tao-skills@tao-skill-bank
 ```
 
@@ -24,7 +24,7 @@ Codex setup has **two independent pieces** — the plugin (which surfaces the sk
 #### One command (recommended)
 
 ```bash
-curl -fsSL https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-skills-external/-/raw/main/scripts/install-codex-agents.sh | bash
+curl -fsSL https://raw.githubusercontent.com/NVIDIA-TAO/tao-skills-bank/main/scripts/install-codex-agents.sh | bash
 ```
 
 …or, if you've already cloned the repo, `scripts/install-codex-agents.sh`. The script registers the marketplace, installs `tao-skill-bank`, and copies `AGENTS.md` to `~/.codex/AGENTS.md` so the TAO identity loads in every Codex session. It's idempotent and backs up any existing `~/.codex/AGENTS.md` before overwriting. Override the source with `TAO_SKILL_BANK_MARKETPLACE=…` and `TAO_SKILL_BANK_REF=…` to use a fork or pinned ref.
@@ -36,7 +36,7 @@ If you'd rather drive each step yourself:
 **1. Install the plugin.** Either use the VS Code Codex extension's plugin UI, or from the CLI:
 
 ```bash
-codex plugin marketplace add ssh://git@gitlab-master.nvidia.com:12051/nvidia-tao-toolkit/tao-skills-external.git
+codex plugin marketplace add git@github.com:NVIDIA-TAO/tao-skills-bank.git
 codex plugin add tao-skill-bank@tao-local-plugins
 ```
 
@@ -63,7 +63,7 @@ The `.env.example` is also at the [repo root](.env.example) for direct reference
 
 ### When does the SDK get installed?
 
-The TAO SDK is **opt-in** and installed lazily. Most skills (any model or data skill) run with just `docker run` and need no Python. Only `platform/tao-run-platform` (`tao-run-platform`), the managed-platform skills (slurm/kubernetes/docker), and `applications/tao-run-automl` (`tao-run-automl`) require the SDK; their Preflight blocks tell the agent to run a `pip install "nvidia-tao-sdk[<platform>] @ git+https://..."` direct-URL the first time the skill is invoked. (The SDK isn't on public PyPI yet — see each skill's Preflight for the exact command.)
+The TAO SDK is **opt-in** and installed lazily. Most skills (any model or data skill) run with just `docker run` and need no Python. Only `platform/tao-run-platform` (`tao-run-platform`), the managed-platform skills (slurm/kubernetes/docker), and `applications/tao-run-automl` (`tao-run-automl`) require the SDK; their Preflight blocks tell the agent to `pip install` the right extra the first time the skill is invoked. The SDK is on public PyPI; the exact pinned version lives in [`versions.yaml`](versions.yaml) and each Preflight resolves it via `scripts/resolve_versions_key.py`.
 
 ### Updating
 
@@ -129,17 +129,19 @@ The top-level `skills/` directory is not a second copy of the skill bank. It is 
 
 ## Optional Python layer
 
-For users who want job handles, S3 I/O wrapping via `script_runner`, state persistence, multi-node distributed training, or failure analysis, the [TAO Execution SDK](https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-sdk) provides a single wheel with optional extras:
+For users who want job handles, S3 I/O wrapping via `script_runner`, state persistence, multi-node distributed training, or failure analysis, the [TAO Execution SDK](https://pypi.org/project/nvidia-tao-sdk/) provides a single wheel with optional extras, published on public PyPI. The pinned version is centralized in [`versions.yaml`](versions.yaml) (`wheels.tao_sdk*`); resolve it rather than hardcoding a tag:
 
 ```shell
-# The SDK is not on public PyPI yet — install via pip direct-URL:
-REPO='git+https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-sdk.git'
-pip install "nvidia-tao-sdk @ $REPO"                  # core
-pip install "nvidia-tao-sdk[brev] @ $REPO"            # + Brev (wraps brev CLI with Job handles)
-pip install "nvidia-tao-sdk[slurm] @ $REPO"           # + SLURM
-pip install "nvidia-tao-sdk[kubernetes] @ $REPO"      # + Kubernetes
-pip install "nvidia-tao-sdk[docker] @ $REPO"          # + local Docker
-pip install "nvidia-tao-sdk[all] @ $REPO"             # all platforms
+# Resolve the pinned spec from versions.yaml (single source of truth):
+SB="${TAO_SKILL_BANK_PATH:-~/tao-skills-external}"
+pip install "$($SB/scripts/resolve_versions_key.py wheels.tao_sdk)"             # core
+pip install "$($SB/scripts/resolve_versions_key.py wheels.tao_sdk_brev)"        # + Brev (wraps brev CLI with Job handles)
+pip install "$($SB/scripts/resolve_versions_key.py wheels.tao_sdk_slurm)"       # + SLURM
+pip install "$($SB/scripts/resolve_versions_key.py wheels.tao_sdk_kubernetes)"  # + Kubernetes
+pip install "$($SB/scripts/resolve_versions_key.py wheels.tao_sdk_docker)"      # + local Docker
+pip install "$($SB/scripts/resolve_versions_key.py wheels.tao_sdk_all)"         # all platforms
+
+# Or pin directly, e.g.: pip install "nvidia-tao-sdk[brev]==7.0.0"
 ```
 
 You don't have to pre-install — the relevant skills (`tao-run-platform`, `tao-run-automl`) run a Preflight that prompts the agent to install the right extra on first use. If you're running locally on your own GPU or on Brev via `brev exec`, you don't need the SDK at all.
