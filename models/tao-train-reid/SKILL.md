@@ -61,6 +61,7 @@ Data source overrides are **mandatory for every action** — the agent MUST cons
 
 ```python
 S3_TRAIN = "s3://bucket/data/train"
+CHECKPOINT = "/results/{train_job_id}/results_dir/model_epoch_000_step_00099.pth"
 ```
 
 **train (mandatory data sources):**
@@ -80,19 +81,46 @@ S3_TRAIN = "s3://bucket/data/train"
 }
 ```
 
-**evaluate (mandatory data sources):**
+**resume train (mandatory checkpoint):**
+```python
+{
+    "train.num_epochs": 31,
+    "train.resume_training_checkpoint_path": CHECKPOINT,
+    "dataset.num_classes": 100,
+    "dataset.batch_size": 16,
+    "dataset.num_instances": 4,
+    "dataset.train_dataset_dir": f"{S3_TRAIN}/sample_train.tar.gz",
+    "dataset.test_dataset_dir": f"{S3_TRAIN}/sample_test.tar.gz",
+    "dataset.query_dataset_dir": f"{S3_TRAIN}/sample_query.tar.gz",
+}
+```
+
+**evaluate (mandatory data sources and checkpoint):**
 ```python
 {
     "evaluate.test_dataset": f"{S3_TRAIN}/sample_test.tar.gz",
     "evaluate.query_dataset": f"{S3_TRAIN}/sample_query.tar.gz",
+    "evaluate.checkpoint": CHECKPOINT,
+    "evaluate.output_cmc_curve_plot": "/results/{evaluate_job_id}/results_dir/cmc_curve.png",
+    "evaluate.output_sampled_matches_plot": "/results/{evaluate_job_id}/results_dir/sampled_matches.png",
 }
 ```
 
-**inference (mandatory data sources):**
+**export (mandatory checkpoint and output):**
+```python
+{
+    "export.checkpoint": CHECKPOINT,
+    "export.onnx_file": "/results/{export_job_id}/results_dir/reid.onnx",
+}
+```
+
+**inference (mandatory data sources and checkpoint):**
 ```python
 {
     "inference.test_dataset": f"{S3_TRAIN}/sample_test.tar.gz",
     "inference.query_dataset": f"{S3_TRAIN}/sample_query.tar.gz",
+    "inference.checkpoint": CHECKPOINT,
+    "inference.output_file": "/results/{inference_job_id}/results_dir/reid_inference.json",
 }
 ```
 
