@@ -1,7 +1,7 @@
 ---
 name: tao-train-nvdinov2
 description: NVDINOv2 for self-supervised visual representation learning. Trains vision transformers via self-distillation
-  (teacher-student) without labels and produces general-purpose visual features. Use when training, distilling, exporting, or
+  (teacher-student) without labels and produces general-purpose visual features. Use when training, exporting, or
   running inference for a TAO NVDINOv2 backbone. Trigger phrases include "train NVDINOv2", "self-supervised ViT pretraining",
   "DINOv2 backbone", "visual representation learning".
 license: Apache-2.0
