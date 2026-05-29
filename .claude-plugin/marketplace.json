@@ -25,6 +25,7 @@
         "./data/tao-mine-aoi-images",
         "./data/tao-analyze-gaps-visual-changenet",
         "./data/tao-route-visual-changenet-samples",
+        "./data/paidf-anomalygen",
         "./data/tao-generate-video-reasoning-annotations",
         "./models/tao-train-action-recognition",
         "./models/tao-train-bevfusion",

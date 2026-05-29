@@ -1,8 +1,6 @@
 ---
 name: tao-route-visual-changenet-samples
-description: Routes the weakest VCN samples (output of `tao-analyze-gaps-visual-changenet`) into per-augmentation-module
-  subsets — one parquet for k-NN mining, one for AnomalyGen (Cosmos SDG) — based on each module's label eligibility. Use as the
-  immediate next step after DEFT gap analysis in a VCN AOI SDA iteration.
+description: Routes the weakest VCN samples (output of tao-analyze-gaps-visual-changenet) into per-augmentation-module subsets — one parquet for k-NN Mining, one for AnomalyGen (Cosmos SDG) — based on each module's label eligibility. Use as the immediate next step after gap analysis in a VCN AOI SDA iteration.
 license: Apache-2.0
 compatibility: Standalone — no external runtime requirements.
 metadata:
