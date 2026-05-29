@@ -6,43 +6,106 @@ data_format: front3d
 gpu_spec_key: train.num_gpus
 actions:
   train:
-    command: nvpanoptix3d train -e {config_path}
+    command: python -m nvidia_tao_pytorch.cv.nvpanoptix3d.entrypoint.nvpanoptix3d train -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.frustum_mask_path:
+        type: file
+      dataset.label_map:
+        type: file
+      dataset.train.json_path:
+        type: file
+      dataset.train.base_dir:
+        type: folder
+        extract_to_parent: true
+      dataset.val.json_path:
+        type: file
+      dataset.val.base_dir:
+        type: folder
+        extract_to_parent: true
+      dataset.test.json_path:
+        type: file
+      dataset.test.base_dir:
+        type: folder
+        extract_to_parent: true
+      train.checkpoint_2d:
+        type: file
+        optional: true
+      train.checkpoint_3d:
+        type: file
+        optional: true
+      train.resume_training_checkpoint_path:
+        type: file
+        optional: true
     outputs:
       results_dir:
         type: folder
     upload_excludes:
     - inputs/
   evaluate:
-    command: nvpanoptix3d evaluate -e {config_path}
+    command: python -m nvidia_tao_pytorch.cv.nvpanoptix3d.entrypoint.nvpanoptix3d evaluate -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.frustum_mask_path:
+        type: file
+      dataset.label_map:
+        type: file
+      dataset.val.json_path:
+        type: file
+      dataset.val.base_dir:
+        type: folder
+        extract_to_parent: true
+      dataset.test.json_path:
+        type: file
+      dataset.test.base_dir:
+        type: folder
+        extract_to_parent: true
+      evaluate.checkpoint:
+        type: file
     outputs:
       results_dir:
         type: folder
     upload_excludes:
     - inputs/
   export:
-    command: nvpanoptix3d export -e {config_path}
+    command: python -m nvidia_tao_pytorch.cv.nvpanoptix3d.entrypoint.nvpanoptix3d export -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      export.checkpoint:
+        type: file
     outputs:
       results_dir:
         type: folder
+      export.onnx_file_2d:
+        type: file
     upload_excludes:
     - inputs/
   inference:
-    command: nvpanoptix3d inference -e {config_path}
+    command: python -m nvidia_tao_pytorch.cv.nvpanoptix3d.entrypoint.nvpanoptix3d inference -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.frustum_mask_path:
+        type: file
+      dataset.label_map:
+        type: file
+      inference.checkpoint:
+        type: file
+      inference.images_dir:
+        type: folder
     outputs:
       results_dir:
         type: folder
     upload_excludes:
     - inputs/
 data_sources: {}
-spec_params: {}
+spec_params:
+  evaluate:
+    evaluate.checkpoint: parent_model
+  export:
+    export.checkpoint: parent_model
+    export.onnx_file_2d: create_onnx_file_2d
+  inference:
+    inference.checkpoint: parent_model
 key_defaults: {}
 spec_shorthand_keys:
   batch_size: dataset.batch_size

@@ -10,14 +10,14 @@ actions:
     config_format: yaml
     inputs:
       dataset.train_data_sources[0].image_dir:
-        type: folder
+        type: file
       dataset.train_data_sources[0].json_file:
         type: file
       dataset.train_data_sources[0].label_map:
         type: file
-      dataset.val_data_sources[0].image_dir:
-        type: folder
-      dataset.val_data_sources[0].json_file:
+      dataset.val_data_sources.image_dir:
+        type: file
+      dataset.val_data_sources.json_file:
         type: file
     outputs:
       results_dir:
@@ -27,7 +27,23 @@ actions:
   quantize:
     command: mask_grounding_dino quantize -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      quantize.model_path:
+        type: file
+      dataset.train_data_sources[0].image_dir:
+        type: file
+      dataset.train_data_sources[0].json_file:
+        type: file
+      dataset.train_data_sources[0].label_map:
+        type: file
+      dataset.val_data_sources.image_dir:
+        type: file
+      dataset.val_data_sources.json_file:
+        type: file
+      dataset.quant_calibration_data_sources.image_dir:
+        type: file
+      dataset.quant_calibration_data_sources.json_file:
+        type: file
     outputs:
       results_dir:
         type: folder
@@ -36,7 +52,13 @@ actions:
   evaluate:
     command: mask_grounding_dino evaluate -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      evaluate.checkpoint:
+        type: file
+      dataset.test_data_sources.image_dir:
+        type: file
+      dataset.test_data_sources.json_file:
+        type: file
     outputs:
       results_dir:
         type: folder
@@ -45,32 +67,42 @@ actions:
   export:
     command: mask_grounding_dino export -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      export.checkpoint:
+        type: file
     outputs:
       results_dir:
         type: folder
+      export.onnx_file:
+        type: file
     upload_excludes:
     - inputs/
   inference:
     command: mask_grounding_dino inference -e {config_path}
     config_format: yaml
-    inputs: {}
-    outputs:
-      results_dir:
-        type: folder
-    upload_excludes:
-    - inputs/
-  gen_trt_engine:
-    command: mask_grounding_dino gen_trt_engine -e {config_path}
-    config_format: yaml
-    inputs: {}
+    inputs:
+      inference.checkpoint:
+        type: file
+      dataset.infer_data_sources.image_dir:
+        type: file
+      dataset.infer_data_sources.captions:
+        type: list
     outputs:
       results_dir:
         type: folder
     upload_excludes:
     - inputs/
 data_sources: {}
-spec_params: {}
+spec_params:
+  evaluate:
+    evaluate.checkpoint: parent_model
+  export:
+    export.checkpoint: parent_model
+    export.onnx_file: create_onnx_file
+  inference:
+    inference.checkpoint: parent_model
+  quantize:
+    quantize.model_path: parent_model
 key_defaults: {}
 spec_shorthand_keys:
   num_epochs: train.num_epochs

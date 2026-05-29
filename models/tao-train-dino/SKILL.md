@@ -32,7 +32,7 @@ Generated TAO Core schemas are packaged in `schemas/<action>.schema.json`, with 
 
 ## Train Action Policy
 
-This model is AutoML-enabled at the model layer. Before handling any train-stage request, read `references/skill_info.yaml` and resolve the run override from either an explicit `automl_policy` value or the user's workflow request. Treat phrases like "turn off AutoML", "disable AutoML", "no HPO", or "plain training" as `automl_policy: off` for this run only; otherwise default to `auto`. When `automl_policy: auto`, `automl_enabled: true`, and both `schemas/train.schema.json` and `references/spec_template_train.yaml` are packaged, route the train action through `tao-skill-bank:tao-run-automl` by default with this model's `skill_dir`. Preserve workflow/application overrides for datasets, specs, output directories, GPU/platform settings, parent checkpoints, and `automl_policy`. Use direct model training only when `automl_policy: off` or the packaged train schema/template is missing; in the missing-schema case, report that AutoML is enabled but not runnable for this model until schemas are generated.
+This model is AutoML-enabled at the model layer. Before handling any train-stage request, read `references/skill_info.yaml` and resolve the run override from either an explicit `automl_policy` value or the user's workflow request. Use `automl_policy: on` by default and only expose `on` / `off` in new launch prompts. Treat phrases like "turn off AutoML", "disable AutoML", "no HPO", or "plain training" as `automl_policy: off` for this run only. When `automl_policy: on`, `automl_enabled: true`, and both `schemas/train.schema.json` and `references/spec_template_train.yaml` are packaged, route the train action through `tao-skill-bank:tao-run-automl` by default with this model's `skill_dir`. Preserve workflow/application overrides for datasets, specs, output directories, GPU/platform settings, parent checkpoints, and `automl_policy`. Use direct model training only when `automl_policy: off` or the packaged train schema/template is missing; in the missing-schema case, report that AutoML is enabled but not runnable for this model until schemas are generated.
 
 Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows stay in this model skill. The per-run `automl_policy` override does not change model metadata.
 
@@ -43,7 +43,7 @@ The agent MUST read this section before generating any training or AutoML script
 - **Dataset type:** object_detection
 - **Formats:** coco, coco_raw
 - **Accepted dataset intents:** training, evaluation, testing, calibration
-- **Monitoring metric:** val_mAP50
+- **Monitoring metric:** mAP50
 
 **Required datasets — MUST resolve both:**
 
@@ -105,7 +105,7 @@ provides a different image artifact name.
 | evaluate | evaluate.checkpoint | trained_model | DINO .pth/.tlt checkpoint | No |
 | evaluate | dataset.test_data_sources.image_dir | eval_dataset | images.tar.gz | No |
 | evaluate | dataset.test_data_sources.json_file | eval_dataset | annotations.json | No |
-| gen_trt_engine | gen_trt_engine.tensorrt.calibration.cal_image_dir | calibration_dataset | images.tar.gz | Yes |
+| deploy/gen_trt_engine | gen_trt_engine.tensorrt.calibration.cal_image_dir | calibration_dataset | images.tar.gz | Yes |
 | inference | dataset.infer_data_sources.image_dir | inference_dataset | images.tar.gz | Yes |
 | inference | dataset.infer_data_sources.classmap | inference_dataset | label_map.txt | No |
 | quantize | dataset.train_data_sources | train_datasets | image_dir: images.tar.gz, json_file: annotations.json | Yes |
@@ -194,15 +194,17 @@ Equivalently, when resolving the checkpoint outside a spec-param loop:
 checkpoint_uri = sdk.get_model_results_path(train_job_id, network_arch="dino")
 ```
 
-If cloud listing is unavailable but only the training job id is known, the
-expected DINO fallback location is:
+If cloud listing is unavailable but only the training job id is known, list the
+training job result folder and choose the intended epoch/step checkpoint under:
 
 ```python
-checkpoint_uri = f"s3://{S3_BUCKET_NAME}/results/{train_job_id}/results_dir/train/dino_model_latest.pth"
+checkpoint_prefix = f"s3://{S3_BUCKET_NAME}/results/{train_job_id}/results_dir/train/"
 ```
 
 Do not use `s3://<bucket>/results/<train_job_id>/dino_model_latest.pth`; DINO
-training uploads checkpoints under `results_dir/train/`.
+training uploads checkpoints under `results_dir/train/`. The
+`dino_model_latest.pth` symlink under that folder is valid only when latest is
+explicitly requested.
 
 When evaluating an AutoML-trained model, carry forward the winning rec's
 structural model settings into the eval spec. At minimum copy
@@ -213,18 +215,25 @@ fields, copy those too so the checkpoint shape matches the evaluation model.
 **export:**
 ```python
 {
+    "export.checkpoint": "<checkpoint_uri>",
+    "export.onnx_file": "<output_onnx_path>",
     "dataset.num_classes": "<num_classes> + 1",
 }
 ```
 
-**gen_trt_engine (mandatory data sources):**
+**deploy/gen_trt_engine (use `deploy/SKILL.md`):**
 ```python
 {
+    "gen_trt_engine.onnx_file": "<exported_onnx_uri>",
+    "gen_trt_engine.trt_engine": "<output_engine_path>",
     "gen_trt_engine.tensorrt.calibration.cal_image_dir": [f"{S3_TRAIN}/{IMAGE_ARCHIVE}"],
     "gen_trt_engine.tensorrt.data_type": "FP16",
     "dataset.num_classes": "<num_classes> + 1",
 }
 ```
+
+For deploy TensorRT evaluation, also read `deploy/SKILL.md`; the deploy metric
+path expects at least 100 selected detections per image.
 
 **inference (mandatory data sources):**
 ```python
@@ -254,6 +263,12 @@ fields, copy those too so the checkpoint shape matches the evaluation model.
 **distill (mandatory data sources):**
 ```python
 {
+    "distill.pretrained_teacher_model_path": "<fan_teacher_checkpoint_uri>",
+    "distill.teacher.backbone": "fan_tiny",
+    "distill.bindings": [
+        {"student_module_name": "pred_logits", "teacher_module_name": "pred_logits", "criterion": "L2", "weight": 1.0},
+        {"student_module_name": "pred_boxes", "teacher_module_name": "pred_boxes", "criterion": "L1", "weight": 1.0},
+    ],
     "dataset.train_data_sources": [
         {"image_dir": f"{S3_TRAIN}/{IMAGE_ARCHIVE}", "json_file": f"{S3_TRAIN}/annotations.json"}
     ],
@@ -263,6 +278,12 @@ fields, copy those too so the checkpoint shape matches the evaluation model.
     "dataset.num_classes": "<num_classes> + 1",
 }
 ```
+
+DINO distillation uses a FAN-family teacher (`fan_tiny`, `fan_small`,
+`fan_base`, or `fan_large`) and a supported student such as `resnet_50`. The
+teacher checkpoint must match the teacher architecture. Do not point
+`distill.pretrained_teacher_model_path` at a ResNet training checkpoint unless
+`distill.teacher.backbone` is also a compatible ResNet teacher in a future SDK.
 
 ## Dataset
 
@@ -300,16 +321,18 @@ Supported formats: coco, coco_raw.
 - **checkpoint**: `evaluate.checkpoint`, a `.pth` or `.tlt` model file. For SDK
   train jobs and AutoML child train jobs, resolve it with `parent_model`
   inference so the SDK lists the result folder and selects an actual checkpoint
-  file. If listing is unavailable, fall back to
-  `results_dir/train/dino_model_latest.pth` under the training job's uploaded
-  result directory.
+  file. Prefer concrete epoch/step files such as
+  `results_dir/train/model_epoch_000_step_00025.pth`. Use
+  `dino_model_latest.pth` only when the user explicitly requests the latest
+  checkpoint; it is a symlink alias and should not replace best/specific
+  checkpoint resolution.
 - **image_dir**: `images.tar.gz` remote archive; runtime folder is `images`
 - **json_file**: `annotations.json`
 
 ## Important Parameters
 
 - **dataset.num_classes**: Number of object classes. Default is 91 (COCO). Must be >= `max(category_id) + 1`. Too low causes `CUDA error: device-side assert triggered`.
-- **model.backbone**: Backbone architecture. Default resnet_50. Supported: resnet_34, resnet_50, fan_small_12_p4_hybrid, fan_base_16_p4_hybrid, fan_large_16_p4_hybrid, gcvit_tiny, gcvit_small, gcvit_base, gcvit_large, nvdinov2_vit_large_legacy, swin_tiny_224_1k, swin_small_224_1k, swin_base_224_22k, swin_large_224_22k, efficientvit_l2_224, efficientvit_l2_384.
+- **model.backbone**: Backbone architecture. Default resnet_50. Supported values include `resnet_34`, `resnet_50`, `fan_tiny`, `fan_small`, `fan_base`, `fan_large`, `gc_vit_xxtiny`, `gc_vit_xtiny`, `gc_vit_tiny`, `gc_vit_small`, `gc_vit_base`, `gc_vit_large`, `gc_vit_large_384`, `vit_large_nvdinov2`, `vit_large_dinov2`, `swin_tiny_224_1k`, `swin_base_224_22k`, `swin_base_384_22k`, `swin_large_224_22k`, `swin_large_384_22k`, and `efficientvit_b0` through `efficientvit_b3`.
 - **train.optim.lr**: Learning rate. Default 2e-4 (AdamW). lr_backbone defaults to 2e-5 (10x lower). Reduce both if training diverges.
 - **train.num_epochs**: DINO typically needs 30-50+ epochs for good mAP on real datasets. The default of 10 is suitable for quick iteration.
 - **train.optim.lr_steps**: MultiStep LR decay schedule. Default [11]. For longer training, set to e.g. [30, 40] for a 50-epoch run.
@@ -345,8 +368,8 @@ checkpoint from the parent job result files before submission:
 
 ## Export Defaults
 
-- **input_width**: `640`
-- **input_height**: `640`
+- **input_width**: `960`
+- **input_height**: `544`
 - **opset_version**: `17`
 - **trt_data_types**: `[FP32, FP16, INT8]`
 - **trt_workspace_size_mb**: `1024`
@@ -381,9 +404,20 @@ Transformer-based detection is memory-intensive. batch_size=4 fits on 24GB GPUs.
 
 **Evaluate checkpoint not found at result root**: DINO train jobs upload
 checkpoints under `results_dir/train/`. If eval fails with `FileNotFoundError`
-for `s3://<bucket>/results/<train_job_id>/dino_model_latest.pth`, set
-`evaluate.checkpoint` to
-`s3://<bucket>/results/<train_job_id>/results_dir/train/dino_model_latest.pth`.
+for a root-level checkpoint path, resolve an actual file under
+`s3://<bucket>/results/<train_job_id>/results_dir/train/`, normally an exact
+`model_epoch_<epoch>_step_<step>.pth` file selected by the resolver.
+
+**Parent `dino gen_trt_engine` rejected by the PyT CLI**: In the validated
+7.0.0 PyT container, `dino gen_trt_engine` is not a valid parent-model subtask.
+Use the DINO deploy sub-skill (`deploy/SKILL.md`) for TensorRT engine
+generation, TensorRT evaluation, and TensorRT inference.
+
+**`dino convert` fails before reading the spec**: In the validated 7.0.0 PyT
+container, DINO dataset conversion fails during Hydra schema initialization
+because `DINODatasetConvertConfig` declares string fields with `None` defaults.
+Do not advertise DINO dataset conversion as a model-skill action until the SDK
+schema is fixed.
 
 ## AutoML / HPO Notes
 
@@ -439,7 +473,10 @@ custom_param_ranges={
 
 `train.optim.weight_decay` is not in the default DINO spec schema — the runner accepts it with a warning. It still works; the DINO training code picks it up from the config.
 
-**Backbone constraint for AutoML:** The LLM brain may propose backbone names not in the supported list (see Important Parameters above), e.g. `fan_small`, `fan_tiny`, `efficientvit_b2`. These cause training failures. Use `custom_param_ranges` to constrain categorical params when possible.
+**Backbone constraint for AutoML:** The LLM brain may propose backbone names not
+in the supported list (see Important Parameters above), especially legacy names
+from older DINO docs. Use `custom_param_ranges` to constrain categorical params
+when possible.
 
 ## Optional: SDK orchestration internals
 
@@ -452,12 +489,10 @@ section if running locally with `docker run`.
 
 #### Spec templates
 
-DINO ships without `references/spec_template_train.yaml` or
-`references/spec_template_evaluate.yaml`. To use SDK orchestration, generate
-them from upstream:
-
-- `spec_template_train.yaml` ← `tao-pytorch/nvidia_tao_pytorch/cv/dino/experiment_specs/train.yaml` (replace `"???"` placeholders with empty strings).
-- `spec_template_evaluate.yaml` ← `tao-pytorch/nvidia_tao_pytorch/cv/dino/experiment_specs/evaluate.yaml` plus the shared `evaluate.checkpoint` field expected by `initialize_evaluation_experiment()`.
+DINO packages `references/spec_template_<action>.yaml` for the advertised
+parent model actions. Use those templates directly and apply the required
+dataset/checkpoint overrides from this file. TensorRT templates for the deploy
+sub-skill use the `spec_template_deploy_*.yaml` names.
 
 #### Data Sources Gap
 
@@ -489,7 +524,13 @@ This model MD is the source of truth for DINO checkpoint inference:
 
 ```text
 checkpoint format: pth
+checkpoint files: results_dir/train/model_epoch_<epoch>_step_<step>.pth
+latest alias: results_dir/train/dino_model_latest.pth
 evaluate.checkpoint: parent_model
+export.checkpoint: parent_model
+inference.checkpoint: parent_model
+quantize.model_path: parent_model
+distill.pretrained_teacher_model_path: parent_model
 ```
 
 All model-specific metadata (dataset type, formats, metrics, required datasets) is documented in the **Training Requirements** section above.
@@ -509,20 +550,13 @@ Inference mappings from TAO Core `dino.config.json`:
 | distill | `results_dir` | `output_dir` | current job results directory |
 | evaluate | `encryption_key` | `key` | encryption key |
 | evaluate | `evaluate.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
-| evaluate | `evaluate.trt_engine` | `parent_model` | model file inferred from the parent job results folder |
 | evaluate | `results_dir` | `output_dir` | current job results directory |
 | export | `encryption_key` | `key` | encryption key |
 | export | `export.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
 | export | `export.onnx_file` | `create_onnx_file` | output ONNX path |
 | export | `results_dir` | `output_dir` | current job results directory |
-| gen_trt_engine | `encryption_key` | `key` | encryption key |
-| gen_trt_engine | `gen_trt_engine.onnx_file` | `parent_model` | model file inferred from the parent job results folder |
-| gen_trt_engine | `gen_trt_engine.tensorrt.calibration.cal_cache_file` | `create_cal_cache` | calibration cache path |
-| gen_trt_engine | `gen_trt_engine.trt_engine` | `create_engine_file` | output TensorRT engine path |
-| gen_trt_engine | `results_dir` | `output_dir` | current job results directory |
 | inference | `encryption_key` | `key` | encryption key |
 | inference | `inference.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
-| inference | `inference.trt_engine` | `parent_model` | model file inferred from the parent job results folder |
 | inference | `results_dir` | `output_dir` | current job results directory |
 | quantize | `encryption_key` | `key` | encryption key |
 | quantize | `quantize.model_path` | `parent_model` | model file inferred from the parent job results folder |
@@ -534,3 +568,7 @@ Inference mappings from TAO Core `dino.config.json`:
 | train | `train.resume_training_checkpoint_path` | `resume_model` | model file inferred from the current job results folder |
 
 For `parent_model` or `parent_model_folder`, pass the upstream train/export/AutoML child job id as `parent_job_id`. The SDK lists the parent result folder, filters checkpoint artifacts, and returns the selected model file or folder. Do not add these mappings back to `config.json` and do not patch generated runner scripts to guess checkpoint paths.
+
+TensorRT mappings (`gen_trt_engine.onnx_file`, `evaluate.trt_engine`, and
+`inference.trt_engine`) live in `deploy/skill_info.yaml` because TensorRT runs
+through the DINO deploy sub-skill, not the parent PyT model skill.

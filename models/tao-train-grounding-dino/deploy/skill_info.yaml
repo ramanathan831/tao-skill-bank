@@ -76,4 +76,4 @@ notes:
 - Use FP16 for starter-kit TensorRT builds unless an explicit precision requirement
   says otherwise.
 - Carry transformer structure fields from export, including backbone, feature levels,
-  encoder/decoder layers, and query count.
+  encoder/decoder layers, `num_queries`, `num_select`, and `max_text_len`.

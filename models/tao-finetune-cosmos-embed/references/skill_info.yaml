@@ -1,5 +1,5 @@
 network_arch: cosmos-embed
-automl_enabled: true
+automl_enabled: false
 container_image: tao_toolkit.cosmos_embed
 required_credentials:
 - HF_TOKEN
@@ -7,7 +7,7 @@ data_format: msrvtt
 gpu_spec_key: train.num_gpus
 actions:
   train:
-    command: cosmos-embed1 train -e {config_path}
+    command: bash -lc 'python -m pip install "protobuf<7" && cosmos-embed1 train -e {config_path}'
     config_format: yaml
     inputs:
       model.pretrained_model_path:
@@ -27,7 +27,7 @@ actions:
     upload_excludes:
     - inputs/
   evaluate:
-    command: cosmos-embed1 evaluate -e {config_path}
+    command: bash -lc 'python -m pip install "protobuf<7" && cosmos-embed1 evaluate -e {config_path}'
     config_format: yaml
     inputs:
       evaluate.checkpoint:
@@ -42,7 +42,7 @@ actions:
     upload_excludes:
     - inputs/
   inference:
-    command: cosmos-embed1 inference -e {config_path}
+    command: bash -lc 'python -m pip install "protobuf<7" && cosmos-embed1 inference -e {config_path}'
     config_format: yaml
     inputs:
       inference.checkpoint:
@@ -57,7 +57,7 @@ actions:
     upload_excludes:
     - inputs/
   export:
-    command: cosmos-embed1 export -e {config_path}
+    command: bash -lc 'python -m pip install "protobuf<7" && cosmos-embed1 export -e {config_path}'
     config_format: yaml
     inputs:
       export.checkpoint:

@@ -28,13 +28,19 @@ For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, TensorRT
 
 ## Train Action Policy
 
-This model is AutoML-enabled at the model layer. Before handling any train-stage request, read `references/skill_info.yaml` and resolve the run override from either an explicit `automl_policy` value or the user's workflow request. Treat phrases like "turn off AutoML", "disable AutoML", "no HPO", or "plain training" as `automl_policy: off` for this run only; otherwise default to `auto`. When `automl_policy: auto`, `automl_enabled: true`, and both `schemas/train.schema.json` and `references/spec_template_train.yaml` are packaged, route the train action through `tao-skill-bank:tao-run-automl` by default with this model's `skill_dir`. Preserve workflow/application overrides for datasets, specs, output directories, GPU/platform settings, parent checkpoints, and `automl_policy`. Use direct model training only when `automl_policy: off` or the packaged train schema/template is missing; in the missing-schema case, report that AutoML is enabled but not runnable for this model until schemas are generated.
+This model is AutoML-enabled at the model layer. Before handling any train-stage request, read `references/skill_info.yaml` and resolve the run override from either an explicit `automl_policy` value or the user's workflow request. Use `automl_policy: on` by default and only expose `on` / `off` in new launch prompts. Treat phrases like "turn off AutoML", "disable AutoML", "no HPO", or "plain training" as `automl_policy: off` for this run only. When `automl_policy: on`, `automl_enabled: true`, and both `schemas/train.schema.json` and `references/spec_template_train.yaml` are packaged, route the train action through `tao-skill-bank:tao-run-automl` by default with this model's `skill_dir`. Preserve workflow/application overrides for datasets, specs, output directories, GPU/platform settings, parent checkpoints, and `automl_policy`. Use direct model training only when `automl_policy: off` or the packaged train schema/template is missing; in the missing-schema case, report that AutoML is enabled but not runnable for this model until schemas are generated.
 
+FFS shares the `depth_net_stereo` schema but its bp2 architecture widths are fixed invariants. For default AutoML, search only `train.optim.lr` and `train.optim.lr_decay` unless the user explicitly requests a wider search. Do not include FFS architecture fields such as `model.volume_dim`, `model.hidden_dims`, or other bp2 width settings in the default search space.
 Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows stay in this model skill. The per-run `automl_policy` override does not change model metadata.
 
 ## Two Use Cases
 
-FFS ships with a pre-trained bp2 commercial checkpoint (`model_best_bp2_serialize.pth`).
+FFS raw-deploy and bp2-finetune flows require a pre-trained bp2 commercial
+checkpoint (`model_best_bp2_serialize.pth`). The default PyT image does not
+guarantee that this file is present on disk, so treat the checkpoint path as a
+required user/registry artifact. If no bp2 checkpoint is available, scratch
+training is still usable for workflow validation, but the resulting metrics are
+not representative of the bp2 model.
 
 1. **Raw deploy** — use the bp2 ckpt as-is. Skip `train`; run `inference` / `evaluate` / `export` / `gen_trt_engine` directly with the bp2 file as the action's checkpoint.
 2. **Finetune on user data** — set `train.pretrained_model_path` to the bp2 file, train on user data, then verify + deploy on the resulting ckpt. The full 7-action sequence (train → evaluate pyt → inference pyt → export → gen_trt_engine → inference deploy → evaluate deploy) is supported.
@@ -129,15 +135,41 @@ Copy the action block from **Typical Spec Overrides**. Replace:
 - For raw deploy use cases (no train): set `<action>.checkpoint` to the bp2 file path
 - For finetune use cases: set `train.pretrained_model_path` to the bp2 file path
 
-**Chained train → next action checkpoint path**: For local Docker chaining (no SDK runner), the trained checkpoint lives at `<train.results_dir>/<task>/dn_model_latest.pth` — Lightning `ModelCheckpoint` nests under the task name. Example: `train.results_dir: /workspace/results/finetune/train` produces `/workspace/results/finetune/train/train/dn_model_latest.pth`. Use that nested path for the next action's `<action>.checkpoint`. SDK-runner deploys resolve this automatically via `parent_job_id` — see "Spec Param / Parent Model Inference" below.
+**Chained train → next action checkpoint path**: For local Docker chaining (no
+SDK runner), Lightning `ModelCheckpoint` nests under the task name. Example:
+`train.results_dir: /workspace/results/finetune/train` produces checkpoints
+under `/workspace/results/finetune/train/train/`. The exact checkpoint pattern is
+`model_epoch_<epoch>_step_<step>.pth`, plus a `dn_model_latest.pth` symlink. Use
+the model-specific or SDK-provided checkpoint resolver to select the intended
+exact epoch/step checkpoint for `evaluate`, `inference`, `export`, resume, and
+deploy handoff. Use `dn_model_latest.pth` only when the user explicitly asks for
+latest. SDK-runner deploys resolve this automatically via `parent_job_id` — see
+"Spec Param / Parent Model Inference" below.
 
 Shape consistency: `crop_size` in `dataset.test_dataset.augmentation.crop_size` should match `export.input_height` / `input_width` for end-to-end pyt-vs-deploy comparability — see `deploy/SKILL.md`'s shape table.
 
 ### Step 5 — Run
 
+Create writable home/cache directories inside the mounted output path before using
+`--user`. Some TAO containers do not have an `/etc/passwd` entry for the host UID,
+and PyTorch / matplotlib need writable cache paths when running as that UID.
+
+```bash
+mkdir -p <output_dir>/home \
+         <output_dir>/.cache/matplotlib \
+         <output_dir>/.cache/torchinductor \
+         <output_dir>/.cache/xdg
+```
+
 ```
 docker run --gpus 'device=0' --shm-size 16G --ipc=host \
-  --user $(id -u):$(id -g) \
+  --user "$(id -u):$(id -g)" \
+  -e USER="$(id -un)" \
+  -e LOGNAME="$(id -un)" \
+  -e HOME=<output_dir>/home \
+  -e MPLCONFIGDIR=<output_dir>/.cache/matplotlib \
+  -e TORCHINDUCTOR_CACHE_DIR=<output_dir>/.cache/torchinductor \
+  -e XDG_CACHE_HOME=<output_dir>/.cache/xdg \
   -v <data_root>:<data_root>:ro \
   -v <output_dir>:<output_dir> \
   -v <bp2_ckpt_dir>:<bp2_ckpt_dir>:ro \
@@ -145,7 +177,7 @@ docker run --gpus 'device=0' --shm-size 16G --ipc=host \
   depth_net <action> -e <spec.yaml>
 ```
 
-Without `--user $(id -u):$(id -g)` the container writes outputs as `nobody:nogroup`, blocking host-side cleanup / retry.
+Without `--user "$(id -u):$(id -g)"` the container writes outputs as `nobody:nogroup`, blocking host-side cleanup / retry.
 
 **Local bind-mount tip (QA / development only)**: When bind-mounting a modified TAO repo (`tao-pytorch`, `tao-core`, `tao-deploy`) into the container, stale `__pycache__/*.pyc` files from a previous container run can shadow your patched `.py` source. The symptom is a cryptic TRT-side error (e.g., `IOptimizationProfile::setDimensions Error Code 3`) when the new code path should have produced something different. Clear the caches before launching the container:
 

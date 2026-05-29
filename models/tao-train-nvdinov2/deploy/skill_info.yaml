@@ -32,7 +32,9 @@ description: NvDINOv2 deploy workflow for gen_trt_engine using TAO Deploy.
 spec_templates:
   gen_trt_engine: ../references/spec_template_deploy_gen_trt_engine.yaml
 notes:
-- TAO Deploy exposes `gen_trt_engine` for NvDINOv2; downstream evaluate and inference
-  remain in the parent workflow or consumer model.
+- TAO Deploy exposes `gen_trt_engine` for NvDINOv2; checkpoint inference remains
+  in the parent workflow, while TensorRT engines are for consumer runtimes.
 - Keep `model.backbone.img_size` aligned with the exported backbone, with 518 as the
   deploy template default.
+- Keep the TensorRT min/opt/max batch profile fixed at 1 unless the exported ONNX
+  graph has been verified with a wider dynamic profile.

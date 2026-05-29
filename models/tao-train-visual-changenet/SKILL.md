@@ -36,17 +36,32 @@ shutil.copy(hf_hub_download('nvidia/C-RADIOv2-B', 'model.safetensors'), '<worksp
 
 Mount it into the container (`-v <workspace>/backbone/c_radio_v2_b.safetensors:/data/pretrained_models/C-RADIOv2_B.safetensors`) and set the spec `model.backbone.pretrained_backbone_path` to the container path. `HF_TOKEN` is only needed at staging time, not at training time.
 
+Segment specs use `model.backbone.type: vit_large_nvdinov2` and the NVDINOv2
+checkpoint family. Keep the checkpoint architecture aligned with the backbone
+type: `NV_DINOV2_518_16_256.ckpt` is compatible with the packaged segment
+templates, but it must not be used with `fan_small_12_p4_hybrid`. If you switch
+to a different segment backbone, use a matching checkpoint or leave
+`model.backbone.pretrained_backbone_path` empty for default initialization.
+
 ## Dataclass Schemas
 
 Generated TAO Core schemas are packaged in `schemas/<action>.schema.json`, with `schemas/manifest.json` listing available actions. Each generated schema also emits `references/spec_template_<action>.yaml` from the schema top-level `default` field. AutoML enablement is declared at the model layer in `references/skill_info.yaml` via `automl_enabled`. Runnable AutoML still requires `schemas/train.schema.json` and `references/spec_template_train.yaml` to exist and parse. Use the packaged train schema for `automl_default_parameters`, `automl_disabled_parameters`, defaults, min/max bounds, enums, option weights, math conditions, dependencies, and popular parameters. Do not expect `~/tao-core` at runtime; maintainers regenerate schemas/templates before packaging the skill bank.
 
 ## Train Action Policy
 
-This model is AutoML-enabled at the model layer. Before handling any train-stage request, read `references/skill_info.yaml` and resolve the run override from either an explicit `automl_policy` value or the user's workflow request. Treat phrases like "turn off AutoML", "disable AutoML", "no HPO", or "plain training" as `automl_policy: off` for this run only; otherwise default to `auto`. When `automl_policy: auto`, `automl_enabled: true`, and both `schemas/train.schema.json` and `references/spec_template_train.yaml` are packaged, route the train action through `tao-skill-bank:tao-run-automl` by default with this model's `skill_dir`. Preserve workflow/application overrides for datasets, specs, output directories, GPU/platform settings, parent checkpoints, and `automl_policy`. Use direct model training only when `automl_policy: off` or the packaged train schema/template is missing; in the missing-schema case, report that AutoML is enabled but not runnable for this model until schemas are generated.
+This model is AutoML-enabled at the model layer. Before handling any train-stage request, read `references/skill_info.yaml` and resolve the run override from either an explicit `automl_policy` value or the user's workflow request. Use `automl_policy: on` by default and only expose `on` / `off` in new launch prompts. Treat phrases like "turn off AutoML", "disable AutoML", "no HPO", or "plain training" as `automl_policy: off` for this run only. When `automl_policy: on`, `automl_enabled: true`, and both `schemas/train.schema.json` and `references/spec_template_train.yaml` are packaged, route the train action through `tao-skill-bank:tao-run-automl` by default with this model's `skill_dir`. Preserve workflow/application overrides for datasets, specs, output directories, GPU/platform settings, parent checkpoints, and `automl_policy`. Use direct model training only when `automl_policy: off` or the packaged train schema/template is missing; in the missing-schema case, report that AutoML is enabled but not runnable for this model until schemas are generated.
 
-Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows stay in this model skill. The per-run `automl_policy` override does not change model metadata.
+Non-train actions declared by this model skill (`evaluate`, `inference`,
+`export`, `quantize`, `segment_evaluate`, and `segment_inference`) stay in this
+model skill. Do not present `segment_export` or `segment_quantize` as runnable
+parent-skill actions until matching entries are packaged in
+`schemas/manifest.json`. Prune and retrain are not declared in the current
+parent `references/skill_info.yaml`; do not present them as runnable parent-skill
+actions unless the metadata is extended with matching action wiring and schemas.
+The per-run `automl_policy` override does not change model metadata.
 
 For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference` for classify and segment variants), read `deploy/SKILL.md` first. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
+Deploy requires an exported ONNX artifact as `parent_model`. If no ONNX artifact exists and the parent skill does not expose an export action, report deploy as blocked instead of inventing an artifact.
 
 ## Training Requirements
 
@@ -60,6 +75,8 @@ Visual ChangeNet has two separate task modes with different dataset types and da
 - **Monitoring metric:** val_loss
 
 #### Per-Action Dataset Requirements (Classify)
+
+The `quantize` and `gen_trt_engine` rows below describe TAO spec data requirements only. They are not parent-skill actions unless the corresponding action is declared in `references/skill_info.yaml` or `deploy/skill_info.yaml`.
 
 | Action | Spec Key | Source | Files | List? |
 |---|---|---|---|---|
@@ -92,6 +109,8 @@ Segment uses a paired directory structure (`A/`, `B/`, `list/`, `label/`) instea
 **Required files per dataset:** `A.tar.gz`, `B.tar.gz`, `list.tar.gz`, `label.tar.gz`
 
 #### Per-Action Dataset Requirements (Segment)
+
+The `quantize` and `gen_trt_engine` rows below describe TAO spec data requirements only. They are not parent-skill actions unless the corresponding action is declared in `references/skill_info.yaml` or `deploy/skill_info.yaml`.
 
 | Action | Spec Key | Source | Files | List? |
 |---|---|---|---|---|
@@ -229,8 +248,12 @@ When running without the TAO SDK (local docker), resolve the TAO pyt image from 
 ```bash
 set -a; source <workspace>/.env; set +a
 
-# Resolve the TAO pyt container URI from versions.yaml (single source of truth).
-TAO_PYT_IMAGE=$("${TAO_SKILL_BANK_PATH:?}/scripts/resolve_versions_key.py" images.tao_toolkit.pyt)
+# Resolve the TAO pyt container URI from versions.yaml. The awk fallback keeps
+# local Docker usable on hosts where the helper's PyYAML dependency is missing.
+TAO_PYT_IMAGE=$(
+    "${TAO_SKILL_BANK_PATH:?}/scripts/resolve_versions_key.py" images.tao_toolkit.pyt 2>/dev/null ||
+    awk '/^[[:space:]]*pyt:/{print $2; exit}' "${TAO_SKILL_BANK_PATH:?}/versions.yaml"
+)
 
 docker run --rm --gpus all --shm-size=8g \
     -e NGC_API_KEY="${NGC_API_KEY}" \
@@ -239,15 +262,18 @@ docker run --rm --gpus all --shm-size=8g \
     -v <workspace>/kpi/images:/data/datasets/NV_PCB_Siamese/images \
     -v <workspace>/train/base:/data/datasets/NV_PCB_Siamese/csv \
     -v <workspace>/kpi:/data/datasets/NV_PCB_Siamese/kpi \
-    -v <workspace>/augmentation/backbone/c_radio_v2_b.ckpt:/data/pretrained_models/C-RADIOv2_B.pth \
+    -v <workspace>/augmentation/backbone/c_radio_v2_b.safetensors:/data/pretrained_models/C-RADIOv2_B.safetensors \
     "$TAO_PYT_IMAGE" \
-    visual_changenet <action> -e /data/workspace/specs/<spec>.yaml \
+    visual_changenet <train|evaluate|inference|export|quantize> -e /data/workspace/specs/<spec>.yaml \
     [key=value overrides...]
 ```
 
 **`--shm-size=8g` is required** — without it, dataloader workers crash with `Unexpected bus error encountered in worker` due to insufficient shared memory.
 
-**Backbone mount**: mount the `.ckpt` file directly as a single file (not the directory), aliased to `/data/pretrained_models/C-RADIOv2_B.pth`.
+**Backbone mount**: mount the C-RADIO `.safetensors` file directly as a single
+file or mount its parent directory, and set
+`model.backbone.pretrained_backbone_path` to the container path
+`/data/pretrained_models/C-RADIOv2_B.safetensors`.
 
 Override checkpoint and results_dir on the command line to avoid editing the spec:
 ```bash
@@ -264,7 +290,13 @@ Uses actions: `train`, `evaluate`, `inference`. Defaults template: `references/s
 
 ### Segment
 
-Uses actions: `segment_train`, `segment_evaluate`, `segment_inference`. Defaults template: `references/spec_template_segment.yaml`.
+Uses skill action names `segment_train`, `segment_evaluate`, and
+`segment_inference`. When invoking local Docker directly, run TAO CLI subcommands
+`train`, `evaluate`, and `inference` with `task: segment` in the spec. The
+schema-driven action templates are `references/spec_template_segment_train.yaml`,
+`references/spec_template_segment_evaluate.yaml`, and
+`references/spec_template_segment_inference.yaml`; the compact direct-Docker
+example template is `references/spec_template_segment.yaml`.
 
 Segmentation requires compiling custom CUDA ops (`MultiScaleDeformableAttention`) on first run, which takes ~5 minutes. The ViT adapter backbone uses these for multi-scale feature extraction.
 
@@ -369,7 +401,7 @@ Set `dataset.classify.num_input` to match the number of lighting conditions. The
 - **model.classify.train_margin_euclid**: Margin for the Euclidean distance loss during training (default 2.0). Larger values push embeddings further apart. Increase if the model struggles to separate defective from non-defective.
 - **model.classify.eval_margin**: Classification threshold during evaluation (default 0.3). Samples with embedding distance below this margin are classified as non-defective; above as defective. This is the primary knob for precision/recall tradeoff -- lower values increase recall (catch more defects), higher values increase precision (fewer false alarms).
 - **model.classify.embedding_vectors**: Number of embedding dimensions (default 5). Increase for more complex defect patterns; decrease for simpler binary tasks.
-- **dataset.classify.batch_size**: Default 16. Can be increased for small images (224x224) on GPUs with sufficient VRAM.
+- **dataset.classify.batch_size**: Default 16. Training uses the Optical Inspection dataloader and requires this value to be greater than 1; use 2 as the minimum smoke-test value. Can be increased for small images (224x224) on GPUs with sufficient VRAM.
 - **dataset.classify.fpratio_sampling**: False positive ratio for balanced sampling during training (default 0.25). Controls the ratio of non-defective to defective samples in each batch.
 - **train.classify.cls_weight**: Class weights for cross-entropy loss (default [1.0, 10.0]). The higher weight on class 1 (defective) compensates for class imbalance typical in defect detection datasets.
 
@@ -381,9 +413,18 @@ Set `dataset.classify.num_input` to match the number of lighting conditions. The
 
 ## Error Patterns
 
-**Checkpoint not found**: The evaluate and inference actions require a valid checkpoint path. If training output was moved or the results_dir changed, update `evaluate.checkpoint` or `inference.checkpoint` to the correct path. The default template `${results_dir}/train/changenet_model_classify_latest.pth` resolves at runtime -- ensure results_dir is set correctly.
+**Checkpoint not found**: The evaluate, inference, export, and quantize actions
+require a valid checkpoint path. Current TAO 6.25.10 Visual ChangeNet training
+emits epoch/step checkpoint files such as `model_epoch_000_step_00012.pth`;
+it does not necessarily write `changenet_model_classify_latest.pth` or
+`changenet_model_segment_latest.pth`. Use the model-skill `parent_model`
+resolver for downstream actions and `resume_model` for resume, or pass the exact
+epoch/step checkpoint when running local Docker directly.
 
-**CSV format mismatch**: The CSV must have exactly three columns: `input_path`, `object_name`, `label`. Missing columns or extra headers cause a silent failure or KeyError. Verify the CSV has no BOM characters and uses comma delimiters (not semicolons or tabs).
+**CSV format mismatch**: The classify CSV must have exactly four columns:
+`input_path`, `golden_path`, `label`, and `object_name`. Missing columns or
+extra headers cause a silent failure or KeyError. Verify the CSV has no BOM
+characters and uses comma delimiters (not semicolons or tabs).
 
 **Image extension mismatch**: If `dataset.classify.image_ext` is `.jpg` but the actual images are `.png` (or vice versa), the data loader will find zero samples and training will fail with an empty dataset error. Always verify the extension matches your data.
 
@@ -393,7 +434,23 @@ Set `dataset.classify.num_input` to match the number of lighting conditions. The
 
 **`AssertionError: Contrastive loss only supports Euclidean distance module`** at evaluate/inference: the spec dropped the `train` subtree. Model `__init__` reads `train.classify.loss` regardless of action; omitting it falls back to contrastive loss, which then conflicts with non-default `model.classify.difference_module` (e.g. `learnable`) saved in the checkpoint. Keep `train.classify.loss` (and `train.classify.cls_weight`) in the spec for evaluate and inference too.
 
+**Checkpoint load key mismatch at evaluate/inference**: Keep the classify model
+architecture fields aligned with the train spec. C-RADIO classify checkpoints
+require `model.backbone.type: c_radio_v2_vit_base_patch16_224`,
+`model.classify.difference_module: learnable`, `model.classify.embed_dec: 30`,
+`model.classify.eval_margin: 0.3`, `dataset.classify.num_input: 1`, and
+`dataset.classify.input_map: {SolderLight: 0}` unless the training run used a
+different override set.
+
 **Training does not converge**: Check that `train.classify.cls_weight` is appropriate for your class distribution. If defects are very rare (<1% of samples), increase the defective class weight. Also verify that `fpratio_sampling` is not too low, which would under-sample the majority class.
+
+**Backbone dimension mismatch** (segment only): If the log shows size mismatch
+errors while loading the backbone, such as a checkpoint tensor with shape
+`[1024, 1024]` being copied into a model tensor with shape `[384, 384]`, the
+checkpoint does not match `model.backbone.type`. Keep the packaged
+`vit_large_nvdinov2` segment templates when using `NV_DINOV2_518_16_256.ckpt`,
+or clear `model.backbone.pretrained_backbone_path` to use default
+initialization.
 
 **OSError: Could not load MultiScaleDeformableAttention...so** (segment only): CUDA ops not compiled. The ViT adapter backbone requires custom CUDA kernels that must be compiled on first run. Run `python setup.py develop` inside the container (~5 min compilation). This only applies to the segmentation task.
 
@@ -405,15 +462,23 @@ Set `dataset.classify.num_input` to match the number of lighting conditions. The
 
 ## Spec Param / Parent Model Inference
 
-Model-specific inference mappings belong in this MD file, not in `config.json`. Generated runners should read this section and apply the mappings with SDK helpers before `create_job()`. This mirrors the old microservices `infer_params.py` flow.
+Model-specific parent-model mappings are declared in `references/skill_info.yaml` under `spec_params`. Keep this section aligned with that metadata so generated runners and agents resolve checkpoints before `create_job()` instead of guessing file names.
 
 Inference mappings from this model skill:
 
 | Action | Spec Field | Inference Function | Meaning |
 |---|---|---|---|
-| evaluate | `results_dir` | `output_dir` | current job results directory |
-| inference | `results_dir` | `output_dir` | current job results directory |
 | train | `results_dir` | `output_dir` | current job results directory |
-| train | `train.resume_training_checkpoint_path` | `resume_model` | model file inferred from the current job results folder |
+| train | `train.resume_training_checkpoint_path` | `resume_model` | resume checkpoint inferred from parent train results |
+| evaluate | `results_dir` | `output_dir` | current job results directory |
+| evaluate | `evaluate.checkpoint` | `parent_model` | checkpoint inferred from parent train or AutoML child results |
+| inference | `results_dir` | `output_dir` | current job results directory |
+| inference | `inference.checkpoint` | `parent_model` | checkpoint inferred from parent train or AutoML child results |
+| segment_train | `results_dir` | `output_dir` | current job results directory |
+| segment_train | `train.resume_training_checkpoint_path` | `resume_model` | resume checkpoint inferred from parent train results |
+| segment_evaluate | `results_dir` | `output_dir` | current job results directory |
+| segment_evaluate | `evaluate.checkpoint` | `parent_model` | checkpoint inferred from parent train or AutoML child results |
+| segment_inference | `results_dir` | `output_dir` | current job results directory |
+| segment_inference | `inference.checkpoint` | `parent_model` | checkpoint inferred from parent train or AutoML child results |
 
 For `parent_model` or `parent_model_folder`, pass the upstream train/export/AutoML child job id as `parent_job_id`. The SDK lists the parent result folder, filters checkpoint artifacts, and returns the selected model file or folder. Do not add these mappings back to `config.json` and do not patch generated runner scripts to guess checkpoint paths.

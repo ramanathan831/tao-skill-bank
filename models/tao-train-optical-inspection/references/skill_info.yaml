@@ -21,6 +21,12 @@ actions:
         type: folder
       dataset.test_dataset.csv_path:
         type: file
+      train.pretrained_model_path:
+        type: file
+        optional: true
+      train.resume_training_checkpoint_path:
+        type: file
+        optional: true
     outputs:
       results_dir:
         type: folder
@@ -29,7 +35,16 @@ actions:
   evaluate:
     command: optical_inspection evaluate -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.test_dataset.images_dir:
+        type: folder
+      dataset.test_dataset.csv_path:
+        type: file
+      evaluate.checkpoint:
+        type: file
+      evaluate.trt_engine:
+        type: file
+        optional: true
     outputs:
       results_dir:
         type: folder
@@ -38,7 +53,9 @@ actions:
   export:
     command: optical_inspection export -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      export.checkpoint:
+        type: file
     outputs:
       results_dir:
         type: folder
@@ -47,23 +64,38 @@ actions:
   inference:
     command: optical_inspection inference -e {config_path}
     config_format: yaml
-    inputs: {}
-    outputs:
-      results_dir:
+    inputs:
+      dataset.infer_dataset.images_dir:
         type: folder
-    upload_excludes:
-    - inputs/
-  gen_trt_engine:
-    command: optical_inspection gen_trt_engine -e {config_path}
-    config_format: yaml
-    inputs: {}
+      dataset.infer_dataset.csv_path:
+        type: file
+      inference.checkpoint:
+        type: file
+      inference.trt_engine:
+        type: file
+        optional: true
     outputs:
       results_dir:
         type: folder
     upload_excludes:
     - inputs/
 data_sources: {}
-spec_params: {}
+spec_params:
+  train:
+    results_dir: output_dir
+    train.pretrained_model_path: ptm_if_no_resume_model
+    train.resume_training_checkpoint_path: resume_model
+  evaluate:
+    results_dir: output_dir
+    evaluate.checkpoint: parent_model
+    evaluate.trt_engine: parent_model
+  export:
+    results_dir: output_dir
+    export.checkpoint: parent_model
+  inference:
+    results_dir: output_dir
+    inference.checkpoint: parent_model
+    inference.trt_engine: parent_model
 key_defaults: {}
 spec_shorthand_keys:
   num_epochs: train.num_epochs

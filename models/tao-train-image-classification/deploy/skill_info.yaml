@@ -69,5 +69,5 @@ spec_templates:
 notes:
 - Use `fp16` for the starter-kit TensorRT engine path unless INT8 calibration is explicitly
   requested.
-- For TensorRT inference, set the runtime batch size to 1 unless the engine profile
-  was built for the larger batch.
+- For TensorRT inference and evaluation, set the runtime batch size to 1 unless
+  the engine profile was built for the larger batch.

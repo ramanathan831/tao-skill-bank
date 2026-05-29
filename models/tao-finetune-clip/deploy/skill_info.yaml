@@ -28,7 +28,7 @@ actions:
       dataset.val.datasets[0].image_dir:
         type: folder
       dataset.val.datasets[0].caption_dir:
-        type: file
+        type: folder
     outputs:
       results_dir:
         type: folder
@@ -40,6 +40,12 @@ actions:
     inputs:
       inference.trt_engine:
         type: file
+      inference.datasets[0].image_dir:
+        type: folder
+        optional: true
+      inference.text_file:
+        type: file
+        optional: true
     outputs:
       results_dir:
         type: folder

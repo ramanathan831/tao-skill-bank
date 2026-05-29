@@ -8,7 +8,11 @@ actions:
   train:
     command: centerpose train -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.train_data:
+        type: folder
+      dataset.val_data:
+        type: folder
     outputs:
       results_dir:
         type: folder
@@ -17,7 +21,9 @@ actions:
   evaluate:
     command: centerpose evaluate -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.test_data:
+        type: folder
     outputs:
       results_dir:
         type: folder
@@ -35,19 +41,28 @@ actions:
   inference:
     command: centerpose inference -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.inference_data:
+        type: folder
     outputs:
       results_dir:
         type: folder
     upload_excludes:
     - inputs/
   gen_trt_engine:
+    container_image: nvcr.io/nvidia/tao/tao-toolkit:6.26.3-deploy
     command: centerpose gen_trt_engine -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      gen_trt_engine.onnx_file:
+        type: file
+      gen_trt_engine.trt_engine:
+        type: file
     outputs:
       results_dir:
         type: folder
+      gen_trt_engine.trt_engine:
+        type: file
     upload_excludes:
     - inputs/
 data_sources: {}
