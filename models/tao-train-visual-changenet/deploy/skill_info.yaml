@@ -11,8 +11,6 @@ actions:
     inputs:
       gen_trt_engine.onnx_file:
         type: file
-      gen_trt_engine.trt_engine:
-        type: file
     outputs:
       results_dir:
         type: folder

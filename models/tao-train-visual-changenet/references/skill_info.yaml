@@ -17,11 +17,11 @@ actions:
       dataset.classify.train_dataset.csv_path:
         type: file
       dataset.classify.train_dataset.images_dir:
-        type: file
+        type: folder
       dataset.classify.validation_dataset.csv_path:
         type: file
       dataset.classify.validation_dataset.images_dir:
-        type: file
+        type: folder
     outputs:
       results_dir:
         type: folder
@@ -38,11 +38,11 @@ actions:
       dataset.classify.validation_dataset.csv_path:
         type: file
       dataset.classify.validation_dataset.images_dir:
-        type: file
+        type: folder
       dataset.classify.test_dataset.csv_path:
         type: file
       dataset.classify.test_dataset.images_dir:
-        type: file
+        type: folder
       evaluate.checkpoint:
         type: file
     outputs:
@@ -61,7 +61,7 @@ actions:
       dataset.classify.infer_dataset.csv_path:
         type: file
       dataset.classify.infer_dataset.images_dir:
-        type: file
+        type: folder
       inference.checkpoint:
         type: file
     outputs:
