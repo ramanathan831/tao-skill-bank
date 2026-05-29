@@ -43,35 +43,35 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 
 | Action | Spec Key | Source | Files | List? |
 |---|---|---|---|---|
-| dataset_convert | dataset_convert.input_img_dir | id |  | No |
-| dataset_convert | dataset_convert.gt_file | id |  | No |
+| dataset_convert | dataset_convert.input_img_dir | train_datasets or eval_dataset | extracted folder containing cropped text images | No |
+| dataset_convert | dataset_convert.gt_file | train_datasets or eval_dataset | train/gt_new.txt or test/gt_new.txt | No |
 | evaluate | dataset.character_list_file | eval_dataset | character_list | No |
-| evaluate | evaluate.test_dataset_dir | eval_dataset | test.tar.gz | No |
+| evaluate | evaluate.test_dataset_dir | eval_dataset | extracted test image folder | No |
 | evaluate | evaluate.test_dataset_gt_file | eval_dataset | test/gt_new.txt | No |
 | evaluate | evaluate.checkpoint | parent train/AutoML job | best_accuracy.pth or exact requested epoch checkpoint | No |
 | export | dataset.character_list_file | eval_dataset | character_list | No |
 | export | export.checkpoint | parent train/AutoML job | best_accuracy.pth or exact requested epoch checkpoint | No |
-| deploy/gen_trt_engine | gen_trt_engine.tensorrt.calibration.cal_image_dir | calibration_dataset | train.tar.gz for INT8 calibration | Yes |
+| deploy/gen_trt_engine | gen_trt_engine.tensorrt.calibration.cal_image_dir | calibration_dataset | extracted calibration image folder for INT8 calibration | Yes |
 | deploy/gen_trt_engine | gen_trt_engine.onnx_file | parent export job | exported .onnx artifact | No |
 | deploy/gen_trt_engine | dataset.character_list_file | eval_dataset | character_list | No |
 | inference | dataset.character_list_file | eval_dataset | character_list | No |
-| inference | inference.inference_dataset_dir | eval_dataset | test.tar.gz | No |
+| inference | inference.inference_dataset_dir | inference_dataset | extracted inference image folder | No |
 | inference | inference.checkpoint | parent train/AutoML job | best_accuracy.pth or exact requested epoch checkpoint | No |
 | prune | dataset.character_list_file | eval_dataset | character_list | No |
 | prune | prune.checkpoint | parent train/AutoML job | best_accuracy.pth or exact requested epoch checkpoint | No |
-| quantize | dataset.train_dataset_dir | train_datasets | results/{dataset_convert_job_id}/dataset_convert/lmdb | Yes |
-| quantize | dataset.val_dataset_dir | eval_dataset | results/{dataset_convert_job_id}/dataset_convert/lmdb | No |
+| quantize | dataset.train_dataset_dir | dataset_convert train job | LMDB folder containing data.mdb and lock.mdb | Yes |
+| quantize | dataset.val_dataset_dir | dataset_convert eval job | LMDB folder containing data.mdb and lock.mdb | No |
 | quantize | dataset.character_list_file | eval_dataset | character_list | No |
-| quantize | dataset.quant_calibration_dataset.images_dir | train_datasets | train.tar.gz | No |
+| quantize | dataset.quant_calibration_dataset.images_dir | train_datasets | extracted calibration image folder | No |
 | quantize | quantize.model_path | parent train/AutoML job | checkpoint selected by resolver | No |
-| retrain | dataset.train_dataset_dir | train_datasets | train.tar.gz or results/{dataset_convert_job_id}/dataset_convert/lmdb | Yes |
-| retrain | dataset.val_dataset_dir | eval_dataset | test.tar.gz or results/{dataset_convert_job_id}/dataset_convert/lmdb | No |
+| retrain | dataset.train_dataset_dir | dataset_convert train job | LMDB folder containing data.mdb and lock.mdb | Yes |
+| retrain | dataset.val_dataset_dir | dataset_convert eval job | LMDB folder containing data.mdb and lock.mdb | No |
 | retrain | dataset.character_list_file | eval_dataset | character_list | No |
 | retrain | model.pruned_graph_path | parent prune job | pruned .pth artifact | No |
-| train | dataset.train_dataset_dir | train_datasets | train.tar.gz | Yes |
-| train | dataset.train_gt_file | train_datasets | train/gt_new.txt | No |
-| train | dataset.val_dataset_dir | eval_dataset | test.tar.gz | No |
-| train | dataset.val_gt_file | eval_dataset | test/gt_new.txt | No |
+| train | dataset.train_dataset_dir | dataset_convert train job | LMDB folder containing data.mdb and lock.mdb | Yes |
+| train | dataset.train_gt_file | train_datasets | train/gt_new.txt when using raw folders instead of LMDB | No |
+| train | dataset.val_dataset_dir | dataset_convert eval job | LMDB folder containing data.mdb and lock.mdb | No |
+| train | dataset.val_gt_file | eval_dataset | test/gt_new.txt when using raw folders instead of LMDB | No |
 | train | dataset.character_list_file | eval_dataset | character_list | No |
 
 ### Checkpoint Selection
@@ -85,11 +85,24 @@ OCRNet training writes both `best_accuracy.pth` and epoch-step checkpoints such 
 
 ### Typical Spec Overrides
 
-Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
+Data source overrides are **mandatory for every action**. Run `dataset_convert` separately for train and validation splits, then pass the LMDB folders that directly contain `data.mdb` and `lock.mdb` into train, quantize, and retrain. Tarballs from remote storage must be extracted before they are used as image directories.
 
 ```python
-S3_TRAIN = "s3://bucket/data/train"
-S3_EVAL = "s3://bucket/data/eval"
+TRAIN_IMAGES = "<extracted train image folder>"
+TRAIN_GT = "<train gt_new.txt>"
+EVAL_IMAGES = "<extracted eval image folder>"
+EVAL_GT = "<eval gt_new.txt>"
+TRAIN_LMDB = "<train dataset_convert results_dir>"
+EVAL_LMDB = "<eval dataset_convert results_dir>"
+CHAR_LIST = "<character_list>"
+```
+
+**dataset_convert (run once per split):**
+```python
+{
+    "dataset_convert.input_img_dir": TRAIN_IMAGES,
+    "dataset_convert.gt_file": TRAIN_GT,
+}
 ```
 
 **train (mandatory data sources):**
@@ -100,11 +113,11 @@ S3_EVAL = "s3://bucket/data/eval"
     "train.validation_interval": 10,
     "train.num_gpus": 1,
     "dataset.batch_size": 16,
-    "dataset.train_dataset_dir": [f"{S3_TRAIN}/train.tar.gz"],
-    "dataset.train_gt_file": f"{S3_TRAIN}/train/gt_new.txt",
-    "dataset.val_dataset_dir": f"{S3_EVAL}/test.tar.gz",
-    "dataset.val_gt_file": f"{S3_EVAL}/test/gt_new.txt",
-    "dataset.character_list_file": f"{S3_EVAL}/character_list",
+    "dataset.train_dataset_dir": [TRAIN_LMDB],
+    "dataset.val_dataset_dir": EVAL_LMDB,
+    "dataset.train_gt_file": "",
+    "dataset.val_gt_file": "",
+    "dataset.character_list_file": CHAR_LIST,
 }
 ```
 
@@ -115,8 +128,8 @@ S3_EVAL = "s3://bucket/data/eval"
     "gen_trt_engine.trt_engine": "<output engine path>",
     "gen_trt_engine.tensorrt.calibration.cal_cache_file": "<output calibration cache path>",
     "gen_trt_engine.tensorrt.data_type": "fp16",
-    "gen_trt_engine.tensorrt.calibration.cal_image_dir": [f"{S3_TRAIN}"],
-    "dataset.character_list_file": f"{S3_EVAL}/character_list",
+    "gen_trt_engine.tensorrt.calibration.cal_image_dir": [TRAIN_IMAGES],
+    "dataset.character_list_file": CHAR_LIST,
 }
 ```
 
@@ -124,9 +137,9 @@ S3_EVAL = "s3://bucket/data/eval"
 ```python
 {
     "evaluate.checkpoint": "<selected train/AutoML checkpoint>",
-    "dataset.character_list_file": f"{S3_EVAL}/character_list",
-    "evaluate.test_dataset_dir": f"{S3_EVAL}/test.tar.gz",
-    "evaluate.test_dataset_gt_file": f"{S3_EVAL}/test/gt_new.txt",
+    "dataset.character_list_file": CHAR_LIST,
+    "evaluate.test_dataset_dir": EVAL_IMAGES,
+    "evaluate.test_dataset_gt_file": EVAL_GT,
 }
 ```
 
@@ -135,7 +148,7 @@ S3_EVAL = "s3://bucket/data/eval"
 {
     "export.checkpoint": "<selected train/AutoML checkpoint>",
     "export.onnx_file": "<output ONNX path>",
-    "dataset.character_list_file": f"{S3_EVAL}/character_list",
+    "dataset.character_list_file": CHAR_LIST,
 }
 ```
 
@@ -143,8 +156,8 @@ S3_EVAL = "s3://bucket/data/eval"
 ```python
 {
     "inference.checkpoint": "<selected train/AutoML checkpoint>",
-    "dataset.character_list_file": f"{S3_EVAL}/character_list",
-    "inference.inference_dataset_dir": f"{S3_EVAL}/test.tar.gz",
+    "dataset.character_list_file": CHAR_LIST,
+    "inference.inference_dataset_dir": EVAL_IMAGES,
 }
 ```
 
@@ -153,17 +166,17 @@ S3_EVAL = "s3://bucket/data/eval"
 {
     "prune.checkpoint": "<selected train/AutoML checkpoint>",
     "prune.pruned_file": "<output pruned PTH path>",
-    "dataset.character_list_file": f"{S3_EVAL}/character_list",
+    "dataset.character_list_file": CHAR_LIST,
 }
 ```
 
 **quantize (mandatory data sources):**
 ```python
 {
-    "dataset.train_dataset_dir": [f"{S3_TRAIN}/results/{dataset_convert_job_id}/dataset_convert/lmdb"],
-    "dataset.val_dataset_dir": f"{S3_EVAL}/results/{dataset_convert_job_id}/dataset_convert/lmdb",
-    "dataset.character_list_file": f"{S3_EVAL}/character_list",
-    "dataset.quant_calibration_dataset.images_dir": f"{S3_TRAIN}/train.tar.gz",
+    "dataset.train_dataset_dir": [TRAIN_LMDB],
+    "dataset.val_dataset_dir": EVAL_LMDB,
+    "dataset.character_list_file": CHAR_LIST,
+    "dataset.quant_calibration_dataset.images_dir": TRAIN_IMAGES,
     "quantize.model_path": "<selected train/AutoML checkpoint>",
 }
 ```
@@ -171,9 +184,9 @@ S3_EVAL = "s3://bucket/data/eval"
 **retrain (mandatory data sources):**
 ```python
 {
-    "dataset.train_dataset_dir": [f"{S3_TRAIN}/results/{dataset_convert_job_id}/dataset_convert/lmdb"],
-    "dataset.val_dataset_dir": f"{S3_EVAL}/results/{dataset_convert_job_id}/dataset_convert/lmdb",
-    "dataset.character_list_file": f"{S3_EVAL}/character_list",
+    "dataset.train_dataset_dir": [TRAIN_LMDB],
+    "dataset.val_dataset_dir": EVAL_LMDB,
+    "dataset.character_list_file": CHAR_LIST,
     "model.pruned_graph_path": "<selected prune output>",
 }
 ```
