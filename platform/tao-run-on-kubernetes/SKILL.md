@@ -99,7 +99,7 @@ GPU capacity before submitting.
 - **NGC_KEY** (optional): for nvcr.io image pulls. Pass `image_pull_secret="<existing-secret-name>"` to `create_job` if you've pre-created an image-pull secret in the target namespace.
 - **ACCESS_KEY / SECRET_KEY / S3_BUCKET_NAME / S3_ENDPOINT_URL** (optional): for S3 dataset I/O via the SDK's `inputs`/`outputs` script_runner wrapping.
 
-Do not ask for Lepton, Brev, or SLURM credentials for Kubernetes runs. Ask for
+Do not ask for Brev or SLURM credentials for Kubernetes runs. Ask for
 S3 credentials only when the selected workflow uses `s3://` inputs or outputs,
 and ask for model-specific credentials such as `HF_TOKEN` only when the selected
 model requires them. Before launch, verify the selected namespace can create
@@ -279,4 +279,4 @@ kubectl create secret docker-registry ngc-pull-secret \
 - **Gang scheduling.** Indexed Job pods are scheduled independently — no all-or-nothing. Multi-node training will *partially* start if only some pods can be scheduled (rank-0 will hang waiting for peers). For all-or-nothing scheduling on shared clusters, use Volcano or Kueue.
 - **MPI / Horovod.** Use the MPI Operator. The Indexed Job path here is PyTorch-distributed-shaped (env-var rendezvous on `MASTER_ADDR:MASTER_PORT`).
 - **Persistent volumes for shared storage.** S3 only via the script_runner. PVC support is a follow-up.
-- **Auto-creating image-pull secrets from `$NGC_KEY`.** You pre-create the secret in the target namespace and pass the name. Lepton does this auto; we don't here because k8s namespace conventions vary widely.
+- **Auto-creating image-pull secrets from `$NGC_KEY`.** You pre-create the secret in the target namespace and pass the name. K8s namespace conventions vary widely, so we keep secret creation explicit.

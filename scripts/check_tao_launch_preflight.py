@@ -14,8 +14,6 @@ import shlex
 import socket
 import subprocess
 import sys
-import urllib.error
-import urllib.request
 from pathlib import Path
 from typing import Any
 
@@ -25,7 +23,6 @@ DEFAULT_SKILL_BANK = Path(
 )
 MANIFEST_REL = Path("platform") / "platforms.manifest.json"
 REMOTE_SCHEMES = ("s3://", "azure://", "gs://", "http://", "https://")
-LEPTON_API_BASE_URL = "https://gateway.dgxc-lepton.nvidia.com"
 
 
 def parse_args() -> argparse.Namespace:
@@ -349,42 +346,6 @@ def check_s3_storage(paths: list[tuple[str, str]], skip_access: bool) -> bool:
             print(f"S3 path missing or inaccessible: {label}={uri}: {reason}")
             ok = False
     return ok
-
-
-def check_lepton(platform: dict[str, Any], skip_access: bool) -> bool:
-    missing = env_missing(platform)
-    if missing:
-        print("Missing Lepton requirement(s): " + ", ".join(missing))
-        return False
-    if skip_access:
-        print("Lepton credentials are present; skipped API access check.")
-        return True
-
-    workspace = os.environ["LEPTON_WORKSPACE_ID"]
-    token = os.environ["LEPTON_AUTH_TOKEN"]
-    base_url = os.environ.get("LEPTON_API_BASE_URL", LEPTON_API_BASE_URL).rstrip("/")
-    url = f"{base_url}/api/v2/workspaces/{workspace}/imagepullsecrets"
-    request = urllib.request.Request(
-        url,
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Accept": "application/json",
-        },
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=30) as response:
-            if 200 <= response.status < 300:
-                print(f"Lepton API OK: workspace={workspace}")
-                return True
-            print(f"Lepton API check failed: HTTP {response.status}")
-            return False
-    except urllib.error.HTTPError as exc:
-        print(f"Lepton API check failed: HTTP {exc.code}")
-    except urllib.error.URLError as exc:
-        print(f"Lepton API check failed: {exc.reason}")
-    except TimeoutError:
-        print("Lepton API check timed out")
-    return False
 
 
 def check_brev(platform: dict[str, Any], skip_access: bool) -> bool:
@@ -714,8 +675,6 @@ def main() -> int:
             args.json_sample_limit,
             args.skip_platform_access,
         )
-    elif name == "lepton":
-        platform_ok = check_lepton(platform, args.skip_platform_access)
     elif name == "brev":
         platform_ok = check_brev(platform, args.skip_platform_access)
     elif name == "kubernetes":

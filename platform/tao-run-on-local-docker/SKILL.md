@@ -130,7 +130,7 @@ parameters:
 }
 ```
 
-Following the Lepton/Brev SDK design, platform/control-plane values stay in SDK
+Following the Brev SDK design, platform/control-plane values stay in SDK
 state and Docker labels. The SDK does not inject `BACKEND`, `HOST_PLATFORM`,
 `MONGOSECRET`, `DOCKER_HOST`, or `DOCKER_NETWORK` into the training container.
 

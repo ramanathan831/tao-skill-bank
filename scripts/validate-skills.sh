@@ -155,7 +155,7 @@ for skill_md in iter_skill_files():
         content = f.read()
     has_qs = re.search(r'^##\s+quick ?start', content, re.IGNORECASE | re.MULTILINE)
     has_dr = 'docker run' in content
-    has_sdk = re.search(r'sdk\.create_job|LeptonSDK|BrevSDK', content)
+    has_sdk = re.search(r'sdk\.create_job|BrevSDK', content)
     has_refs = (os.path.isfile(os.path.join(skill_dir, 'references/skill_info.yaml'))
                 or os.path.isfile(os.path.join(skill_dir, 'references/model_info.yaml')))
     # Local-Python or agent-prompt-driven skills: presence of scripts/ or hooks/ counts as runnable.

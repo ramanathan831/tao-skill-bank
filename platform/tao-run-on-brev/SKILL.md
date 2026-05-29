@@ -20,7 +20,7 @@ tags:
 
 NVIDIA Brev provides on-demand GPU instances across multiple cloud providers. Instances come pre-loaded with NVIDIA drivers, CUDA, Docker, and NVIDIA Container Toolkit.
 
-Brev is instance-based (not job-based like Lepton). You create an instance, run commands on it via `brev exec`, and delete it when done. The TAO SDK's BrevHandler wraps this into the standard job interface.
+Brev is instance-based (not job-based). You create an instance, run commands on it via `brev exec`, and delete it when done. The TAO SDK's BrevHandler wraps this into the standard job interface.
 
 ## Preflight
 
@@ -69,7 +69,7 @@ If any step fails, the agent prompts the user to authorize the fix via Bash, the
 
 Two options:
 
-1. **Automated (recommended)**: Get an API token from the Brev console settings page. Set `BREV_API_TOKEN` as an environment variable (e.g., in `~/.config/tao/.env`). The handler auto-authenticates via `brev login --token` on first use — same UX as Lepton.
+1. **Automated (recommended)**: Get an API token from the Brev console settings page. Set `BREV_API_TOKEN` as an environment variable (e.g., in `~/.config/tao/.env`). The handler auto-authenticates via `brev login --token` on first use.
 
 2. **Manual**: Run `brev login` (opens browser). Tokens expire hourly — the handler refreshes automatically.
 
@@ -194,17 +194,6 @@ the SSH bring-up window and the container pull on a fresh instance. Use
 **≥ 600 s (10 min)** for the first exec on a new instance; the previous
 60–120 s default truncates remote startup and surfaces as a spurious
 `exec failed` even though the remote command is still progressing.
-
-## Mixed-Platform Workflows
-
-Brev can be mixed with Lepton in the same workflow. Per-stage platform assignment:
-
-```json
-{"skill": "vcn-gap-analysis", "action": "analyze", "platform": "brev"},
-{"skill": "visual-changenet", "action": "train", "platform": "lepton"}
-```
-
-CPU stages (gap analysis, data merge) run cheaply on Brev. GPU stages (training) run on Lepton H100s.
 
 ## Cleanup
 

@@ -8,7 +8,7 @@ The minimum viable skill is a single `SKILL.md`. Everything else — `references
 |---|---|---|
 | `models/` | A trainable network with `train` / `evaluate` / `inference` / `export` actions | `tao-finetune-cosmos-reason`, `tao-train-visual-changenet`, `tao-finetune-clip` |
 | `data/` | A data transformation — preparation, analysis, embedding, filtering | `omniverse-sdg`, `mining`, `changenet-data-prepare` |
-| `platform/` | A compute backend or runtime convention (where/how jobs run) | `tao-run-on-docker`, `tao-run-on-brev`, `tao-run-on-lepton`, `tao-run-platform` |
+| `platform/` | A compute backend or runtime convention (where/how jobs run) | `tao-run-on-docker`, `tao-run-on-brev`, `tao-run-on-slurm`, `tao-run-platform` |
 | `applications/` | A workflow composing multiple skills (orchestrator) | `tao-run-deft-aoi`, `tao-train-single-step` |
 
 If you're unsure: produces a trained model artifact → model. Transforms data → data. Infrastructure → platform. Orchestrates → application.
@@ -102,7 +102,6 @@ allowed-tools: Read Bash
 | Containerized model/data | `Requires docker + nvidia-container-toolkit + NGC API key.` |
 | `platform/tao-run-on-docker` | `Requires docker + nvidia-container-toolkit.` |
 | `platform/tao-run-on-brev` | `Requires the brev CLI (https://github.com/brevdev/brev-cli) and an active brev login.` |
-| `platform/tao-run-on-lepton` | `Requires the nvidia-tao-sdk Python package with the lepton extra (pip install 'nvidia-tao-sdk[lepton]') plus LEPTON_WORKSPACE_ID and LEPTON_AUTH_TOKEN.` |
 | `platform/tao-run-platform` | `Requires Python 3.10+ and the nvidia-tao-sdk package (pip install nvidia-tao-sdk).` |
 | Local Python script (no container) | `Requires Python 3.8+ and Pillow.` (or whatever) |
 | Agent-prompt-driven | `Standalone — no external runtime requirements.` or omit the field. |
@@ -132,7 +131,7 @@ Body must contain at least one of:
 - A `docker run` code block
 - A `references/skill_info.yaml` file on disk
 - A `scripts/` or `hooks/` directory on disk
-- An SDK invocation example (`sdk.create_job`, `LeptonSDK`, etc.) — for skills like `platform/tao-run-platform`
+- An SDK invocation example (`sdk.create_job`, `BrevSDK`, etc.) — for skills like `platform/tao-run-platform`
 
 The validator enforces this.
 
@@ -215,7 +214,7 @@ To bump an RC, change one line — that's the entire diff.
 
 ### Skills that require the SDK
 
-Most skills run with just docker (no Python SDK). A few skills are SDK-orchestrated by design (e.g., `platform/tao-run-platform` (`tao-run-platform`), `platform/tao-run-on-lepton` (`tao-run-on-lepton`), `applications/tao-run-automl` (`tao-run-automl`)). These need a **preflight** block at the top of `SKILL.md`:
+Most skills run with just docker (no Python SDK). A few skills are SDK-orchestrated by design (e.g., `platform/tao-run-platform` (`tao-run-platform`), `applications/tao-run-automl` (`tao-run-automl`)). These need a **preflight** block at the top of `SKILL.md`:
 
 ````markdown
 ## Preflight
@@ -226,7 +225,7 @@ This skill needs the TAO SDK. `nvidia-tao-sdk` is not on public PyPI yet — Pre
 REPO='git+https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-sdk.git'
 python -c "import tao_sdk" 2>/dev/null || {
   echo "MISSING: nvidia-tao-sdk not installed. Run:"
-  echo "  pip install \"nvidia-tao-sdk[lepton] @ \$REPO\"      # or [brev], [docker], [slurm], [kubernetes], [all]"
+  echo "  pip install \"nvidia-tao-sdk[brev] @ \$REPO\"      # or [docker], [slurm], [kubernetes], [all]"
   echo "  REPO=$REPO"
   exit 1
 }
@@ -264,7 +263,7 @@ stages:
   - { skill: omniverse-sdg, action: generate, condition: always }
 
 # Platform skills
-sdk_module: tao_sdk.platforms.lepton.sdk
+sdk_module: tao_sdk.platforms.brev.sdk
 features: [tracking, multi-node, lustre]
 
 tags: [classification, my-domain]

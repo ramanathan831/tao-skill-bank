@@ -436,7 +436,7 @@ and `ActionWorkflow`.
 > filesystem first and reference it as `lustre:///...` (or a plain absolute
 > path the compute nodes can read). S3 / HF / NGC pre-fetch is fine for *small*
 > auxiliary inputs (model checkpoints, configs); avoid it for training
-> datasets. Lepton/K8s/Brev don't have this constraint because they don't
+> datasets. K8s/Brev don't have this constraint because they don't
 > share SLURM's scheduler-idle policy.
 
 ```python

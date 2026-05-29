@@ -136,7 +136,7 @@ Group by subsystem — training loop, model, optimization, vision, checkpointing
 If `nvidia-tao-sdk` is installed and you want job tracking + S3 I/O wrapping:
 
 ```python
-from tao_sdk.platforms.brev import BrevSDK   # or: from tao_sdk.platforms.lepton import LeptonSDK
+from tao_sdk.platforms.brev import BrevSDK   # or: from tao_sdk.platforms.slurm import SlurmSDK
 sdk = BrevSDK()
 job = sdk.create_job(
     image='nvcr.io/nvidia/tao/tao-toolkit:<tag>',

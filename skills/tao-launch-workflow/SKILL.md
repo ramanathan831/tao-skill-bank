@@ -98,7 +98,7 @@ Use this structure and adapt spec keys to the selected model/action:
 ```text
 I need these launch inputs before I can create specs or runner files:
 
-1. Execution platform: lepton, brev, slurm, local-docker, or kubernetes.
+1. Execution platform: brev, slurm, local-docker, or kubernetes.
 
 2. Dataset inputs. You can provide either mode:
    A) Root mode: give train/eval roots and I map required files automatically.
@@ -115,7 +115,7 @@ I need these launch inputs before I can create specs or runner files:
 
    Platform examples:
    - SLURM/Lustre: /lustre/fsw/.../data/train or lustre:///lustre/fsw/.../data/train
-   - Lepton/Brev/Kubernetes: s3://bucket/path/train and s3://bucket/path/eval
+   - Brev/Kubernetes: s3://bucket/path/train and s3://bucket/path/eval
    - local-docker: /data/tao/<model>/train or file:///data/tao/<model>/eval
 
 3. Container image. I will resolve the default from packaged model metadata and
@@ -180,9 +180,9 @@ ${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/list_tao_platforms.py \
 ```
 
 Ask only for credentials returned by that command, plus model-specific
-credentials from the selected model skill. Do not ask for Lepton credentials on
-SLURM, Kubernetes, or local Docker. Do not ask for SLURM credentials on Lepton,
-Brev, Kubernetes, or local Docker. Ask S3 credentials only when the selected
+credentials from the selected model skill. Do not ask for Brev credentials on
+SLURM, Kubernetes, or local Docker. Do not ask for SLURM credentials on Brev,
+Kubernetes, or local Docker. Ask S3 credentials only when the selected
 platform and the dataset/result URIs require `s3://` access.
 
 For initial launch intake, ask for required credentials and required credential
@@ -217,7 +217,7 @@ Ask for dataset examples that match the selected platform:
 - SLURM: shared cluster paths such as
   `/lustre/fsw/portfolios/<team>/users/<user>/data/<model>/train`, or direct
   spec paths under `/lustre/...`.
-- Lepton, Brev, Kubernetes: usually `s3://bucket/path/train` and
+- Brev, Kubernetes: usually `s3://bucket/path/train` and
   `s3://bucket/path/eval` unless the platform profile mounts shared storage.
 - Local Docker: local paths visible to the Docker host, such as
   `/data/tao/<model>/train`, or direct spec paths visible inside the planned
@@ -287,7 +287,7 @@ For SLURM:
 5. Only then create runner scripts, specs, workspaces, or submit jobs.
 
 For local Docker, validate Docker/GPU access and local dataset paths before
-writing launch artifacts. For Lepton, Brev, and Kubernetes, validate API or
+writing launch artifacts. For Brev and Kubernetes, validate API or
 cluster access plus object-storage credentials and `aws s3 ls` readability for
 `s3://` inputs before writing launch artifacts. For mounted shared-storage or
 PVC paths on those remote platforms, require manual proof that the path is
