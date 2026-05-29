@@ -227,10 +227,12 @@ running inference.
 end-of-epoch checkpoint such as `model_epoch_000_step_00020.pth`. Resuming with
 `train.num_epochs` set only one epoch beyond the original run can restore the
 checkpoint and stop without producing a new epoch checkpoint. When validating
-actual retraining from an epoch-boundary checkpoint, set `train.num_epochs` high
-enough to advance at least one additional epoch and verify that a new exact
-epoch/step checkpoint such as `model_epoch_001_step_00040.pth` is produced
-before handing the model to evaluate, inference, or export.
+actual retraining from an epoch-boundary checkpoint, set `train.num_epochs` at
+least two epochs beyond the source smoke run and raise `train.optim.max_steps`
+accordingly. For example, resuming from `model_epoch_000_step_00020.pth` needs
+`train.num_epochs: 3` and enough max steps to produce a new exact epoch/step
+checkpoint such as `model_epoch_001_step_00040.pth` before handing the model to
+evaluate, inference, or export.
 
 ## Spec Param / Parent Model Inference
 
