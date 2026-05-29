@@ -45,7 +45,7 @@ TAO_SKILL_BANK_PATH="${TAO_SKILL_BANK_PATH:-$PWD}"
 COSMOS_EMBED_IMAGE="${COSMOS_EMBED_IMAGE:-$(
   python "$TAO_SKILL_BANK_PATH/scripts/resolve_tao_image.py" \
     --skill-bank "$TAO_SKILL_BANK_PATH" \
-    --model cosmos-embed \
+    --model tao-finetune-cosmos-embed \
     --action train \
     --format json |
   python -c 'import json,sys; print(json.load(sys.stdin)["image"])'
@@ -80,7 +80,7 @@ TAO_SKILL_BANK_PATH="${TAO_SKILL_BANK_PATH:-$PWD}"
 COSMOS_EMBED_IMAGE="${COSMOS_EMBED_IMAGE:-$(
   python "$TAO_SKILL_BANK_PATH/scripts/resolve_tao_image.py" \
     --skill-bank "$TAO_SKILL_BANK_PATH" \
-    --model cosmos-embed \
+    --model tao-finetune-cosmos-embed \
     --action train \
     --format json |
   python -c 'import json,sys; print(json.load(sys.stdin)["image"])'
@@ -103,7 +103,8 @@ DOCKER_COMMON=(
 )
 ```
 
-For the `nvcr.io/nvstaging/tao/cosmos-embed:7.0.0-rc-44` image, run a small startup preamble before every action:
+For Cosmos-Embed images that ship `protobuf==7.x`, run a small startup
+preamble before every action:
 
 ```bash
 python -m pip install "protobuf<7"
@@ -164,11 +165,19 @@ train.max_iter=1
 train.validation_iter=2
 train.checkpoint_iter=1
 train.optim.optim=adamw
+train.optim.warmup_steps=0
+train.optim.lr_decay_iters=1
 dataset.train_dataset.batch_size=1
 dataset.val_dataset.batch_size=1
 dataset.train_dataset.workers=0
 dataset.val_dataset.workers=0
 ```
+
+When shortening the cosine scheduler for smoke runs, keep
+`train.optim.lr_decay_iters` greater than `train.optim.warmup_steps`, or set
+`train.optim.warmup_steps=0` as shown above. The scheduler divides by
+`lr_decay_iters - warmup_steps`, so equal values fail before the checkpoint is
+written.
 
 If no local Cosmos-Embed1 pretrained checkpoint is available, set `model.pretrained_model_path=null` for a plumbing-only smoke train. The model quality is meaningless in that mode, but the train/evaluate/inference/export action paths can still be exercised. In the current container, the Q-Former path can still fetch `google-bert/bert-base-uncased`; provide `HF_TOKEN` or a mounted HuggingFace cache for fresh ephemeral containers.
 

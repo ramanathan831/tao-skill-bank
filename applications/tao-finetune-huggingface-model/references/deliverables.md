@@ -459,7 +459,7 @@ edited code. No `python -m build`, no reinstall.
 
 ```bash
 # Required — HuggingFace model/dataset access
-HF_TOKEN=hf_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+HF_TOKEN=<your-huggingface-token>
 
 # Required — Weights & Biases
 WANDB_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
