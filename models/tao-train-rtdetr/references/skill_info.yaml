@@ -30,8 +30,6 @@ actions:
     outputs:
       results_dir:
         type: folder
-      export.onnx_file:
-        type: file
     upload_excludes:
     - inputs/
   distill:
