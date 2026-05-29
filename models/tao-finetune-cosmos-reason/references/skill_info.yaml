@@ -79,7 +79,7 @@ spec_params:
     results_dir: output_dir
   train:
     train.output_dir: output_dir
-    train.resume: resume_model_bool
+    train.resume: resume_model
 actions:
   evaluate:
     command: cosmos-rl-evaluate --config {config_path}

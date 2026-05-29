@@ -559,6 +559,6 @@ Inference mappings from TAO Core `cosmos-rl.config.json`:
 | quantize | `results_dir` | `output_dir` | current job results directory |
 | train | `results_dir` | `output_dir` | current job results directory |
 | train | `train.output_dir` | `output_dir` | current job results directory |
-| train | `train.resume` | `resume_model_bool` | true when a resume checkpoint exists |
+| train | `train.resume` | `resume_model` | exact checkpoint policy folder inferred from the current job results folder |
 
 For `parent_model` or `parent_model_folder`, pass the upstream train/export/AutoML child job id as `parent_job_id`. The SDK lists the parent result folder, filters checkpoint artifacts, and returns the selected model file or folder. Do not add these mappings back to `config.json` and do not patch generated runner scripts to guess checkpoint paths.
