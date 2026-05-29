@@ -86,6 +86,9 @@ Direct TAO Launcher spelling is `tao deploy segformer gen_trt_engine`, `tao depl
 | `inference` | Prediction split name | `dataset.segment.predict_split` |
 
 For direct Docker runs, mount input folders at the same paths used in the spec. For chained jobs, map exported ONNX artifacts into `gen_trt_engine.onnx_file` and map the engine artifact into `evaluate.trt_engine` or `inference.trt_engine` where those actions are available.
+The deploy `dataset.segment.root_dir` must point at the extracted SegFormer root
+containing `images/<split>` and `masks/<split>` directories, matching the parent
+train/export data layout.
 
 ## Spec Overrides
 

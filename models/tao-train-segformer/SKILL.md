@@ -48,20 +48,22 @@ The parent PyT CLI does not expose `gen_trt_engine`. Use `models/segformer/deplo
 
 | Action | Spec Key | Source | Files | List? |
 |---|---|---|---|---|
-| evaluate | dataset.segment.root_dir | eval_dataset |  | No |
-| export | dataset.segment.root_dir | train_datasets |  | No |
-| inference | dataset.segment.root_dir | eval_dataset |  | No |
-| quantize | dataset.segment.root_dir | train_datasets |  | No |
-| quantize | dataset.segment.quant_calibration_dataset.images_dir | train_datasets |  | No |
-| train | dataset.segment.root_dir | train_datasets |  | No |
+| evaluate | dataset.segment.root_dir | eval_dataset | extracted root containing `images/<split>` and `masks/<split>` | No |
+| export | dataset.segment.root_dir | train_datasets | extracted root containing `images/<split>` and `masks/<split>` | No |
+| inference | dataset.segment.root_dir | inference_dataset | extracted root containing `images/<split>` and `masks/<split>` | No |
+| quantize | dataset.segment.root_dir | train_datasets | extracted root containing `images/<split>` and `masks/<split>` | No |
+| quantize | dataset.segment.quant_calibration_dataset.images_dir | calibration_dataset | extracted image directory | No |
+| train | dataset.segment.root_dir | train_datasets | extracted root containing `images/<split>` and `masks/<split>` | No |
 
 ### Typical Spec Overrides
 
 Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
 
 ```python
-S3_TRAIN = "s3://bucket/data/train"
-S3_EVAL = "s3://bucket/data/eval"
+SEG_TRAIN_ROOT = "/data/segformer/train"
+SEG_EVAL_ROOT = "/data/segformer/eval"
+SEG_INFER_ROOT = "/data/segformer/infer"
+CAL_IMAGES = f"{SEG_TRAIN_ROOT}/images/train"
 ```
 
 **train (mandatory data sources):**
@@ -72,7 +74,7 @@ S3_EVAL = "s3://bucket/data/eval"
     "train.checkpoint_interval": 10,
     "train.validation_interval": 10,
     "dataset.segment.batch_size": 4,
-    "dataset.segment.root_dir": f"{S3_TRAIN}",
+    "dataset.segment.root_dir": SEG_TRAIN_ROOT,
 }
 ```
 
@@ -80,7 +82,8 @@ S3_EVAL = "s3://bucket/data/eval"
 ```python
 {
     "evaluate.batch_size": 4,
-    "dataset.segment.root_dir": f"{S3_EVAL}",
+    "dataset.segment.root_dir": SEG_EVAL_ROOT,
+    "evaluate.checkpoint": CHECKPOINT,
 }
 ```
 
@@ -88,26 +91,36 @@ S3_EVAL = "s3://bucket/data/eval"
 ```python
 {
     "dataset.segment.batch_size": 1,
-    "dataset.segment.root_dir": f"{S3_EVAL}",
+    "dataset.segment.root_dir": SEG_INFER_ROOT,
+    "inference.checkpoint": CHECKPOINT,
 }
 ```
 
 **export (mandatory data sources):**
 ```python
 {
-    "dataset.segment.root_dir": f"{S3_TRAIN}",
+    "dataset.segment.root_dir": SEG_TRAIN_ROOT,
+    "export.checkpoint": CHECKPOINT,
     "export.input_height": 256,
     "export.input_width": 256,
+    "export.onnx_file": ONNX_FILE,
 }
 ```
 
 **quantize (mandatory data sources):**
 ```python
 {
-    "dataset.segment.root_dir": f"{S3_TRAIN}",
-    "dataset.segment.quant_calibration_dataset.images_dir": f"{S3_TRAIN}",
+    "dataset.segment.root_dir": SEG_TRAIN_ROOT,
+    "dataset.segment.quant_calibration_dataset.images_dir": CAL_IMAGES,
+    "quantize.model_path": CHECKPOINT,
 }
 ```
+
+If the source dataset is delivered as separate `images/*.tar.gz` and
+`masks/*.tar.gz` archives, extract them before launch so `root_dir` contains
+directories such as `images/train`, `images/val`, `images/test`, `masks/train`,
+and `masks/val`. Do not point `dataset.segment.root_dir` at an archive staging
+folder that still contains only tarballs.
 ## Eval Dataset
 
 Optional. Validation data is typically part of the root_dir structure.
@@ -153,7 +166,12 @@ Minimum 1 GPU(s), recommended 2 GPU(s). 16GB+ (V100 or A100) VRAM per GPU. SegFo
 
 **AutoML metric extraction**: SegFormer train status files report `val_miou` alongside `val_loss`, `val_acc`, and other validation KPIs. Default AutoML train launches must optimize `val_miou` with `direction: maximize`; do not optimize `val_loss` for default model invocations.
 
-**Checkpoint handoff**: For evaluate/export/inference/quantize/resume, use the checkpoint resolver on the best AutoML child job's `results_dir/train/` folder and select the action-appropriate `model_epoch_*.pth` checkpoint. SegFormer may also write a latest symlink, but that should only be used when a caller explicitly requests latest. Preserve `dataset.segment.num_classes`, `dataset.segment.img_size`, and `dataset.segment.root_dir` overrides for downstream actions.
+**Checkpoint handoff**: For evaluate/export/inference/quantize/resume, use the checkpoint resolver on the best AutoML child job's `results_dir/train/` folder and select the action-appropriate `model_epoch_*.pth` checkpoint, such as `model_epoch_000_step_00010.pth`. SegFormer may also write `segformer_model_latest.pth`, but that should only be used when a caller explicitly requests latest. Preserve `dataset.segment.num_classes`, `dataset.segment.img_size`, and `dataset.segment.root_dir` overrides for downstream actions.
+
+**Resume/retrain checkpoint**: Resume uses `train.resume_training_checkpoint_path`.
+Pass the exact resolved checkpoint from the previous train output, not a guessed
+`model.pth` path. A resumed one-epoch run should produce the next checkpoint in
+the new results directory, for example `model_epoch_001_step_00020.pth`.
 
 **Export / TensorRT shape alignment**: Keep `export.input_height` and
 `export.input_width` aligned with `dataset.segment.img_size` unless the trained
