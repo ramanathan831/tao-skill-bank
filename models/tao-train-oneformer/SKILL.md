@@ -53,13 +53,13 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 | evaluate | dataset.test.annotations | eval_dataset | annotations.json | No |
 | evaluate | dataset.test.panoptic | eval_dataset | images_panoptic.tar.gz | No |
 | inference | dataset.train.images | train_datasets | images.tar.gz | No |
-| inference | dataset.label_map | train_datasets | coco_panoptic: label_map_panoptic.json; *: label_map.json | No |
+| inference | dataset.label_map | train_datasets | label_map.json | No |
 | inference | dataset.train.annotations | train_datasets | annotations.json | No |
 | inference | dataset.train.panoptic | train_datasets | images_panoptic.tar.gz | No |
 | inference | dataset.val.images | eval_dataset | images.tar.gz | No |
 | inference | dataset.val.annotations | eval_dataset | annotations.json | No |
 | inference | dataset.val.panoptic | eval_dataset | images_panoptic.tar.gz | No |
-| inference | dataset.test.images | eval_dataset | images.tar.gz | No |
+| inference | dataset.test.images | inference_dataset | images.tar.gz | No |
 | quantize | dataset.train.images | train_datasets | images.tar.gz | No |
 | quantize | dataset.train.annotations | train_datasets | annotations.json | No |
 | quantize | dataset.label_map | train_datasets | label_map.json | No |
@@ -68,7 +68,7 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 | quantize | dataset.val.annotations | eval_dataset | annotations.json | No |
 | quantize | dataset.val.panoptic | eval_dataset | images_panoptic.tar.gz | No |
 | quantize | dataset.test.images | eval_dataset | images.tar.gz | No |
-| quantize | dataset.quant_calibration_dataset.images_dir | train_datasets | images.tar.gz | No |
+| quantize | dataset.quant_calibration_dataset.images_dir | calibration_dataset | images.tar.gz | No |
 | train | dataset.train.images | train_datasets | images.tar.gz | No |
 | train | dataset.train.annotations | train_datasets | annotations.json | No |
 | train | dataset.label_map | train_datasets | label_map.json | No |
@@ -85,6 +85,8 @@ Data source overrides are **mandatory for every action** — the agent MUST cons
 ```python
 S3_TRAIN = "s3://bucket/data/train"
 S3_EVAL = "s3://bucket/data/eval"
+S3_INFERENCE = "s3://bucket/data/inference"
+S3_CALIBRATION = "s3://bucket/data/calibration"
 ```
 
 **train (mandatory data sources):**
@@ -130,6 +132,7 @@ S3_EVAL = "s3://bucket/data/eval"
 **export:**
 ```python
 {
+    "export.checkpoint": "<selected train/AutoML checkpoint>",
     "model.sem_seg_head.num_classes": 133,
     "model.export": True,
     "export.onnx_file": "/results/oneformer_export_640.onnx",
@@ -141,20 +144,21 @@ S3_EVAL = "s3://bucket/data/eval"
 {
     "inference.checkpoint": "<selected train/AutoML checkpoint>",
     "dataset.train.images": f"{S3_TRAIN}/images.tar.gz",
-    "dataset.label_map": f"{S3_TRAIN}/label_map_panoptic.json",
+    "dataset.label_map": f"{S3_TRAIN}/label_map.json",
     "dataset.train.annotations": f"{S3_TRAIN}/annotations.json",
     "dataset.train.panoptic": f"{S3_TRAIN}/images_panoptic.tar.gz",
     "dataset.val.images": f"{S3_EVAL}/images.tar.gz",
     "dataset.val.annotations": f"{S3_EVAL}/annotations.json",
     "dataset.val.panoptic": f"{S3_EVAL}/images_panoptic.tar.gz",
-    "dataset.test.images": f"{S3_EVAL}/images.tar.gz",
-    "inference.images_dir": f"{S3_EVAL}/images.tar.gz",
+    "dataset.test.images": f"{S3_INFERENCE}/images.tar.gz",
+    "inference.images_dir": f"{S3_INFERENCE}/images.tar.gz",
 }
 ```
 
 **quantize (mandatory data sources):**
 ```python
 {
+    "quantize.model_path": "<selected train/AutoML checkpoint>",
     "dataset.train.images": f"{S3_TRAIN}/images.tar.gz",
     "dataset.train.annotations": f"{S3_TRAIN}/annotations.json",
     "dataset.label_map": f"{S3_TRAIN}/label_map.json",
@@ -163,9 +167,22 @@ S3_EVAL = "s3://bucket/data/eval"
     "dataset.val.annotations": f"{S3_EVAL}/annotations.json",
     "dataset.val.panoptic": f"{S3_EVAL}/images_panoptic.tar.gz",
     "dataset.test.images": f"{S3_EVAL}/images.tar.gz",
-    "dataset.quant_calibration_dataset.images_dir": f"{S3_TRAIN}/images.tar.gz",
+    "dataset.quant_calibration_dataset.images_dir": f"{S3_CALIBRATION}/images.tar.gz",
 }
 ```
+
+## Checkpoint Selection
+
+OneFormer training writes epoch-step checkpoints such as
+`model_epoch_000_step_00017.pth` and may also write a
+`oneformer_model_latest.pth` symlink. For checkpoint-dependent actions, use the
+model-skill or SDK parent-model resolver and pass the exact selected checkpoint
+path into `evaluate.checkpoint`, `inference.checkpoint`, `export.checkpoint`,
+`quantize.model_path`, or `train.resume_training_checkpoint_path`. Do not pick
+the `oneformer_model_latest.pth` symlink by name unless the user explicitly asks
+for latest checkpoint behavior. If the resolver reports a best checkpoint, use
+that best checkpoint for evaluation/export/inference; if the user asks for a
+specific epoch or step, use the matching epoch-step checkpoint.
 ## Eval Dataset
 
 Optional. Val data configured alongside train in the dataset config.
@@ -224,12 +241,12 @@ first annotation image even though recursive file counts look correct.
 train/AutoML/evaluate/inference specs. The current Lightning stack rejects the
 legacy `fp32` string.
 
-**PyTorch 2.6 checkpoint load failure on evaluate/inference**: Current
+**PyTorch 2.6 checkpoint load failure on downstream actions**: Current
 OneFormer checkpoints include OmegaConf objects. For checkpoints produced by
 the same trusted TAO train/AutoML workflow, set
-`TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1` in downstream evaluate/inference job env
-vars so Lightning can load the full checkpoint. Do not use this env var for
-untrusted checkpoints.
+`TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1` in downstream evaluate, inference, export,
+quantize, or resume job env vars so Lightning can load the full checkpoint.
+Do not use this env var for untrusted checkpoints.
 
 **CUDA device-side assert in matcher/class cost**: If training fails in
 `oneformer/utils/matcher.py` while indexing `out_prob[:, tgt_ids]`, compare

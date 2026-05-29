@@ -80,14 +80,16 @@ Direct TAO Launcher spelling is `tao deploy oneformer gen_trt_engine`, `tao depl
 | `gen_trt_engine` | Exported ONNX model | `gen_trt_engine.onnx_file` |
 | `gen_trt_engine` | Output engine path | `gen_trt_engine.trt_engine` |
 | `evaluate` | TensorRT engine | `evaluate.trt_engine` |
+| `evaluate` | Label map | `dataset.label_map` |
 | `evaluate` | Validation annotations | `dataset.val.annotations` |
 | `evaluate` | Validation images | `dataset.val.images` |
 | `evaluate` | Validation panoptic masks | `dataset.val.panoptic` |
+| `evaluate` | Test image directory used by the shared deploy template | `dataset.test.images` |
 | `inference` | TensorRT engine | `inference.trt_engine` |
 | `inference` | Test image directory | `dataset.test.images` |
 | `inference` | Label map | `dataset.label_map` |
 
-For direct Docker runs, mount input folders at the same paths used in the spec. For chained jobs, map exported ONNX artifacts into `gen_trt_engine.onnx_file` and map the engine artifact into `evaluate.trt_engine` or `inference.trt_engine` where those actions are available.
+For direct Docker runs, mount input folders at the same paths used in the spec. Image and panoptic tarballs must be extracted before deploy evaluate or inference, and the spec must point to the actual inner image/panoptic folder. For chained jobs, map exported ONNX artifacts into `gen_trt_engine.onnx_file` and map the engine artifact into `evaluate.trt_engine` or `inference.trt_engine` where those actions are available.
 
 ## Spec Overrides
 
@@ -143,7 +145,6 @@ Model-specific notes:
 deploy images parse the exported OneFormer ONNX with two inputs, `images` and
 `task_tokens`, then assume every input is a 4D image tensor. This causes
 `gen_trt_engine` to fail with `IndexError: Out of bounds` while reading the 2D
-`task_tokens` input. The `validation-fixes-20260525` deploy image builds the
-engine with `images` and `task_tokens` profiles and can run TensorRT evaluate
-and inference; still mark deploy validation per image by requiring a produced
-engine before running downstream TensorRT actions.
+`task_tokens` input. Use a deploy image that creates profiles for both
+`images` and `task_tokens`, then mark deploy validation per image by requiring
+a produced engine before running downstream TensorRT actions.
