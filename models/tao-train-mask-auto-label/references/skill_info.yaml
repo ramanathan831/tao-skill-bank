@@ -10,11 +10,11 @@ actions:
     config_format: yaml
     inputs:
       dataset.train_img_dir:
-        type: folder
+        type: file
       dataset.train_ann_path:
         type: file
       dataset.val_img_dir:
-        type: folder
+        type: file
       dataset.val_ann_path:
         type: file
     outputs:
@@ -25,7 +25,13 @@ actions:
   evaluate:
     command: mal evaluate -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      evaluate.checkpoint:
+        type: file
+      dataset.val_img_dir:
+        type: file
+      dataset.val_ann_path:
+        type: file
     outputs:
       results_dir:
         type: folder
@@ -34,14 +40,27 @@ actions:
   inference:
     command: mal inference -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      inference.checkpoint:
+        type: file
+      inference.img_dir:
+        type: file
+      inference.ann_path:
+        type: file
     outputs:
       results_dir:
         type: folder
+      inference.label_dump_path:
+        type: file
     upload_excludes:
     - inputs/
 data_sources: {}
-spec_params: {}
+spec_params:
+  evaluate:
+    evaluate.checkpoint: parent_model
+  inference:
+    inference.checkpoint: parent_model
+    inference.label_dump_path: create_inference_result_file_mal
 key_defaults: {}
 spec_shorthand_keys:
   num_epochs: train.num_epochs

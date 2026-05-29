@@ -8,7 +8,11 @@ actions:
   train:
     command: depth_net train -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.train_dataset.data_sources[0].data_file:
+        type: file
+      dataset.val_dataset.data_sources[0].data_file:
+        type: file
     outputs:
       results_dir:
         type: folder
@@ -17,7 +21,15 @@ actions:
   quantize:
     command: depth_net quantize -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      quantize.model_path:
+        type: file
+      dataset.train_dataset.data_sources[0].data_file:
+        type: file
+      dataset.val_dataset.data_sources[0].data_file:
+        type: file
+      dataset.quant_calibration_dataset.images_dir:
+        type: folder
     outputs:
       results_dir:
         type: folder
@@ -26,7 +38,11 @@ actions:
   evaluate:
     command: depth_net evaluate -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.test_dataset.data_sources[0].data_file:
+        type: file
+      evaluate.checkpoint:
+        type: file
     outputs:
       results_dir:
         type: folder
@@ -35,16 +51,24 @@ actions:
   export:
     command: depth_net export -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      export.checkpoint:
+        type: file
     outputs:
       results_dir:
         type: folder
+      export.onnx_file:
+        type: file
     upload_excludes:
     - inputs/
   inference:
     command: depth_net inference -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.infer_dataset.data_sources[0].data_file:
+        type: file
+      inference.checkpoint:
+        type: file
     outputs:
       results_dir:
         type: folder

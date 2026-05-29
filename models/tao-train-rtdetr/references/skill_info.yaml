@@ -13,10 +13,19 @@ actions:
         type: folder
       dataset.train_data_sources[0].json_file:
         type: file
-      dataset.val_data_sources[0].image_dir:
+      dataset.val_data_sources.image_dir:
         type: folder
-      dataset.val_data_sources[0].json_file:
+      dataset.val_data_sources.json_file:
         type: file
+      model.pretrained_backbone_path:
+        type: file
+        optional: true
+      train.pretrained_model_path:
+        type: file
+        optional: true
+      train.resume_training_checkpoint_path:
+        type: file
+        optional: true
     outputs:
       results_dir:
         type: folder
@@ -25,7 +34,17 @@ actions:
   distill:
     command: rtdetr distill -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.train_data_sources[0].image_dir:
+        type: folder
+      dataset.train_data_sources[0].json_file:
+        type: file
+      dataset.val_data_sources.image_dir:
+        type: folder
+      dataset.val_data_sources.json_file:
+        type: file
+      distill.pretrained_teacher_model_path:
+        type: file
     outputs:
       results_dir:
         type: folder
@@ -34,7 +53,21 @@ actions:
   quantize:
     command: rtdetr quantize -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.train_data_sources[0].image_dir:
+        type: folder
+      dataset.train_data_sources[0].json_file:
+        type: file
+      dataset.val_data_sources.image_dir:
+        type: folder
+      dataset.val_data_sources.json_file:
+        type: file
+      dataset.quant_calibration_data_sources.image_dir:
+        type: folder
+      dataset.quant_calibration_data_sources.json_file:
+        type: file
+      quantize.model_path:
+        type: file
     outputs:
       results_dir:
         type: folder
@@ -43,7 +76,13 @@ actions:
   evaluate:
     command: rtdetr evaluate -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.test_data_sources.image_dir:
+        type: folder
+      dataset.test_data_sources.json_file:
+        type: file
+      evaluate.checkpoint:
+        type: file
     outputs:
       results_dir:
         type: folder
@@ -52,7 +91,9 @@ actions:
   export:
     command: rtdetr export -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      export.checkpoint:
+        type: file
     outputs:
       results_dir:
         type: folder
@@ -61,23 +102,41 @@ actions:
   inference:
     command: rtdetr inference -e {config_path}
     config_format: yaml
-    inputs: {}
-    outputs:
-      results_dir:
+    inputs:
+      dataset.infer_data_sources.image_dir:
         type: folder
-    upload_excludes:
-    - inputs/
-  gen_trt_engine:
-    command: rtdetr gen_trt_engine -e {config_path}
-    config_format: yaml
-    inputs: {}
+      dataset.infer_data_sources.classmap:
+        type: file
+      inference.checkpoint:
+        type: file
     outputs:
       results_dir:
         type: folder
     upload_excludes:
     - inputs/
 data_sources: {}
-spec_params: {}
+spec_params:
+  train:
+    results_dir: output_dir
+    model.pretrained_backbone_path: ptm_if_no_resume_model
+    train.pretrained_model_path: ptm_if_no_resume_model
+    train.resume_training_checkpoint_path: resume_model
+  distill:
+    results_dir: output_dir
+    distill.pretrained_teacher_model_path: parent_model
+  evaluate:
+    results_dir: output_dir
+    evaluate.checkpoint: parent_model
+  export:
+    results_dir: output_dir
+    export.checkpoint: parent_model
+    export.onnx_file: create_onnx_file
+  inference:
+    results_dir: output_dir
+    inference.checkpoint: parent_model
+  quantize:
+    results_dir: output_dir
+    quantize.model_path: parent_model
 key_defaults: {}
 spec_shorthand_keys:
   num_epochs: train.num_epochs

@@ -11,7 +11,7 @@ evaluate:
   input_width: 480
   input_height: 480
   conf_threshold: 0.25
-  test_threshold: 0.2
+  text_threshold: 0.2
   nms_threshold: 0.8
 model:
   backbone: swin_tiny_224_1k

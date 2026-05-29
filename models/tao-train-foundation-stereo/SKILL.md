@@ -25,9 +25,11 @@ The mono and stereo skills both invoke the unified TAO `depth_net` CLI inside th
 
 For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference`), read `deploy/SKILL.md` first. The deploy spec template lives in this skill's `references/spec_template_deploy.yaml`.
 
+Parent PyT actions packaged by this model skill: `train`, `evaluate`, `inference`, `export`, and `quantize`. The PyT `depth_net` entrypoint does not accept a parent-side `gen_trt_engine` action in the current TAO image; build TensorRT engines only through the deploy sub-skill.
+
 ## Train Action Policy
 
-This model is AutoML-enabled at the model layer. Before handling any train-stage request, read `references/skill_info.yaml` and resolve the run override from either an explicit `automl_policy` value or the user's workflow request. Treat phrases like "turn off AutoML", "disable AutoML", "no HPO", or "plain training" as `automl_policy: off` for this run only; otherwise default to `auto`. When `automl_policy: auto`, `automl_enabled: true`, and both `schemas/train.schema.json` and `references/spec_template_train.yaml` are packaged, route the train action through `tao-skill-bank:tao-run-automl` by default with this model's `skill_dir`. Preserve workflow/application overrides for datasets, specs, output directories, GPU/platform settings, parent checkpoints, and `automl_policy`. Use direct model training only when `automl_policy: off` or the packaged train schema/template is missing; in the missing-schema case, report that AutoML is enabled but not runnable for this model until schemas are generated.
+This model is AutoML-enabled at the model layer. Before handling any train-stage request, read `references/skill_info.yaml` and resolve the run override from either an explicit `automl_policy` value or the user's workflow request. Use `automl_policy: on` by default and only expose `on` / `off` in new launch prompts. Treat phrases like "turn off AutoML", "disable AutoML", "no HPO", or "plain training" as `automl_policy: off` for this run only. When `automl_policy: on`, `automl_enabled: true`, and both `schemas/train.schema.json` and `references/spec_template_train.yaml` are packaged, route the train action through `tao-skill-bank:tao-run-automl` by default with this model's `skill_dir`. Preserve workflow/application overrides for datasets, specs, output directories, GPU/platform settings, parent checkpoints, and `automl_policy`. Use direct model training only when `automl_policy: off` or the packaged train schema/template is missing; in the missing-schema case, report that AutoML is enabled but not runnable for this model until schemas are generated.
 
 Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows stay in this model skill. The per-run `automl_policy` override does not change model metadata.
 
@@ -64,6 +66,7 @@ depth_net convert -e <convert_spec.yaml>
 `convert_spec.yaml` template (stereo):
 
 ```yaml
+results_dir: <directory where generated annotation files are written>
 data_root: <directory whose immediate children are scene folders that contain your image+depth files; convert walks data_root recursively but expects per-scene subdirectories at one level below>
 image_dir_pattern: [<substring matching left image paths>]
 right_dir_pattern: [<substring matching right image paths>]
@@ -103,18 +106,37 @@ Copy the action block from **Training Requirements → Typical Spec Overrides**.
 
 Shape consistency: the `crop_size` in `dataset.test_dataset.augmentation.crop_size` should match `export.input_height` / `input_width` so the trained-model evaluator and the deploy-side TensorRT evaluator operate at the same shape — see **Shape consistency** below in this file.
 
+Fresh-install smoke runs are validated at `crop_size: [128, 128]` with `dataset.max_disparity: 128` and `model.max_disparity: 128`. Avoid 112×112 crops and avoid setting `max_disparity` smaller than the square crop side for smoke tests: those combinations can fail inside FoundationStereo with feature-map or loss-mask shape mismatches before a checkpoint is produced.
+
 ### Step 4 — Run
+
+Create writable home/cache directories inside the mounted output path before using
+`--user`. Some TAO containers do not have an `/etc/passwd` entry for the host UID,
+and PyTorch / matplotlib need writable cache paths when running as that UID.
+
+```bash
+mkdir -p <output_dir>/home \
+         <output_dir>/.cache/matplotlib \
+         <output_dir>/.cache/torchinductor \
+         <output_dir>/.cache/xdg
+```
 
 ```
 docker run --gpus 'device=0' --shm-size 16G --ipc=host \
-  --user $(id -u):$(id -g) \
+  --user "$(id -u):$(id -g)" \
+  -e USER="$(id -un)" \
+  -e LOGNAME="$(id -un)" \
+  -e HOME=<output_dir>/home \
+  -e MPLCONFIGDIR=<output_dir>/.cache/matplotlib \
+  -e TORCHINDUCTOR_CACHE_DIR=<output_dir>/.cache/torchinductor \
+  -e XDG_CACHE_HOME=<output_dir>/.cache/xdg \
   -v <data_root>:<data_root>:ro \
   -v <output_dir>:<output_dir> \
   <container> \
   depth_net <action> -e <spec.yaml>
 ```
 
-Without `--user $(id -u):$(id -g)` the container writes outputs as `nobody:nogroup`, blocking host-side cleanup / retry.
+Without `--user "$(id -u):$(id -g)"` the container writes outputs as `nobody:nogroup`, blocking host-side cleanup / retry.
 
 ### Step 5 — Verify
 
@@ -187,6 +209,7 @@ S3_EVAL = "aws://bucket/data/eval"
     "dataset.test_dataset.data_sources": [
         {"data_file": f"{S3_EVAL}/annotations.txt", "dataset_name": "Middlebury"}
     ],
+    "evaluate.checkpoint": "<selected train/AutoML checkpoint>",
 }
 ```
 
@@ -195,16 +218,10 @@ S3_EVAL = "aws://bucket/data/eval"
 {
     "model.model_type": "FoundationStereo",
     "model.encoder": "vits",
+    "export.checkpoint": "<selected train/AutoML checkpoint>",
     "export.batch_size": 1,
     "export.input_height": 320,
     "export.input_width": 736,
-}
-```
-
-**gen_trt_engine:**
-```python
-{
-    "gen_trt_engine.batch_size": 1,
 }
 ```
 
@@ -218,21 +235,27 @@ S3_EVAL = "aws://bucket/data/eval"
     "dataset.infer_dataset.data_sources": [
         {"data_file": f"{S3_EVAL}/annotations.txt", "dataset_name": "GenericDataset"}
     ],
+    "inference.checkpoint": "<selected train/AutoML checkpoint>",
 }
 ```
 
 **quantize (mandatory data sources):**
 ```python
 {
+    "model.model_type": "FoundationStereo",
+    "model.encoder": "vits",
     "dataset.train_dataset.data_sources": [
         {"data_file": f"{S3_TRAIN}/annotations.txt", "dataset_name": "Middlebury"}
     ],
     "dataset.val_dataset.data_sources": [
         {"data_file": f"{S3_EVAL}/annotations.txt", "dataset_name": "Middlebury"}
     ],
-    "dataset.quant_calibration_dataset.images_dir": f"{S3_TRAIN}/images.tar.gz",
+    "dataset.quant_calibration_dataset.images_dir": f"{S3_TRAIN}/left",
+    "quantize.model_path": "<selected train/AutoML checkpoint>",
 }
 ```
+
+Known issue in `nvcr.io/nvstaging/tao/tao-toolkit-pyt:7.0.0-rc-226-multiarch`: stereo `depth_net quantize` reaches the checkpoint load path and then fails inside the SDK with `StereoDepthNetPlModel` missing `load_state_dict_from_checkpoint`. Keep `quantize.model_path` wired to the selected checkpoint; do not replace it with a latest-file guess.
 ## Eval Dataset
 
 Optional. Val dataset configured via `dataset.val_dataset.data_sources` (each entry needs `data_file` and `dataset_name`).
@@ -303,6 +326,8 @@ Minimum 1 GPU(s), recommended 4 GPU(s). 24GB+ (A100 recommended) VRAM per GPU. S
 
 **Disparity overflow**: Reduce `model.max_disparity` if targets exceed range or OOM occurs.
 
+**FoundationStereo smoke shape mismatch**: For small square smoke tests, use a crop that is compatible with the model's downsample/upsample path (validated: `[128, 128]`) and keep `dataset.max_disparity` / `model.max_disparity` aligned to that square crop side. `crop_size: [112, 112]` and `max_disparity: 64` both failed validation with internal tensor-shape mismatches.
+
 **Missing pretrained paths**: Both `model.stereo_backbone.depth_anything_v2_pretrained_path` and `model.stereo_backbone.edgenext_pretrained_path` should be set for fine-tuning.
 
 **`Key 'encoder' not in 'StereoBackBone'`**: `encoder` is a top-level `model.encoder` field, not under `stereo_backbone`. See Important Parameters.
@@ -313,9 +338,15 @@ Minimum 1 GPU(s), recommended 4 GPU(s). 24GB+ (A100 recommended) VRAM per GPU. S
 
 **Pyt `evaluate` runs at native image resolution (`crop_size` is decorative on the pyt test path)**: the stereo data module's test transform is built with `split='infer'` (`pl_stereo_data_module.py`), which applies only `NormalizeImage` + `PrepareForNet` — no `Resize`/`Crop`. So `dataset.test_dataset.augmentation.crop_size` is read but **not consumed** for the pyt `evaluate` action; samples are fed at the annotation file's native shape. For variable-aspect datasets like Middlebury, point the test annotation file at a resolution that fits GPU memory (e.g., MiddEval3-data-Q at 718×496 instead of MiddEval3-data-H at 1428×988 for the small variant on 24–48 GB GPUs). This asymmetry is pyt-only — `crop_size` IS authoritative on the deploy `evaluate` side (the deploy runtime reads it; see `deploy/SKILL.md`).
 
+**Deploy `evaluate` scalar conversion failure**: In the current deploy image, stereo TRT `evaluate` can finish prediction generation and then fail in `stereo_evaluator.py` with `TypeError: only 0-dimensional arrays can be converted to Python scalars`. This is a deploy evaluator issue, not an engine or data-loading failure; document it rather than rerouting through a latest checkpoint or skipping the action.
+
 ## Spec Param / Parent Model Inference
 
 Model-specific inference mappings belong in this MD file, not in `config.json`. Generated runners should read this section and apply the mappings with SDK helpers before `create_job()`. This mirrors the old microservices `infer_params.py` flow.
+
+DepthNet Stereo training writes checkpoint files under `<results_dir>/train/` using `model_epoch_<epoch>_step_<step>.pth` and a `dn_model_latest.pth` symlink. For `evaluate`, `inference`, `export`, `quantize`, and resume/retrain, select checkpoints through the SDK/model resolver so a requested best, epoch, or step checkpoint resolves to that exact file. Use `dn_model_latest.pth` only when the user explicitly asks for latest.
+
+Parent PyT `gen_trt_engine` is intentionally absent from the supported action set because the current `depth_net` entrypoint rejects it. The TensorRT engine mappings are owned by `deploy/SKILL.md`.
 
 Inference mappings from TAO Core `depth_net_stereo.config.json`:
 
@@ -331,11 +362,6 @@ Inference mappings from TAO Core `depth_net_stereo.config.json`:
 | export | `export.onnx_file` | `create_onnx_file` | output ONNX path |
 | export | `model.model_type` | `FoundationStereo` | FoundationStereo |
 | export | `results_dir` | `output_dir` | current job results directory |
-| gen_trt_engine | `dataset.dataset_name` | `StereoDataset` | StereoDataset |
-| gen_trt_engine | `gen_trt_engine.onnx_file` | `parent_model` | model file inferred from the parent job results folder |
-| gen_trt_engine | `gen_trt_engine.trt_engine` | `create_engine_file` | output TensorRT engine path |
-| gen_trt_engine | `model.model_type` | `FoundationStereo` | FoundationStereo |
-| gen_trt_engine | `results_dir` | `output_dir` | current job results directory |
 | inference | `dataset.dataset_name` | `StereoDataset` | StereoDataset |
 | inference | `inference.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
 | inference | `inference.trt_engine` | `parent_model` | model file inferred from the parent job results folder |

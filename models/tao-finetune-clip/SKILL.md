@@ -21,13 +21,15 @@ tags:
 
 Contrastive Language-Image Pre-training model for zero-shot and fine-tuned image classification, image-text retrieval, and embedding extraction. Fine-tuning adapts CLIP's shared image-text embedding space to domain-specific image-caption data.
 
-No default NGC pretrained checkpoint is required. When `train.pretrained_model_path`, `evaluate.checkpoint`, `inference.checkpoint`, or `export.checkpoint` is unset, TAO loads pretrained weights from HuggingFace for SigLIP2/OpenCLIP variants or `torch.hub` for Radio-CLIP, so first use needs network access or a local mirror.
+No default NGC pretrained checkpoint is required for spec construction, but unset checkpoint behavior is action-specific. In the validation-fixes PyTorch image, `export.checkpoint: null` exports the selected CLIP architecture and may initialize weights when pretrained weights are unavailable. Do not assume `inference.checkpoint: null` loads pretrained weights: `clip inference` currently calls the checkpoint loader with `None` and fails before embedding extraction. For PyTorch inference, checkpoint-backed evaluation/export, resume, and retrain flows, resolve and pass an exact checkpoint from the parent train output.
 
 Supported actions: `train`, `evaluate`, `inference`, `export`, `gen_trt_engine`.
 
 ## Train Action Policy
 
-This model is AutoML-enabled at the model layer. Before handling any train-stage request, read `references/skill_info.yaml` and resolve the run override from either an explicit `automl_policy` value or the user's workflow request. Treat phrases like "turn off AutoML", "disable AutoML", "no HPO", or "plain training" as `automl_policy: off` for this run only; otherwise default to `auto`. When `automl_policy: auto`, `automl_enabled: true`, and both `schemas/train.schema.json` and `references/spec_template_train.yaml` are packaged, route the train action through `tao-skill-bank:tao-run-automl` by default with this model's `skill_dir`. Preserve workflow/application overrides for datasets, specs, output directories, GPU/platform settings, parent checkpoints, and `automl_policy`. Use direct model training only when `automl_policy: off` or the packaged train schema/template is missing; in the missing-schema case, report that AutoML is enabled but not runnable for this model until schemas are generated.
+This model is AutoML-enabled at the model layer. Before handling any train-stage request, read `references/skill_info.yaml` and resolve the run override from either an explicit `automl_policy` value or the user's workflow request. Use `automl_policy: on` by default and only expose `on` / `off` in new launch prompts. Treat phrases like "turn off AutoML", "disable AutoML", "no HPO", or "plain training" as `automl_policy: off` for this run only. When `automl_policy: on`, `automl_enabled: true`, and both `schemas/train.schema.json` and `references/spec_template_train.yaml` are packaged, route the train action through `tao-skill-bank:tao-run-automl` by default with this model's `skill_dir`. Preserve workflow/application overrides for datasets, specs, output directories, GPU/platform settings, parent checkpoints, and `automl_policy`. Use direct model training only when `automl_policy: off` or the packaged train schema/template is missing; in the missing-schema case, report that AutoML is enabled but not runnable for this model until schemas are generated.
+
+The packaged CLIP train schema enables `train.optim.vision_lr` and `train.optim.text_lr` as default AutoML search parameters. For smoke tests, keep the search small by using the Bayesian algorithm with two recommendations and narrow LR ranges.
 
 Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows stay in this model skill. The per-run `automl_policy` override does not change model metadata.
 
@@ -35,7 +37,7 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 
 Use this skill for NVIDIA TAO CLIP jobs: training, evaluation, embedding inference, ONNX export, and TensorRT engine generation. Start by identifying the requested action, then load only the referenced files needed for that action: `defaults.json` for default parameters, `config.json` for action/data-source wiring, `references/spec_template.yaml` for full spec shape, and `references/model_info.yaml` for SDK metadata.
 
-For dataset-backed actions, collect the required image, caption, list, or prompt files from the user and place the resolved paths in `spec_overrides`. For `export` and `gen_trt_engine`, infer parent artifacts from the upstream job when available; otherwise require explicit checkpoint, ONNX, or engine paths. Run `gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference` in the TAO Deploy image.
+For dataset-backed actions, collect the required image, caption, list, or prompt files from the user and place the resolved paths in `spec_overrides`. For local Docker runs, mount extracted folders in the container and point `image_dir` / `caption_dir` at those folders; if a data source provides `.tar.gz` archives, extract them before running the in-container CLIP commands. For `export` and `gen_trt_engine`, infer parent artifacts from the upstream job when available; otherwise require explicit checkpoint, ONNX, or engine paths. Run `gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference` in the TAO Deploy image.
 
 For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference`), read `deploy/SKILL.md` first. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
 
@@ -47,9 +49,9 @@ For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and Tens
 
 ### Supported Models
 
-- **SigLIP2:** `siglip2-so400m-patch16-256` (default), `siglip2-so400m-patch14-224`, `siglip2-so400m-patch14-384`, `siglip2-so400m-patch16-384`, `siglip2-so400m-patch16-512`, `siglip2-so400m-patch16-naflex`
+- **OpenCLIP / NV-CLIP:** `ViT-L-14-SigLIP-CLIPA-224` (default), `ViT-L-14-SigLIP-CLIPA-336`, `ViT-H-14-SigLIP-CLIPA-224`, `ViT-H-14-SigLIP-CLIPA-336`, `ViT-H-14-SigLIP-CLIPA-574`
 - **Radio-CLIP:** `c-radio_v3-b`, `c-radio_v3-l`, `c-radio_v3-h`, `c-radio_v3-g`
-- **OpenCLIP / NV-CLIP:** `ViT-L-14-SigLIP-CLIPA-224`, `ViT-L-14-SigLIP-CLIPA-336`, `ViT-H-14-SigLIP-CLIPA-224`, `ViT-H-14-SigLIP-CLIPA-336`, `ViT-H-14-SigLIP-CLIPA-574`
+- **SigLIP2:** `siglip2-so400m-patch16-256`, `siglip2-so400m-patch14-224`, `siglip2-so400m-patch14-384`, `siglip2-so400m-patch16-384`, `siglip2-so400m-patch16-512`, `siglip2-so400m-patch16-naflex`
 
 Radio-CLIP requires `model.adaptor_name` to be set to `siglip` or `clip`.
 
@@ -68,6 +70,8 @@ Radio-CLIP requires `model.adaptor_name` to be set to `siglip` or `clip`.
 | gen_trt_engine | gen_trt_engine.onnx_file | parent export job or explicit ONNX | clip_model.onnx | No |
 
 For custom training, set `dataset.train.type: custom` and provide `dataset.train.datasets` entries. Image and caption files must share the same base name. `caption_file_suffix` defaults to `.txt`, and `image_list_file` is optional.
+
+When no native CLIP image-caption dataset is available, do not silently treat image-classification data as CLIP data. If the user explicitly allows a plumbing-only validation fallback, derive caption files from class labels, document that the captions are generated from labels, and keep each image/caption pair on the same base filename. Without an `image_list_file`, the TAO custom loader scans the configured image directory for image files; keep validation folders flat unless you provide a list file.
 
 For WDS training, set `dataset.train.type: wds` and provide at least one of `dataset.train.wds.root_dir` or `dataset.train.wds.shard_list_file`. `root_dir` is scanned recursively for `.tar` shards. `shard_list_file` is a text file with one shard path per line; relative lines resolve under the list-file directory unless `root_dir` is also supplied, in which case they resolve under `root_dir`. Validation/evaluation data remains custom format via `dataset.val.datasets`.
 
@@ -134,6 +138,8 @@ Inference writes `image_embeddings.h5` and/or `text_embeddings.h5` under `result
 
 Set `export.encoder_type: separate` when deployment should use independent vision and text encoders. Separate export writes `_vision.onnx` and `_text.onnx` variants derived from the base `export.onnx_file`.
 
+For checkpoint-dependent actions, use the model-specific checkpoint resolver output from the parent train job. CLIP training writes checkpoints such as `model_epoch_000_step_00020.pth` and a `clip_latest.pth` symlink. Use the exact resolved checkpoint for `evaluate.checkpoint`, `inference.checkpoint`, `export.checkpoint`, and `train.resume_training_checkpoint_path`; use `clip_latest.pth` only when the user explicitly asks for latest.
+
 **gen_trt_engine:**
 ```python
 {
@@ -155,13 +161,13 @@ Optional for training. If provided, validation metrics are computed at validatio
 
 The skill exposes `gen_trt_engine` as the deploy action. In generated SDK runners, use `model_info["actions"]["gen_trt_engine"]` and run it in the TAO Deploy image, not the PyTorch training image. The in-container command is `clip gen_trt_engine -e {config_path}`; direct TAO Launcher usage spells the same action as `tao deploy clip gen_trt_engine -e /path/to/spec.yaml`.
 
-TAO Deploy supports both combined and separate encoder formats. For separate encoders, pass the base path without `_vision` or `_text` to `gen_trt_engine.onnx_file` and `gen_trt_engine.trt_engine`; TAO detects or writes the suffixed vision/text files.
+TAO Deploy inference can discover combined engines, paired separate engines, or single-pillar `_vision.engine` / `_text.engine` files. In the current TAO Deploy image validated by this skill, `clip gen_trt_engine` builds image-shaped ONNX inputs correctly but fails on CLIP text inputs because the shared engine builder assumes every input has `(B, C, H, W)` dimensions. The validated deploy path is image-only: export with `export.encoder_type: separate`, pass `clip_model_vision.onnx` to `gen_trt_engine.onnx_file`, write `clip_vision.engine`, and set `inference.text_file: null` for TensorRT image embeddings. Combined ONNX, text ONNX, full text inference, and TensorRT retrieval evaluation remain blocked until the deploy builder handles text input profiles.
 
 Use `evaluate.trt_engine` for TensorRT evaluation and `inference.trt_engine` for TensorRT embedding extraction. These TensorRT paths also run in the TAO Deploy image. Direct TAO Launcher usage spells these as `tao deploy clip evaluate` and `tao deploy clip inference`.
 
 ## Important Parameters
 
-- **model.type**: Backbone family and resolution. Use fixed-resolution SigLIP2/OpenCLIP variants for deployment.
+- **model.type**: Backbone family and resolution. Use a TAO-registered CLIP model ID such as `ViT-L-14-SigLIP-CLIPA-224`. Prefer the listed OpenCLIP / NV-CLIP IDs for AutoML smoke tests because the current TAO container registry routes them through the supported augmentation adapter.
 - **model.adaptor_name**: Required for Radio-CLIP. Set to `siglip` or `clip`.
 - **model.image_size**: Training transform image resolution. Keep it aligned with the selected fixed-resolution backbone.
 - **train.num_epochs**: CLIP fine-tuning often converges quickly. Start with 10-20 epochs for domain adaptation, then increase only if validation loss is still improving.
@@ -183,15 +189,27 @@ Single-GPU training works for small datasets. Use 4+ GPUs for datasets with more
 
 **Zero retrieval or classification quality**: Check that captions and prompts match the target label vocabulary. CLIP compares image and text embeddings, so prompt wording matters.
 
+**No CLIP-compatible dataset in a bucket prefix**: Training requires either
+custom-format `images.tar.gz` + `captions.tar.gz` + `image_list.txt`, or WDS
+`.tar` shards plus a shard list/root. Image-classification archives with
+`classes.txt` are not sufficient unless the user explicitly asks to generate
+caption files from labels as a separate data-preparation step.
+
 **Dataset size smaller than total batch size**: The total batch size is `batch_size * num_gpus`. If the dataset, especially validation, has fewer samples than this, reduce `dataset.val.batch_size` or `dataset.train.batch_size`.
 
 **Radio-CLIP config validation error**: Set `model.adaptor_name` explicitly to `siglip` or `clip`.
 
-**Naflex export failure**: `siglip2-so400m-patch16-naflex` is training-only in the current TAO docs and cannot be exported to ONNX or TensorRT. Use a fixed-resolution variant such as `siglip2-so400m-patch16-384`.
+**Unsupported model identifier or transform error**: Use a TAO-registered CLIP model ID supported by the current container. For minimal AutoML validation, prefer `ViT-L-14-SigLIP-CLIPA-224`. Generic OpenCLIP built-ins that are not in TAO's CLIP registry can bypass TAO's augmentation adapter and fail on transform keys.
 
 **ONNX external data missing**: Models larger than 2 GB export an ONNX file plus an external data file. Keep both files in the same directory and do not rename the external data file before `gen_trt_engine`.
 
 **TensorRT shape mismatch**: When using dynamic batch export, provide min/opt/max shape profiles for every input. Text sequence length must match the tokenizer length, commonly 77 for CLIP tokenizers and 64 for SigLIP2 tokenizers.
+
+**PyTorch 2.6 checkpoint load failure**: If a trusted TAO CLIP Lightning checkpoint fails with a `Weights only load failed` / `numpy.dtypes.Float64DType` unpickling error, rerun checkpoint-dependent PyTorch actions with `TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1`. Do not use this override for untrusted checkpoints.
+
+**PyTorch inference with null checkpoint**: If `clip inference` fails with `TypeError: expected str, bytes or os.PathLike object, not NoneType`, the spec did not provide `inference.checkpoint`. Use the exact resolved checkpoint from a parent train job for PyTorch inference, or use the export plus TensorRT image-only deploy path when no training checkpoint exists.
+
+**CLIP TensorRT text build failure**: If `clip gen_trt_engine` fails with `IndexError: Out of bounds` while parsing `input_ids` or `attention_mask`, the current deploy builder is treating text inputs as image tensors. Build the `_vision.onnx` file for image-only TensorRT inference and document text/full retrieval deployment as blocked for this deploy image.
 
 **attention_mask warning**: `attention_mask` is currently accepted by exported graphs for compatibility, but TAO ignores its values and may remove it in a future release. Do not build new direct-ONNX inference code that depends on mask values.
 

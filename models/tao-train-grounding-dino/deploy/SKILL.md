@@ -107,7 +107,9 @@ Model-specific notes:
 
 - For inference, always set `dataset.infer_data_sources.captions`; these are the text prompts used for open-vocabulary detection.
 - Use FP16 for starter-kit TensorRT builds unless an explicit precision requirement says otherwise.
-- Carry transformer structure fields from export, including backbone, feature levels, encoder/decoder layers, and query count.
+- Carry transformer structure fields from export, including backbone, feature
+  levels, encoder/decoder layers, `num_queries`, `num_select`, and
+  `max_text_len`.
 
 ## Job Chain Mapping
 

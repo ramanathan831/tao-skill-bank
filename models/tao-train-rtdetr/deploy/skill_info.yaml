@@ -10,13 +10,9 @@ actions:
     inputs:
       gen_trt_engine.onnx_file:
         type: file
-      gen_trt_engine.trt_engine:
-        type: file
     outputs:
       results_dir:
         type: folder
-      gen_trt_engine.trt_engine:
-        type: file
     upload_excludes:
     - inputs/
   evaluate:
@@ -74,4 +70,8 @@ notes:
 - Use FP16 for starter-kit TensorRT builds unless INT8 calibration is explicitly requested.
 - If quantized export is used, build the TensorRT engine from the quantized export
   ONNX artifact.
-- Carry `dataset.num_classes`, input width, input height, and channel count from train/export.
+- Carry `dataset.num_classes` and RT-DETR model structure from train/export. Do
+  not set `gen_trt_engine.input_width` or `gen_trt_engine.input_height`; deploy
+  engine generation infers shape from ONNX. Use `evaluate.input_width` /
+  `evaluate.input_height` and `inference.input_width` / `inference.input_height`
+  for TensorRT evaluate/inference.

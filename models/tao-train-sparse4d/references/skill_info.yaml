@@ -6,9 +6,13 @@ data_format: ovpkl
 gpu_spec_key: train.num_gpus
 actions:
   dataset_convert:
-    command: sparse4d dataset_convert -e {config_path}
+    container_image: tao_toolkit.data_services
+    command: annotations convert -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      aicity.root:
+        type: folder
+        container_path: /data/aicity_root
     outputs:
       results_dir:
         type: folder
@@ -17,7 +21,24 @@ actions:
   train:
     command: sparse4d train -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.data_root:
+        type: folder
+        container_path: /data/aicity_root/train
+      model.head.instance_bank.anchor:
+        type: file
+      dataset.train_dataset.ann_file:
+        type: file
+      dataset.val_dataset.ann_file:
+        type: file
+      dataset.test_dataset.ann_file:
+        type: file
+      train.pretrained_model_path:
+        type: file
+        optional: true
+      train.resume_training_checkpoint_path:
+        type: file
+        optional: true
     outputs:
       results_dir:
         type: folder
@@ -26,7 +47,22 @@ actions:
   quantize:
     command: sparse4d quantize -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.data_root:
+        type: folder
+        container_path: /data/aicity_root/train
+      model.head.instance_bank.anchor:
+        type: file
+      dataset.train_dataset.ann_file:
+        type: file
+      dataset.val_dataset.ann_file:
+        type: file
+      dataset.test_dataset.ann_file:
+        type: file
+      dataset.quant_calibration_dataset.images_dir:
+        type: folder
+      quantize.model_path:
+        type: file
     outputs:
       results_dir:
         type: folder
@@ -35,7 +71,20 @@ actions:
   evaluate:
     command: sparse4d evaluate -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.data_root:
+        type: folder
+        container_path: /data/aicity_root/val
+      model.head.instance_bank.anchor:
+        type: file
+      dataset.train_dataset.ann_file:
+        type: file
+      dataset.val_dataset.ann_file:
+        type: file
+      dataset.test_dataset.ann_file:
+        type: file
+      evaluate.checkpoint:
+        type: file
     outputs:
       results_dir:
         type: folder
@@ -44,7 +93,11 @@ actions:
   export:
     command: sparse4d export -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      model.head.instance_bank.anchor:
+        type: file
+      export.checkpoint:
+        type: file
     outputs:
       results_dir:
         type: folder
@@ -53,14 +106,46 @@ actions:
   inference:
     command: sparse4d inference -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.data_root:
+        type: folder
+        container_path: /data/aicity_root/test
+      model.head.instance_bank.anchor:
+        type: file
+      dataset.train_dataset.ann_file:
+        type: file
+      dataset.val_dataset.ann_file:
+        type: file
+      dataset.test_dataset.ann_file:
+        type: file
+      inference.checkpoint:
+        type: file
     outputs:
       results_dir:
         type: folder
     upload_excludes:
     - inputs/
 data_sources: {}
-spec_params: {}
+spec_params:
+  dataset_convert:
+    results_dir: output_dir
+  train:
+    results_dir: output_dir
+    train.pretrained_model_path: ptm_if_no_resume_model
+    train.resume_training_checkpoint_path: resume_model
+  evaluate:
+    results_dir: output_dir
+    evaluate.checkpoint: parent_model
+  export:
+    results_dir: output_dir
+    export.checkpoint: parent_model
+    export.onnx_file: create_onnx_file
+  inference:
+    results_dir: output_dir
+    inference.checkpoint: parent_model
+  quantize:
+    results_dir: output_dir
+    quantize.model_path: parent_model
 key_defaults: {}
 spec_shorthand_keys:
   num_epochs: train.num_epochs

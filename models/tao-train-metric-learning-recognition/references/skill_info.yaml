@@ -15,6 +15,9 @@ actions:
         type: folder
       dataset.val_dataset.query:
         type: folder
+      train.resume_training_checkpoint_path:
+        type: file
+        optional: true
     outputs:
       results_dir:
         type: folder
@@ -23,7 +26,13 @@ actions:
   evaluate:
     command: ml_recog evaluate -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      evaluate.checkpoint:
+        type: file
+      dataset.val_dataset.reference:
+        type: folder
+      dataset.val_dataset.query:
+        type: folder
     outputs:
       results_dir:
         type: folder
@@ -32,32 +41,40 @@ actions:
   export:
     command: ml_recog export -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      export.checkpoint:
+        type: file
     outputs:
       results_dir:
         type: folder
+      export.onnx_file:
+        type: file
     upload_excludes:
     - inputs/
   inference:
     command: ml_recog inference -e {config_path}
     config_format: yaml
-    inputs: {}
-    outputs:
-      results_dir:
+    inputs:
+      inference.checkpoint:
+        type: file
+      dataset.val_dataset.reference:
         type: folder
-    upload_excludes:
-    - inputs/
-  gen_trt_engine:
-    command: ml_recog gen_trt_engine -e {config_path}
-    config_format: yaml
-    inputs: {}
+      inference.input_path:
+        type: folder
     outputs:
       results_dir:
         type: folder
     upload_excludes:
     - inputs/
 data_sources: {}
-spec_params: {}
+spec_params:
+  evaluate:
+    evaluate.checkpoint: parent_model
+  export:
+    export.checkpoint: parent_model
+    export.onnx_file: create_onnx_file
+  inference:
+    inference.checkpoint: parent_model
 key_defaults: {}
 spec_shorthand_keys:
   num_epochs: train.num_epochs

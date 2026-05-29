@@ -34,7 +34,13 @@ actions:
   evaluate:
     command: deformable_detr evaluate -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      dataset.test_data_sources.image_dir:
+        type: folder
+      dataset.test_data_sources.json_file:
+        type: file
+      evaluate.checkpoint:
+        type: file
     outputs:
       results_dir:
         type: folder
@@ -52,16 +58,13 @@ actions:
   inference:
     command: deformable_detr inference -e {config_path}
     config_format: yaml
-    inputs: {}
-    outputs:
-      results_dir:
+    inputs:
+      dataset.infer_data_sources.image_dir:
         type: folder
-    upload_excludes:
-    - inputs/
-  gen_trt_engine:
-    command: deformable_detr gen_trt_engine -e {config_path}
-    config_format: yaml
-    inputs: {}
+      dataset.infer_data_sources.classmap:
+        type: file
+      inference.checkpoint:
+        type: file
     outputs:
       results_dir:
         type: folder

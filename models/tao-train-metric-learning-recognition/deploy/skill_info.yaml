@@ -46,6 +46,9 @@ actions:
         type: folder
       dataset.val_dataset.query:
         type: folder
+        optional: true
+      inference.input_path:
+        type: folder
     outputs:
       results_dir:
         type: folder
@@ -76,3 +79,6 @@ notes:
 - The starter-kit deploy flow builds MLRecog engines with INT8, so provide real calibration
   images and a writable calibration cache path.
 - Keep reference and query sets paired consistently between evaluate and inference.
+- Use batch size 1 for deploy evaluate/inference validation unless the dataset
+  size is known to be divisible by the runtime batch size; larger batches can
+  silently drop the final partial batch.

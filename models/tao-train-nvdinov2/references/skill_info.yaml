@@ -11,15 +11,12 @@ actions:
     inputs:
       dataset.train_dataset.images_dir:
         type: folder
-    outputs:
-      results_dir:
-        type: folder
-    upload_excludes:
-    - inputs/
-  distill:
-    command: nvdinov2 distill -e {config_path}
-    config_format: yaml
-    inputs: {}
+      train.pretrained_model_path:
+        type: file
+        optional: true
+      train.resume_training_checkpoint_path:
+        type: file
+        optional: true
     outputs:
       results_dir:
         type: folder
@@ -28,23 +25,36 @@ actions:
   export:
     command: nvdinov2 export -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      export.checkpoint:
+        type: file
     outputs:
       results_dir:
         type: folder
+      export.onnx_file:
+        type: file
     upload_excludes:
     - inputs/
   inference:
     command: nvdinov2 inference -e {config_path}
     config_format: yaml
-    inputs: {}
+    inputs:
+      inference.checkpoint:
+        type: file
+      dataset.test_dataset.images_dir:
+        type: folder
     outputs:
       results_dir:
         type: folder
     upload_excludes:
     - inputs/
 data_sources: {}
-spec_params: {}
+spec_params:
+  export:
+    export.checkpoint: parent_model
+    export.onnx_file: create_onnx_file
+  inference:
+    inference.checkpoint: parent_model
 key_defaults: {}
 spec_shorthand_keys:
   num_epochs: train.num_epochs

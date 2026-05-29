@@ -29,15 +29,21 @@ Generated TAO Core schemas are packaged in `schemas/<action>.schema.json`, with 
 
 ## Train Action Policy
 
-This model is AutoML-enabled at the model layer. Before handling any train-stage request, read `references/skill_info.yaml` and resolve the run override from either an explicit `automl_policy` value or the user's workflow request. Treat phrases like "turn off AutoML", "disable AutoML", "no HPO", or "plain training" as `automl_policy: off` for this run only; otherwise default to `auto`. When `automl_policy: auto`, `automl_enabled: true`, and both `schemas/train.schema.json` and `references/spec_template_train.yaml` are packaged, route the train action through `tao-skill-bank:tao-run-automl` by default with this model's `skill_dir`. Preserve workflow/application overrides for datasets, specs, output directories, GPU/platform settings, parent checkpoints, and `automl_policy`. Use direct model training only when `automl_policy: off` or the packaged train schema/template is missing; in the missing-schema case, report that AutoML is enabled but not runnable for this model until schemas are generated.
+This model is AutoML-enabled at the model layer. Before handling any train-stage request, read `references/skill_info.yaml` and resolve the run override from either an explicit `automl_policy` value or the user's workflow request. Use `automl_policy: on` by default and only expose `on` / `off` in new launch prompts. Treat phrases like "turn off AutoML", "disable AutoML", "no HPO", or "plain training" as `automl_policy: off` for this run only. When `automl_policy: on`, `automl_enabled: true`, and both `schemas/train.schema.json` and `references/spec_template_train.yaml` are packaged, route the train action through `tao-skill-bank:tao-run-automl` by default with this model's `skill_dir`. Preserve workflow/application overrides for datasets, specs, output directories, GPU/platform settings, parent checkpoints, and `automl_policy`. Use direct model training only when `automl_policy: off` or the packaged train schema/template is missing; in the missing-schema case, report that AutoML is enabled but not runnable for this model until schemas are generated.
 
 Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows stay in this model skill. The per-run `automl_policy` override does not change model metadata.
+
+## Supported Actions
+
+The packaged RT-DETR PyT CLI supports `train`, `distill`, `quantize`, `evaluate`, `export`, `inference`, and `default_specs`. This parent model skill exposes `train`, `distill`, `quantize`, `evaluate`, `export`, and `inference`; resume/retrain is performed through `train` with `train.resume_training_checkpoint_path`.
+
+The parent PyT CLI does not expose `gen_trt_engine`. Use `models/rtdetr/deploy` for TensorRT engine generation, TensorRT evaluation, and TensorRT inference.
 
 ## Training Requirements
 
 - **Dataset type:** object_detection
 - **Formats:** coco, coco_raw
-- **Monitoring metric:** val_mAP50
+- **Monitoring metric:** mAP50, maximize
 
 ### Per-Action Dataset Requirements
 
@@ -46,7 +52,6 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 | distill | dataset.train_data_sources | train_datasets | image_dir: images.tar.gz, json_file: annotations.json | Yes |
 | distill | dataset.val_data_sources | eval_dataset | image_dir: images.tar.gz, json_file: annotations.json | No |
 | evaluate | dataset.test_data_sources | eval_dataset | image_dir: images.tar.gz, json_file: annotations.json | No |
-| gen_trt_engine | gen_trt_engine.tensorrt.calibration.cal_image_dir | calibration_dataset | images.tar.gz | Yes |
 | inference | dataset.infer_data_sources | inference_dataset | image_dir: images.tar.gz, classmap: label_map.txt | No |
 | quantize | dataset.train_data_sources | train_datasets | image_dir: images.tar.gz, json_file: annotations.json | Yes |
 | quantize | dataset.val_data_sources | eval_dataset | image_dir: images.tar.gz, json_file: annotations.json | No |
@@ -111,14 +116,6 @@ S3_EVAL = "s3://bucket/data/eval"
     "dataset.train_data_sources": [{"image_dir": f"{S3_TRAIN}/images.tar.gz", "json_file": f"{S3_TRAIN}/annotations.json"}],
     "dataset.val_data_sources": {"image_dir": f"{S3_EVAL}/images.tar.gz", "json_file": f"{S3_EVAL}/annotations.json"},
     "dataset.quant_calibration_data_sources": {"image_dir": f"{S3_TRAIN}/images.tar.gz", "json_file": f"{S3_TRAIN}/annotations.json"},
-}
-```
-
-**gen_trt_engine (mandatory data sources):**
-```python
-{
-    "gen_trt_engine.tensorrt.data_type": "FP16",
-    "gen_trt_engine.tensorrt.calibration.cal_image_dir": [f"{S3_TRAIN}/images.tar.gz"],
 }
 ```
 
@@ -188,7 +185,20 @@ Optional. Provides validation mAP at each checkpoint if supplied.
 
 ## Distillation
 
-RT-DETR supports knowledge distillation with a teacher model. Requires `distill` action with teacher model path and distillation bindings configuration.
+RT-DETR supports knowledge distillation with a teacher model. Requires `distill` action with `distill.pretrained_teacher_model_path` and a distillation binding configuration.
+
+Use the packaged `references/spec_template_distill.yaml` as the starting point. The validated default binding uses the RT-DETR distiller's explicit IOU feature path:
+
+```yaml
+distill:
+  bindings:
+  - student_module_name: srcs
+    teacher_module_name: srcs
+    criterion: IOU
+    weight: 1.0
+```
+
+Do not substitute DINO-style output names such as `pred_logits` / `pred_boxes`, and do not bind arbitrary decoder heads unless you have verified the module returns captured feature lists. The RT-DETR distiller asserts that IOU bindings must use `srcs` or `dsrcs`.
 
 ## Hardware
 
@@ -200,7 +210,21 @@ Minimum 1 GPU(s), recommended 2 GPU(s). 16GB+ (V100 or A100) VRAM per GPU. RT-DE
 
 **num_classes mismatch**: RT-DETR defaults to 80 (not 91 like DINO). Ensure dataset.num_classes matches your annotation categories.
 
+**CUDA index assert from category IDs**: If COCO category IDs are one-based or otherwise not remapped to zero-based contiguous IDs, set `dataset.num_classes` to `max(category_id) + 1` and keep `dataset.eval_class_ids` aligned to the actual category IDs. For the packaged four-class S3 sample with IDs 1-4, use `dataset.num_classes: 5` and `dataset.eval_class_ids: [1, 2, 3, 4]`.
+
 **return_interm_indices vs num_feature_levels**: Default is [1,2,3] with num_feature_levels=3. Must be consistent if changed.
+
+**Export shape mismatch**: Keep RT-DETR export and deploy consumer input size at
+the validated `640x640` default unless the model has been trained and checked
+for a different shape. The older packaged `960x544` template shape can fail
+during ONNX tracing with `The size of tensor a (...) must match the size of
+tensor b (...)` in `hybrid_encoder.py` positional embedding addition.
+
+**AutoML metric extraction**: RT-DETR train logs report validation detection metrics as `mAP50`/`Validation mAP50`. Default AutoML train launches must optimize `mAP50` with `direction: maximize`; do not optimize `val_loss` for default model invocations.
+
+**Checkpoint handoff**: For evaluate/export/inference/quantize/distill/resume, use the checkpoint resolver on the best AutoML child job's `results_dir/train/` folder and select the action-appropriate `model_epoch_*.pth` checkpoint. RT-DETR may also write a latest symlink, but that should only be used when a caller explicitly requests latest. Keep `dataset.num_classes`, `dataset.eval_class_ids`, `model.num_queries`, and `model.num_select` consistent with training.
+
+**Parent `rtdetr gen_trt_engine` rejected by the PyT CLI**: In the validated 7.0.0 PyT container, `rtdetr gen_trt_engine` is not a valid parent-model subtask. Use the RT-DETR deploy sub-skill (`deploy/SKILL.md`) for TensorRT engine generation, TensorRT evaluation, and TensorRT inference.
 
 ## Spec Param / Parent Model Inference
 
@@ -221,11 +245,6 @@ Inference mappings from TAO Core `rtdetr.config.json`:
 | export | `export.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
 | export | `export.onnx_file` | `create_onnx_file` | output ONNX path |
 | export | `results_dir` | `output_dir` | current job results directory |
-| gen_trt_engine | `encryption_key` | `key` | encryption key |
-| gen_trt_engine | `gen_trt_engine.onnx_file` | `parent_model` | model file inferred from the parent job results folder |
-| gen_trt_engine | `gen_trt_engine.tensorrt.calibration.cal_cache_file` | `create_cal_cache` | calibration cache path |
-| gen_trt_engine | `gen_trt_engine.trt_engine` | `create_engine_file` | output TensorRT engine path |
-| gen_trt_engine | `results_dir` | `output_dir` | current job results directory |
 | inference | `encryption_key` | `key` | encryption key |
 | inference | `inference.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
 | inference | `inference.trt_engine` | `parent_model` | model file inferred from the parent job results folder |

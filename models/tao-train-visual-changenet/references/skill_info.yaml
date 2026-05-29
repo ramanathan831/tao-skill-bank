@@ -6,65 +6,156 @@ actions:
     command: visual_changenet train -e {config_path}
     config_format: yaml
     inputs:
-    - dataset.classify.train_dataset.csv_path
-    - dataset.classify.train_dataset.images_dir
-    - dataset.classify.validation_dataset.csv_path
-    - dataset.classify.validation_dataset.images_dir
+      model.backbone.pretrained_backbone_path:
+        type: file
+      train.resume_training_checkpoint_path:
+        type: file
+      dataset.classify.train_dataset.csv_path:
+        type: file
+      dataset.classify.train_dataset.images_dir:
+        type: file
+      dataset.classify.validation_dataset.csv_path:
+        type: file
+      dataset.classify.validation_dataset.images_dir:
+        type: file
     outputs:
-    - results_dir
+      results_dir:
+        type: folder
     upload_excludes:
     - inputs/
   evaluate:
     command: visual_changenet evaluate -e {config_path}
     config_format: yaml
     inputs:
-    - dataset.classify.test_dataset.csv_path
-    - dataset.classify.test_dataset.images_dir
-    - evaluate.checkpoint
+      model.backbone.pretrained_backbone_path:
+        type: file
+      dataset.classify.validation_dataset.csv_path:
+        type: file
+      dataset.classify.validation_dataset.images_dir:
+        type: file
+      dataset.classify.test_dataset.csv_path:
+        type: file
+      dataset.classify.test_dataset.images_dir:
+        type: file
+      evaluate.checkpoint:
+        type: file
     outputs:
-    - results_dir
+      results_dir:
+        type: folder
     upload_excludes:
     - inputs/
   inference:
     command: visual_changenet inference -e {config_path}
     config_format: yaml
     inputs:
-    - dataset.classify.infer_dataset.csv_path
-    - dataset.classify.infer_dataset.images_dir
-    - inference.checkpoint
+      model.backbone.pretrained_backbone_path:
+        type: file
+      dataset.classify.infer_dataset.csv_path:
+        type: file
+      dataset.classify.infer_dataset.images_dir:
+        type: file
+      inference.checkpoint:
+        type: file
     outputs:
-    - results_dir
+      results_dir:
+        type: folder
+    upload_excludes:
+    - inputs/
+  export:
+    command: visual_changenet export -e {config_path}
+    config_format: yaml
+    inputs:
+      model.backbone.pretrained_backbone_path:
+        type: file
+      export.checkpoint:
+        type: file
+    outputs:
+      results_dir:
+        type: folder
+      export.onnx_file:
+        type: file
+    upload_excludes:
+    - inputs/
+  quantize:
+    command: visual_changenet quantize -e {config_path}
+    config_format: yaml
+    inputs:
+      model.backbone.pretrained_backbone_path:
+        type: file
+      quantize.model_path:
+        type: file
+    outputs:
+      results_dir:
+        type: folder
     upload_excludes:
     - inputs/
   segment_train:
     command: visual_changenet train -e {config_path}
     config_format: yaml
     inputs:
-    - dataset.segment.root_dir
+      model.backbone.pretrained_backbone_path:
+        type: file
+      dataset.segment.root_dir:
+        type: folder
+      train.resume_training_checkpoint_path:
+        type: file
     outputs:
-    - results_dir
+      results_dir:
+        type: folder
     upload_excludes:
     - inputs/
   segment_evaluate:
     command: visual_changenet evaluate -e {config_path}
     config_format: yaml
     inputs:
-    - dataset.segment.root_dir
-    - evaluate.checkpoint
+      dataset.segment.root_dir:
+        type: folder
+      evaluate.checkpoint:
+        type: file
     outputs:
-    - results_dir
+      results_dir:
+        type: folder
     upload_excludes:
     - inputs/
   segment_inference:
     command: visual_changenet inference -e {config_path}
     config_format: yaml
     inputs:
-    - dataset.segment.root_dir
-    - inference.checkpoint
+      dataset.segment.root_dir:
+        type: folder
+      inference.checkpoint:
+        type: file
     outputs:
-    - results_dir
+      results_dir:
+        type: folder
     upload_excludes:
     - inputs/
+spec_params:
+  train:
+    results_dir: output_dir
+    train.resume_training_checkpoint_path: resume_model
+  evaluate:
+    results_dir: output_dir
+    evaluate.checkpoint: parent_model
+  inference:
+    results_dir: output_dir
+    inference.checkpoint: parent_model
+  export:
+    results_dir: output_dir
+    export.checkpoint: parent_model
+    export.onnx_file: create_onnx_file
+  quantize:
+    results_dir: output_dir
+    quantize.model_path: parent_model
+  segment_train:
+    results_dir: output_dir
+    train.resume_training_checkpoint_path: resume_model
+  segment_evaluate:
+    results_dir: output_dir
+    evaluate.checkpoint: parent_model
+  segment_inference:
+    results_dir: output_dir
+    inference.checkpoint: parent_model
 pretrained_models:
   classify:
     # HF source for staging; the spec field accepts only LOCAL paths. Download

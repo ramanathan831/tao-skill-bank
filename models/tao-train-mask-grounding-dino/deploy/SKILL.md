@@ -100,6 +100,11 @@ Recommended starting overrides:
     'dataset.infer_data_sources.data_type': 'OD',
     'dataset.test_data_sources.data_type': 'OD',
     'dataset.batch_size': 1,
+    'model.num_queries': '<value used for export>',
+    'model.num_select': '<value used for export>',
+    'model.max_text_len': '<value used for export>',
+    'model.num_region_queries': '<value used for export>',
+    'model.has_mask': True,
     'gen_trt_engine.tensorrt.data_type': 'fp32',
 }
 ```
@@ -109,6 +114,10 @@ Model-specific notes:
 - For object-detection style deploy data, set `dataset.infer_data_sources.data_type: OD` and `dataset.test_data_sources.data_type: OD`.
 - Use batch size 1 for TensorRT inference unless the engine profile and memory budget are explicitly widened.
 - Keep prompt captions aligned with the target objects for open-vocabulary inference.
+- Carry transformer and mask structure fields from export into deploy
+  evaluate/inference specs, including backbone, feature levels,
+  encoder/decoder layers, `num_queries`, `num_select`, `max_text_len`,
+  `num_region_queries`, and `has_mask`.
 
 ## Job Chain Mapping
 

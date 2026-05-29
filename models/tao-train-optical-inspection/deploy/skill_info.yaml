@@ -10,13 +10,9 @@ actions:
     inputs:
       gen_trt_engine.onnx_file:
         type: file
-      gen_trt_engine.trt_engine:
-        type: file
     outputs:
       results_dir:
         type: folder
-      gen_trt_engine.trt_engine:
-        type: file
     upload_excludes:
     - inputs/
   evaluate:
@@ -25,9 +21,9 @@ actions:
     inputs:
       evaluate.trt_engine:
         type: file
-      dataset.test_dataset.csv_path:
+      dataset.infer_dataset.csv_path:
         type: file
-      dataset.test_dataset.images_dir:
+      dataset.infer_dataset.images_dir:
         type: folder
     outputs:
       results_dir:
@@ -53,7 +49,6 @@ spec_params:
   gen_trt_engine:
     results_dir: output_dir
     gen_trt_engine.onnx_file: parent_model
-    gen_trt_engine.trt_engine: create_engine_file
   evaluate:
     results_dir: output_dir
     evaluate.trt_engine: parent_model
@@ -74,3 +69,10 @@ notes:
 - The starter-kit deploy flow uses FP16 for Optical Inspection TensorRT builds.
 - Keep `dataset.num_input`, `dataset.input_map`, `dataset.concat_type`, and grid layout
   aligned with the trained AOI model.
+- Deploy evaluate reads `dataset.infer_dataset.*`, not `dataset.test_dataset.*`;
+  override the inference dataset CSV and image root for both evaluate and inference.
+- Default export produces a static-batch ONNX in common smoke runs. Keep
+  `dataset.batch_size` and evaluate/inference batch sizes aligned with the TensorRT
+  optimization profile, usually batch size 1 unless exported otherwise.
+- Set gen_trt_engine.trt_engine explicitly in the spec; do not pre-create it as
+  a declared file output.

@@ -22,7 +22,7 @@ gating_enabled: false
 
 # Enable Tier 2 LLM-as-Judge evaluation (requires NVIDIA_INFERENCE_KEY CI variable).
 # This needs an sk-* key from: https://inference.nvidia.com/key-management
-# tier2_enabled: false
+tier2_enabled: false
 
 # Tier 2 judge model (default: Claude 3.7 Sonnet). Override for cost or quality.
 # Examples: aws/anthropic/bedrock-claude-3-5-haiku-v1, nvidia/nvidia/nemotron-nano-9b-v2
