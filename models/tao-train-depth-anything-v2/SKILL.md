@@ -26,7 +26,7 @@ The mono and stereo skills both invoke the unified TAO `depth_net` CLI inside th
 
 For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference`), read `deploy/SKILL.md` first. The deploy spec template lives in this skill's `references/spec_template_deploy.yaml`.
 
-Parent PyT actions packaged by this model skill: `train`, `evaluate`, `inference`, `export`, and `quantize`. The PyT `depth_net` entrypoint does not accept a parent-side `gen_trt_engine` action in the current TAO image; build TensorRT engines only through the deploy sub-skill.
+Parent PyT actions packaged by this model skill: `train`, `evaluate`, `inference`, `export`, and `quantize`. The PyT `depth_net` entrypoint does not accept a parent-side `gen_trt_engine` action in the current TAO image. The `gen_trt_engine` action metadata must run with the TAO Deploy container, and the deploy sub-skill remains the deploy-specific entrypoint.
 
 ## Train Action Policy
 
@@ -462,7 +462,7 @@ Model-specific inference mappings belong in this MD file, not in `config.json`. 
 
 DepthNet Mono training writes checkpoint files under `<results_dir>/train/` using `model_epoch_<epoch>_step_<step>.pth` and a `dn_model_latest.pth` symlink. For `evaluate`, `inference`, `export`, `quantize`, and resume/retrain, select checkpoints through the SDK/model resolver so a requested best, epoch, or step checkpoint resolves to that exact file. Use `dn_model_latest.pth` only when the user explicitly asks for latest.
 
-Parent PyT `gen_trt_engine` is intentionally absent from the supported action set because the current `depth_net` entrypoint rejects it. The TensorRT engine mappings are owned by `deploy/SKILL.md`.
+Parent PyT `gen_trt_engine` is intentionally not used because the current `depth_net` PyT entrypoint rejects it. The `gen_trt_engine` metadata selects the TAO Deploy container, and the deploy sub-skill owns the TensorRT-only action details.
 
 Inference mappings from TAO Core `depth_net_mono.config.json`:
 
