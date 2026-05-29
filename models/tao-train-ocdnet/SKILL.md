@@ -19,11 +19,11 @@ tags:
 
 OCDNet for scene text detection. Detects arbitrary-oriented text regions in natural images using a differentiable binarization approach.
 
-Set train.pretrained_model_path for pretrained weights.
+Set `model.pretrained_model_path` for pretrained weights.
 
 For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference`), read `deploy/SKILL.md` first. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
 
-The PyT OCDNet CLI supports `train`, `evaluate`, `export`, `inference`, `prune`, `quantize`, and `default_specs`. It does not expose PyT-side `retrain` or `gen_trt_engine` subcommands. Resume from an epoch checkpoint uses `ocdnet train` plus `train.resume_training_checkpoint_path`; retrain from a pruned graph uses `ocdnet train` plus `model.load_pruned_graph: true` and `model.pruned_graph_path`. TensorRT engine generation is owned by the deploy sub-skill.
+The PyT OCDNet CLI supports `train`, `evaluate`, `export`, `inference`, `prune`, `quantize`, and `default_specs`. It does not expose PyT-side `retrain` or `gen_trt_engine` subcommands. The model skill exposes `retrain` by running `ocdnet train` with `model.load_pruned_graph: true` and `model.pruned_graph_path`. Resume from an epoch checkpoint uses `ocdnet train` plus `train.resume_training_checkpoint_path`. TensorRT engine generation is owned by the deploy sub-skill.
 
 ## Dataclass Schemas
 
@@ -49,24 +49,28 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 
 ### Per-Action Dataset Requirements
 
-| Action | Spec Key | Source | Files | List? |
+| Action | Spec Key | Source | Runtime value | List? |
 |---|---|---|---|---|
-| evaluate | dataset.validate_dataset.data_path | eval_dataset | test.tar.gz | Yes |
-| inference | inference.input_folder | eval_dataset | test/img.tar.gz | No |
-| prune | dataset.validate_dataset.data_path | eval_dataset | test.tar.gz | Yes |
-| quantize | dataset.train_dataset.data_path | train_datasets | train.tar.gz | Yes |
-| quantize | dataset.validate_dataset.data_path | eval_dataset | test.tar.gz | Yes |
-| quantize | dataset.quant_calibration_dataset.images_dir | train_datasets | train/img.tar.gz | No |
-| train | dataset.train_dataset.data_path | train_datasets | train.tar.gz | Yes |
-| train | dataset.validate_dataset.data_path | eval_dataset | test.tar.gz | Yes |
+| evaluate | dataset.validate_dataset.data_path | eval_dataset | extracted validation split folder with `img/` and `gt/` | Yes |
+| inference | inference.input_folder | inference_dataset or eval_dataset | extracted image folder | No |
+| prune | dataset.validate_dataset.data_path | eval_dataset | extracted validation split folder with `img/` and `gt/` | Yes |
+| quantize | dataset.train_dataset.data_path | train_datasets | extracted train split folder with `img/` and `gt/` | Yes |
+| quantize | dataset.validate_dataset.data_path | eval_dataset | extracted validation split folder with `img/` and `gt/` | Yes |
+| quantize | dataset.quant_calibration_dataset.images_dir | train_datasets or calibration_dataset | extracted calibration image folder | No |
+| train | dataset.train_dataset.data_path | train_datasets | extracted train split folder with `img/` and `gt/` | Yes |
+| train | dataset.validate_dataset.data_path | eval_dataset | extracted validation split folder with `img/` and `gt/` | Yes |
+| retrain | dataset.train_dataset.data_path | train_datasets | extracted train split folder with `img/` and `gt/` | Yes |
+| retrain | dataset.validate_dataset.data_path | eval_dataset | extracted validation split folder with `img/` and `gt/` | Yes |
 
 ### Typical Spec Overrides
 
-Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
+Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`. OCDNet does not unpack dataset archives at runtime. If the source is `train.tar.gz`, `test.tar.gz`, or `img.tar.gz`, extract it first and pass the split folder or image folder into the spec. The split folder must contain `img/` and `gt/`; alternatively, pass a UTF-8 datalist text file whose lines map image paths to label paths.
 
 ```python
-S3_TRAIN = "s3://bucket/data/train"
-S3_EVAL = "s3://bucket/data/eval"
+TRAIN_ROOT = "/path/to/extracted/train"
+EVAL_ROOT = "/path/to/extracted/test"
+INFER_IMG_DIR = "/path/to/extracted/test/img"
+CALIB_IMG_DIR = "/path/to/extracted/train/img"
 ```
 
 **train (mandatory data sources):**
@@ -77,8 +81,8 @@ S3_EVAL = "s3://bucket/data/eval"
     "train.validation_interval": 10,
     "train.num_gpus": 1,
     "dataset.train_dataset.loader.batch_size": 16,
-    "dataset.train_dataset.data_path": [f"{S3_TRAIN}/train.tar.gz"],
-    "dataset.validate_dataset.data_path": [f"{S3_EVAL}/test.tar.gz"],
+    "dataset.train_dataset.data_path": [TRAIN_ROOT],
+    "dataset.validate_dataset.data_path": [EVAL_ROOT],
 }
 ```
 
@@ -86,7 +90,7 @@ S3_EVAL = "s3://bucket/data/eval"
 ```python
 {
     "evaluate.checkpoint": "<selected train/AutoML checkpoint>",
-    "dataset.validate_dataset.data_path": [f"{S3_EVAL}/test.tar.gz"],
+    "dataset.validate_dataset.data_path": [EVAL_ROOT],
 }
 ```
 
@@ -94,7 +98,7 @@ S3_EVAL = "s3://bucket/data/eval"
 ```python
 {
     "inference.checkpoint": "<selected train/AutoML checkpoint>",
-    "inference.input_folder": f"{S3_EVAL}/test/img.tar.gz",
+    "inference.input_folder": INFER_IMG_DIR,
 }
 ```
 
@@ -102,7 +106,7 @@ S3_EVAL = "s3://bucket/data/eval"
 ```python
 {
     "prune.checkpoint": "<selected train/AutoML checkpoint>",
-    "dataset.validate_dataset.data_path": [f"{S3_EVAL}/test.tar.gz"],
+    "dataset.validate_dataset.data_path": [EVAL_ROOT],
 }
 ```
 
@@ -110,9 +114,9 @@ S3_EVAL = "s3://bucket/data/eval"
 ```python
 {
     "quantize.model_path": "<selected train checkpoint or exported ONNX>",
-    "dataset.train_dataset.data_path": [f"{S3_TRAIN}/train.tar.gz"],
-    "dataset.validate_dataset.data_path": [f"{S3_EVAL}/test.tar.gz"],
-    "dataset.quant_calibration_dataset.images_dir": f"{S3_TRAIN}/train/img.tar.gz",
+    "dataset.train_dataset.data_path": [TRAIN_ROOT],
+    "dataset.validate_dataset.data_path": [EVAL_ROOT],
+    "dataset.quant_calibration_dataset.images_dir": CALIB_IMG_DIR,
 }
 ```
 
@@ -120,8 +124,8 @@ S3_EVAL = "s3://bucket/data/eval"
 ```python
 {
     "train.resume_training_checkpoint_path": "<exact model_epoch checkpoint>",
-    "dataset.train_dataset.data_path": [f"{S3_TRAIN}/train.tar.gz"],
-    "dataset.validate_dataset.data_path": [f"{S3_EVAL}/test.tar.gz"],
+    "dataset.train_dataset.data_path": [TRAIN_ROOT],
+    "dataset.validate_dataset.data_path": [EVAL_ROOT],
 }
 ```
 
@@ -130,8 +134,8 @@ S3_EVAL = "s3://bucket/data/eval"
 {
     "model.load_pruned_graph": True,
     "model.pruned_graph_path": "<selected prune output>",
-    "dataset.train_dataset.data_path": [f"{S3_TRAIN}/train.tar.gz"],
-    "dataset.validate_dataset.data_path": [f"{S3_EVAL}/test.tar.gz"],
+    "dataset.train_dataset.data_path": [TRAIN_ROOT],
+    "dataset.validate_dataset.data_path": [EVAL_ROOT],
 }
 ```
 
@@ -178,13 +182,15 @@ Minimum 1 GPU(s), recommended 1 GPU(s). 8GB+ VRAM per GPU. OCDNet is lightweight
 
 **One-epoch smoke train with default scheduler**: `train.num_epochs` must not equal `train.lr_scheduler.args.warmup_epoch`. For one-epoch validation, set `warmup_epoch: 0`; for normal starter runs, keep `num_epochs > warmup_epoch`.
 
-**Quantize checkpoint type**: Do not pass `model_best.pth` to the PyTorch quantize path. In older PyT images such as `nvcr.io/nvstaging/tao/tao-toolkit-pyt:7.0.0-rc-226-multiarch`, `model_best.pth` lacks `pytorch-lightning_version` and the full checkpoint path was still blocked by the runtime. In `nvcr.io/nvstaging/tao/tao-toolkit-pyt:validation-fixes-20260525`, the default `torchao` quantize path succeeds when `quantize.model_path` is the intended full `model_epoch_<epoch>_step_<step>.pth` checkpoint and writes `quantized_model_torchao.pth`.
+**Archive passed as dataset path**: `dataset.*.data_path` is not an archive path for OCDNet. Passing `train.tar.gz` or `test.tar.gz` directly causes the dataloader to open the gzip as a UTF-8 datalist. Extract the archive and pass the split folder containing `img/` and `gt/`, or pass a real UTF-8 datalist file.
+
+**Quantize checkpoint type**: Do not pass `model_best.pth` to the PyTorch quantize path. Some older PyT runtimes wrote `model_best.pth` without full Lightning checkpoint metadata. The default `torchao` quantize path should use the intended full `model_epoch_<epoch>_step_<step>.pth` checkpoint and write `quantized_model_torchao.pth`.
 
 **Default specs output directory**: `ocdnet default_specs` requires a writable `results_dir` override, for example `results_dir=/workspace/run/results/default_specs`.
 
 ## Checkpoint Handoff
 
-OCDNet train writes `model_best.pth` plus full Lightning epoch checkpoints such as `model_epoch_001_step_00046.pth`. Use `model_best.pth` for `evaluate.checkpoint`, `inference.checkpoint`, `export.checkpoint`, and `prune.checkpoint` when the user asks for the best checkpoint. Use a specific `model_epoch_<epoch>_step_<step>.pth` for `train.resume_training_checkpoint_path` and for any action that explicitly needs a full Lightning checkpoint. Use the exact pruned `.pth` artifact from `prune` for `model.pruned_graph_path` when retraining from a pruned graph. Use a latest checkpoint only when the user explicitly asks for latest.
+OCDNet train writes `model_best.pth` plus full Lightning epoch checkpoints such as `model_epoch_001_step_00046.pth`; it may also write `ocd_model_latest.pth` as a latest symlink. Use `model_best.pth` for `evaluate.checkpoint`, `inference.checkpoint`, `export.checkpoint`, and `prune.checkpoint` when the user asks for the best checkpoint. Use a specific `model_epoch_<epoch>_step_<step>.pth` for `train.resume_training_checkpoint_path` and for any action that explicitly needs a full Lightning checkpoint. Prune writes artifacts such as `pruned_<ch_sparsity>.pth`; use the exact pruned `.pth` artifact for `model.pruned_graph_path` when retraining from a pruned graph. Use a latest checkpoint only when the user explicitly asks for latest.
 
 If quantize is retried with a PyTorch backend, resolve the full `model_epoch_<epoch>_step_<step>.pth` that corresponds to the intended best epoch or requested epoch; do not pass `model_best.pth` to the PyTorch quantize path. If quantize is retried with `modelopt.onnx`, pass the exported ONNX as `quantize.model_path` and verify that the runtime image actually contains `modelopt.onnx.quantization`.
 

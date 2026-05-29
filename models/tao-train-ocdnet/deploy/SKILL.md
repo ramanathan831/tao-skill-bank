@@ -78,15 +78,14 @@ Direct TAO Launcher spelling is `tao deploy ocdnet gen_trt_engine`, `tao deploy 
 | Action | Required artifact or data | Spec key |
 |---|---|---|
 | `gen_trt_engine` | Exported ONNX model | `gen_trt_engine.onnx_file` |
-| `gen_trt_engine` | Output engine path | `gen_trt_engine.trt_engine` |
 | `gen_trt_engine` | Results directory | `results_dir` or `gen_trt_engine.results_dir` |
 | `gen_trt_engine` | Calibration images for INT8 | `gen_trt_engine.tensorrt.calibration.cal_image_dir` |
 | `evaluate` | TensorRT engine | `evaluate.trt_engine` |
-| `evaluate` | Validation data path | `dataset.validate_dataset.data_path` |
+| `evaluate` | Extracted validation split folder with `img/` and `gt/` | `dataset.validate_dataset.data_path` |
 | `inference` | TensorRT engine | `inference.trt_engine` |
 | `inference` | Input image folder | `inference.input_folder` |
 
-For direct Docker runs, mount input folders at the same paths used in the spec. For chained jobs, map exported ONNX artifacts into `gen_trt_engine.onnx_file` and map the engine artifact into `evaluate.trt_engine` or `inference.trt_engine` where those actions are available.
+For direct Docker runs, mount input folders at the same paths used in the spec. For chained jobs, map exported ONNX artifacts into `gen_trt_engine.onnx_file` and map the engine artifact into `evaluate.trt_engine` or `inference.trt_engine` where those actions are available. `gen_trt_engine.trt_engine` is an output path created for the current job, not an input artifact.
 
 ## Spec Overrides
 
@@ -97,8 +96,12 @@ Recommended starting overrides:
 ```python
 {
     'gen_trt_engine.tensorrt.data_type': 'INT8',
+    'gen_trt_engine.tensorrt.calibration.cal_image_dir': ['/path/to/calibration/img'],
+    'gen_trt_engine.tensorrt.calibration.cal_cache_file': '/path/to/results/ocdnet_calibration.cache',
     'gen_trt_engine.width': 1280,
     'gen_trt_engine.height': 736,
+    'dataset.validate_dataset.data_path': ['/path/to/extracted/test'],
+    'inference.input_folder': '/path/to/extracted/test/img',
     'inference.width': 1280,
     'inference.height': 736,
 }
@@ -109,6 +112,7 @@ Model-specific notes:
 - The starter-kit deploy flow builds OCDNet engines with INT8; provide calibration images and a writable calibration cache path.
 - Evaluate and inference expect `evaluate.trt_engine` and `inference.trt_engine` overrides even where the template also shows checkpoint-style fields.
 - Engine generation requires either `results_dir` or `gen_trt_engine.results_dir`; keep both aligned with the writable output mount for direct Docker runs.
+- Deploy evaluate uses the same OCDNet dataset loader as PyT evaluate, so pass the extracted split folder containing `img/` and `gt/`, not `test.tar.gz`.
 - Keep width, height, and image mode aligned across engine build, evaluate, and inference.
 
 ## Job Chain Mapping
@@ -137,5 +141,7 @@ Model-specific notes:
 **Template class or shape mismatch:** Copy class count, input resolution, backbone, and post-processing settings from train/export before running TAO Deploy.
 
 **INT8 calibration missing:** INT8 builds need an extracted calibration image directory, a writable cache path, and enough images for `cal_batch_size * cal_batches`.
+
+**Archive passed as validation data:** `dataset.validate_dataset.data_path` is not an archive path for OCDNet Deploy. Extract validation archives first and pass the folder containing `img/` and `gt/`.
 
 **Mounted paths do not exist:** TAO Deploy checks local paths inside the container. Make sure every path in the spec has a matching Docker mount or job artifact mapping.
