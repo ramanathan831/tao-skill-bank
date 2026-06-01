@@ -8,6 +8,7 @@ actions:
   train:
     command: segformer train -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.segment.root_dir:
         type: folder
@@ -30,6 +31,7 @@ actions:
   quantize:
     command: segformer quantize -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.segment.root_dir:
         type: folder
@@ -45,6 +47,7 @@ actions:
   evaluate:
     command: segformer evaluate -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.segment.root_dir:
         type: folder
@@ -58,6 +61,7 @@ actions:
   export:
     command: segformer export -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.segment.root_dir:
         type: folder
@@ -71,6 +75,7 @@ actions:
   inference:
     command: segformer inference -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.segment.root_dir:
         type: folder

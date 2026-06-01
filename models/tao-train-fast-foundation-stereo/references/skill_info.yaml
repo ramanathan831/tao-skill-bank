@@ -8,6 +8,7 @@ actions:
   train:
     command: depth_net train -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.train_dataset.data_sources[0].data_file:
         type: file
@@ -27,6 +28,7 @@ actions:
   evaluate:
     command: depth_net evaluate -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.test_dataset.data_sources[0].data_file:
         type: file
@@ -40,6 +42,7 @@ actions:
   export:
     command: depth_net export -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       export.checkpoint:
         type: file
@@ -53,6 +56,7 @@ actions:
   inference:
     command: depth_net inference -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.infer_dataset.data_sources[0].data_file:
         type: file

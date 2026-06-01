@@ -4,7 +4,8 @@ description: >
   Rerun the fine-tune pipeline in this directory: facebook/detr-resnet-50 on
   cppe-5 (object-detection, 5 classes, subset 800/200). Expected mAP:
   baseline ~0.05% → fine-tuned ~6% (mAP@50 ~14%). Wall time ~195s on A100-SXM4-80GB.
-  DETR needs 100–300 epochs for SOTA; this config uses 10 for speed.
+  DETR needs 100–300 epochs for SOTA; this config uses 10 for speed. Use when
+  rerunning or validating the packaged DETR/CPPE-5 fine-tune example.
 license: Apache-2.0
 compatibility: Requires docker + nvidia-container-toolkit, NVIDIA GPU (driver ≥ 545, ≥ 16 GB VRAM), ~40 GB free disk, and HF_TOKEN. WANDB_API_KEY/WANDB_PROJECT optional.
 metadata:

@@ -7,6 +7,7 @@ actions:
   gen_trt_engine:
     command: visual_changenet gen_trt_engine -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       gen_trt_engine.onnx_file:
         type: file
@@ -22,6 +23,7 @@ actions:
   evaluate:
     command: visual_changenet evaluate -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       evaluate.trt_engine:
         type: file
@@ -42,6 +44,7 @@ actions:
   inference:
     command: visual_changenet inference -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       inference.trt_engine:
         type: file

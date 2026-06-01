@@ -1,5 +1,16 @@
 # Maintenance — bumping container images
 
+## Contents
+
+- Bumping a container image
+  - Verify the bump
+  - Commit + PR
+- Bumping an SDK/AutoML wheel
+- Adding a new image
+- When to use absolute paths instead of keys
+- Related: Python wheel install matrix
+
+
 All TAO container image tags **and** Python wheel pins live in **one file**: [`versions.yaml`](../versions.yaml) at the repo root. RC bumps and upgrades are a one-line edit there for both.
 
 Container images live under `images:`, Python wheels under `wheels:`. Skills resolve both by dotted key via `scripts/resolve_versions_key.py` — there are no hardcoded image tags or `pip install` URLs in skill bodies. See "Bumping an SDK/AutoML wheel" below.

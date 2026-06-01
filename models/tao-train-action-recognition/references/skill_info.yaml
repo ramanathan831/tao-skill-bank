@@ -8,6 +8,7 @@ actions:
   train:
     command: action_recognition train -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.train_dataset_dir:
         type: folder
@@ -30,6 +31,7 @@ actions:
   evaluate:
     command: action_recognition evaluate -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       evaluate.test_dataset_dir:
         type: folder
@@ -46,6 +48,7 @@ actions:
   export:
     command: action_recognition export -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       export.checkpoint:
         type: file
@@ -59,6 +62,7 @@ actions:
   inference:
     command: action_recognition inference -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       inference.inference_dataset_dir:
         type: folder

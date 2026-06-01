@@ -14,11 +14,11 @@
 //   DEPLOY_TAG              full image URI for images.tao_toolkit.deploy
 //   DATA_SERVICES_TAG       full image URI for images.tao_toolkit.data_services
 //   COSMOS_RL_TAG           full image URI for images.tao_toolkit.cosmos_rl
-//   COSMOS_PREDICT_2_5_TAG  full image URI for images.tao_toolkit.cosmos_predict_2_5
+//   COSMOS_PREDICT_TAG      full image URI for images.tao_toolkit.cosmos_predict
 //   COSMOS_EMBED_TAG        full image URI for images.tao_toolkit.cosmos_embed
 //   VILA_TAG                full image URI for images.tao_toolkit.vila
 //   SDK_VERSION             bare PEP 440 version (e.g. "0.2.0"); applied to all
-//                           three nvidia-tao-sdk wheel entries (tao_sdk,
+//                           nvidia-tao-sdk wheel entries (tao_sdk,
 //                           tao_sdk_brev, tao_sdk_all)
 //
 // Notes:
@@ -130,7 +130,7 @@ pipeline {
                                     'DEPLOY_TAG'            : params.DEPLOY_TAG,
                                     'DATA_SERVICES_TAG'     : params.DATA_SERVICES_TAG,
                                     'COSMOS_RL_TAG'         : params.COSMOS_RL_TAG,
-                                    'COSMOS_PREDICT_2_5_TAG': params.COSMOS_PREDICT_2_5_TAG,
+                                    'COSMOS_PREDICT_TAG'    : params.COSMOS_PREDICT_TAG,
                                     'COSMOS_EMBED_TAG'      : params.COSMOS_EMBED_TAG,
                                     'VILA_TAG'              : params.VILA_TAG,
                                     'SDK_VERSION'           : params.SDK_VERSION,
@@ -147,7 +147,7 @@ pipeline {
                                 env.DEPLOY_TAG              = params.DEPLOY_TAG
                                 env.DATA_SERVICES_TAG       = params.DATA_SERVICES_TAG
                                 env.COSMOS_RL_TAG           = params.COSMOS_RL_TAG
-                                env.COSMOS_PREDICT_2_5_TAG  = params.COSMOS_PREDICT_2_5_TAG
+                                env.COSMOS_PREDICT_TAG      = params.COSMOS_PREDICT_TAG
                                 env.COSMOS_EMBED_TAG        = params.COSMOS_EMBED_TAG
                                 env.VILA_TAG                = params.VILA_TAG
                                 env.SDK_VERSION             = params.SDK_VERSION
@@ -159,7 +159,7 @@ pipeline {
                                 echo "DEPLOY_TAG             = ${params.DEPLOY_TAG}"
                                 echo "DATA_SERVICES_TAG      = ${params.DATA_SERVICES_TAG}"
                                 echo "COSMOS_RL_TAG          = ${params.COSMOS_RL_TAG}"
-                                echo "COSMOS_PREDICT_2_5_TAG = ${params.COSMOS_PREDICT_2_5_TAG}"
+                                echo "COSMOS_PREDICT_TAG     = ${params.COSMOS_PREDICT_TAG}"
                                 echo "COSMOS_EMBED_TAG       = ${params.COSMOS_EMBED_TAG}"
                                 echo "VILA_TAG               = ${params.VILA_TAG}"
                                 echo "SDK_VERSION            = ${params.SDK_VERSION}"
@@ -244,7 +244,7 @@ PY
                                         patch_line "deploy"             "${DEPLOY_TAG}"
                                         patch_line "data_services"      "${DATA_SERVICES_TAG}"
                                         patch_line "cosmos_rl"          "${COSMOS_RL_TAG}"
-                                        patch_line "cosmos_predict_2_5" "${COSMOS_PREDICT_2_5_TAG}"
+                                        patch_line "cosmos_predict"     "${COSMOS_PREDICT_TAG}"
                                         patch_line "cosmos_embed"       "${COSMOS_EMBED_TAG}"
                                         patch_line "vila"               "${VILA_TAG}"
 

@@ -5,7 +5,8 @@ description: >
   on merve/vqav2-small (image-text-to-text, subset 500/100, 5 epochs). Expected:
   exact_match 0% → 55%, substring_match 40% → 57%. Wall time ~14 min on A100-SXM4-80GB.
   (1-epoch variant: exact 8%, substr 52%, 3 min. Most of the exact-match jump
-   from 1→5 epochs is the model learning to emit VQA-style short answers.)
+   from 1→5 epochs is the model learning to emit VQA-style short answers.) Use when
+  rerunning or validating the packaged SmolVLM/VQAv2 LoRA fine-tune example.
 license: Apache-2.0
 compatibility: Requires docker + nvidia-container-toolkit, NVIDIA GPU (driver ≥ 545, ≥ 16 GB VRAM), ~40 GB free disk, and HF_TOKEN. WANDB_API_KEY/WANDB_PROJECT optional.
 metadata:

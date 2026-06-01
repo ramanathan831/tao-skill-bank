@@ -7,6 +7,7 @@ actions:
   gen_trt_engine:
     command: ml_recog gen_trt_engine -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       gen_trt_engine.onnx_file:
         type: file
@@ -22,6 +23,7 @@ actions:
   evaluate:
     command: ml_recog evaluate -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       evaluate.trt_engine:
         type: file
@@ -37,6 +39,7 @@ actions:
   inference:
     command: ml_recog inference -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       inference.trt_engine:
         type: file

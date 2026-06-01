@@ -8,6 +8,7 @@ actions:
   dataset_convert:
     command: ocrnet dataset_convert -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset_convert.input_img_dir:
         type: folder
@@ -21,6 +22,7 @@ actions:
   train:
     command: ocrnet train -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.train_dataset_dir:
         type: folder
@@ -48,6 +50,7 @@ actions:
   quantize:
     command: ocrnet quantize -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.train_dataset_dir:
         type: folder
@@ -67,6 +70,7 @@ actions:
   evaluate:
     command: ocrnet evaluate -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.character_list_file:
         type: file
@@ -88,6 +92,7 @@ actions:
   export:
     command: ocrnet export -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.character_list_file:
         type: file
@@ -103,6 +108,7 @@ actions:
   prune:
     command: ocrnet prune -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.character_list_file:
         type: file
@@ -118,6 +124,7 @@ actions:
   retrain:
     command: ocrnet train -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.train_dataset_dir:
         type: folder
@@ -141,6 +148,7 @@ actions:
   inference:
     command: ocrnet inference -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.character_list_file:
         type: file

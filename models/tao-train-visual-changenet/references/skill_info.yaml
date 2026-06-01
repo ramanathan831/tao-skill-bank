@@ -6,6 +6,7 @@ actions:
   train:
     command: visual_changenet train -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       model.backbone.pretrained_backbone_path:
         type: file
@@ -29,6 +30,7 @@ actions:
   evaluate:
     command: visual_changenet evaluate -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       model.backbone.pretrained_backbone_path:
         type: file
@@ -51,6 +53,7 @@ actions:
   inference:
     command: visual_changenet inference -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       model.backbone.pretrained_backbone_path:
         type: file
@@ -69,6 +72,7 @@ actions:
   export:
     command: visual_changenet export -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       model.backbone.pretrained_backbone_path:
         type: file
@@ -85,6 +89,7 @@ actions:
   quantize:
     command: visual_changenet quantize -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       model.backbone.pretrained_backbone_path:
         type: file
@@ -114,6 +119,7 @@ actions:
   segment_train:
     command: visual_changenet train -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       model.backbone.pretrained_backbone_path:
         type: file
@@ -131,6 +137,7 @@ actions:
   segment_evaluate:
     command: visual_changenet evaluate -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.segment.root_dir:
         type: folder
@@ -144,6 +151,7 @@ actions:
   segment_inference:
     command: visual_changenet inference -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.segment.root_dir:
         type: folder

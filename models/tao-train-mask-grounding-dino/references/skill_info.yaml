@@ -8,6 +8,7 @@ actions:
   train:
     command: mask_grounding_dino train -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.train_data_sources[0].image_dir:
         type: folder
@@ -36,6 +37,7 @@ actions:
   quantize:
     command: mask_grounding_dino quantize -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       quantize.model_path:
         type: file
@@ -63,6 +65,7 @@ actions:
   evaluate:
     command: mask_grounding_dino evaluate -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       evaluate.checkpoint:
         type: file
@@ -78,6 +81,7 @@ actions:
   export:
     command: mask_grounding_dino export -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       export.checkpoint:
         type: file
@@ -91,6 +95,7 @@ actions:
   inference:
     command: mask_grounding_dino inference -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       inference.checkpoint:
         type: file

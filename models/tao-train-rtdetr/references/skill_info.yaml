@@ -8,6 +8,7 @@ actions:
   train:
     command: rtdetr train -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.train_data_sources[0].image_dir:
         type: folder
@@ -36,6 +37,7 @@ actions:
   distill:
     command: rtdetr distill -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.train_data_sources[0].image_dir:
         type: folder
@@ -55,6 +57,7 @@ actions:
   quantize:
     command: rtdetr quantize -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.train_data_sources[0].image_dir:
         type: folder
@@ -78,6 +81,7 @@ actions:
   evaluate:
     command: rtdetr evaluate -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.test_data_sources.image_dir:
         type: folder
@@ -93,6 +97,7 @@ actions:
   export:
     command: rtdetr export -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       export.checkpoint:
         type: file
@@ -104,6 +109,7 @@ actions:
   inference:
     command: rtdetr inference -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.infer_data_sources.image_dir:
         type: folder

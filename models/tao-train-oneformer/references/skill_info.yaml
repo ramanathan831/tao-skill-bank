@@ -8,6 +8,7 @@ actions:
   train:
     command: oneformer train -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.train.images:
         type: folder
@@ -42,6 +43,7 @@ actions:
   quantize:
     command: oneformer quantize -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.train.images:
         type: folder
@@ -71,6 +73,7 @@ actions:
   evaluate:
     command: oneformer evaluate -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.train.images:
         type: folder
@@ -105,6 +108,7 @@ actions:
   export:
     command: oneformer export -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       export.checkpoint:
         type: file
@@ -116,6 +120,7 @@ actions:
   inference:
     command: oneformer inference -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.train.images:
         type: folder

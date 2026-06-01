@@ -1,5 +1,19 @@
 # Prep-Testcase Reference — Phase 2 JSONL Preparation
 
+Use this reference only when the parent `SKILL.md` points here for the current task. If this file conflicts with current `SKILL.md`, `skill_info.yaml`, schemas, or platform/model skills, the current authoritative source wins.
+
+## Contents
+
+- What it produces
+- Pairing strategy and n_seeds
+- Parameters
+- Invocation
+- Helper scripts (each supports `--help`)
+- Submask handling
+- Verification
+- Error handling
+
+
 Full detail for `prep_testcase.sh`. Read when debugging AMP failures,
 understanding allocation, or customising clean-image pairing.
 

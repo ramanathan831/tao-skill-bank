@@ -11,10 +11,10 @@ description: >-
   synthetic anomaly images (SDG), evaluate quality (nn_score), and search per-sample
   (guidance, crop_ratio) parameters. Three modes: full (Phase 0→7: finetune then
   generate), finetune_only (Phase 0→1: train only), inference_only (Phase 0, 2→7:
-  generate from an existing checkpoint). Always invoke this skill when the user asks
-  to fine-tune, train, generate anomaly images, run SDG, run AnomalyGen, evaluate
-  SDG output quality, run per-sample search/refinement, or run any part of the
-  AnomalyGen pipeline — even if they only mention one phase.
+  generate from an existing checkpoint). Use when the user asks to "fine-tune
+  AnomalyGen", "generate anomaly images", "run PAIDF SDG", "evaluate SDG output
+  quality", "run per-sample search", or run any part of the AnomalyGen pipeline,
+  even if they only mention one phase.
 ---
 
 # PAIDF AnomalyGen
@@ -364,7 +364,7 @@ Read `references/inference.md §Phase 5` for draw strategy, ranges, and
 re-AMP guidance. For `r` in `1..NUM_SEARCH_RUN`:
 
 1. Read prior round's `per_sample.csv` (or `${ORIGINAL}/per_sample.csv` for `r=1`).
-2. Write `${ROUNDS}/round_${r}/draws.json` with Claude-chosen `(guidance, crop_ratio)` per sample.
+2. Write `${ROUNDS}/round_${r}/draws.json` with selected `(guidance, crop_ratio)` per sample.
 3. Run round (SDG + eval; the round dir gets its own `sdg/{SDG_result.csv, per_sample.csv, eval.log}`):
 
 ```bash

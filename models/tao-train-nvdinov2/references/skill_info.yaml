@@ -8,6 +8,7 @@ actions:
   train:
     command: nvdinov2 train -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.train_dataset.images_dir:
         type: folder
@@ -25,6 +26,7 @@ actions:
   export:
     command: nvdinov2 export -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       export.checkpoint:
         type: file
@@ -38,6 +40,7 @@ actions:
   inference:
     command: nvdinov2 inference -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       inference.checkpoint:
         type: file

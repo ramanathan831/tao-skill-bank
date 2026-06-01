@@ -1,5 +1,17 @@
 # SDG Refine Reference — Phase 5 Per-Sample Search
 
+Use this reference only when the parent `SKILL.md` points here for the current task. If this file conflicts with current `SKILL.md`, `skill_info.yaml`, schemas, or platform/model skills, the current authoritative source wins.
+
+## Contents
+
+- Inputs
+- Agent search loop
+- draws.json format
+- Output
+- Re-rolling AMP augmentation (optional)
+- Notes
+
+
 Full detail for `run_round.sh` and `assemble_searched.py`. Read when debugging
 per-sample search, draws.json alignment, or re-AMP augmentation.
 
@@ -21,7 +33,7 @@ per-sample search, draws.json alignment, or re-AMP augmentation.
 
 ---
 
-## Claude's loop
+## Agent search loop
 
 For `r` in `1..num_search_run`:
 

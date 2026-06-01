@@ -3,7 +3,8 @@ name: tao-rerun-convnext-cifar10
 description: >
   Rerun the fine-tune pipeline in this directory: facebook/convnext-tiny-224 on
   cifar10 (image-classification, 10 classes, subset 5000/1000). Expected accuracy:
-  baseline 10.20% → fine-tuned 83.70%. Wall time ~33s on A100-SXM4-80GB.
+  baseline 10.20% → fine-tuned 83.70%. Wall time ~33s on A100-SXM4-80GB. Use when
+  rerunning or validating the packaged ConvNeXt/CIFAR-10 fine-tune example.
 license: Apache-2.0
 compatibility: Requires docker + nvidia-container-toolkit, NVIDIA GPU (driver ≥ 545, ≥ 8 GB VRAM), ~40 GB free disk, and HF_TOKEN. WANDB_API_KEY/WANDB_PROJECT optional.
 metadata:
