@@ -20,7 +20,7 @@
 
 set -euo pipefail
 
-MARKETPLACE_SOURCE="${TAO_SKILL_BANK_MARKETPLACE:-ssh://git@gitlab-master.nvidia.com:12051/nvidia-tao-toolkit/tao-skills-external.git}"
+MARKETPLACE_SOURCE="${TAO_SKILL_BANK_MARKETPLACE:-git@github.com:NVIDIA-TAO/tao-skills-bank.git}"
 MARKETPLACE_REF="${TAO_SKILL_BANK_REF:-}"
 MARKETPLACE_NAME="tao-local-plugins"   # `name` in .agents/plugins/marketplace.json
 PLUGIN_NAME="tao-skill-bank"
