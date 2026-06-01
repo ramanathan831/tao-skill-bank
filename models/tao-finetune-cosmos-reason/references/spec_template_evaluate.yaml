@@ -43,6 +43,8 @@ metrics:
   - bertscore
   bertscore_model: microsoft/deberta-xlarge-mnli
   bertscore_lang: en
+  bertscore_device: cpu
+  bertscore_batch_size: 1
 results:
   save_individual_results: true
   save_confusion_matrix: true
