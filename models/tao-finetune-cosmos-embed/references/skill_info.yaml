@@ -95,10 +95,29 @@ key_defaults:
   train.optim.optim: adamw
   train.validation_iter: 1000
   train.checkpoint_iter: 1000
+spec_params:
+  train:
+    results_dir: output_dir
+    model.pretrained_model_path: ptm_if_no_resume_model
+    train.resume_training_checkpoint_path: resume_model
+  evaluate:
+    results_dir: output_dir
+    evaluate.checkpoint: parent_model
+  inference:
+    results_dir: output_dir
+    inference.checkpoint: parent_model
+  export:
+    results_dir: output_dir
+    export.checkpoint: parent_model
+    export.onnx_file: create_onnx_file
 spec_shorthand_keys:
   num_gpus: train.num_gpus
   max_iter: train.max_iter
   batch_size: dataset.train_dataset.batch_size
   learning_rate: train.optim.lr
+  resume_checkpoint: train.resume_training_checkpoint_path
   checkpoint: evaluate.checkpoint
+  evaluate_checkpoint: evaluate.checkpoint
+  inference_checkpoint: inference.checkpoint
+  export_checkpoint: export.checkpoint
   query_texts: inference.query.input_texts

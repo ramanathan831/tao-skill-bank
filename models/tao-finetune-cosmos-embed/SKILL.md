@@ -284,8 +284,10 @@ After downloading/syncing that prefix into the mounted `data/` directory, use th
 ```text
 results/
 ├── train/
+│   ├── checkpoints/
+│   │   ├── iter_#########.pt
+│   │   └── latest_checkpoint.txt
 │   ├── cosmos_embed1_model_latest.pth
-│   ├── cosmos_embed1_model_<iter>.pth
 │   └── experiment.yaml
 ├── evaluate/
 │   ├── metrics.json
