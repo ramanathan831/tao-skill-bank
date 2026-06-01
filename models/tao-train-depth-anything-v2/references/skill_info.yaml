@@ -8,6 +8,7 @@ actions:
   train:
     command: depth_net train -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.train_dataset.data_sources[0].data_file:
         type: file
@@ -30,6 +31,7 @@ actions:
   quantize:
     command: depth_net quantize -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       quantize.model_path:
         type: file
@@ -47,6 +49,7 @@ actions:
   evaluate:
     command: depth_net evaluate -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.test_dataset.data_sources[0].data_file:
         type: file
@@ -64,6 +67,7 @@ actions:
   export:
     command: depth_net export -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       export.checkpoint:
         type: file
@@ -77,6 +81,7 @@ actions:
   inference:
     command: depth_net inference -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.infer_dataset.data_sources[0].data_file:
         type: file
@@ -95,6 +100,7 @@ actions:
     container_image: tao_toolkit.deploy
     command: depth_net gen_trt_engine -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       gen_trt_engine.onnx_file:
         type: file

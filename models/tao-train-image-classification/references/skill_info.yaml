@@ -8,6 +8,7 @@ actions:
   train:
     command: classification_pyt train -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.train_dataset.images_dir:
         type: folder
@@ -32,6 +33,7 @@ actions:
   distill:
     command: classification_pyt distill -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.train_dataset.images_dir:
         type: folder
@@ -49,6 +51,7 @@ actions:
   quantize:
     command: classification_pyt quantize -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.train_dataset.images_dir:
         type: folder
@@ -68,6 +71,7 @@ actions:
   evaluate:
     command: classification_pyt evaluate -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.val_dataset.images_dir:
         type: folder
@@ -85,6 +89,7 @@ actions:
   export:
     command: classification_pyt export -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       export.checkpoint:
         type: file
@@ -98,6 +103,7 @@ actions:
   inference:
     command: classification_pyt inference -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.val_dataset.images_dir:
         type: folder
@@ -116,6 +122,7 @@ actions:
     container_image: tao_toolkit.deploy
     command: classification_pyt gen_trt_engine -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       gen_trt_engine.onnx_file:
         type: file

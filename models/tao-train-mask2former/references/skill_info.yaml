@@ -8,6 +8,7 @@ actions:
   train:
     command: mask2former train -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.train.img_dir:
         type: folder
@@ -46,6 +47,7 @@ actions:
   quantize:
     command: mask2former quantize -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       quantize.model_path:
         type: file
@@ -79,6 +81,7 @@ actions:
   evaluate:
     command: mask2former evaluate -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       evaluate.checkpoint:
         type: file
@@ -110,6 +113,7 @@ actions:
   export:
     command: mask2former export -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       export.checkpoint:
         type: file
@@ -123,6 +127,7 @@ actions:
   inference:
     command: mask2former inference -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       inference.checkpoint:
         type: file

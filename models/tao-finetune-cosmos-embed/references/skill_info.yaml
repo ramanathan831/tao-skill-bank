@@ -9,6 +9,7 @@ actions:
   train:
     command: bash -lc 'python -m pip install "protobuf<7" && cosmos-embed1 train -e {config_path}'
     config_format: yaml
+    mode: config
     inputs:
       model.pretrained_model_path:
         type: folder
@@ -29,6 +30,7 @@ actions:
   evaluate:
     command: bash -lc 'python -m pip install "protobuf<7" && cosmos-embed1 evaluate -e {config_path}'
     config_format: yaml
+    mode: config
     inputs:
       evaluate.checkpoint:
         type: file
@@ -44,6 +46,7 @@ actions:
   inference:
     command: bash -lc 'python -m pip install "protobuf<7" && cosmos-embed1 inference -e {config_path}'
     config_format: yaml
+    mode: config
     inputs:
       inference.checkpoint:
         type: file
@@ -59,6 +62,7 @@ actions:
   export:
     command: bash -lc 'python -m pip install "protobuf<7" && cosmos-embed1 export -e {config_path}'
     config_format: yaml
+    mode: config
     inputs:
       export.checkpoint:
         type: file

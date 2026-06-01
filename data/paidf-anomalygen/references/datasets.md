@@ -1,5 +1,16 @@
 # Datasets Reference — UC1 / UC2 / UC3
 
+Use this reference only when the parent `SKILL.md` points here for the current task. If this file conflicts with current `SKILL.md`, `skill_info.yaml`, schemas, or platform/model skills, the current authoritative source wins.
+
+## Contents
+
+- UC1 — PCB
+- UC2 — Metal Surface (Magnetic Tile)
+- UC3 — Mobile Phone Screen
+  - Step 1 — Download the Roboflow zip (manual, browser required)
+  - Step 2 — Run the preparation script
+
+
 How to obtain a ready-to-use `dataset_dir` for each supported use case.
 The table below shows what is pre-packaged on Hugging Face and what must be prepared locally.
 

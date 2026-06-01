@@ -22,7 +22,7 @@ tags:
 
 Supervised fine-tuning (SFT) of **nvidia/Cosmos-Reason2-8B** on video reasoning tasks. Pretrained weights are sourced from HuggingFace, not NGC. This is a **gated model** — requires `HF_TOKEN`.
 
-Uses FSDP-based parallelism with `dp_shard_size` for GPU count and `dp_replicate_size` for node count (not the standard `num_gpus`/`num_nodes`).
+Uses FSDP-based parallelism with `dp_shard_size` for GPU count and `dp_replicate_size` for node count (not the standard `num_gpus`/`num_nodes`). Extra references: `cosmos-data-specs.md` for datasets/specs, `cosmos-actions-parameters.md` for eval/parameters/errors, and `cosmos-automl-deft.md` for AutoML/DEFT notes; `detailed-guide.md` is only the map.
 
 ## Dataclass Schemas
 
@@ -128,7 +128,9 @@ The reference TOML (and the spec the model actually consumes) is **nested dicts*
 
 ### Typical Spec Overrides
 
-These are the typical override **paths** to apply on top of the template (not the full spec). The agent reads each `key.subkey.leaf` as a dotted path and assigns the value at that nested location in the template-loaded `specs` dict.
+These are the typical override **paths** to apply on top of the template. Treat
+dotted notation as a path into the nested `specs` dict, not as a literal flat
+key.
 
 Data source overrides are **mandatory for every action** — the agent MUST construct data source paths from the Per-Action Dataset Requirements table above.
 
@@ -138,102 +140,34 @@ Python package under `/workspace/cosmos_rl`; bind-mounting over `/workspace`
 hides the package and makes `cosmos-rl` fail with
 `ModuleNotFoundError: No module named 'cosmos_rl'`.
 
-```python
-TRAIN_DATASET_URI = "s3://bucket/data/train"
-EVAL_DATASET_URI = "s3://bucket/data/eval"
-# Slurm/internal example:
-# TRAIN_DATASET_URI = "/lustre/fsw/tao_datasets/cosmos_rl/train"
-# EVAL_DATASET_URI = "/lustre/fsw/tao_datasets/cosmos_rl/eval"
-# Direct spec-path example:
-# TRAIN_ANNOTATION_PATH = "/lustre/fsw/.../annotations_train.json"
-# TRAIN_MEDIA_PATH = "/lustre/fsw/.../videos_train.tar.gz"
-# EVAL_ANNOTATION_PATH = "/lustre/fsw/.../annotations_eval.json"
-# EVAL_MEDIA_PATH = "/lustre/fsw/.../eval_videos"
-```
+For root-style runs, map `TRAIN_DATASET_URI` and `EVAL_DATASET_URI` to:
 
-**train (mandatory data sources):**
-```python
-{
-    "custom.train_dataset": {
-        "annotation_path": f"{TRAIN_DATASET_URI}/annotations.json",
-        "media_path": TRAIN_DATASET_URI,
-    },
-    "custom.val_dataset": {
-        "annotation_path": f"{EVAL_DATASET_URI}/annotations.json",
-        "media_path": EVAL_DATASET_URI,
-    },
-    "policy.model_name_or_path": "hf_model://nvidia/Cosmos-Reason2-8B",
-    "policy.model_max_length": 81920,
-    "policy.parallelism.dp_shard_size": 4,
-    "policy.parallelism.dp_replicate_size": 1,
-    "policy.lora.lora_alpha": 256,
-    "policy.lora.r": 16,
-    "policy.lora.lora_dropout": 0.05,
-    "train.epoch": 2,
-    "train.train_batch_per_replica": 32,
-    "train.optm_lr": 2e-5,
-    "train.optm_impl": "fused",
-    "train.deterministic": True,
-    "train.ckpt.save_freq_in_epoch": 1,
-    "train.ckpt.max_keep": 2,
-    "train.train_policy.mini_batch": 1,
-    "train.train_policy.dataset.test_size": 0,
-    "train.train_policy.dataloader_num_workers": 4,
-    "train.train_policy.dataloader_prefetch_factor": 4,
-    "validation.freq_in_epoch": 1,
-    "validation.batch_size": 1,
-    "validation.enable_dataset_cache": False,
-    # custom.vision.nframes defaults to 8 from the spec template for bounded
-    # 1-GPU memory use. Switch to fps only when the GPU/context budget supports it.
-    "custom.system_prompt": "You are a helpful assistant.",
-    "logging.logger": ["console", "tao"],
-}
-```
+- train: `custom.train_dataset.annotation_path=<train>/annotations.json`,
+  `custom.train_dataset.media_path=<train>`,
+  `custom.val_dataset.annotation_path=<eval>/annotations.json`,
+  `custom.val_dataset.media_path=<eval>`.
+- evaluate: `dataset.annotation_path=<eval>/annotations.json`,
+  `dataset.media_dir=<eval>`.
+- inference: set `media`, `type`, `prompt`, `model_path`, and `results_dir`.
+- quantize: set `dataset.annotation_path`, `dataset.media_dir`,
+  `model.model_path`, `quantize.num_calibration_samples`,
+  `quantize.max_sequence_length`, and `quantize.quantization_scheme`.
+
+For direct spec-path mode, set the annotation and media fields explicitly rather
+than deriving them from a root.
+
+Common train overrides: `policy.model_name_or_path`, `policy.model_max_length`,
+`policy.parallelism.dp_shard_size`, `policy.parallelism.dp_replicate_size`,
+LoRA settings, `train.epoch`, `train.train_batch_per_replica`,
+`train.optm_lr`, `train.train_policy.mini_batch`, checkpoint retention,
+validation frequency, and logging. The packaged template keeps
+`custom.vision.nframes=8` for bounded 1-GPU memory; switch to `fps` only after
+checking token budget and GPU memory.
 
 `custom.val_dataset.annotation_path` and `custom.val_dataset.media_path` are
 valid train schema fields and are seeded in the packaged train template. Strict
 validators must preserve those keys so AutoML can optimize against an explicit
 validation set instead of silently falling back to training-only data.
-
-**evaluate (mandatory data sources):**
-```python
-{
-    "dataset.annotation_path": f"{EVAL_DATASET_URI}/annotations.json",
-    "dataset.media_dir": EVAL_DATASET_URI,
-    # vision.nframes defaults to 8 — see Vision Encoders for fps vs nframes.
-    "model.enable_lora": True,
-    "model.base_model_path": "hf_model://nvidia/Cosmos-Reason2-8B",
-}
-```
-
-**inference (mandatory media):**
-```python
-{
-    "model_path": "nvidia/Cosmos-Reason2-8B",
-    "media": "/tao-workspace/media/videos/example.mp4",
-    "type": "video",
-    "prompt": "Briefly describe this video.",
-    "fps": 1,
-    "total_pixels": 200704,
-    "max_new_tokens": 32,
-    "results_dir": "/results/inference",
-    "enable_lora": False,
-}
-```
-
-**quantize (mandatory calibration data):**
-```python
-{
-    "model.model_path": "nvidia/Cosmos-Reason2-8B",
-    "dataset.annotation_path": "/tao-workspace/calibration/annotations.json",
-    "dataset.media_dir": "/tao-workspace/calibration/videos",
-    "quantize.num_calibration_samples": 1,
-    "quantize.max_sequence_length": 4096,
-    "quantize.quantization_scheme": "W4A16",
-    "quantize.skip_test_generation": True,
-    "results_dir": "/results/quantize",
-}
-```
 
 The quantize wrapper includes a compatibility shim for the current image's
 `compressed_tensors`/`llmcompressor` import mismatch. Keep that shim in the
@@ -451,7 +385,7 @@ For platform-side multi-node setup (sbatch flags on SLURM, Indexed Job + Service
 ### Vision Encoders
 - **custom.vision.fps** *or* **custom.vision.nframes** — **mutually exclusive**, set exactly one.
   - `nframes` (default in template): extract this many frames evenly across the clip. This is the safest default for 1-GPU AutoML smoke runs.
-  - `fps`: extract frames at this rate. High motion: 3. Low motion/static: 1–2. Use when the selected videos, `policy.model_max_length`, and GPU memory can absorb the expanded token count.
+  - `fps`: extract frames at this rate. High motion: 3. Low motion/static: 1–2. Select this only when the selected videos, `policy.model_max_length`, and GPU memory can absorb the expanded token count.
   - Setting both makes qwen-vl-utils' decord backend error out (`Only accept either fps or nframes`) and silently fall back to torchvision, which deadlocks under multi-worker dataloading (`BlockingIOError [Errno 11]` swscaler errors). If you switch from `fps` to `nframes`, also delete `fps` from your spec.
 - **custom.vision.total_pixels**: Resolution constraint. Increase if the object of focus is small relative to the frame. Default 3136000.
 - **custom.system_prompt**: Instructions prepended to every prompt.

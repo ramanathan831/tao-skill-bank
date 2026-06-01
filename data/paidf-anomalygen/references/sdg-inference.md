@@ -1,5 +1,23 @@
 # SDG Inference Reference — Phase 3
 
+Use this reference only when the parent `SKILL.md` points here for the current task. If this file conflicts with current `SKILL.md`, `skill_info.yaml`, schemas, or platform/model skills, the current authoritative source wins.
+
+## Contents
+
+- Parameters
+- Steps
+  - Step 1 — Validate the checkpoint
+  - Step 2 — Prepare the inference JSONL (skip if `input_jsonl` given)
+  - Step 3 — Validate the JSONL against the checkpoint
+  - Step 4 — Launch SDG
+  - Step 5 — Verify completion before eval
+  - Step 6 — Evaluate
+- Multi-GPU notes
+  - NCCL hang controls
+- Verification checklist
+- Error handling
+
+
 Full detail for running SDG. Read when troubleshooting checkpoint validation,
 multi-GPU NCCL issues, or SDG output completeness.
 

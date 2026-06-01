@@ -1,12 +1,13 @@
 name: centerpose-deploy
 type: model
 network_arch: centerpose
-container_image: nvcr.io/nvidia/tao/tao-toolkit:6.26.3-deploy
+container_image: tao_toolkit.deploy
 data_format: default
 actions:
   gen_trt_engine:
     command: centerpose gen_trt_engine -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       gen_trt_engine.onnx_file:
         type: file
@@ -22,6 +23,7 @@ actions:
   evaluate:
     command: centerpose evaluate -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       evaluate.trt_engine:
         type: file
@@ -35,6 +37,7 @@ actions:
   inference:
     command: centerpose inference -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       inference.trt_engine:
         type: file

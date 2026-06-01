@@ -78,9 +78,7 @@ from the TAO service or SDK host to a login node over SSH, staged on a shared
 filesystem, submitted with `sbatch`, and executed with `srun` container support.
 
 Use SLURM when the user has access to a managed GPU cluster, shared Lustre
-storage, and scheduler-owned GPU allocation. Do not use SLURM for local files
-that exist only on the agent machine; data and outputs must be reachable from
-the cluster.
+storage, and scheduler-owned GPU allocation. Do not use SLURM for local files that exist only on the agent machine; data and outputs must be reachable from the cluster. Extra references: `slurm-preflight-storage.md` for SSH/storage setup and `slurm-execution-sdk.md` for sbatch, monitoring, multi-node, SDK, and failure handling; `detailed-guide.md` is only the map.
 
 ## Prerequisites
 
@@ -470,50 +468,25 @@ yourself.
 
 ### Auto-retry for infrastructure failures
 
-Auto-retry is **fully automatic** — submit once, the SDK handles the rest. A
-background `JobMonitor` thread (started in `SlurmSDK.__init__`) polls
-`squeue`/`sacct` every `poll_interval` seconds (default 30s). When it sees an
-*infrastructure-looking* failure it re-`sbatch`'s the already-staged remote
-script and keeps watching, up to `MAX_JOB_RETRIES = 10` retries. The
-user-facing `Job.id` is stable across retries; only the underlying SLURM job
-id rotates. There is no `Job.retry()` / `Job.wait()` API to call — polling
-and resubmission both happen in the background.
+Auto-retry is automatic in the SDK. `SlurmSDK` starts a monitor that polls
+`squeue`/`sacct`, keeps the user-facing `Job.id` stable, and resubmits the
+staged script for infrastructure-looking failures such as `NODE_FAIL`,
+`BOOT_FAIL`, NCCL transport timeouts, CUDA driver init failures, GPU/IB
+link-down, OOM-killer node reaping, Xid errors, and similar retriable patterns.
 
-A failure is classified as retriable when:
-
-- SLURM reports `NODE_FAIL` or `BOOT_FAIL`, **or**
-- The job's logs match one of the retriable patterns (NCCL transport timeouts,
-  CUDA driver init failures, GPU/IB link-down, OOM-killer reaping the node, et
-  cetera — see `RETRIABLE_ERROR_PATTERNS` in the handler).
-
-Plain training failures (`FAILED` with no matching pattern) are surfaced
-immediately — no retry — so a broken spec doesn't silently consume 10 GPU
-allocations.
-
-State is persisted to `tao_session_state.db`, so if the user's process exits
-between submit and completion, a later `SlurmSDK(state_file=...)` rehydrates
-the job and resumes monitoring (and retrying) from where the previous process
-left off.
-
-In addition, `#SBATCH --requeue` is set by default (controlled by the
-`SLURM_USE_REQUEUE` env var, defaults to `true`), so SLURM itself will
-re-queue the job on `NODE_FAIL` or pre-emption *before* the handler-level
-retry loop ever sees it. Set `SLURM_USE_REQUEUE=false` to opt out.
+Plain training failures surface immediately so a broken spec does not consume
+the retry budget. State persists in `tao_session_state.db`, and
+`#SBATCH --requeue` is enabled by default via `SLURM_USE_REQUEUE=true`.
 
 ## Failure Modes
 
-**SSH auth failure**: The passwordless-login setup in [Prerequisites](#prerequisites)
-is incomplete. Check `SLURM_USER`, `SLURM_HOSTNAME`, `SSH_KEY_PATH`, key
-permissions (`chmod 600`), `known_hosts` entries for every login host, and
-whether the key is mounted into the service container. Re-run the
-`ssh -o BatchMode=yes ...` verification step from the Prerequisites section to
-confirm the fix before resubmitting.
+**SSH auth failure**: Check `SLURM_USER`, `SLURM_HOSTNAME`, `SSH_KEY_PATH`, key
+permissions, `known_hosts`, and key mounts. Re-run the
+`ssh -o BatchMode=yes ...` verification before resubmitting.
 
-**Local dataset path rejected**: Convert the data path to `lustre:///...` or
-copy the dataset onto the cluster's shared filesystem.
+**Local dataset path rejected**: Convert it to `lustre:///...` or copy it onto shared storage.
 
-**SQSH conversion timeout**: Increase `sqsh_conversion_timeout_minutes`, use a
-smaller image, or pre-stage the SQSH image in the cache directory.
+**SQSH conversion timeout**: Increase `sqsh_conversion_timeout_minutes`, use a smaller image, or pre-stage the SQSH image.
 
 **Pyxis or Enroot unavailable**: The generated sbatch script depends on
 `srun --container-image`. Ask the cluster admin to enable Pyxis/Enroot or use a

@@ -84,6 +84,7 @@ actions:
   evaluate:
     command: cosmos-rl-evaluate --config {config_path}
     config_format: toml
+    mode: config
     inputs:
       dataset.annotation_path:
         type: file
@@ -132,6 +133,7 @@ actions:
       raise SystemExit(subprocess.call(args))
       PY
     config_format: toml
+    mode: config
     inputs:
       model_path:
         type: folder
@@ -196,6 +198,7 @@ actions:
       raise SystemExit(main())
       PY
     config_format: toml
+    mode: config
     inputs:
       model.model_path:
         type: folder
@@ -211,6 +214,7 @@ actions:
   train:
     command: cosmos-rl --config {config_path} /opt/cosmos_rl/tao_sft_example.py
     config_format: toml
+    mode: config
     inputs:
       custom.train_dataset.annotation_path:
         type: file

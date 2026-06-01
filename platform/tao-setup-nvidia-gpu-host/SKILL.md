@@ -7,7 +7,9 @@ description: >-
   `--check-only` path works on any Linux distribution; `--install` automates
   debian-family (Ubuntu/Debian/Pop!_OS/Mint/Zorin/Raspbian), rhel-family
   (Fedora/RHEL/Rocky/AlmaLinux), and suse-family (openSUSE/SLES) hosts, and
-  prints actionable manual-install steps for everything else.
+  prints actionable manual-install steps for everything else. Use when the user
+  asks to "set up an NVIDIA GPU host", "check TAO Docker GPU runtime", or
+  prepare a Kubernetes GPU worker for TAO.
 license: Apache-2.0
 compatibility: Runs `--check-only` on any Linux distribution. `--install` automates Ubuntu 22.04/24.04 + Debian 12 (apt), Fedora + RHEL/Rocky/AlmaLinux 9/10 (dnf), and openSUSE Leap / SLES 15 (zypper). Requires sudo/root, internet access to NVIDIA package repositories (and download.docker.com on rhel-family), and an x86_64 or aarch64 (sbsa) host. Other distributions (Arch, Alpine, Gentoo, NixOS, …) get a clear error that names the version targets and the NVIDIA install-guide URL.
 metadata:

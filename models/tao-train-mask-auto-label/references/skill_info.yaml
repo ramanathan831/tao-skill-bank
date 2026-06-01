@@ -8,6 +8,7 @@ actions:
   train:
     command: mal train -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.train_img_dir:
         type: folder
@@ -31,6 +32,7 @@ actions:
   evaluate:
     command: mal evaluate -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       evaluate.checkpoint:
         type: file
@@ -46,6 +48,7 @@ actions:
   inference:
     command: mal inference -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       inference.checkpoint:
         type: file

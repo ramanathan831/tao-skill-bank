@@ -7,6 +7,7 @@ actions:
   gen_trt_engine:
     command: pointpillars gen_trt_engine -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       gen_trt_engine.onnx_file:
         type: file
@@ -20,6 +21,7 @@ actions:
   evaluate:
     command: pointpillars evaluate -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       evaluate.trt_engine:
         type: file
@@ -35,6 +37,7 @@ actions:
   inference:
     command: pointpillars inference -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       inference.trt_engine:
         type: file

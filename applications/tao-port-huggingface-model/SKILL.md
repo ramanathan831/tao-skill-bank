@@ -19,7 +19,7 @@ compatibility: Requires Python 3.10+, NVIDIA driver, CUDA 13.0+, docker + nvidia
 metadata:
   author: NVIDIA Corporation
   version: '0.1'
-allowed-tools: Read Bash Write Edit Grep Glob WebFetch
+allowed-tools: Read Bash Write Edit Grep Glob
 tags:
 - tao
 - huggingface

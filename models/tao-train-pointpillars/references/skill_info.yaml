@@ -8,6 +8,7 @@ actions:
   dataset_convert:
     command: pointpillars dataset_convert -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.data_path:
         type: folder
@@ -19,6 +20,7 @@ actions:
   train:
     command: pointpillars train -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.data_path:
         type: folder
@@ -38,6 +40,7 @@ actions:
   prune:
     command: pointpillars prune -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.data_path:
         type: folder
@@ -53,6 +56,7 @@ actions:
   evaluate:
     command: pointpillars evaluate -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.data_path:
         type: folder
@@ -68,6 +72,7 @@ actions:
   retrain:
     command: pointpillars train -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.data_path:
         type: folder
@@ -83,6 +88,7 @@ actions:
   export:
     command: pointpillars export -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.data_path:
         type: folder
@@ -100,6 +106,7 @@ actions:
   inference:
     command: pointpillars inference -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.data_path:
         type: folder

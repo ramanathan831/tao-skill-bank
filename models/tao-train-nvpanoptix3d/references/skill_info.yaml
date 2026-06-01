@@ -8,6 +8,7 @@ actions:
   train:
     command: python -m nvidia_tao_pytorch.cv.nvpanoptix3d.entrypoint.nvpanoptix3d train -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.frustum_mask_path:
         type: file
@@ -45,6 +46,7 @@ actions:
   evaluate:
     command: python -m nvidia_tao_pytorch.cv.nvpanoptix3d.entrypoint.nvpanoptix3d evaluate -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.frustum_mask_path:
         type: file
@@ -70,6 +72,7 @@ actions:
   export:
     command: python -m nvidia_tao_pytorch.cv.nvpanoptix3d.entrypoint.nvpanoptix3d export -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       export.checkpoint:
         type: file
@@ -83,6 +86,7 @@ actions:
   inference:
     command: python -m nvidia_tao_pytorch.cv.nvpanoptix3d.entrypoint.nvpanoptix3d inference -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.frustum_mask_path:
         type: file

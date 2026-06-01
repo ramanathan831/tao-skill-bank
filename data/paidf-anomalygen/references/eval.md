@@ -1,5 +1,23 @@
 # Eval Reference — Phases 4 and 6
 
+Use this reference only when the parent `SKILL.md` points here for the current task. If this file conflicts with current `SKILL.md`, `skill_info.yaml`, schemas, or platform/model skills, the current authoritative source wins.
+
+## Contents
+
+- Parameters
+- Pre-flight
+  - 1. Verify paths
+  - 2. Verify SDG is complete
+  - 3. Auto-detect anomaly types (if not supplied)
+  - 4. Print pre-flight summary before running
+- Invocation
+- Output format
+- Score interpretation
+- Feature counts
+- Error handling
+- Verification checklist
+
+
 Full detail for `run_eval.sh`. Read when troubleshooting unexpected scores,
 interpreting output format, or running eval for the first time.
 

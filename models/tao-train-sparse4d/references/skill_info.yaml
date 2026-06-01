@@ -9,6 +9,7 @@ actions:
     container_image: tao_toolkit.data_services
     command: annotations convert -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       aicity.root:
         type: folder
@@ -21,6 +22,7 @@ actions:
   train:
     command: sparse4d train -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.data_root:
         type: folder
@@ -47,6 +49,7 @@ actions:
   quantize:
     command: sparse4d quantize -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.data_root:
         type: folder
@@ -71,6 +74,7 @@ actions:
   evaluate:
     command: sparse4d evaluate -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.data_root:
         type: folder
@@ -93,6 +97,7 @@ actions:
   export:
     command: sparse4d export -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       model.head.instance_bank.anchor:
         type: file
@@ -108,6 +113,7 @@ actions:
   inference:
     command: sparse4d inference -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.data_root:
         type: folder

@@ -1,5 +1,21 @@
 # Finetune Reference — Phase 0 and Phase 1
 
+Use this reference only when the parent `SKILL.md` points here for the current task. If this file conflicts with current `SKILL.md`, `skill_info.yaml`, schemas, or platform/model skills, the current authoritative source wins.
+
+## Contents
+
+- Phase 0: Environment and Checkpoint Pre-flight
+  - Environment check
+- Phase 1: Fine-Tuning
+  - Expected dataset structure
+  - Step 1: Dataset validation output
+  - Step 2: Validation JSONL sizing
+  - Step 3: Config template and critical flags
+  - Step 4: Training launch details
+  - Best checkpoint selection
+  - Phase 1 error handling
+
+
 Detail for `anomalygen` Phases 0 and 1. Read before executing either phase.
 
 ---

@@ -3,7 +3,7 @@ name: tao-run-automl-deft-pipeline
 description: >
   Run the canonical NVIDIA AOI three-phase training pipeline — Phase 1 AutoML baseline (HPO),
   Phase 2 DEFT loop (RCA → SDG → mining → plain-train retrain), Phase 3 AutoML refinement on
-  the DEFT-augmented dataset. This is the default entry point for any "run the AOI workflow",
+  the DEFT-augmented dataset. Use when the user asks to "run the AOI workflow",
   "fine-tune my PCB AOI model end-to-end", "improve my AOI ChangeNet model", or "AOI workflow
   with AutoML" request — route here instead of tao-run-deft-aoi directly unless the user
   explicitly asks for the DEFT loop ONLY (e.g. "run JUST the DEFT loop", "skip AutoML, only
@@ -26,7 +26,7 @@ A workflow-bridge skill that runs **three phases** in sequence by delegating to 
 
 This skill **does not** re-implement AutoML or DEFT. It owns only the connective tissue: HPO spec inputs, the spec-handoff between AutoML and DEFT, and the post-DEFT AutoML re-run on the augmented dataset.
 
-## When this skill applies
+## Routing policy
 
 - User asks to "run the AOI workflow" or "improve my AOI ChangeNet model" — **default to this skill**, not `tao-run-deft-aoi` directly. The bare DEFT loop is the inner stage of this pipeline.
 - User wants AutoML and DEFT chained on the same model/dataset

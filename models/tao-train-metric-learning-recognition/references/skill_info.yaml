@@ -8,6 +8,7 @@ actions:
   train:
     command: ml_recog train -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.train_dataset:
         type: folder
@@ -35,6 +36,7 @@ actions:
   evaluate:
     command: ml_recog evaluate -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       evaluate.checkpoint:
         type: file
@@ -50,6 +52,7 @@ actions:
   export:
     command: ml_recog export -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       export.checkpoint:
         type: file
@@ -63,6 +66,7 @@ actions:
   inference:
     command: ml_recog inference -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       inference.checkpoint:
         type: file

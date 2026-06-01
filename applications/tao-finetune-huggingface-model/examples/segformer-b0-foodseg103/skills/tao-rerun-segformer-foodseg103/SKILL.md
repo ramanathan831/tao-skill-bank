@@ -4,7 +4,8 @@ description: >
   Rerun the semantic segmentation fine-tune in this directory: nvidia/mit-b0 on
   EduardoPacheco/FoodSeg103 (103 food classes + background, subset 1000/200).
   Expected pixel accuracy: baseline 0.7% → fine-tuned 55.7%. Mean IoU 0.003 → 0.040.
-  Wall time ~95s on A100-SXM4-80GB.
+  Wall time ~95s on A100-SXM4-80GB. Use when rerunning or validating the packaged
+  SegFormer/FoodSeg103 fine-tune example.
 license: Apache-2.0
 compatibility: Requires docker + nvidia-container-toolkit, NVIDIA GPU (driver ≥ 545, ≥ 16 GB VRAM), ~40 GB free disk, and HF_TOKEN. WANDB_API_KEY/WANDB_PROJECT optional.
 metadata:

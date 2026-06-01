@@ -8,6 +8,7 @@ actions:
   train:
     command: ocdnet train -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.train_dataset.data_path:
         type: folder
@@ -27,6 +28,7 @@ actions:
   quantize:
     command: ocdnet quantize -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.train_dataset.data_path:
         type: folder
@@ -44,6 +46,7 @@ actions:
   evaluate:
     command: ocdnet evaluate -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.validate_dataset.data_path:
         type: folder
@@ -57,6 +60,7 @@ actions:
   export:
     command: ocdnet export -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       export.checkpoint:
         type: file
@@ -70,6 +74,7 @@ actions:
   prune:
     command: ocdnet prune -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.validate_dataset.data_path:
         type: folder
@@ -83,6 +88,7 @@ actions:
   retrain:
     command: ocdnet train -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       dataset.train_dataset.data_path:
         type: folder
@@ -98,6 +104,7 @@ actions:
   inference:
     command: ocdnet inference -e {config_path}
     config_format: yaml
+    mode: config
     inputs:
       inference.input_folder:
         type: folder

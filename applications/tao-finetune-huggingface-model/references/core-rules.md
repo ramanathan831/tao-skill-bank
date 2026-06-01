@@ -16,6 +16,18 @@ limitations under the License.
 
 # Core Rules — tao-finetune-huggingface-model
 
+Use this reference only when the parent `SKILL.md` points here for the current task. If this file conflicts with current `SKILL.md`, `skill_info.yaml`, schemas, or platform/model skills, the current authoritative source wins.
+
+## Contents
+
+- Your knowledge of HF libraries is outdated
+- Mistakes you WILL make without research
+- Never without user approval
+- Error recovery — minimal change, same approach
+- Dataset format by task
+- Hardware sizing (bf16)
+
+
 The non-negotiable behaviors the agent must follow throughout the
 six-step workflow. SKILL.md summarises these and points here for the
 full text.

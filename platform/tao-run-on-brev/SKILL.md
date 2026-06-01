@@ -24,7 +24,7 @@ Brev is instance-based (not job-based). You create an instance, run commands on 
 
 ## Preflight
 
-This skill needs the `brev` CLI, its companion agent skill (`brev-cli`), and an active login. Check before proceeding:
+This skill needs the `brev` CLI and an active login. Check before proceeding:
 
 ```bash
 # 1. brev CLI installed
@@ -34,10 +34,9 @@ command -v brev >/dev/null 2>&1 || {
   exit 1
 }
 
-# 2. brev-cli agent skill installed — provides the brev CLI's command reference to the agent
-[ -d "$HOME/.claude/skills/brev-cli" ] || [ -d ".claude/skills/brev-cli" ] || {
-  echo "MISSING: brev-cli agent skill not installed. Run:"
-  echo "  brev agent-skill install"
+# 2. brev command reference available.
+brev --help >/dev/null || {
+  echo "MISSING: brev CLI help unavailable; verify the brev installation."
   exit 1
 }
 
