@@ -76,14 +76,13 @@ Direct TAO Launcher spelling is `tao deploy clip gen_trt_engine`, `tao deploy cl
 | Action | Required artifact or data | Spec key |
 |---|---|---|
 | `gen_trt_engine` | Exported ONNX model or ONNX bundle | `gen_trt_engine.onnx_file` |
-| `gen_trt_engine` | Output engine path or engine directory | `gen_trt_engine.trt_engine` |
 | `evaluate` | TensorRT engine path or directory | `evaluate.trt_engine` |
 | `evaluate` | Validation image folder | `dataset.val.datasets[0].image_dir` |
 | `evaluate` | Validation caption folder | `dataset.val.datasets[0].caption_dir` |
 | `inference` | TensorRT engine path or directory | `inference.trt_engine` |
 | `inference` | Image datasets or text file | `inference.datasets / inference.text_file` |
 
-For direct Docker runs, mount input folders at the same paths used in the spec. For chained jobs, map exported ONNX artifacts into `gen_trt_engine.onnx_file` and map the engine artifact into `evaluate.trt_engine` or `inference.trt_engine` where those actions are available.
+For `gen_trt_engine`, `gen_trt_engine.trt_engine` is the new engine output path, not an input artifact. For direct Docker runs, mount input folders at the same paths used in the spec. For chained jobs, map exported ONNX artifacts into `gen_trt_engine.onnx_file` and map the engine artifact into `evaluate.trt_engine` or `inference.trt_engine` where those actions are available.
 
 TensorRT `evaluate` requires both image and text embeddings. Provide a combined engine, a directory containing paired separate engines, or an engine path ending in `_vision.engine` with a matching `_text.engine` beside it. A single `_vision.engine` is valid for image-only inference, but not for retrieval evaluation or text inference.
 
