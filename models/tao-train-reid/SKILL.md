@@ -173,6 +173,12 @@ not use this env var for untrusted checkpoints.
 
 **AutoML metric extraction**: Re-ID train status files report retrieval KPIs such as `cmc_rank_1`, `cmc_rank_5`, `cmc_rank_10`, and `mAP`, plus train loss. Default AutoML train launches must optimize `cmc_rank_1` with `direction: maximize`; do not use `val_loss` as the metric for this model.
 
+**Evaluate metric verification**: Re-ID evaluate can write an incomplete or
+rounded KPI block in `status.json` while the CLI table and generated plots show
+the full retrieval result. Treat `evaluate/status.json` as a pass/fail signal
+and checkpoint-load audit, but verify reported evaluation metrics from the log
+table and the expected `cmc_curve.png` / `sampled_matches.png` artifacts.
+
 **Checkpoint handoff**: Use the checkpoint resolver on the best AutoML child job's `results_dir/train/` folder and select the action-appropriate `model_epoch_*.pth` checkpoint. Re-ID also writes `reid_model_latest.pth`, but that is a latest symlink and should only be used when a caller explicitly requests latest. Preserve the same dataset identity count and query/gallery archives for downstream actions.
 
 **Default spec generation**: The packaged `default_specs` CLI action does not
