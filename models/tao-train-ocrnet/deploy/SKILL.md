@@ -128,7 +128,7 @@ Model-specific notes:
 |---|---|
 | `gen_trt_engine` | TensorRT engine under `results_dir` |
 | `evaluate` | OCR accuracy metrics under `results_dir` |
-| `inference` | Recognized text outputs under `results_dir` |
+| `inference` | Recognized text predictions in the command log/stdout; direct Docker runs may write only `status.json` and experiment metadata under `results_dir` |
 
 ## Known Pitfalls
 
@@ -139,3 +139,5 @@ Model-specific notes:
 **INT8 calibration missing:** INT8 builds need an extracted calibration image directory, a writable cache path, and enough images for `cal_batch_size * cal_batches`.
 
 **Mounted paths do not exist:** TAO Deploy checks local paths inside the container. Make sure every path in the spec has a matching Docker mount or job artifact mapping.
+
+**Inference artifact expectations:** A successful TensorRT inference run may print each image prediction to stdout instead of persisting per-image text files. Use the command log plus `status.json` to verify completion unless the user requested a custom output-capture wrapper.

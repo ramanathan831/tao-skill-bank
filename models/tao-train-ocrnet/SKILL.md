@@ -63,7 +63,7 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 | quantize | dataset.val_dataset_dir | dataset_convert eval job | LMDB folder containing data.mdb and lock.mdb | No |
 | quantize | dataset.character_list_file | eval_dataset | character_list | No |
 | quantize | dataset.quant_calibration_dataset.images_dir | train_datasets | extracted calibration image folder | No |
-| quantize | quantize.model_path | parent train/AutoML job | checkpoint selected by resolver | No |
+| quantize | quantize.model_path | parent train/AutoML job | full epoch-step checkpoint selected by resolver, for example `model_epoch_000_step_00003.pth` | No |
 | retrain | dataset.train_dataset_dir | dataset_convert train job | LMDB folder containing data.mdb and lock.mdb | Yes |
 | retrain | dataset.val_dataset_dir | dataset_convert eval job | LMDB folder containing data.mdb and lock.mdb | No |
 | retrain | dataset.character_list_file | eval_dataset | character_list | No |
@@ -81,7 +81,8 @@ OCRNet training writes both `best_accuracy.pth` and epoch-step checkpoints such 
 - Use `best_accuracy.pth` for best-checkpoint `evaluate`, `inference`, `export`, and `prune` requests.
 - Use the exact requested `model_epoch_*_step_*.pth` for epoch/step-specific actions.
 - Use `train.resume_training_checkpoint_path` only for resume training, and use `model.pruned_graph_path` for retrain from a prune output. OCRNet does not expose a separate `ocrnet retrain` CLI subtask in the PyT image; the model-skill `retrain` action routes through `ocrnet train -e` with the pruned graph path set.
-- OCRNet `quantize` loads the model through PyTorch. For trusted checkpoints created by the same local run, set `TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1` if PyTorch 2.6+ rejects the checkpoint as a weights-only load.
+- OCRNet `quantize` loads the model through PyTorch Lightning and must use a full epoch-step checkpoint such as `model_epoch_000_step_00003.pth`. Do not pass `best_accuracy.pth` to the PyTorch quantize path: that file can be a serialized OCR model object rather than a Lightning checkpoint dictionary, which fails before quantization with `TypeError: 'Model' object is not subscriptable`.
+- For trusted checkpoints created by the same local run, set `TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1` if PyTorch 2.6+ rejects the checkpoint as a weights-only load. If a full epoch-step checkpoint still fails with `OCRNetModel.__init__() missing 1 required positional argument: 'dm'`, report it as a toolkit quantize bug instead of falling back to `best_accuracy.pth`.
 
 ### Typical Spec Overrides
 
@@ -177,7 +178,7 @@ CHAR_LIST = "<character_list>"
     "dataset.val_dataset_dir": EVAL_LMDB,
     "dataset.character_list_file": CHAR_LIST,
     "dataset.quant_calibration_dataset.images_dir": TRAIN_IMAGES,
-    "quantize.model_path": "<selected train/AutoML checkpoint>",
+    "quantize.model_path": "<selected full epoch-step train/AutoML checkpoint>",
 }
 ```
 
@@ -229,6 +230,14 @@ Minimum 1 GPU(s), recommended 1 GPU(s). 8GB+ VRAM per GPU. OCR text recognition 
 **GT file BOM**: Some text-recognition GT files can start with a UTF-8 BOM on the first filename. If dataset conversion logs a missing path with an invisible prefix before the first image name, strip the BOM from a local copy of the GT file before conversion or evaluation.
 
 **Character list mismatch**: All characters in training data must be present in the character_list file.
+
+**Quantize checkpoint type**: `best_accuracy.pth` is appropriate for best-checkpoint evaluate, inference, export, and prune requests, but it is not a safe input for OCRNet PyTorch quantize. Resolve the full `model_epoch_<epoch>_step_<step>.pth` that corresponds to the intended best epoch or requested epoch. If PyTorch quantize then fails with a missing `dm` constructor argument, stop and report the toolkit issue.
+
+**ONNX quantize backend unavailable**: The backend registry may list `modelopt.onnx`, but the actual quantization module can still be absent. If an ONNX quantize retry reaches calibration and then fails with `modelopt.onnx.quantization is not available`, report the runtime image dependency gap. Do not claim ONNX quantization support from backend registration alone.
+
+**Inference output artifacts**: OCRNet inference can complete successfully while writing only `status.json` and experiment metadata under `results_dir`; the recognized text table is emitted to the command log/stdout. Do not report missing per-image text files as a failure unless the runtime status failed or the user explicitly requested persisted prediction artifacts.
+
+**Default specs output directory**: `ocrnet default_specs` requires a writable `results_dir` override, for example `results_dir=/workspace/run/results/default_specs`.
 
 **Export/prune output fields required**: `export.onnx_file` and `prune.pruned_file` must be writable output paths. These are declared in `references/skill_info.yaml` so SDK-backed model runs can create the paths automatically.
 
