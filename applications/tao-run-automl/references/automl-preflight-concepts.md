@@ -33,18 +33,21 @@ Multi-node per rec works on SLURM and K8s (each rec is an N-node distributed tra
 
 ## Preflight
 
-This skill needs `nvidia-tao-automl` (which pulls `nvidia-tao-sdk` as a transitive dep). Neither package is published to public PyPI yet — install directly from the NVIDIA GitLab repo using a `pip` direct-URL with the platform extra you want:
+This skill needs `nvidia-tao-automl`, which pulls `nvidia-tao-sdk` as a
+transitive dependency. Both packages are pinned in `versions.yaml` under
+`wheels:`. Resolve the selected platform extra with
+`scripts/resolve_versions_key.py`:
 
 ```bash
 python -c "import tao_automl" 2>/dev/null || {
-  REPO='git+https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-run-automl.git'
+  SB="${TAO_SKILL_BANK_PATH:-~/tao-skills-external}"
   echo "MISSING: nvidia-tao-automl not installed. Pick the platform extra you need:"
-  echo "  pip install \"nvidia-tao-automl[slurm] @ \$REPO\"       # on-prem SLURM cluster"
-  echo "  pip install \"nvidia-tao-automl[kubernetes] @ \$REPO\"  # K8s (EKS / GKE / on-prem)"
-  echo "  pip install \"nvidia-tao-automl[docker] @ \$REPO\"      # local Docker daemon"
-  echo "  pip install \"nvidia-tao-automl[brev] @ \$REPO\"        # Brev GPU instances"
-  echo "  pip install \"nvidia-tao-automl[all] @ \$REPO\"         # all platforms"
-  echo "  REPO=$REPO"
+  echo "  pip install \"$($SB/scripts/resolve_versions_key.py wheels.tao_automl_slurm)\"       # on-prem SLURM cluster"
+  echo "  pip install \"$($SB/scripts/resolve_versions_key.py wheels.tao_automl_kubernetes)\"  # K8s (EKS / GKE / on-prem)"
+  echo "  pip install \"$($SB/scripts/resolve_versions_key.py wheels.tao_automl_docker)\"      # local Docker daemon"
+  echo "  pip install \"$($SB/scripts/resolve_versions_key.py wheels.tao_automl_brev)\"        # Brev GPU instances"
+  echo "  pip install \"$($SB/scripts/resolve_versions_key.py wheels.tao_automl_all)\"         # all platforms"
+  echo "  (append ,llm or ,wandb to the extra only when needed)"
   exit 1
 }
 ```
@@ -104,12 +107,13 @@ Before running AutoML:
    **CRITICAL**: AutoML requires a packaged generated train dataclass schema at `<bank-root>/models/<network>/schemas/train.schema.json`. The schema must exist and parse as JSON — it's the AutoML support gate because it defines `automl_enabled` parameters, defaults, ranges, options, weights, and popular metadata. Schemas are generated during skill-bank maintenance and shipped with the plugin; the runtime must not expect `~/tao-core` to exist. If the packaged train schema is missing, do not run AutoML for that model.
 
    `references/spec_template_<action>.yaml` is required for **non-TAO-Core models** (cosmos-rl, clip, etc.) — without it the runner has no defaults and the trial spec will be missing keys. For **TAO Core / Hydra-based models** (DINO, BEVFusion, etc.) the template is optional; Hydra fills container-side defaults at runtime.
-4. **`nvidia-tao-automl` installed** with the platform extra you want. Not on public PyPI yet — install from the GitLab repo via `pip` direct-URL:
+4. **`nvidia-tao-automl` installed** with the platform extra you want. Resolve
+   the pinned install command from `versions.yaml`:
    ```bash
-   REPO='git+https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-run-automl.git'
-   pip install "nvidia-tao-automl[brev] @ $REPO"        # or [slurm], [kubernetes], [docker], [all]
-   # With LLM/agentic algorithms:
-   pip install "nvidia-tao-automl[brev,llm] @ $REPO"
+   SB="${TAO_SKILL_BANK_PATH:-~/tao-skills-external}"
+   pip install "$($SB/scripts/resolve_versions_key.py wheels.tao_automl_brev)"   # or _slurm, _kubernetes, _docker, _all
+   # With LLM/agentic algorithms, append ,llm to the resolved extra:
+   pip install "$($SB/scripts/resolve_versions_key.py wheels.tao_automl_brev | sed 's/]/,llm]/')"
    ```
    For local development against a checkout: `pip install -e '~/tao-run-automl[brev]'`.
 

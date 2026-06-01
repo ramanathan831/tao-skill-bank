@@ -24,7 +24,7 @@ Load this file only when the compact `SKILL.md` points here for the current task
 - WandB Experiment Tracking
 - Setup
 - or (when reinstalling tao-run-automl with the wandb extra):
-- pip install "nvidia-tao-automl[wandb] @ git+https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-run-automl.git"
+- `pip install "$(${TAO_SKILL_BANK_PATH:?}/scripts/resolve_versions_key.py wheels.tao_automl_brev | sed 's/]/,wandb]/')"`
 - How it works
 - Minimal WandB setup
 - Option 1: via config dict
@@ -246,7 +246,7 @@ AutoML optionally integrates with [Weights & Biases](https://wandb.ai) to track 
 ```bash
 pip install wandb
 # or (when reinstalling tao-run-automl with the wandb extra):
-#   pip install "nvidia-tao-automl[wandb] @ git+https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-run-automl.git"
+#   pip install "$("${TAO_SKILL_BANK_PATH:?}/scripts/resolve_versions_key.py" wheels.tao_automl_brev | sed 's/]/,wandb]/')"
 ```
 
 ### How it works

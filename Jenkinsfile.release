@@ -17,7 +17,7 @@
 //   COSMOS_PREDICT_TAG      full image URI for images.tao_toolkit.cosmos_predict
 //   COSMOS_EMBED_TAG        full image URI for images.tao_toolkit.cosmos_embed
 //   VILA_TAG                full image URI for images.tao_toolkit.vila
-//   SDK_VERSION             bare PEP 440 version (e.g. "0.2.0"); applied to the
+//   SDK_VERSION             bare PEP 440 version (e.g. "0.2.0"); applied to all
 //                           nvidia-tao-sdk wheel entries (tao_sdk,
 //                           tao_sdk_brev, tao_sdk_all)
 //

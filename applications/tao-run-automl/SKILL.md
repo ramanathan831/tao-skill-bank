@@ -56,21 +56,24 @@ credentials, image choice, and compute shape are all proven.
 1. Run the shared launch intake. If the user has not chosen a platform, ask;
    Brev, SLURM, Kubernetes, and Docker are equal peers.
 2. Run the selected platform skill's preflight before generating runner files.
-3. Verify `nvidia-tao-automl` imports with the selected platform extra:
+3. Verify `nvidia-tao-automl` imports:
 
 ```bash
 python -c "import tao_automl; from tao_automl.runner import AutoMLRunner; print('OK')"
 ```
 
-If missing, show the exact install command and ask before installing:
+If missing, show the exact install command from `versions.yaml` and ask before
+installing:
 
 ```bash
-REPO='git+https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-run-automl.git'
-pip install "nvidia-tao-automl[<platform>] @ $REPO"
+SB="${TAO_SKILL_BANK_PATH:-~/tao-skills-external}"
+pip install "$($SB/scripts/resolve_versions_key.py wheels.tao_automl_<platform>)"
 ```
 
-Use `[all]` only for development machines that need every backend. Add `,llm`
-only when the user requests LLM-guided algorithms.
+Valid platform wheel keys are `tao_automl_brev`, `tao_automl_slurm`,
+`tao_automl_kubernetes`, `tao_automl_docker`, and `tao_automl_all`. Use
+`all` only for development machines that need every backend. Add `,llm` only
+when the user requests LLM-guided algorithms.
 
 ## Model Support Gate
 

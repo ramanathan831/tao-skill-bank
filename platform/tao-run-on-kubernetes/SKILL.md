@@ -47,16 +47,16 @@ if [ "${TAO_K8S_SKIP_NODE_RUNTIME_CHECK:-0}" != "1" ]; then
 fi
 
 # 1. SDK + kubernetes extra installed.
-# nvidia-tao-sdk is not on public PyPI yet — install from the GitLab repo:
-REPO='git+https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-sdk.git'
+# nvidia-tao-sdk is on public PyPI; pin lives in versions.yaml (wheels.tao_sdk_kubernetes).
+PIN=$("${TAO_SKILL_BANK_PATH:?}/scripts/resolve_versions_key.py" wheels.tao_sdk_kubernetes)
 python -c "import tao_sdk" 2>/dev/null || {
   echo "MISSING: nvidia-tao-sdk not installed. Run:"
-  echo "  pip install \"nvidia-tao-sdk[kubernetes] @ $REPO\""
+  echo "  pip install \"$PIN\""
   exit 1
 }
 python -c "import kubernetes" 2>/dev/null || {
   echo "MISSING: kubernetes extra not installed. Run:"
-  echo "  pip install \"nvidia-tao-sdk[kubernetes] @ $REPO\""
+  echo "  pip install \"$PIN\""
   exit 1
 }
 
