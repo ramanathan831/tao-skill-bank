@@ -120,14 +120,14 @@ ONNX_FILE = "/results/{export_job_id}/results_dir/rtdetr.onnx"
 ```python
 {
     "dataset.num_classes": "<num_classes> + 1",
+    "quantize.backend": "torchao",
+    "quantize.mode": "weight_only_ptq",
+    "quantize.algorithm": "minmax",
     "quantize.layers": [
         {
             "module_name": "*",
             "weights": {
-                "dtype": "float8_e4m3fn"
-            },
-            "activations": {
-                "dtype": "float8_e4m3fn"
+                "dtype": "int8"
             }
         }
     ],
@@ -244,6 +244,8 @@ tensor b (...)` in `hybrid_encoder.py` positional embedding addition.
 **AutoML metric extraction**: RT-DETR train logs report validation detection metrics as `mAP50`/`Validation mAP50`. Default AutoML train launches must optimize `mAP50` with `direction: maximize`; do not optimize `val_loss` for default model invocations.
 
 **Checkpoint handoff**: For evaluate/export/inference/quantize/distill/resume, use the checkpoint resolver on the best AutoML child job's `results_dir/train/` folder and select the action-appropriate `model_epoch_*.pth` checkpoint. RT-DETR may also write a latest symlink, but that should only be used when a caller explicitly requests latest. Keep `dataset.num_classes`, `dataset.eval_class_ids`, `model.num_queries`, and `model.num_select` consistent with training.
+
+**Quantize layer config**: The packaged default quantize path is `torchao` `weight_only_ptq`. For this path, use a weights-only layer override such as `weights.dtype: int8`; do not add activation dtype entries unless the selected quantization mode and backend explicitly require activation quantization.
 
 **Parent `rtdetr gen_trt_engine` rejected by the PyT CLI**: In the validated 7.0.0 PyT container, `rtdetr gen_trt_engine` is not a valid parent-model subtask. Use the RT-DETR deploy sub-skill (`deploy/SKILL.md`) for TensorRT engine generation, TensorRT evaluation, and TensorRT inference.
 

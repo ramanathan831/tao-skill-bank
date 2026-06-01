@@ -142,6 +142,8 @@ Model-specific notes:
 
 **Unsupported `gen_trt_engine.input_width` / `gen_trt_engine.input_height`:** These fields are valid on deploy `evaluate` and `inference`, but not on deploy `gen_trt_engine`. Leaving them in the engine template causes Hydra schema rejection before TensorRT starts.
 
+**Successful status recorded as RUNNING:** Some TAO Deploy RT-DETR commands can append a success message to `status.json` with status `RUNNING` instead of `PASS`. When the process exits 0 and the log says `finished successfully`, verify the expected artifact or `results.json` before marking the action failed only from the status field.
+
 **INT8 calibration missing:** INT8 builds need an extracted calibration image directory, a writable cache path, and enough images for `cal_batch_size * cal_batches`.
 
 **Mounted paths do not exist:** TAO Deploy checks local paths inside the container. Make sure every path in the spec has a matching Docker mount or job artifact mapping.
