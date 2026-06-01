@@ -238,13 +238,17 @@ S3_EVAL = "aws://bucket/data/eval"
     "export.input_channel": 3,
     "export.input_height": 518,
     "export.input_width": 518,
-    "export.opset_version": 16,
+    "export.opset_version": 17,
     "export.on_cpu": False,
     "export.gpu_id": 0,
 }
 ```
 
-Defaults sourced from `nvidia_tao_pytorch/cv/depth_net/experiment_specs/experiment_mono_relative.yaml` (export block). Override only when the deployment target requires a different ONNX shape, opset, or export device.
+Packaged export and deploy templates default to the generic square mono crop
+(`518x518`). Override `export.input_height`, `export.input_width`, and
+`dataset.{test,infer}_dataset.augmentation.crop_size` together when the
+deployment target requires a different static ONNX shape. Keep every spatial
+dimension divisible by the ViT patch size (`14`).
 
 **inference (mandatory data sources):**
 ```python
