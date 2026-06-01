@@ -7,7 +7,7 @@ data_format: msrvtt
 gpu_spec_key: train.num_gpus
 actions:
   train:
-    command: bash -lc 'python -m pip install "protobuf<7" && cosmos-embed1 train -e {config_path}'
+    command: bash -lc 'PIP_CONSTRAINT= python -m pip install "protobuf>=4.25.1,<7" && cosmos-embed1 train -e {config_path}'
     config_format: yaml
     mode: config
     inputs:
@@ -28,7 +28,7 @@ actions:
     upload_excludes:
     - inputs/
   evaluate:
-    command: bash -lc 'python -m pip install "protobuf<7" && cosmos-embed1 evaluate -e {config_path}'
+    command: bash -lc 'PIP_CONSTRAINT= python -m pip install "protobuf>=4.25.1,<7" && cosmos-embed1 evaluate -e {config_path}'
     config_format: yaml
     mode: config
     inputs:
@@ -44,7 +44,7 @@ actions:
     upload_excludes:
     - inputs/
   inference:
-    command: bash -lc 'python -m pip install "protobuf<7" && cosmos-embed1 inference -e {config_path}'
+    command: bash -lc 'PIP_CONSTRAINT= python -m pip install "protobuf>=4.25.1,<7" && cosmos-embed1 inference -e {config_path}'
     config_format: yaml
     mode: config
     inputs:
@@ -60,7 +60,7 @@ actions:
     upload_excludes:
     - inputs/
   export:
-    command: bash -lc 'python -m pip install "protobuf<7" && cosmos-embed1 export -e {config_path}'
+    command: bash -lc 'PIP_CONSTRAINT= python -m pip install "protobuf>=4.25.1,<7" && cosmos-embed1 export -e {config_path}'
     config_format: yaml
     mode: config
     inputs:

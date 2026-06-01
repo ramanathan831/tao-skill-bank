@@ -107,30 +107,30 @@ For Cosmos-Embed images that ship `protobuf==7.x`, run a small startup
 preamble before every action:
 
 ```bash
-python -m pip install "protobuf<7"
+PIP_CONSTRAINT= python -m pip install "protobuf>=4.25.1,<7"
 ```
 
-The image contains `wandb==0.21.0` with `protobuf==7.x`; importing W&B fails before training/evaluation unless protobuf is pinned below 7. Use `WANDB_DISABLED=true` and `WANDB_MODE=disabled` for smoke or offline runs. Cosmos-Embed may still download the public `google-bert/bert-base-uncased` Q-Former component even when the model checkpoint is disabled, so pass `HF_TOKEN` as an environment variable or mount a persistent HuggingFace cache. Do not write the token into specs, logs, or reports.
+The image contains `wandb==0.21.0` with `protobuf==7.x`; importing W&B fails before training/evaluation unless protobuf is pinned below 7. Keep the lower bound at `4.25.1` or newer so ONNX export also satisfies the packaged `onnx` dependency. Use `WANDB_DISABLED=true` and `WANDB_MODE=disabled` for smoke or offline runs. Cosmos-Embed may still download the public `google-bert/bert-base-uncased` Q-Former component even when the model checkpoint is disabled, so pass `HF_TOKEN` as an environment variable or mount a persistent HuggingFace cache. Do not write the token into specs, logs, or reports.
 
 Train:
 
 ```bash
 docker run "${DOCKER_COMMON[@]}" "$COSMOS_EMBED_IMAGE" \
-  bash -lc "python -m pip install 'protobuf<7' && cosmos-embed1 train -e /specs/train.yaml results_dir=/results"
+  bash -lc "PIP_CONSTRAINT= python -m pip install 'protobuf>=4.25.1,<7' && cosmos-embed1 train -e /specs/train.yaml results_dir=/results"
 ```
 
 Evaluate:
 
 ```bash
 docker run "${DOCKER_COMMON[@]}" "$COSMOS_EMBED_IMAGE" \
-  bash -lc "python -m pip install 'protobuf<7' && cosmos-embed1 evaluate -e /specs/evaluate.yaml results_dir=/results"
+  bash -lc "PIP_CONSTRAINT= python -m pip install 'protobuf>=4.25.1,<7' && cosmos-embed1 evaluate -e /specs/evaluate.yaml results_dir=/results"
 ```
 
 Inference:
 
 ```bash
 docker run "${DOCKER_COMMON[@]}" "$COSMOS_EMBED_IMAGE" \
-  bash -lc "python -m pip install 'protobuf<7' && cosmos-embed1 inference -e /specs/inference.yaml \
+  bash -lc "PIP_CONSTRAINT= python -m pip install 'protobuf>=4.25.1,<7' && cosmos-embed1 inference -e /specs/inference.yaml \
   'inference.query.input_texts=[\"a man is singing on stage\"]' \
   inference.k=5 \
   results_dir=/results"
@@ -140,7 +140,7 @@ Export ONNX:
 
 ```bash
 docker run "${DOCKER_COMMON[@]}" "$COSMOS_EMBED_IMAGE" \
-  bash -lc "python -m pip install 'protobuf<7' && cosmos-embed1 export -e /specs/export_onnx.yaml \
+  bash -lc "PIP_CONSTRAINT= python -m pip install 'protobuf>=4.25.1,<7' && cosmos-embed1 export -e /specs/export_onnx.yaml \
   export.checkpoint=/results/train/checkpoints/iter_000000001.pt \
   export.onnx_file=/results/export/cosmos_embed1_combined.onnx \
   results_dir=/results"
@@ -150,7 +150,7 @@ Export HuggingFace format:
 
 ```bash
 docker run "${DOCKER_COMMON[@]}" "$COSMOS_EMBED_IMAGE" \
-  bash -lc "python -m pip install 'protobuf<7' && cosmos-embed1 export -e /specs/export_hf.yaml \
+  bash -lc "PIP_CONSTRAINT= python -m pip install 'protobuf>=4.25.1,<7' && cosmos-embed1 export -e /specs/export_hf.yaml \
   export.checkpoint=/results/train/checkpoints/iter_000000001.pt \
   export.hf_output_dir=/results/export_hf/cosmos_embed1_hf \
   results_dir=/results"
@@ -306,7 +306,7 @@ results/
 |---|---|---|
 | `MSRVTTDataset: 0 videos found` | `mp4_urls` is not a local glob or metadata filenames do not match videos. | Mount data into the container and set `mp4_urls=/data/video/*.mp4`. |
 | HF download/auth failure | Missing or invalid `HF_TOKEN`, or model agreement not accepted. | Accept the model terms and pass `-e HF_TOKEN`. |
-| `cannot import name 'Imports' from 'wandb.proto.wandb_telemetry_pb2'` | `wandb==0.21.0` in the container is incompatible with `protobuf==7.x`. | Run `python -m pip install "protobuf<7"` in the container before invoking `cosmos-embed1`. |
+| `cannot import name 'Imports' from 'wandb.proto.wandb_telemetry_pb2'` | `wandb==0.21.0` in the container is incompatible with `protobuf==7.x`. | Run `PIP_CONSTRAINT= python -m pip install "protobuf>=4.25.1,<7"` in the container before invoking `cosmos-embed1`. |
 | Resume fails with `Model does not implement 'apply_fsdp'` | Single-GPU resume loaded a consolidated checkpoint while `model.fsdp_shard_size` stayed at the default 8. | Set `model.fsdp_shard_size=1` for local single-GPU resume/retrain. |
 | LoRA injection failure | Transformer Engine visual encoder is enabled. | Set `model.network.visual_encoder.transformer_engine=false`. |
 | ONNX/HF export complains about missing components | Export checkpoint is partial or adapter-only. | Use a full checkpoint or configure pretrained visual/text sources before export. |
