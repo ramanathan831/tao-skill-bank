@@ -24,6 +24,10 @@ Visual ChangeNet deploy covers the TAO Deploy actions for an exported visual cha
 Supported actions: `gen_trt_engine`, `evaluate`, `inference`.
 Visual ChangeNet has separate classify and segment deploy spec variants for each action.
 Direct TAO Deploy command name: `visual_changenet`.
+The parent model skill packages classify export but does not package a
+`segment_export` action. Run segment deploy variants only when the user supplies
+a compatible segment ONNX artifact; do not synthesize a segment ONNX from a
+checkpoint or reuse a classify ONNX for segment deploy.
 
 ## Quick Start
 
@@ -71,6 +75,10 @@ docker run --gpus all --rm --shm-size=16g \
 ```
 
 ### Segment Variant
+
+Use the segment deploy variant only with an existing segment ONNX artifact.
+The packaged parent skill currently exposes segment train/evaluate/inference,
+but not segment export.
 
 #### Generate TensorRT Engine
 

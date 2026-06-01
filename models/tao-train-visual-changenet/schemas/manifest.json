@@ -144,6 +144,15 @@
       "schema_action": "evaluate",
       "spec_template": "references/spec_template_evaluate.yaml"
     },
+    "export": {
+      "automl_default_parameters": [],
+      "automl_disabled_parameters": [],
+      "core_module": "visual_changenet",
+      "path": "schemas/export.schema.json",
+      "popular": {},
+      "schema_action": "export",
+      "spec_template": "references/spec_template_export.yaml"
+    },
     "inference": {
       "automl_default_parameters": [
         "dataset.classify.augmentation_config.augment",
@@ -287,6 +296,15 @@
       },
       "schema_action": "inference",
       "spec_template": "references/spec_template_inference.yaml"
+    },
+    "quantize": {
+      "automl_default_parameters": [],
+      "automl_disabled_parameters": [],
+      "core_module": "visual_changenet",
+      "path": "schemas/quantize.schema.json",
+      "popular": {},
+      "schema_action": "quantize",
+      "spec_template": "references/spec_template_quantize.yaml"
     },
     "segment_evaluate": {
       "automl_default_parameters": [

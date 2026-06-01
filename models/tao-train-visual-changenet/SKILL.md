@@ -52,9 +52,11 @@ Generated TAO Core schemas are packaged in `schemas/<action>.schema.json`, with 
 This model is AutoML-enabled at the model layer. Before handling any train-stage request, read `references/skill_info.yaml` and resolve the run override from either an explicit `automl_policy` value or the user's workflow request. Use `automl_policy: on` by default and only expose `on` / `off` in new launch prompts. Treat phrases like "turn off AutoML", "disable AutoML", "no HPO", or "plain training" as `automl_policy: off` for this run only. When `automl_policy: on`, `automl_enabled: true`, and both `schemas/train.schema.json` and `references/spec_template_train.yaml` are packaged, route the train action through `tao-skill-bank:tao-run-automl` by default with this model's `skill_dir`. Preserve workflow/application overrides for datasets, specs, output directories, GPU/platform settings, parent checkpoints, and `automl_policy`. Use direct model training only when `automl_policy: off` or the packaged train schema/template is missing; in the missing-schema case, report that AutoML is enabled but not runnable for this model until schemas are generated.
 
 Non-train actions declared by this model skill (`evaluate`, `inference`,
-`export`, `quantize`, `segment_evaluate`, and `segment_inference`) stay in this
-model skill. Do not present `segment_export` or `segment_quantize` as runnable
-parent-skill actions until matching entries are packaged in
+classify `export`, classify `quantize`, `segment_evaluate`, and
+`segment_inference`) stay in this model skill. `segment_train` is also a
+packaged action, but it maps to the TAO CLI `train` subcommand with
+`task: segment`. Do not present `segment_export` or `segment_quantize` as
+runnable parent-skill actions until matching entries are packaged in
 `schemas/manifest.json`. Prune and retrain are not declared in the current
 parent `references/skill_info.yaml`; do not present them as runnable parent-skill
 actions unless the metadata is extended with matching action wiring and schemas.
@@ -163,18 +165,15 @@ S3_EVAL = "s3://bucket/data/eval"
 **export (classify):**
 ```python
 {
-    "export.input_height": 896,
-    "export.input_width": 224,
-}
-```
-
-**export (segment):**
-```python
-{
     "export.input_height": 224,
     "export.input_width": 224,
 }
 ```
+
+Segment export is not a packaged action in this skill. If a user needs segment
+TensorRT deployment, require a compatible segment ONNX artifact from outside the
+parent skill until `segment_export` is explicitly added to the action metadata
+and schemas.
 
 **quantize (classify, mandatory data sources):**
 ```python
@@ -212,13 +211,9 @@ S3_EVAL = "s3://bucket/data/eval"
 }
 ```
 
-**quantize (segment, mandatory data sources):**
-```python
-{
-    "dataset.segment.root_dir": f"{S3_TRAIN}",
-    "dataset.segment.quant_calibration_dataset.images_dir": f"{S3_TRAIN}",
-}
-```
+Segment quantize is not a packaged action in this skill. Do not map
+`dataset.segment.root_dir` into `quantize` unless `segment_quantize` is added to
+the action metadata and schemas.
 
 **evaluate (segment, mandatory data sources):**
 ```python
@@ -413,13 +408,15 @@ Set `dataset.classify.num_input` to match the number of lighting conditions. The
 
 ## Error Patterns
 
-**Checkpoint not found**: The evaluate, inference, export, and quantize actions
-require a valid checkpoint path. Current TAO 6.25.10 Visual ChangeNet training
-emits epoch/step checkpoint files such as `model_epoch_000_step_00012.pth`;
-it does not necessarily write `changenet_model_classify_latest.pth` or
-`changenet_model_segment_latest.pth`. Use the model-skill `parent_model`
-resolver for downstream actions and `resume_model` for resume, or pass the exact
-epoch/step checkpoint when running local Docker directly.
+**Checkpoint not found or wrong checkpoint selected**: The evaluate, inference,
+export, quantize, and resume paths require a valid checkpoint path. Visual
+ChangeNet training emits exact epoch/step checkpoint files such as
+`model_epoch_000_step_00012.pth` and may also write
+`changenet_model_classify_latest.pth` or `changenet_model_segment_latest.pth`.
+Use the model-skill `parent_model` resolver for downstream actions and
+`resume_model` for resume, or pass the exact epoch/step checkpoint when running
+local Docker directly. Do not use a `latest` symlink unless the user explicitly
+asked for latest-checkpoint behavior.
 
 **CSV format mismatch**: The classify CSV must have exactly four columns:
 `input_path`, `golden_path`, `label`, and `object_name`. Missing columns or

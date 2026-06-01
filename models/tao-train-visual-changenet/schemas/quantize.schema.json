@@ -1,0 +1,1134 @@
+{
+  "automl_default_parameters": [],
+  "automl_disabled_parameters": [],
+  "default": {
+    "dataset": {
+      "classify": {
+        "augmentation_config": {
+          "augment": false,
+          "rgb_input_mean": [
+            0.485,
+            0.456,
+            0.406
+          ],
+          "rgb_input_std": [
+            0.226,
+            0.226,
+            0.226
+          ]
+        },
+        "batch_size": 1,
+        "concat_type": "linear",
+        "fpratio_sampling": 0.1,
+        "grid_map": {
+          "x": 2,
+          "y": 2
+        },
+        "image_ext": ".jpg",
+        "image_height": 224,
+        "image_width": 224,
+        "infer_dataset": {
+          "csv_path": "",
+          "images_dir": ""
+        },
+        "input_map": {
+          "SolderLight": 0
+        },
+        "num_classes": 2,
+        "num_golden": 1,
+        "num_input": 1,
+        "quant_calibration_dataset": {
+          "images_dir": ""
+        },
+        "test_dataset": {
+          "csv_path": "",
+          "images_dir": ""
+        },
+        "train_dataset": {
+          "csv_path": "",
+          "images_dir": ""
+        },
+        "validation_dataset": {
+          "csv_path": "",
+          "images_dir": ""
+        },
+        "workers": 1
+      },
+      "segment": {
+        "annotation_folder_name": "label",
+        "batch_size": 1,
+        "change_image_folder_name": "B",
+        "data_name": "custom",
+        "dataset": "CNDataset",
+        "image_folder_name": "A",
+        "img_size": 224,
+        "label_suffix": ".png",
+        "label_transform": "norm",
+        "list_folder_name": "list",
+        "multi_scale_infer": false,
+        "multi_scale_train": true,
+        "num_classes": 2,
+        "predict_split": "test",
+        "quant_calibration_dataset": {
+          "images_dir": ""
+        },
+        "root_dir": "",
+        "shuffle": true,
+        "test_split": "test",
+        "train_split": "train",
+        "validation_split": "val",
+        "workers": 1
+      }
+    },
+    "encryption_key": "",
+    "model": {
+      "backbone": {
+        "freeze_backbone": false,
+        "pretrained_backbone_path": "",
+        "type": "c_radio_v2_vit_base_patch16_224"
+      },
+      "classify": {
+        "difference_module": "learnable",
+        "embed_dec": 30,
+        "embedding_vectors": 5,
+        "eval_margin": 0.3,
+        "learnable_difference_modules": 4,
+        "train_margin_euclid": 2.0
+      },
+      "decode_head": {
+        "feature_strides": [
+          4,
+          8,
+          16,
+          32
+        ],
+        "use_summary_token": true
+      }
+    },
+    "model_name": "",
+    "quantize": {
+      "algorithm": "minmax",
+      "backend": "torchao",
+      "backend_kwargs": {},
+      "device": "cuda",
+      "layers": [],
+      "mode": "weight_only_ptq",
+      "model_path": "???",
+      "results_dir": "",
+      "skip_names": []
+    },
+    "results_dir": "",
+    "task": "classify",
+    "train": {
+      "checkpoint_interval": 1,
+      "checkpoint_interval_unit": "epoch",
+      "classify": {
+        "cls_weight": [
+          1.0,
+          10.0
+        ],
+        "loss": "ce"
+      },
+      "cudnn": {
+        "benchmark": false,
+        "deterministic": true
+      },
+      "gpu_ids": [
+        0
+      ],
+      "num_epochs": 10,
+      "num_gpus": 1,
+      "num_nodes": 1,
+      "optim": {
+        "lr": 0.0001,
+        "momentum": 0.9,
+        "monitor_name": "val_loss",
+        "optim": "adamw",
+        "policy": "linear",
+        "weight_decay": 0.01
+      },
+      "precision": "32-true",
+      "pretrained_model_path": "",
+      "results_dir": "",
+      "resume_training_checkpoint_path": "",
+      "seed": 1234,
+      "segment": {
+        "loss": "ce",
+        "weights": [
+          0.5,
+          0.5,
+          0.5,
+          0.8,
+          1.0
+        ]
+      },
+      "sync_batchnorm": false,
+      "tensorboard": {
+        "enabled": false,
+        "infrequent_logging_frequency": 2
+      },
+      "use_distributed_sampler": false,
+      "validation_interval": 1
+    },
+    "wandb": {
+      "enable": false,
+      "entity": "",
+      "group": "",
+      "name": "TAO Toolkit Training",
+      "project": "TAO Toolkit",
+      "reinit": false,
+      "run_id": "",
+      "save_code": false,
+      "sync_tensorboard": false,
+      "tags": [
+        "tao-toolkit"
+      ]
+    }
+  },
+  "popular": {},
+  "properties": {
+    "dataset": {
+      "default": {
+        "classify": {
+          "augmentation_config": {
+            "augment": false,
+            "rgb_input_mean": [
+              0.485,
+              0.456,
+              0.406
+            ],
+            "rgb_input_std": [
+              0.226,
+              0.226,
+              0.226
+            ]
+          },
+          "batch_size": 1,
+          "concat_type": "linear",
+          "fpratio_sampling": 0.1,
+          "grid_map": {
+            "x": 2,
+            "y": 2
+          },
+          "image_ext": ".jpg",
+          "image_height": 224,
+          "image_width": 224,
+          "infer_dataset": {
+            "csv_path": "",
+            "images_dir": ""
+          },
+          "input_map": {
+            "SolderLight": 0
+          },
+          "num_classes": 2,
+          "num_golden": 1,
+          "num_input": 1,
+          "quant_calibration_dataset": {
+            "images_dir": ""
+          },
+          "test_dataset": {
+            "csv_path": "",
+            "images_dir": ""
+          },
+          "train_dataset": {
+            "csv_path": "",
+            "images_dir": ""
+          },
+          "validation_dataset": {
+            "csv_path": "",
+            "images_dir": ""
+          },
+          "workers": 1
+        },
+        "segment": {
+          "annotation_folder_name": "label",
+          "batch_size": 1,
+          "change_image_folder_name": "B",
+          "data_name": "custom",
+          "dataset": "CNDataset",
+          "image_folder_name": "A",
+          "img_size": 224,
+          "label_suffix": ".png",
+          "label_transform": "norm",
+          "list_folder_name": "list",
+          "multi_scale_infer": false,
+          "multi_scale_train": true,
+          "num_classes": 2,
+          "predict_split": "test",
+          "quant_calibration_dataset": {
+            "images_dir": ""
+          },
+          "root_dir": "",
+          "shuffle": true,
+          "test_split": "test",
+          "train_split": "train",
+          "validation_split": "val",
+          "workers": 1
+        }
+      },
+      "properties": {
+        "classify": {
+          "default": {
+            "augmentation_config": {
+              "augment": false,
+              "rgb_input_mean": [
+                0.485,
+                0.456,
+                0.406
+              ],
+              "rgb_input_std": [
+                0.226,
+                0.226,
+                0.226
+              ]
+            },
+            "batch_size": 1,
+            "concat_type": "linear",
+            "fpratio_sampling": 0.1,
+            "grid_map": {
+              "x": 2,
+              "y": 2
+            },
+            "image_ext": ".jpg",
+            "image_height": 224,
+            "image_width": 224,
+            "infer_dataset": {
+              "csv_path": "",
+              "images_dir": ""
+            },
+            "input_map": {
+              "SolderLight": 0
+            },
+            "num_classes": 2,
+            "num_golden": 1,
+            "num_input": 1,
+            "quant_calibration_dataset": {
+              "images_dir": ""
+            },
+            "test_dataset": {
+              "csv_path": "",
+              "images_dir": ""
+            },
+            "train_dataset": {
+              "csv_path": "",
+              "images_dir": ""
+            },
+            "validation_dataset": {
+              "csv_path": "",
+              "images_dir": ""
+            },
+            "workers": 1
+          },
+          "properties": {
+            "augmentation_config": {
+              "default": {
+                "augment": false,
+                "rgb_input_mean": [
+                  0.485,
+                  0.456,
+                  0.406
+                ],
+                "rgb_input_std": [
+                  0.226,
+                  0.226,
+                  0.226
+                ]
+              },
+              "properties": {
+                "augment": {
+                  "default": false,
+                  "type": "bool"
+                },
+                "rgb_input_mean": {
+                  "default": [
+                    0.485,
+                    0.456,
+                    0.406
+                  ],
+                  "type": "list"
+                },
+                "rgb_input_std": {
+                  "default": [
+                    0.226,
+                    0.226,
+                    0.226
+                  ],
+                  "type": "list"
+                }
+              },
+              "type": "collection"
+            },
+            "batch_size": {
+              "default": 1,
+              "type": "int"
+            },
+            "concat_type": {
+              "default": "linear",
+              "type": "string"
+            },
+            "fpratio_sampling": {
+              "default": 0.1,
+              "type": "float"
+            },
+            "grid_map": {
+              "default": {
+                "x": 2,
+                "y": 2
+              },
+              "properties": {
+                "x": {
+                  "default": 2,
+                  "type": "int"
+                },
+                "y": {
+                  "default": 2,
+                  "type": "int"
+                }
+              },
+              "type": "collection"
+            },
+            "image_ext": {
+              "default": ".jpg",
+              "type": "string"
+            },
+            "image_height": {
+              "default": 224,
+              "type": "int"
+            },
+            "image_width": {
+              "default": 224,
+              "type": "int"
+            },
+            "infer_dataset": {
+              "default": {
+                "csv_path": "",
+                "images_dir": ""
+              },
+              "properties": {
+                "csv_path": {
+                  "default": "",
+                  "type": "string"
+                },
+                "images_dir": {
+                  "default": "",
+                  "type": "string"
+                }
+              },
+              "type": "collection"
+            },
+            "input_map": {
+              "default": {
+                "SolderLight": 0
+              },
+              "properties": {
+                "SolderLight": {
+                  "default": 0,
+                  "type": "int"
+                }
+              },
+              "type": "collection"
+            },
+            "num_classes": {
+              "default": 2,
+              "type": "int"
+            },
+            "num_golden": {
+              "default": 1,
+              "type": "int"
+            },
+            "num_input": {
+              "default": 1,
+              "type": "int"
+            },
+            "quant_calibration_dataset": {
+              "default": {
+                "images_dir": ""
+              },
+              "properties": {
+                "images_dir": {
+                  "default": "",
+                  "type": "string"
+                }
+              },
+              "type": "collection"
+            },
+            "test_dataset": {
+              "default": {
+                "csv_path": "",
+                "images_dir": ""
+              },
+              "properties": {
+                "csv_path": {
+                  "default": "",
+                  "type": "string"
+                },
+                "images_dir": {
+                  "default": "",
+                  "type": "string"
+                }
+              },
+              "type": "collection"
+            },
+            "train_dataset": {
+              "default": {
+                "csv_path": "",
+                "images_dir": ""
+              },
+              "properties": {
+                "csv_path": {
+                  "default": "",
+                  "type": "string"
+                },
+                "images_dir": {
+                  "default": "",
+                  "type": "string"
+                }
+              },
+              "type": "collection"
+            },
+            "validation_dataset": {
+              "default": {
+                "csv_path": "",
+                "images_dir": ""
+              },
+              "properties": {
+                "csv_path": {
+                  "default": "",
+                  "type": "string"
+                },
+                "images_dir": {
+                  "default": "",
+                  "type": "string"
+                }
+              },
+              "type": "collection"
+            },
+            "workers": {
+              "default": 1,
+              "type": "int"
+            }
+          },
+          "type": "collection"
+        },
+        "segment": {
+          "default": {
+            "annotation_folder_name": "label",
+            "batch_size": 1,
+            "change_image_folder_name": "B",
+            "data_name": "custom",
+            "dataset": "CNDataset",
+            "image_folder_name": "A",
+            "img_size": 224,
+            "label_suffix": ".png",
+            "label_transform": "norm",
+            "list_folder_name": "list",
+            "multi_scale_infer": false,
+            "multi_scale_train": true,
+            "num_classes": 2,
+            "predict_split": "test",
+            "quant_calibration_dataset": {
+              "images_dir": ""
+            },
+            "root_dir": "",
+            "shuffle": true,
+            "test_split": "test",
+            "train_split": "train",
+            "validation_split": "val",
+            "workers": 1
+          },
+          "properties": {
+            "annotation_folder_name": {
+              "default": "label",
+              "type": "string"
+            },
+            "batch_size": {
+              "default": 1,
+              "type": "int"
+            },
+            "change_image_folder_name": {
+              "default": "B",
+              "type": "string"
+            },
+            "data_name": {
+              "default": "custom",
+              "type": "string"
+            },
+            "dataset": {
+              "default": "CNDataset",
+              "type": "string"
+            },
+            "image_folder_name": {
+              "default": "A",
+              "type": "string"
+            },
+            "img_size": {
+              "default": 224,
+              "type": "int"
+            },
+            "label_suffix": {
+              "default": ".png",
+              "type": "string"
+            },
+            "label_transform": {
+              "default": "norm",
+              "type": "string"
+            },
+            "list_folder_name": {
+              "default": "list",
+              "type": "string"
+            },
+            "multi_scale_infer": {
+              "default": false,
+              "type": "bool"
+            },
+            "multi_scale_train": {
+              "default": true,
+              "type": "bool"
+            },
+            "num_classes": {
+              "default": 2,
+              "type": "int"
+            },
+            "predict_split": {
+              "default": "test",
+              "type": "string"
+            },
+            "quant_calibration_dataset": {
+              "default": {
+                "images_dir": ""
+              },
+              "properties": {
+                "images_dir": {
+                  "default": "",
+                  "type": "string"
+                }
+              },
+              "type": "collection"
+            },
+            "root_dir": {
+              "default": "",
+              "type": "string"
+            },
+            "shuffle": {
+              "default": true,
+              "type": "bool"
+            },
+            "test_split": {
+              "default": "test",
+              "type": "string"
+            },
+            "train_split": {
+              "default": "train",
+              "type": "string"
+            },
+            "validation_split": {
+              "default": "val",
+              "type": "string"
+            },
+            "workers": {
+              "default": 1,
+              "type": "int"
+            }
+          },
+          "type": "collection"
+        }
+      },
+      "type": "collection"
+    },
+    "encryption_key": {
+      "default": "",
+      "type": "string"
+    },
+    "model": {
+      "default": {
+        "backbone": {
+          "freeze_backbone": false,
+          "pretrained_backbone_path": "",
+          "type": "c_radio_v2_vit_base_patch16_224"
+        },
+        "classify": {
+          "difference_module": "learnable",
+          "embed_dec": 30,
+          "embedding_vectors": 5,
+          "eval_margin": 0.3,
+          "learnable_difference_modules": 4,
+          "train_margin_euclid": 2.0
+        },
+        "decode_head": {
+          "feature_strides": [
+            4,
+            8,
+            16,
+            32
+          ],
+          "use_summary_token": true
+        }
+      },
+      "properties": {
+        "backbone": {
+          "default": {
+            "freeze_backbone": false,
+            "pretrained_backbone_path": "",
+            "type": "c_radio_v2_vit_base_patch16_224"
+          },
+          "properties": {
+            "freeze_backbone": {
+              "default": false,
+              "type": "bool"
+            },
+            "pretrained_backbone_path": {
+              "default": "",
+              "type": "string"
+            },
+            "type": {
+              "default": "c_radio_v2_vit_base_patch16_224",
+              "type": "string"
+            }
+          },
+          "type": "collection"
+        },
+        "classify": {
+          "default": {
+            "difference_module": "learnable",
+            "embed_dec": 30,
+            "embedding_vectors": 5,
+            "eval_margin": 0.3,
+            "learnable_difference_modules": 4,
+            "train_margin_euclid": 2.0
+          },
+          "properties": {
+            "difference_module": {
+              "default": "learnable",
+              "type": "string"
+            },
+            "embed_dec": {
+              "default": 30,
+              "type": "int"
+            },
+            "embedding_vectors": {
+              "default": 5,
+              "type": "int"
+            },
+            "eval_margin": {
+              "default": 0.3,
+              "type": "float"
+            },
+            "learnable_difference_modules": {
+              "default": 4,
+              "type": "int"
+            },
+            "train_margin_euclid": {
+              "default": 2.0,
+              "type": "float"
+            }
+          },
+          "type": "collection"
+        },
+        "decode_head": {
+          "default": {
+            "feature_strides": [
+              4,
+              8,
+              16,
+              32
+            ],
+            "use_summary_token": true
+          },
+          "properties": {
+            "feature_strides": {
+              "default": [
+                4,
+                8,
+                16,
+                32
+              ],
+              "type": "list"
+            },
+            "use_summary_token": {
+              "default": true,
+              "type": "bool"
+            }
+          },
+          "type": "collection"
+        }
+      },
+      "type": "collection"
+    },
+    "model_name": {
+      "default": "",
+      "type": "string"
+    },
+    "quantize": {
+      "default": {
+        "algorithm": "minmax",
+        "backend": "torchao",
+        "backend_kwargs": {},
+        "device": "cuda",
+        "layers": [],
+        "mode": "weight_only_ptq",
+        "model_path": "???",
+        "results_dir": "",
+        "skip_names": []
+      },
+      "properties": {
+        "algorithm": {
+          "default": "minmax",
+          "type": "string"
+        },
+        "backend": {
+          "default": "torchao",
+          "type": "string"
+        },
+        "backend_kwargs": {
+          "default": {},
+          "properties": {},
+          "type": "collection"
+        },
+        "device": {
+          "default": "cuda",
+          "type": "string"
+        },
+        "layers": {
+          "default": [],
+          "type": "list"
+        },
+        "mode": {
+          "default": "weight_only_ptq",
+          "type": "string"
+        },
+        "model_path": {
+          "default": "???",
+          "type": "string"
+        },
+        "results_dir": {
+          "default": "",
+          "type": "string"
+        },
+        "skip_names": {
+          "default": [],
+          "type": "list"
+        }
+      },
+      "type": "collection"
+    },
+    "results_dir": {
+      "default": "",
+      "type": "string"
+    },
+    "task": {
+      "default": "classify",
+      "type": "string"
+    },
+    "train": {
+      "default": {
+        "checkpoint_interval": 1,
+        "checkpoint_interval_unit": "epoch",
+        "classify": {
+          "cls_weight": [
+            1.0,
+            10.0
+          ],
+          "loss": "ce"
+        },
+        "cudnn": {
+          "benchmark": false,
+          "deterministic": true
+        },
+        "gpu_ids": [
+          0
+        ],
+        "num_epochs": 10,
+        "num_gpus": 1,
+        "num_nodes": 1,
+        "optim": {
+          "lr": 0.0001,
+          "momentum": 0.9,
+          "monitor_name": "val_loss",
+          "optim": "adamw",
+          "policy": "linear",
+          "weight_decay": 0.01
+        },
+        "precision": "32-true",
+        "pretrained_model_path": "",
+        "results_dir": "",
+        "resume_training_checkpoint_path": "",
+        "seed": 1234,
+        "segment": {
+          "loss": "ce",
+          "weights": [
+            0.5,
+            0.5,
+            0.5,
+            0.8,
+            1.0
+          ]
+        },
+        "sync_batchnorm": false,
+        "tensorboard": {
+          "enabled": false,
+          "infrequent_logging_frequency": 2
+        },
+        "use_distributed_sampler": false,
+        "validation_interval": 1
+      },
+      "properties": {
+        "checkpoint_interval": {
+          "default": 1,
+          "type": "int"
+        },
+        "checkpoint_interval_unit": {
+          "default": "epoch",
+          "type": "string"
+        },
+        "classify": {
+          "default": {
+            "cls_weight": [
+              1.0,
+              10.0
+            ],
+            "loss": "ce"
+          },
+          "properties": {
+            "cls_weight": {
+              "default": [
+                1.0,
+                10.0
+              ],
+              "type": "list"
+            },
+            "loss": {
+              "default": "ce",
+              "type": "string"
+            }
+          },
+          "type": "collection"
+        },
+        "cudnn": {
+          "default": {
+            "benchmark": false,
+            "deterministic": true
+          },
+          "properties": {
+            "benchmark": {
+              "default": false,
+              "type": "bool"
+            },
+            "deterministic": {
+              "default": true,
+              "type": "bool"
+            }
+          },
+          "type": "collection"
+        },
+        "gpu_ids": {
+          "default": [
+            0
+          ],
+          "type": "list"
+        },
+        "num_epochs": {
+          "default": 10,
+          "type": "int"
+        },
+        "num_gpus": {
+          "default": 1,
+          "type": "int"
+        },
+        "num_nodes": {
+          "default": 1,
+          "type": "int"
+        },
+        "optim": {
+          "default": {
+            "lr": 0.0001,
+            "momentum": 0.9,
+            "monitor_name": "val_loss",
+            "optim": "adamw",
+            "policy": "linear",
+            "weight_decay": 0.01
+          },
+          "properties": {
+            "lr": {
+              "default": 0.0001,
+              "type": "float"
+            },
+            "momentum": {
+              "default": 0.9,
+              "type": "float"
+            },
+            "monitor_name": {
+              "default": "val_loss",
+              "type": "string"
+            },
+            "optim": {
+              "default": "adamw",
+              "type": "string"
+            },
+            "policy": {
+              "default": "linear",
+              "type": "string"
+            },
+            "weight_decay": {
+              "default": 0.01,
+              "type": "float"
+            }
+          },
+          "type": "collection"
+        },
+        "precision": {
+          "default": "32-true",
+          "type": "string"
+        },
+        "pretrained_model_path": {
+          "default": "",
+          "type": "string"
+        },
+        "results_dir": {
+          "default": "",
+          "type": "string"
+        },
+        "resume_training_checkpoint_path": {
+          "default": "",
+          "type": "string"
+        },
+        "seed": {
+          "default": 1234,
+          "type": "int"
+        },
+        "segment": {
+          "default": {
+            "loss": "ce",
+            "weights": [
+              0.5,
+              0.5,
+              0.5,
+              0.8,
+              1.0
+            ]
+          },
+          "properties": {
+            "loss": {
+              "default": "ce",
+              "type": "string"
+            },
+            "weights": {
+              "default": [
+                0.5,
+                0.5,
+                0.5,
+                0.8,
+                1.0
+              ],
+              "type": "list"
+            }
+          },
+          "type": "collection"
+        },
+        "sync_batchnorm": {
+          "default": false,
+          "type": "bool"
+        },
+        "tensorboard": {
+          "default": {
+            "enabled": false,
+            "infrequent_logging_frequency": 2
+          },
+          "properties": {
+            "enabled": {
+              "default": false,
+              "type": "bool"
+            },
+            "infrequent_logging_frequency": {
+              "default": 2,
+              "type": "int"
+            }
+          },
+          "type": "collection"
+        },
+        "use_distributed_sampler": {
+          "default": false,
+          "type": "bool"
+        },
+        "validation_interval": {
+          "default": 1,
+          "type": "int"
+        }
+      },
+      "type": "collection"
+    },
+    "wandb": {
+      "default": {
+        "enable": false,
+        "entity": "",
+        "group": "",
+        "name": "TAO Toolkit Training",
+        "project": "TAO Toolkit",
+        "reinit": false,
+        "run_id": "",
+        "save_code": false,
+        "sync_tensorboard": false,
+        "tags": [
+          "tao-toolkit"
+        ]
+      },
+      "properties": {
+        "enable": {
+          "default": false,
+          "type": "bool"
+        },
+        "entity": {
+          "default": "",
+          "type": "string"
+        },
+        "group": {
+          "default": "",
+          "type": "string"
+        },
+        "name": {
+          "default": "TAO Toolkit Training",
+          "type": "string"
+        },
+        "project": {
+          "default": "TAO Toolkit",
+          "type": "string"
+        },
+        "reinit": {
+          "default": false,
+          "type": "bool"
+        },
+        "run_id": {
+          "default": "",
+          "type": "string"
+        },
+        "save_code": {
+          "default": false,
+          "type": "bool"
+        },
+        "sync_tensorboard": {
+          "default": false,
+          "type": "bool"
+        },
+        "tags": {
+          "default": [
+            "tao-toolkit"
+          ],
+          "type": "list"
+        }
+      },
+      "type": "collection"
+    }
+  },
+  "required": [
+    "quantize"
+  ],
+  "type": "object",
+  "x_tao_schema": {
+    "action": "quantize",
+    "core_module": "visual_changenet",
+    "model": "visual-changenet",
+    "network_arch": "visual-changenet",
+    "schema_action": "quantize",
+    "schema_version": 1,
+    "source": "packaged reference template"
+  }
+}

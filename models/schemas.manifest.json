@@ -339,7 +339,9 @@
     "tao-train-visual-changenet": {
       "actions": [
         "evaluate",
+        "export",
         "inference",
+        "quantize",
         "segment_evaluate",
         "segment_inference",
         "segment_train",
