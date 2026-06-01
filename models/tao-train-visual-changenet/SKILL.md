@@ -52,16 +52,18 @@ Generated TAO Core schemas are packaged in `schemas/<action>.schema.json`, with 
 This model is AutoML-enabled at the model layer. Before handling any train-stage request, read `references/skill_info.yaml` and resolve the run override from either an explicit `automl_policy` value or the user's workflow request. Use `automl_policy: on` by default and only expose `on` / `off` in new launch prompts. Treat phrases like "turn off AutoML", "disable AutoML", "no HPO", or "plain training" as `automl_policy: off` for this run only. When `automl_policy: on`, `automl_enabled: true`, and both `schemas/train.schema.json` and `references/spec_template_train.yaml` are packaged, route the train action through `tao-skill-bank:tao-run-automl` by default with this model's `skill_dir`. Preserve workflow/application overrides for datasets, specs, output directories, GPU/platform settings, parent checkpoints, and `automl_policy`. Use direct model training only when `automl_policy: off` or the packaged train schema/template is missing; in the missing-schema case, report that AutoML is enabled but not runnable for this model until schemas are generated.
 
 Non-train actions declared by this model skill (`evaluate`, `inference`,
-`export`, `quantize`, `segment_evaluate`, and `segment_inference`) stay in this
-model skill. Do not present `segment_export` or `segment_quantize` as runnable
-parent-skill actions until matching entries are packaged in
-`schemas/manifest.json`. Prune and retrain are not declared in the current
-parent `references/skill_info.yaml`; do not present them as runnable parent-skill
-actions unless the metadata is extended with matching action wiring and schemas.
-The per-run `automl_policy` override does not change model metadata.
+`export`, `quantize`, `segment_evaluate`, `segment_inference`, and
+`segment_export`) stay in this model skill. Do not present `segment_quantize` as
+a runnable parent-skill action until matching action wiring is packaged. Prune
+and retrain are not declared in the current parent `references/skill_info.yaml`;
+do not present them as runnable parent-skill actions unless the metadata is
+extended with matching action wiring and schemas. The per-run `automl_policy`
+override does not change model metadata.
 
 For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference` for classify and segment variants), read `deploy/SKILL.md` first. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
-Deploy requires an exported ONNX artifact as `parent_model`. If no ONNX artifact exists and the parent skill does not expose an export action, report deploy as blocked instead of inventing an artifact.
+Deploy requires an exported ONNX artifact as `parent_model`. Use `export` for
+classify checkpoints and `segment_export` for segment checkpoints before
+chaining into the deploy sub-skill.
 
 ## Training Requirements
 
@@ -290,13 +292,15 @@ Uses actions: `train`, `evaluate`, `inference`. Defaults template: `references/s
 
 ### Segment
 
-Uses skill action names `segment_train`, `segment_evaluate`, and
-`segment_inference`. When invoking local Docker directly, run TAO CLI subcommands
-`train`, `evaluate`, and `inference` with `task: segment` in the spec. The
-schema-driven action templates are `references/spec_template_segment_train.yaml`,
-`references/spec_template_segment_evaluate.yaml`, and
-`references/spec_template_segment_inference.yaml`; the compact direct-Docker
-example template is `references/spec_template_segment.yaml`.
+Uses skill action names `segment_train`, `segment_evaluate`,
+`segment_inference`, and `segment_export`. When invoking local Docker directly,
+run TAO CLI subcommands `train`, `evaluate`, `inference`, and `export` with
+`task: segment` in the spec. The schema-driven action templates are
+`references/spec_template_segment_train.yaml`,
+`references/spec_template_segment_evaluate.yaml`,
+`references/spec_template_segment_inference.yaml`, and
+`references/spec_template_segment_export.yaml`; the compact direct-Docker example
+template is `references/spec_template_segment.yaml`.
 
 Segmentation requires compiling custom CUDA ops (`MultiScaleDeformableAttention`) on first run, which takes ~5 minutes. The ViT adapter backbone uses these for multi-scale feature extraction.
 
@@ -486,5 +490,8 @@ Inference mappings from this model skill:
 | segment_evaluate | `evaluate.checkpoint` | `parent_model` | checkpoint inferred from parent train or AutoML child results |
 | segment_inference | `results_dir` | `output_dir` | current job results directory |
 | segment_inference | `inference.checkpoint` | `parent_model` | checkpoint inferred from parent train or AutoML child results |
+| segment_export | `results_dir` | `output_dir` | current job results directory |
+| segment_export | `export.checkpoint` | `parent_model` | checkpoint inferred from parent train or AutoML child results |
+| segment_export | `export.onnx_file` | `create_onnx_file` | ONNX artifact path created for deploy |
 
 For `parent_model` or `parent_model_folder`, pass the upstream train/export/AutoML child job id as `parent_job_id`. The SDK lists the parent result folder, filters checkpoint artifacts, and returns the selected model file or folder. Do not add these mappings back to `config.json` and do not patch generated runner scripts to guess checkpoint paths.
