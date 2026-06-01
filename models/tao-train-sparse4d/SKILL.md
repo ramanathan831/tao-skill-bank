@@ -152,7 +152,7 @@ CONVERTED = "s3://bucket/results/<dataset_convert_job_id>"
 }
 ```
 
-For local-docker runs, keep Sparse4D conversion rooted at `/data/aicity_root` and train/eval data roots at the converted split folder, for example `/data/aicity_root/train`. Mount the same host directory at `/data/aicity_root` for dataset_convert, train, evaluate, and inference; the converter extracts RGB frames there and writes those absolute frame paths into the pickle files. The annotations converter writes absolute RGB paths under the conversion root and relative depth paths under the split, so both mounts must stay stable across conversion and training. When `aicity.depth_format: h5`, normalize the converted pickle depth tuples before training if the H5 files live under `depth_maps/`:
+For local-docker runs, keep Sparse4D conversion rooted at `/data/aicity_root` and train/eval data roots at the converted split folder, for example `/data/aicity_root/train`. Mount the same host directory at `/data/aicity_root` for dataset_convert, train, evaluate, and inference; the converter extracts RGB frames there and writes those absolute frame paths into the pickle files. The annotations converter writes absolute RGB paths under the conversion root and relative depth paths under the split, so both mounts must stay stable across conversion and training. Launch the Data Services conversion container with GPU visibility in local Docker because the entrypoint may probe `nvidia-smi` before running the CPU-heavy conversion logic. When `aicity.depth_format: h5`, normalize the converted pickle depth tuples before training if the H5 files live under `depth_maps/`:
 
 ```bash
 models/sparse4d/scripts/normalize_depth_paths.py \
@@ -216,7 +216,7 @@ Optional. Val/test splits configured via dataset ann_file paths.
 - **model.backbone**: Backbone. Default resnet_101.
 - **model.neck.out_channels**: FPN output channels. Default 256. num_outs=4.
 - **model.input_shape**: Input image shape [W, H]. Default [1408, 512].
-- **model.head.num_output**: Number of detection output queries. Default 300.
+- **model.head.num_output**: Number of detection output queries. Template default 300; use 900 with the default 900-anchor instance bank when the resulting checkpoint must export.
 - **model.head.num_decoder**: Number of decoder layers. Default 6.
 - **model.head.temporal**: Enable temporal reasoning. Default True.
 - **model.head.instance_bank.num_anchor**: Instance bank anchors. Default 900.
@@ -282,15 +282,18 @@ converted `depth_map_path` tuples to point at
 
 **Temporal OOM**: Reduce dataset.num_frames or dataset.batch_size if running out of memory during temporal training.
 
-**Quantize image compatibility**: The model-skill wiring should pass
+**Quantize entrypoint compatibility**: The model-skill wiring should pass
 `quantize.model_path` through the parent-model resolver, and checkpoint handoff
 should select the exact epoch/step checkpoint just like evaluate, inference,
-export, and resume. TorchAO checkpoint quantization passes in the
-`validation-fixes-20260525` PyT image and writes
-`quantized_model_torchao.pth`. Older 7.0.0-rc PyT images may fail inside the
-Sparse4D quantize entrypoint or lack ONNX quantization dependencies; do not
-remove or skip the advertised `quantize` action if that occurs. Report the
-container/image failure and keep the exact checkpoint path visible.
+export, and resume. If quantization fails before backend execution with
+`Sparse4DPlModel.__init__() missing 1 required positional argument:
+'experiment_spec'`, the failure is in the toolkit Sparse4D quantize entrypoint:
+it is loading a TAO checkpoint with Lightning `load_from_checkpoint` using a
+`config` keyword instead of constructing `Sparse4DPlModel(experiment_spec)` or
+using the same state-dict loader as evaluate/inference/export. Do not mask this
+as a checkpoint-selection issue, do not switch to a latest-checkpoint symlink,
+and do not remove or skip the advertised `quantize` action. Report the
+entrypoint failure with the exact checkpoint path that was selected.
 
 ## Spec Param / Parent Model Inference
 
