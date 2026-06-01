@@ -4,6 +4,8 @@
       "actions": [
         "evaluate",
         "export",
+        "gen_trt_engine",
+        "inference",
         "train"
       ],
       "automl_enabled": true,

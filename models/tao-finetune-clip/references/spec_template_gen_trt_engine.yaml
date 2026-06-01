@@ -1,0 +1,91 @@
+dataset:
+  augmentation:
+    color_jitter:
+    - 0.8
+    - 0.32
+    - 0.32
+    - 0.32
+    - 0.08
+    grayscale: 0.2
+    scale:
+    - 0.4
+    - 1.0
+  pin_memory: true
+  seed: 42
+  train:
+    batch_size: 16
+    datasets: []
+    num_workers: 8
+    type: custom
+    wds:
+      samples_per_shard: 10000
+  val:
+    batch_size: 16
+    datasets: []
+    num_workers: 8
+encryption_key: ''
+gen_trt_engine:
+  batch_size: -1
+  gpu_id: 0
+  onnx_file: ${results_dir}/export/clip_model.onnx
+  results_dir: ''
+  tensorrt:
+    data_type: fp16
+    layers_precision: []
+    max_batch_size: 16
+    min_batch_size: 1
+    opt_batch_size: 1
+    workspace_size: 4096
+  timing_cache: ''
+  trt_engine: ${results_dir}/deploy/clip_model.engine
+  verbose: false
+model:
+  canonicalize_text: false
+  freeze_text_encoder: false
+  freeze_vision_encoder: false
+  image_size: 224
+  type: ViT-L-14-SigLIP-CLIPA-224
+model_name: clip
+results_dir: ''
+train:
+  checkpoint_interval: 1
+  checkpoint_interval_unit: epoch
+  cudnn:
+    benchmark: false
+    deterministic: true
+  distributed_strategy: ddp
+  gpu_ids:
+  - 0
+  grad_checkpointing: false
+  loss_type: siglip
+  num_epochs: 10
+  num_gpus: 1
+  num_nodes: 1
+  optim:
+    betas:
+    - 0.9
+    - 0.95
+    eps: 1.0e-06
+    optimizer_type: adamw
+    scheduler: cosine
+    text_lr: 0.0001
+    vision_lr: 0.0001
+    warmup_steps: 100
+    weight_decay: 0.0001
+  precision: fp16
+  results_dir: ''
+  resume_training_checkpoint_path: ''
+  seed: 1234
+  validation_interval: 1
+wandb:
+  enable: true
+  entity: ''
+  group: ''
+  name: TAO Toolkit Training
+  project: TAO Toolkit
+  reinit: false
+  run_id: ''
+  save_code: false
+  sync_tensorboard: false
+  tags:
+  - tao-toolkit

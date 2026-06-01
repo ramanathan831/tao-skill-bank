@@ -21,9 +21,11 @@ tags:
 
 Contrastive Language-Image Pre-training model for zero-shot and fine-tuned image classification, image-text retrieval, and embedding extraction. Fine-tuning adapts CLIP's shared image-text embedding space to domain-specific image-caption data.
 
-No default NGC pretrained checkpoint is required for spec construction, but unset checkpoint behavior is action-specific. In the validation-fixes PyTorch image, `export.checkpoint: null` exports the selected CLIP architecture and may initialize weights when pretrained weights are unavailable. Do not assume `inference.checkpoint: null` loads pretrained weights: `clip inference` currently calls the checkpoint loader with `None` and fails before embedding extraction. For PyTorch inference, checkpoint-backed evaluation/export, resume, and retrain flows, resolve and pass an exact checkpoint from the parent train output. For trusted TAO checkpoints produced by the current run or a known parent job, set `TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1` on checkpoint-dependent PyTorch actions so PyTorch 2.6 can load the Lightning checkpoint metadata; do not set this for untrusted checkpoints.
+No default NGC pretrained checkpoint is required for spec construction, but unset checkpoint behavior is action-specific. In current CLIP PyTorch containers, `export.checkpoint: null` exports the selected CLIP architecture and may initialize weights when pretrained weights are unavailable. Do not assume `inference.checkpoint: null` loads pretrained weights: `clip inference` calls the checkpoint loader with `None` and fails before embedding extraction. For PyTorch inference, checkpoint-backed evaluation/export, resume, and retrain flows, resolve and pass an exact checkpoint from the parent train output. For trusted TAO checkpoints produced by the current run or a known parent job, set `TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1` on checkpoint-dependent PyTorch actions so PyTorch 2.6 can load the Lightning checkpoint metadata; do not set this for untrusted checkpoints.
 
 Supported actions: `train`, `evaluate`, `inference`, `export`, `gen_trt_engine`.
+
+Generated action schemas are packaged in `schemas/<action>.schema.json`, with `schemas/manifest.json` listing the user-facing actions. Treat that manifest as the runnable action inventory; do not drop `inference` or deploy `gen_trt_engine` just because they are not AutoML actions.
 
 ## Train Action Policy
 
@@ -35,11 +37,11 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 
 ## Instructions
 
-Use this skill for NVIDIA TAO CLIP jobs: training, evaluation, embedding inference, ONNX export, and TensorRT engine generation. Start by identifying the requested action, then load only the referenced files needed for that action: `defaults.json` for default parameters, `config.json` for action/data-source wiring, `references/spec_template.yaml` for full spec shape, and `references/model_info.yaml` for SDK metadata.
+Use this skill for NVIDIA TAO CLIP jobs: training, evaluation, embedding inference, ONNX export, and TensorRT engine generation. Start by identifying the requested action, then load only the referenced files needed for that action: `schemas/manifest.json` for packaged action inventory, `references/skill_info.yaml` for action/data-source wiring, and the matching `references/spec_template_<action>.yaml` or `references/spec_template.yaml` for spec shape.
 
 For dataset-backed actions, collect the required image, caption, list, or prompt files from the user and place the resolved paths in `spec_overrides`. For local Docker runs, mount extracted folders in the container and point `image_dir` / `caption_dir` at those folders; if a data source provides `.tar.gz` archives, extract them before running the in-container CLIP commands. For `export` and `gen_trt_engine`, infer parent artifacts from the upstream job when available; otherwise require explicit checkpoint, ONNX, or engine paths. Run `gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference` in the TAO Deploy image.
 
-For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference`), read `deploy/SKILL.md` first. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
+For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference`), read `deploy/SKILL.md` first. Deploy spec templates live in this skill's `references/` folder.
 
 ## Training Requirements
 
@@ -163,7 +165,7 @@ Optional for training. If provided, validation metrics are computed at validatio
 
 The skill exposes `gen_trt_engine` as the deploy action. In generated SDK runners, use `model_info["actions"]["gen_trt_engine"]` and run it in the TAO Deploy image, not the PyTorch training image. The in-container command is `clip gen_trt_engine -e {config_path}`; direct TAO Launcher usage spells the same action as `tao deploy clip gen_trt_engine -e /path/to/spec.yaml`.
 
-TAO Deploy inference can discover combined engines, paired separate engines, or single-pillar `_vision.engine` / `_text.engine` files. For full TensorRT retrieval evaluation or image+text TensorRT inference, export with `export.encoder_type: separate` and run `clip gen_trt_engine` twice: build `clip_model_vision.onnx` to an engine ending in `_vision.engine`, then build `clip_model_text.onnx` to the matching `_text.engine` in the same directory. For image-only TensorRT inference, building only the `_vision.engine` is sufficient and `inference.text_file` must be `null`. TensorRT `evaluate` and text inference require a text-capable engine; if only a vision engine is present, deploy evaluation fails because text embeddings cannot be extracted.
+TAO Deploy inference can use combined engines, paired separate engines, or single-pillar `_vision.engine` / `_text.engine` files. For full TensorRT retrieval evaluation or image+text TensorRT inference, export with `export.encoder_type: separate` and run `clip gen_trt_engine` twice: build `clip_model_vision.onnx` to an engine ending in `_vision.engine`, then build `clip_model_text.onnx` to the matching `_text.engine` in the same directory. Point `evaluate.trt_engine` and `inference.trt_engine` at the `_vision.engine` file, not the directory, so deploy can find the sibling `_text.engine`, `*_config.yaml`, and tokenizer sidecar. For image-only TensorRT inference, building only the `_vision.engine` is sufficient and `inference.text_file` must be `null`. TensorRT `evaluate` and text inference require a text-capable engine; if only a vision engine is present, deploy evaluation fails because text embeddings cannot be extracted.
 
 Use `evaluate.trt_engine` for TensorRT evaluation and `inference.trt_engine` for TensorRT embedding extraction. These TensorRT paths also run in the TAO Deploy image. Direct TAO Launcher usage spells these as `tao deploy clip evaluate` and `tao deploy clip inference`.
 
@@ -212,6 +214,8 @@ caption files from labels as a separate data-preparation step.
 **PyTorch inference with null checkpoint**: If `clip inference` fails with `TypeError: expected str, bytes or os.PathLike object, not NoneType`, the spec did not provide `inference.checkpoint`. Use the exact resolved checkpoint from a parent train job for PyTorch inference, or use the export plus TensorRT image-only deploy path when no training checkpoint exists.
 
 **CLIP TensorRT text or retrieval failure**: Full TensorRT retrieval needs both `_vision.engine` and `_text.engine` artifacts in the same directory, or a combined engine. If `clip evaluate` fails with `Text engine not loaded`, build the matching text ONNX with `clip gen_trt_engine` before rerunning evaluation. If an older deploy image fails while parsing `input_ids` or `attention_mask`, fall back to image-only TensorRT inference with the `_vision.engine` and document text/retrieval deployment as blocked for that image.
+
+**No export config file found for TRT engine**: If deploy evaluation or inference reports that no `*_config.yaml` exists while the config file is present beside the engines, the spec likely points `evaluate.trt_engine` or `inference.trt_engine` at the engine directory. For separate CLIP engines, point to the `_vision.engine` file and keep `_text.engine`, `*_config.yaml`, and the tokenizer directory beside it.
 
 **attention_mask warning**: `attention_mask` is currently accepted by exported graphs for compatibility, but TAO ignores its values and may remove it in a future release. Do not build new direct-ONNX inference code that depends on mask values.
 

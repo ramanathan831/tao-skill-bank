@@ -25,6 +25,8 @@ Supported actions: `gen_trt_engine`, `evaluate`, `inference`.
 
 ## Quick Start
 
+Set `TAO_DEPLOY_IMAGE` from the environment or the packaged version resolver before running these direct Docker examples; do not bake a validation-only image tag into skill specs.
+
 ### Generate TensorRT Engine
 
 ```bash
@@ -32,7 +34,7 @@ docker run --gpus all --rm --shm-size=16g \
   -v /path/to/specs:/specs \
   -v /path/to/export:/models \
   -v /path/to/results:/results \
-  nvcr.io/nvidia/tao/tao-toolkit:6.26.3-deploy \
+  "$TAO_DEPLOY_IMAGE" \
   clip gen_trt_engine -e /specs/clip_deploy_gen_trt_engine.yaml
 ```
 
@@ -43,7 +45,7 @@ docker run --gpus all --rm --shm-size=16g \
   -v /path/to/specs:/specs \
   -v /path/to/eval:/data \
   -v /path/to/results:/results \
-  nvcr.io/nvidia/tao/tao-toolkit:6.26.3-deploy \
+  "$TAO_DEPLOY_IMAGE" \
   clip evaluate -e /specs/clip_deploy_evaluate.yaml
 ```
 
@@ -54,7 +56,7 @@ docker run --gpus all --rm --shm-size=16g \
   -v /path/to/specs:/specs \
   -v /path/to/inference:/data \
   -v /path/to/results:/results \
-  nvcr.io/nvidia/tao/tao-toolkit:6.26.3-deploy \
+  "$TAO_DEPLOY_IMAGE" \
   clip inference -e /specs/clip_deploy_inference.yaml
 ```
 
@@ -67,7 +69,7 @@ Deploy action metadata is in `skill_info.yaml`. Deploy spec templates live in th
 1. Train and export with the parent `clip` skill.
 2. Keep the exported ONNX artifact and any sidecar files together in the mounted model directory.
 3. Build the TensorRT engine with this sub-skill. For `export.encoder_type: separate`, run `gen_trt_engine` once for the `_vision.onnx` file and once for the matching `_text.onnx` file when text inference or retrieval evaluation is required.
-4. Run TensorRT `evaluate` or `inference` from the engine artifact produced by `gen_trt_engine`.
+4. Run TensorRT `evaluate` or `inference` from the engine artifact produced by `gen_trt_engine`. For paired separate engines, set `evaluate.trt_engine` or `inference.trt_engine` to the `_vision.engine` file and keep `_text.engine` beside it.
 
 Direct TAO Launcher spelling is `tao deploy clip gen_trt_engine`, `tao deploy clip evaluate`, `tao deploy clip inference`.
 
@@ -76,16 +78,16 @@ Direct TAO Launcher spelling is `tao deploy clip gen_trt_engine`, `tao deploy cl
 | Action | Required artifact or data | Spec key |
 |---|---|---|
 | `gen_trt_engine` | Exported ONNX model or ONNX bundle | `gen_trt_engine.onnx_file` |
-| `gen_trt_engine` | Output engine path or engine directory | `gen_trt_engine.trt_engine` |
-| `evaluate` | TensorRT engine path or directory | `evaluate.trt_engine` |
+| `gen_trt_engine` | Output engine path | `gen_trt_engine.trt_engine` |
+| `evaluate` | TensorRT engine path | `evaluate.trt_engine` |
 | `evaluate` | Validation image folder | `dataset.val.datasets[0].image_dir` |
 | `evaluate` | Validation caption folder | `dataset.val.datasets[0].caption_dir` |
-| `inference` | TensorRT engine path or directory | `inference.trt_engine` |
+| `inference` | TensorRT engine path | `inference.trt_engine` |
 | `inference` | Image datasets or text file | `inference.datasets / inference.text_file` |
 
 For direct Docker runs, mount input folders at the same paths used in the spec. For chained jobs, map exported ONNX artifacts into `gen_trt_engine.onnx_file` and map the engine artifact into `evaluate.trt_engine` or `inference.trt_engine` where those actions are available.
 
-TensorRT `evaluate` requires both image and text embeddings. Provide a combined engine, a directory containing paired separate engines, or an engine path ending in `_vision.engine` with a matching `_text.engine` beside it. A single `_vision.engine` is valid for image-only inference, but not for retrieval evaluation or text inference.
+TensorRT `evaluate` requires both image and text embeddings. Provide a combined engine, or provide an engine path ending in `_vision.engine` with a matching `_text.engine` beside it. A single `_vision.engine` is valid for image-only inference, but not for retrieval evaluation or text inference.
 
 ## Spec Overrides
 
@@ -106,7 +108,7 @@ Model-specific notes:
 
 - Keep CLIP sidecar artifacts next to the engine path because evaluate and inference load model configuration from the engine location.
 - For image-only inference, populate `inference.datasets` and leave `inference.text_file` unset.
-- For text inference or retrieval evaluation with separate export, build and keep paired `_vision.engine` and `_text.engine` files in the same directory.
+- For text inference or retrieval evaluation with separate export, build and keep paired `_vision.engine` and `_text.engine` files in the same directory, then point `evaluate.trt_engine` or `inference.trt_engine` at the `_vision.engine` file.
 
 ## Job Chain Mapping
 
@@ -121,7 +123,7 @@ Model-specific notes:
 
 | Action | Output |
 |---|---|
-| `gen_trt_engine` | TensorRT engine file or engine directory at `gen_trt_engine.trt_engine` |
+| `gen_trt_engine` | TensorRT engine file at `gen_trt_engine.trt_engine` |
 | `evaluate` | Retrieval metrics under `results_dir` |
 | `inference` | Image and/or text embeddings under `results_dir` |
 
@@ -129,7 +131,9 @@ Model-specific notes:
 
 **Engine profile mismatch:** Runtime batch size for evaluate or inference must fit within the TensorRT min/opt/max profile used during `gen_trt_engine`.
 
-**Text engine not loaded:** A retrieval evaluation or text inference run was pointed at a vision-only engine. Build the matching `_text.engine` from the exported text ONNX and keep it beside the `_vision.engine`, or point `evaluate.trt_engine` / `inference.trt_engine` at a directory containing the pair.
+**Text engine not loaded:** A retrieval evaluation or text inference run was pointed at a vision-only engine. Build the matching `_text.engine` from the exported text ONNX and keep it beside the `_vision.engine`, then point `evaluate.trt_engine` or `inference.trt_engine` at the `_vision.engine` file.
+
+**No export config file found:** A deploy run can fail this way when `evaluate.trt_engine` or `inference.trt_engine` points at a paired-engine directory. Point to the `_vision.engine` file instead, with `_text.engine`, `*_config.yaml`, and the tokenizer directory beside it.
 
 **Template class or shape mismatch:** Copy class count, input resolution, backbone, and post-processing settings from train/export before running TAO Deploy.
 
