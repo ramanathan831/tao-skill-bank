@@ -112,6 +112,17 @@ CAL_IMAGES = f"{SEG_TRAIN_ROOT}/images/train"
 {
     "dataset.segment.root_dir": SEG_TRAIN_ROOT,
     "dataset.segment.quant_calibration_dataset.images_dir": CAL_IMAGES,
+    "quantize.backend": "torchao",
+    "quantize.mode": "weight_only_ptq",
+    "quantize.algorithm": "minmax",
+    "quantize.layers": [
+        {
+            "module_name": "*",
+            "weights": {
+                "dtype": "int8"
+            }
+        }
+    ],
     "quantize.model_path": CHECKPOINT,
 }
 ```
@@ -167,6 +178,8 @@ Minimum 1 GPU(s), recommended 2 GPU(s). 16GB+ (V100 or A100) VRAM per GPU. SegFo
 **AutoML metric extraction**: SegFormer train status files report `val_miou` alongside `val_loss`, `val_acc`, and other validation KPIs. Default AutoML train launches must optimize `val_miou` with `direction: maximize`; do not optimize `val_loss` for default model invocations.
 
 **Checkpoint handoff**: For evaluate/export/inference/quantize/resume, use the checkpoint resolver on the best AutoML child job's `results_dir/train/` folder and select the action-appropriate `model_epoch_*.pth` checkpoint, such as `model_epoch_000_step_00010.pth`. SegFormer may also write `segformer_model_latest.pth`, but that should only be used when a caller explicitly requests latest. Preserve `dataset.segment.num_classes`, `dataset.segment.img_size`, and `dataset.segment.root_dir` overrides for downstream actions.
+
+**Quantize layer config**: The packaged default quantize path is `torchao` `weight_only_ptq`. For this path, use a weights-only layer override such as `weights.dtype: int8`; do not add activation dtype entries unless the selected quantization mode and backend explicitly require activation quantization.
 
 **Resume/retrain checkpoint**: Resume uses `train.resume_training_checkpoint_path`.
 Pass the exact resolved checkpoint from the previous train output, not a guessed

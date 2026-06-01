@@ -139,6 +139,8 @@ Model-specific notes:
 
 **INT8 calibration missing:** INT8 builds need an extracted calibration image directory, a writable cache path, and enough images for `cal_batch_size * cal_batches`.
 
+**Successful status recorded as RUNNING:** Some TAO Deploy SegFormer commands can append a success message to `status.json` with status `RUNNING` instead of `PASS`. When the process exits 0 and the log says `finished successfully`, verify the expected engine, metric, or inference artifacts before marking the action failed only from the status field.
+
 **Mounted paths do not exist:** TAO Deploy checks local paths inside the container. Make sure every path in the spec has a matching Docker mount or job artifact mapping.
 
 **Engine target path already exists as a directory:** If a local runner pre-creates `gen_trt_engine.trt_engine`, TensorRT cannot write the engine file. The deploy metadata should only declare `results_dir` as the output and use `gen_trt_engine.trt_engine: create_engine_file` in `spec_params`.
