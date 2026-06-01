@@ -78,6 +78,7 @@ spec_params:
     model.model_path: parent_model_folder
     results_dir: output_dir
   train:
+    results_dir: output_dir
     train.output_dir: output_dir
     train.resume: resume_model
 actions:
@@ -238,3 +239,4 @@ spec_shorthand_keys:
   mini_batch: train.train_policy.mini_batch
   weight_decay: train.optm_weight_decay
   warmup_epochs: train.optm_warmup_epochs
+  resume_checkpoint: train.resume

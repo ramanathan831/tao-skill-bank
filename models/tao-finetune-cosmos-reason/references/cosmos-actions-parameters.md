@@ -169,6 +169,16 @@ current resolver scans `step_*` checkpoint directories and can miss the
 launcher staging files under `inputs/`, or the broken `best` symlink itself as
 fine-tuned checkpoints for handoff.
 
+When extending a completed local run, verify the resumed trainer's printed
+`Step: current/total` and learning rate before using the new adapter as the
+best downstream checkpoint. In the current local image, resuming from an
+`epoch_N/policy` folder and increasing `train.epoch` can restore the old
+total-step scheduler state, then log steps such as `35/34` with a negative
+learning rate. Treat that as a resume-extension issue: the checkpoint restore
+itself is valid, but prefer the original resolver-selected best adapter for
+evaluate, inference, and quantize unless the resumed run shows a coherent
+step/learning-rate schedule.
+
 ### Validation
 - **validation.freq_in_epoch**: Run validation every N epochs. Too frequent slows training.
 
