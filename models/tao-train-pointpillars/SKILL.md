@@ -198,6 +198,15 @@ Minimum 1 GPU(s), recommended 4 GPU(s). 16GB+ (V100 or A100) VRAM per GPU. Point
 
 **Prune/retrain key**: PointPillars prune writes an encrypted `.tlt` artifact. Keep a non-empty `key` in the prune and retrain specs; the packaged templates use the TAO default `tlt_encode`. If `key` is omitted or `null`, the toolkit can still exit with a container success code while logging a passphrase error and creating an empty `pruned_0.1.tlt`. Always verify the pruned model is nonzero before using it for retrain.
 
+**Prune CUDA fork failure**: If `pointpillars prune` logs `Cannot
+re-initialize CUDA in forked subprocess`, set `dataset.num_workers: 0` in the
+prune spec and rerun. Prune runs voxel generation on CUDA while fetching a
+training batch; multiprocessing dataloader workers can initialize CUDA through
+`fork` and fail even though the container footer still prints `Execution status:
+PASS`. Keep `dataset.num_workers: 0` for minimal prune and pruned-retrain smoke
+runs unless the runtime is explicitly configured to use a CUDA-safe start
+method.
+
 **Status files matter**: Some PointPillars failures can be followed by `Execution status: PASS` in the entrypoint footer and a Docker exit code of 0. Check `results_dir/status.json` and the expected artifact before marking an action as passed.
 
 **Local results_dir wiring**: For direct local-Docker specs, set the top-level `results_dir` as well as any action-specific `*.results_dir` field. If only `evaluate.results_dir` is set and the top-level field is left blank, evaluate can try to write under `/opt/nvidia/eval` and then still print the generic PASS footer. Treat that as a failed action unless the expected result directory and status/artifact files exist.

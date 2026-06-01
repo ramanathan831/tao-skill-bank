@@ -142,4 +142,18 @@ Model-specific notes:
 
 **Mounted paths do not exist:** TAO Deploy checks local paths inside the container. Make sure every path in the spec has a matching Docker mount or job artifact mapping.
 
-**CPU NMS trap on smoke models:** If deploy `evaluate` or `inference` starts but emits no progress after Hydra startup, inspect the checkpoint quality and `model.post_processing.score_thresh`. A one-epoch smoke model can produce many high-scoring boxes; use a stricter threshold for validation-only runs and document the threshold in the report.
+**Deploy status verification:** Direct TAO Deploy PointPillars runs may not
+write a `status.json` file even when the action succeeds. Verify success from
+the action-specific artifact and log output: engine file for `gen_trt_engine`,
+`eval/result.pkl` for TensorRT evaluate, and `infer/result.pkl` or saved
+prediction files for TensorRT inference.
+
+**CPU NMS trap on smoke models:** If deploy `evaluate` or `inference` starts
+but emits no progress after Hydra startup, or fails in Shapely/GEOS with
+invalid `LinearRing`/polygon geometry, inspect the checkpoint quality and
+`model.post_processing.score_thresh`. A one-epoch smoke model can produce many
+high-scoring invalid boxes; use a stricter threshold for validation-only runs
+and document the threshold in the report. If ordinary strict thresholds such as
+`0.99` still enter CPU NMS, use a deliberately high validation-only threshold
+to exercise the TensorRT engine no-detections path rather than treating the
+generic Docker success footer as a pass.
