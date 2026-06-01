@@ -95,6 +95,8 @@ actions:
           format: json
           keys:
           - video
+          - image
+          - images
       model.model_name:
         type: folder
     outputs:

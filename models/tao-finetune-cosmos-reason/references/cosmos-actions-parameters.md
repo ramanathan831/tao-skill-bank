@@ -60,7 +60,7 @@ The LoRA adapter is downloaded from S3/Lustre before the evaluator runs; the eva
 
 ### Selective download
 
-When the input declaration carries a `selective` block (`{annotation, format, keys}`), only the files referenced in `dataset.annotation_path` (under the `video` key) are pulled — not the full media folder. For a 112-sample collision dataset, this downloads ~500MB instead of the full 4.8GB folder.
+When the input declaration carries a `selective` block (`{annotation, format, keys}`), only the files referenced in `dataset.annotation_path` (under `video`, `image`, or `images`) are pulled — not the full media folder. For a 112-sample collision dataset, this downloads ~500MB instead of the full 4.8GB folder.
 
 ### Results
 
@@ -91,10 +91,12 @@ spec_overrides={
 
 **Eval dataset** is optional for plain training only when `train.train_policy.dataset.test_size` is used to auto-split training data. For AutoML or any workflow optimizing a validation metric such as `val/avg_loss`, require either an explicit `custom.val_dataset` or a deliberate auto-split setting before launch preflight passes. If a validation dataset is provided, validation metrics are computed at the frequency set by `validation.freq_in_epoch`.
 
-Every sampled annotation record must include `video_fps`. If this field is
-absent, stop before runner generation and ask the user to add it to the train
-and validation annotation files or provide corrected direct spec paths. Do not
-start AutoML to discover this inside torchrun.
+Every sampled video annotation record must include `video_fps`. If a record has
+a `video` field and no `video_fps`, stop before runner generation and ask the
+user to add it to the train and validation annotation files or provide corrected
+direct spec paths. Image-only records with `image` or `images` do not need
+`video_fps`, but their media paths must resolve. Do not start AutoML to discover
+bad video annotations inside torchrun.
 
 ## Important Parameters
 
@@ -146,7 +148,12 @@ For platform-side multi-node setup (sbatch flags on SLURM, Indexed Job + Service
 - **train.ckpt.export_safetensors**: Export in safetensors format. Default true.
 
 When verifying downstream handoff, prefer `train_output_dir/best/safetensors`
-only if it resolves inside the results mount. In the current local Docker image,
+only if it resolves inside the results mount. In local Docker, the `best`
+symlinks may be absolute container paths such as `/results/...`; these can
+appear broken on the host while still resolving inside the container. If a
+host-side resolver sees an absolute `/results/...` target, map it back into the
+mounted results directory or select the corresponding concrete epoch folder
+directly. In the current local Docker image,
 epoch-based saving writes concrete artifacts under
 `train_output_dir/<timestamp>/safetensors/epoch_N` and
 `train_output_dir/<timestamp>/checkpoints/epoch_N/policy`, but

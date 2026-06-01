@@ -55,9 +55,12 @@ Non-train actions such as `evaluate`, `inference`, and `quantize` stay in this m
 - **Input modes:** accept either dataset roots or direct spec-key paths. Root mode maps `<root>/annotations.json` plus `<root>` as the media path. Direct spec mode is valid when annotations and media live in different locations, for example `custom.train_dataset.annotation_path=/lustre/.../train.json` and `custom.train_dataset.media_path=/lustre/.../videos.tar.gz`.
 - **Media handling:** do not ask the user to choose `videos.tar.gz` vs `images.tar.gz` unless they are using direct spec mode or the model/action requires a single media archive. In root mode, pass the dataset root as the media path.
 - **Annotation validation:** before launching train/AutoML/evaluate, sample the
-  annotation JSON from the selected platform and require `video_fps` in each
-  sampled record. Missing `video_fps` causes the Cosmos-RL SFT loader to fail
-  with `Error processing sample: 'video_fps'` after the SLURM job starts.
+  annotation JSON from the selected platform. For records with a `video` field,
+  require `video_fps`; missing `video_fps` causes the Cosmos-RL SFT loader to
+  fail with `Error processing sample: 'video_fps'` after the job starts. For
+  image-only records that use `image` or `images`, do not require `video_fps`;
+  instead verify that the referenced image paths resolve under the selected
+  media root.
 
 ### Launch Intake Reminder
 
@@ -81,8 +84,8 @@ ask whether to use it or override with `image=<override>`. Do not silently
 launch on the default image. This skill does not package a
 `models/tao-finetune-cosmos-reason/config.json` file.
 
-For launch preflight, pass the concrete annotation paths to the shared helper
-and require `video_fps`:
+For video-dataset launch preflight, pass the concrete annotation paths to the
+shared helper and require `video_fps`:
 
 ```bash
 scripts/check_tao_launch_preflight.py --platform slurm \

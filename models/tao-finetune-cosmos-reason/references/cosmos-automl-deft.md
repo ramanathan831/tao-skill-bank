@@ -37,10 +37,11 @@ When annotation `video` values are relative to a `videos/` subdirectory, use
 direct spec mode for `media_path` rather than plain dataset-root mode. If media
 is packaged as `videos.tar.gz`, use the extracted `videos/` directory when
 present, or the archive only if the selected runtime extracts it before dataset
-lookup. If the original annotation files do not contain `video_fps`, create
-patched annotation copies under the run workspace and point
-`custom.*.annotation_path` at those copies; do not edit the user's source dataset
-in place.
+lookup. If video annotation files do not contain `video_fps`, create patched
+annotation copies under the run workspace and point `custom.*.annotation_path`
+at those copies; do not edit the user's source dataset in place. For image
+annotations with `image` or `images`, point `media_path` at the directory that
+makes those relative paths resolve.
 
 If the user's objective names `accuracy` or an accuracy target such as
 `>=90%`, optimize an evaluation metric, not `val/avg_loss`. Use AutoMLRunner's
