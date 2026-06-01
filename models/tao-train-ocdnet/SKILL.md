@@ -184,7 +184,13 @@ Minimum 1 GPU(s), recommended 1 GPU(s). 8GB+ VRAM per GPU. OCDNet is lightweight
 
 **Archive passed as dataset path**: `dataset.*.data_path` is not an archive path for OCDNet. Passing `train.tar.gz` or `test.tar.gz` directly causes the dataloader to open the gzip as a UTF-8 datalist. Extract the archive and pass the split folder containing `img/` and `gt/`, or pass a real UTF-8 datalist file.
 
-**Quantize checkpoint type**: Do not pass `model_best.pth` to the PyTorch quantize path. Some older PyT runtimes wrote `model_best.pth` without full Lightning checkpoint metadata. The default `torchao` quantize path should use the intended full `model_epoch_<epoch>_step_<step>.pth` checkpoint and write `quantized_model_torchao.pth`.
+**Quantize checkpoint type**: Do not pass `model_best.pth` to the PyTorch quantize path. Some older PyT runtimes wrote `model_best.pth` without full Lightning checkpoint metadata. The `torchao` quantize path must use the intended full `model_epoch_<epoch>_step_<step>.pth` checkpoint, but checkpoint selection alone is not sufficient in current 7.0 RC images: `OCDnetModel.load_from_checkpoint(...)` can still fail before quantization with `OCDnetModel.__init__() missing 2 required positional arguments: 'dm' and 'task'`. If that happens, report it as a toolkit quantize bug instead of falling back to `model_best.pth`.
+
+**ONNX quantize backend unavailable**: The backend registry may list
+`modelopt.onnx`, but the actual quantization module can still be absent. If an
+ONNX quantize retry fails with `modelopt.onnx.quantization is not available`,
+report the image dependency gap. Do not claim ONNX quantization support from
+backend registration alone.
 
 **Default specs output directory**: `ocdnet default_specs` requires a writable `results_dir` override, for example `results_dir=/workspace/run/results/default_specs`.
 
@@ -192,7 +198,15 @@ Minimum 1 GPU(s), recommended 1 GPU(s). 8GB+ VRAM per GPU. OCDNet is lightweight
 
 OCDNet train writes `model_best.pth` plus full Lightning epoch checkpoints such as `model_epoch_001_step_00046.pth`; it may also write `ocd_model_latest.pth` as a latest symlink. Use `model_best.pth` for `evaluate.checkpoint`, `inference.checkpoint`, `export.checkpoint`, and `prune.checkpoint` when the user asks for the best checkpoint. Use a specific `model_epoch_<epoch>_step_<step>.pth` for `train.resume_training_checkpoint_path` and for any action that explicitly needs a full Lightning checkpoint. Prune writes artifacts such as `pruned_<ch_sparsity>.pth`; use the exact pruned `.pth` artifact for `model.pruned_graph_path` when retraining from a pruned graph. Use a latest checkpoint only when the user explicitly asks for latest.
 
-If quantize is retried with a PyTorch backend, resolve the full `model_epoch_<epoch>_step_<step>.pth` that corresponds to the intended best epoch or requested epoch; do not pass `model_best.pth` to the PyTorch quantize path. If quantize is retried with `modelopt.onnx`, pass the exported ONNX as `quantize.model_path` and verify that the runtime image actually contains `modelopt.onnx.quantization`.
+If quantize is retried with a PyTorch backend, resolve the full
+`model_epoch_<epoch>_step_<step>.pth` that corresponds to the intended best
+epoch or requested epoch; do not pass `model_best.pth` to the PyTorch quantize
+path. If that full checkpoint still raises the missing `dm` / `task` constructor
+error, stop and report the toolkit bug. If quantize is retried with
+`modelopt.onnx`, pass the exported ONNX as `quantize.model_path`, set a
+backend-supported mode such as `static_ptq`, and verify that the runtime image
+actually contains `modelopt.onnx.quantization` before presenting ONNX quantize
+as runnable.
 
 ## Spec Param / Parent Model Inference
 
