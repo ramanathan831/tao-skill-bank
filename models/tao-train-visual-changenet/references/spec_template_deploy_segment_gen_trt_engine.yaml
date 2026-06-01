@@ -5,9 +5,10 @@ dataset:
   segment:
     num_classes: 2
     batch_size: 1
+    img_size: 256
 model:
   backbone:
-    type: fan_small_12_p4_hybrid
+    type: vit_large_nvdinov2
 gen_trt_engine:
   gpu_id: 0
   onnx_file: /models/model.onnx

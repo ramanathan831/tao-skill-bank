@@ -10,7 +10,7 @@ dataset:
     batch_size: 1
     workers: 2
     num_classes: 2
-    img_size: 224
+    img_size: 256
     image_folder_name: A
     change_image_folder_name: B
     list_folder_name: list
@@ -22,4 +22,4 @@ inference:
   batch_size: 1
 model:
   backbone:
-    type: fan_small_12_p4_hybrid
+    type: vit_large_nvdinov2
