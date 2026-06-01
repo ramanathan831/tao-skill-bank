@@ -171,6 +171,10 @@ Some Lightning progress lines also render the same scalar as
 `train_loss_epoch`; treat that as a fallback alias only, not the primary
 monitoring metric.
 
+**DataLoader worker count is zero**: NVDINOv2 uses persistent dataloader
+workers internally. Do not set `dataset.workers: 0`; use at least `2` for
+local smoke validation.
+
 **Slow convergence**: SSL needs many epochs. Default 10 is for quick testing; production runs typically use 100+ epochs.
 
 ## Spec Param / Parent Model Inference
