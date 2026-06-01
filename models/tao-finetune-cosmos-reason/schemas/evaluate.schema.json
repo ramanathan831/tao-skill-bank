@@ -42,6 +42,8 @@
       "temperature": 0.0
     },
     "metrics": {
+      "bertscore_batch_size": 1,
+      "bertscore_device": "cpu",
       "bertscore_lang": "en",
       "bertscore_model": "microsoft/deberta-xlarge-mnli",
       "names": [
@@ -292,6 +294,8 @@
       ],
       "automl_enabled": false,
       "default": {
+        "bertscore_batch_size": 1,
+        "bertscore_device": "cpu",
         "bertscore_lang": "en",
         "bertscore_model": "microsoft/deberta-xlarge-mnli",
         "names": [
@@ -313,6 +317,19 @@
           "description": "Model to use for BERTScore computation (e.g., microsoft/deberta-xlarge-mnli)",
           "title": "BERTScore model",
           "type": "string"
+        },
+        "bertscore_device": {
+          "default": "cpu",
+          "description": "Device for BERTScore computation (use cpu to avoid competing with the eval model for GPU memory)",
+          "title": "BERTScore device",
+          "type": "string"
+        },
+        "bertscore_batch_size": {
+          "default": 1,
+          "description": "Optional BERTScore batch size; lower values reduce peak memory",
+          "minimum": 1,
+          "title": "BERTScore batch size",
+          "type": "int"
         },
         "names": {
           "automl_enabled": false,

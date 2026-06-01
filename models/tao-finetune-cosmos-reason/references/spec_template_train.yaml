@@ -90,9 +90,13 @@ custom:
   train_dataset:
     annotation_path: data/sft/annotations.json
     media_path: data/sft/train2017
+    media_root: data/sft/train2017
+    response_mode: answer
   val_dataset:
     annotation_path: data/sft/annotations.json
     media_path: data/sft/train2017
+    media_root: data/sft/train2017
+    response_mode: answer
   vision:
     nframes: 8
   system_prompt: ''

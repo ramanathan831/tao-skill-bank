@@ -38,11 +38,15 @@
       "system_prompt": "",
       "train_dataset": {
         "annotation_path": "data/sft/annotations.json",
-        "media_path": "data/sft/train2017"
+        "media_path": "data/sft/train2017",
+        "media_root": "data/sft/train2017",
+        "response_mode": "answer"
       },
       "val_dataset": {
         "annotation_path": "data/sft/annotations.json",
-        "media_path": "data/sft/train2017"
+        "media_path": "data/sft/train2017",
+        "media_root": "data/sft/train2017",
+        "response_mode": "answer"
       },
       "vision": {
         "nframes": 8
@@ -178,7 +182,15 @@
         "system_prompt": "",
         "train_dataset": {
           "annotation_path": "data/sft/annotations.json",
-          "media_path": "data/sft/train2017"
+          "media_path": "data/sft/train2017",
+          "media_root": "data/sft/train2017",
+          "response_mode": "answer"
+        },
+        "val_dataset": {
+          "annotation_path": "data/sft/annotations.json",
+          "media_path": "data/sft/train2017",
+          "media_root": "data/sft/train2017",
+          "response_mode": "answer"
         },
         "vision": {
           "nframes": 8
@@ -196,7 +208,9 @@
           "automl_enabled": false,
           "default": {
             "annotation_path": "data/sft/annotations.json",
-            "media_path": "data/sft/train2017"
+            "media_path": "data/sft/train2017",
+            "media_root": "data/sft/train2017",
+            "response_mode": "answer"
           },
           "description": "Training dataset config.",
           "properties": {
@@ -211,6 +225,23 @@
               "description": "Path to the media directory",
               "title": "Media directory path",
               "type": "string"
+            },
+            "media_root": {
+              "default": "data/sft/train2017",
+              "description": "Root directory for DAFT media references",
+              "title": "DAFT media root",
+              "type": "string"
+            },
+            "response_mode": {
+              "default": "answer",
+              "description": "DAFT response target to train on",
+              "enum": [
+                "think",
+                "answer",
+                "hybrid"
+              ],
+              "title": "DAFT response mode",
+              "type": "string"
             }
           },
           "type": "collection"
@@ -219,7 +250,9 @@
           "automl_enabled": false,
           "default": {
             "annotation_path": "data/sft/annotations.json",
-            "media_path": "data/sft/train2017"
+            "media_path": "data/sft/train2017",
+            "media_root": "data/sft/train2017",
+            "response_mode": "answer"
           },
           "description": "Validation dataset config (optional).",
           "properties": {
@@ -233,6 +266,23 @@
               "default": "data/sft/train2017",
               "description": "Path to the validation media directory",
               "title": "Validation media directory path",
+              "type": "string"
+            },
+            "media_root": {
+              "default": "data/sft/train2017",
+              "description": "Root directory for DAFT validation media references",
+              "title": "Validation DAFT media root",
+              "type": "string"
+            },
+            "response_mode": {
+              "default": "answer",
+              "description": "DAFT validation response target",
+              "enum": [
+                "think",
+                "answer",
+                "hybrid"
+              ],
+              "title": "Validation DAFT response mode",
               "type": "string"
             }
           },
