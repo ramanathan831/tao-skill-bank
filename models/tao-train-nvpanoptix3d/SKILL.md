@@ -146,6 +146,12 @@ Optional. Val/test splits configured via dataset.val and dataset.test paths.
 - **model.mask_former.num_object_queries**: Object queries. Default 100.
 - **model.mask_former.dec_layers**: Decoder layers. Default 10.
 - **model.frustum3d.truncation**: 3D frustum truncation. Default 3.
+- **model.frustum3d.grid_dimensions / frustum_dims**: Keep these aligned
+  with the 3D occupancy tensor resolution in the dataset. The packaged
+  Front3D-style samples use `256 x 256 x 256` `segmentation_*.mapped.npz`
+  and `geometry_*.npz` tensors, so use the schema defaults `256` for both.
+  Do not shrink them for a smoke run unless the dataset tensors were generated
+  at that smaller resolution.
 - **model.frustum3d.panoptic_weight**: Panoptic loss weight. Default 25.
 - **model.frustum3d.completion_weights**: Completion loss weights. Default [50, 25, 10].
 - **dataset.name**: Dataset name. Options: front3d, matterport, synthetic_hospital, synthetic_warehouse.
@@ -208,7 +214,13 @@ The 7.0 PyTorch image contains the NVPanoptix3D package but does not expose a
 
 **Downsample factor mismatch**: Use downsample_factor=2 for Matterport3D, 1 for Front3D / synthetic datasets.
 
-**3D occupancy OOM**: Reduce frustum_dims or grid_dimensions if running out of GPU memory during 3D reconstruction.
+**3D occupancy OOM**: First reduce model/training load with batch size, train
+steps, decoder/query counts, or use a smaller compatible dataset subset. Only
+reduce `model.frustum3d.frustum_dims` or `model.frustum3d.grid_dimensions`
+when the dataset's 3D occupancy files were generated at the same smaller
+resolution. Mismatching a `256^3` dataset with smaller grid/frustum dimensions
+can fail in back-projection with CUDA index assertions instead of reducing
+memory safely.
 
 **fp16 precision rejected**: The schema advertises `fp16`, but the current
 training entrypoint raises `ValueError: Only fp32 precision is supported.` Use
@@ -218,6 +230,12 @@ training entrypoint raises `ValueError: Only fp32 precision is supported.` Use
 for top-level `.jpg` and `.png` files. If the S3 test archive extracts to
 scene subdirectories, create or point to a flat folder of real RGB images before
 running inference.
+
+**Inference passes but no prediction files appear**: In the current PyTorch
+entrypoint, `predict_step` returns predictions but the inference script calls
+Lightning with `return_predictions=False` and does not install a writer. Treat
+a PASS status as forward-pass validation; do not claim saved masks, arrays, or
+visualizations unless the toolkit image adds explicit output writing.
 
 **3D ONNX missing after export**: The current export entrypoint only calls the
 2D ONNX exporter and writes `export.onnx_file_2d`. Do not require
