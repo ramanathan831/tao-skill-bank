@@ -97,6 +97,13 @@ dimensions, and dataset class metadata when they were changed. Loading a
 checkpoint into the default architecture can fail with tensor shape mismatches,
 especially when smoke-test runs shrink the transformer for speed.
 
+Deploy specs must be generated from the export/train metadata, not from isolated
+deploy defaults. Keep input width/height, class count, eval class ids, and
+architecture fields aligned across export, `gen_trt_engine`, deploy evaluate,
+and deploy inference. The packaged deploy templates mirror the PyT model
+defaults, but custom datasets still require overriding `dataset.num_classes`,
+`dataset.eval_class_ids`, data sources, and class maps.
+
 **export (mandatory data sources):**
 ```python
 {

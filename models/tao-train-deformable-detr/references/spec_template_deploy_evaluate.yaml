@@ -4,19 +4,27 @@ dataset:
   test_data_sources:
     image_dir: /data/images
     json_file: /data/annotations.json
-  num_classes: 4
+  num_classes: 91
   batch_size: 1
   workers: 8
   eval_class_ids:
   - 1
 model:
-  num_feature_levels: 2
+  num_feature_levels: 4
   dec_layers: 6
   enc_layers: 6
   num_queries: 300
+  num_select: 300
   with_box_refine: true
+  aux_loss: true
+  dim_feedforward: 1024
+  return_interm_indices:
+  - 1
+  - 2
+  - 3
+  - 4
 evaluate:
   trt_engine: /results/deformable-detr.engine
   conf_threshold: 0.0
-  input_width: 960
-  input_height: 544
+  input_width: 640
+  input_height: 640

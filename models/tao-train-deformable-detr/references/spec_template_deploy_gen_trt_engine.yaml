@@ -1,7 +1,7 @@
 encryption_key: tlt_encode
 results_dir: /results
 dataset:
-  num_classes: 4
+  num_classes: 91
   batch_size: 1
   augmentation:
     input_std:
@@ -9,12 +9,19 @@ dataset:
     - 0.224
     - 0.225
 model:
-  num_feature_levels: 2
+  num_feature_levels: 4
   dec_layers: 6
   enc_layers: 6
   num_queries: 300
+  num_select: 300
   with_box_refine: true
-  aux_loss: false
+  aux_loss: true
+  dim_feedforward: 1024
+  return_interm_indices:
+  - 1
+  - 2
+  - 3
+  - 4
 gen_trt_engine:
   gpu_id: 0
   onnx_file: /models/model.onnx
