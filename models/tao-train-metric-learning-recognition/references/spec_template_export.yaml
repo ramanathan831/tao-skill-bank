@@ -96,7 +96,10 @@ dataset:
   num_instance: 4
 export:
   batch_size: -1
+  checkpoint: ???
   gpu_id: 0
+  onnx_file: ???
   on_cpu: false
   opset_version: 14
+  results_dir: ''
   verbose: true

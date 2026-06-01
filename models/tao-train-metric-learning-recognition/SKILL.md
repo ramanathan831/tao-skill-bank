@@ -86,6 +86,14 @@ S3_TRAIN = "s3://bucket/data/train"
     "inference.input_path": f"{S3_TRAIN}/metric_learning_recognition/retail-product-checkout-dataset_classification_demo/unknown_classes/test.tar.gz",
 }
 ```
+
+**export (mandatory checkpoint/output):**
+```python
+{
+    "export.checkpoint": "<selected train/AutoML checkpoint>",
+    "export.onnx_file": "<results_dir>/ml_recog.onnx",
+}
+```
 ## Eval Dataset
 
 Required. Evaluation requires reference and query datasets for retrieval metrics.
