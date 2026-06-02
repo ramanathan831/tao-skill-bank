@@ -52,16 +52,18 @@ Generated TAO Core schemas are packaged in `schemas/<action>.schema.json`, with 
 This model is AutoML-enabled at the model layer. Before handling any train-stage request, read `references/skill_info.yaml` and resolve the run override from either an explicit `automl_policy` value or the user's workflow request. Use `automl_policy: on` by default and only expose `on` / `off` in new launch prompts. Treat phrases like "turn off AutoML", "disable AutoML", "no HPO", or "plain training" as `automl_policy: off` for this run only. When `automl_policy: on`, `automl_enabled: true`, and both `schemas/train.schema.json` and `references/spec_template_train.yaml` are packaged, route the train action through `tao-skill-bank:tao-run-automl` by default with this model's `skill_dir`. Preserve workflow/application overrides for datasets, specs, output directories, GPU/platform settings, parent checkpoints, and `automl_policy`. Use direct model training only when `automl_policy: off` or the packaged train schema/template is missing; in the missing-schema case, report that AutoML is enabled but not runnable for this model until schemas are generated.
 
 Non-train actions declared by this model skill (`evaluate`, `inference`,
-`export`, `quantize`, `segment_evaluate`, and `segment_inference`) stay in this
-model skill. Do not present `segment_export` or `segment_quantize` as runnable
-parent-skill actions until matching entries are packaged in
-`schemas/manifest.json`. Prune and retrain are not declared in the current
+`export`, `quantize`, `segment_evaluate`, `segment_inference`, and
+`segment_export`) stay in this model skill. Do not present `segment_quantize` as
+a runnable parent-skill action until matching entries are packaged in the model
+metadata. Prune and retrain are not declared in the current
 parent `references/skill_info.yaml`; do not present them as runnable parent-skill
 actions unless the metadata is extended with matching action wiring and schemas.
 The per-run `automl_policy` override does not change model metadata.
 
 For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference` for classify and segment variants), read `deploy/SKILL.md` first. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
-Deploy requires an exported ONNX artifact as `parent_model`. If no ONNX artifact exists and the parent skill does not expose an export action, report deploy as blocked instead of inventing an artifact.
+Deploy requires an exported ONNX artifact as `parent_model`. For segment
+deploy, produce that artifact with the parent model skill `segment_export`
+action.
 
 ## Training Requirements
 

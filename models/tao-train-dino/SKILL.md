@@ -285,6 +285,12 @@ DINO distillation uses a FAN-family teacher (`fan_tiny`, `fan_small`,
 teacher checkpoint must match the teacher architecture. Do not point
 `distill.pretrained_teacher_model_path` at a ResNet training checkpoint unless
 `distill.teacher.backbone` is also a compatible ResNet teacher in a future SDK.
+If the user does not provide a compatible teacher checkpoint, stage the official
+FAN-small trainable teacher from NGC
+`nvidia/tao/pretrained_dino_coco:dino_fan_small_trainable_v1.0`
+(`dino_fan_small_ep12.pth`) using local NGC credentials, set
+`distill.teacher.backbone: fan_small`, and pass the staged local file as
+`distill.pretrained_teacher_model_path`.
 
 ## Dataset
 

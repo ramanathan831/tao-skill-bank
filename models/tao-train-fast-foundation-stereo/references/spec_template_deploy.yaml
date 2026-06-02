@@ -12,9 +12,11 @@ results_dir: /results
 
 model:
   model_type: FastFoundationStereo
+  max_disparity: 192
 
 dataset:
   dataset_name: StereoDataset
+  max_disparity: 192
   infer_dataset:
     data_sources:
     - dataset_name: GenericDataset       # 2-col annotations (no GT)

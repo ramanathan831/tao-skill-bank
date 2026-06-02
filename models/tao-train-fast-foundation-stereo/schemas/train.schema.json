@@ -3061,7 +3061,7 @@
   "x_tao_schema": {
     "action": "train",
     "core_module": "depth_net",
-    "model": "depth-net-fast-stereo",
+    "model": "tao-train-fast-foundation-stereo",
     "network_arch": "depth_net_stereo",
     "schema_action": "train",
     "schema_version": 1,

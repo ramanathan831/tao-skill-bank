@@ -131,7 +131,8 @@ spec_templates:
 notes:
 - Visual ChangeNet deploy has classify and segment spec variants under the same TAO
   Deploy command.
-- The starter-kit segment TensorRT path uses FP16; classify can use FP32 unless a
-  precision target is specified.
+- The segment TensorRT path follows the parent segment model's
+  `vit_large_nvdinov2` backbone and uses FP16 with a 20 GB workspace; classify
+  can use FP32 unless a precision target is specified.
 - 'For segment inference, keep `dataset.segment.batch_size: 1`; for classify, keep
   image maps, concat type, and grid map aligned with training.'

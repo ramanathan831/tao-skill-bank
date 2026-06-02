@@ -1,4 +1,4 @@
-name: depth-net-fast-stereo-deploy
+name: tao-deploy-fast-foundation-stereo
 type: model
 network_arch: depth_net_stereo
 container_image: tao_toolkit.deploy
@@ -58,20 +58,26 @@ data_sources:
 spec_params:
   gen_trt_engine:
     dataset.dataset_name: StereoDataset
+    dataset.max_disparity: 192
     results_dir: output_dir
     gen_trt_engine.onnx_file: parent_model
     gen_trt_engine.trt_engine: create_engine_file
     model.model_type: FastFoundationStereo
+    model.max_disparity: 192
   evaluate:
     dataset.dataset_name: StereoDataset
+    dataset.max_disparity: 192
     results_dir: output_dir
     evaluate.trt_engine: parent_model
     model.model_type: FastFoundationStereo
+    model.max_disparity: 192
   inference:
     dataset.dataset_name: StereoDataset
+    dataset.max_disparity: 192
     results_dir: output_dir
     inference.trt_engine: parent_model
     model.model_type: FastFoundationStereo
+    model.max_disparity: 192
 spec_shorthand_keys:
   trt_data_type: gen_trt_engine.tensorrt.data_type
   trt_engine: gen_trt_engine.trt_engine
@@ -89,8 +95,10 @@ notes:
 - DepthNet deploy passes `gen_trt_engine.tensorrt.workspace_size` through as
   GiB in current images; use `4` for a 4 GiB builder pool rather than `4096`.
 - Match `evaluate.input_height/input_width` to the export-time ONNX shape and to `dataset.test_dataset.augmentation.crop_size` for end-to-end shape consistency.
+- "FFS-bp2 deploy specs must set `model.max_disparity: 192`; current deploy
+  evaluation reads this value when reducing stereo metrics."
 - FFS-bp2 requires `model.gwc_feature_normalize: true`. Without it the model produces broken disparity; the deploy engine inherits the broken output.
-- In `tao-toolkit-deploy:7.0.0-rc-171`, TRT evaluate can fail after predictions
-  with a NumPy scalar conversion error in the stereo evaluator. Use PyT
-  evaluate for metrics until the deploy image contains the scalar extraction
-  fix.
+- Deploy evaluate should report scalar stereo metrics from TensorRT predictions.
+  If an older deploy image raises a NumPy scalar conversion error after
+  prediction generation, rebuild or update the deploy image so the stereo
+  evaluator uses scalar extraction.

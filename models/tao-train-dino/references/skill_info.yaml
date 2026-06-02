@@ -152,6 +152,9 @@ spec_params:
     quantize.model_path: parent_model
     results_dir: output_dir
 key_defaults: {}
+pretrained_models:
+  distill_teacher:
+    fan_small: ngc://nvidia/tao/pretrained_dino_coco:dino_fan_small_trainable_v1.0/dino_fan_small_ep12.pth
 spec_shorthand_keys:
   num_epochs: train.num_epochs
   batch_size: dataset.batch_size

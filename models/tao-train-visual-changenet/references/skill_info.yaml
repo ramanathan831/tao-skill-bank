@@ -86,6 +86,23 @@ actions:
         type: file
     upload_excludes:
     - inputs/
+  segment_export:
+    command: visual_changenet export -e {config_path}
+    config_format: yaml
+    mode: config
+    inputs:
+      model.backbone.pretrained_backbone_path:
+        type: file
+        optional: true
+      export.checkpoint:
+        type: file
+    outputs:
+      results_dir:
+        type: folder
+      export.onnx_file:
+        type: file
+    upload_excludes:
+    - inputs/
   quantize:
     command: visual_changenet quantize -e {config_path}
     config_format: yaml
@@ -253,6 +270,11 @@ spec_params:
     results_dir: output_dir
     export.checkpoint: parent_model
     export.onnx_file: create_onnx_file
+  segment_export:
+    encryption_key: key
+    results_dir: output_dir
+    export.checkpoint: parent_model
+    export.onnx_file: create_onnx_file
   quantize:
     encryption_key: key
     results_dir: output_dir
@@ -315,6 +337,7 @@ spec_templates:
   evaluate: ../references/spec_template_evaluate.yaml
   inference: ../references/spec_template_inference.yaml
   export: ../references/spec_template_export.yaml
+  segment_export: ../references/spec_template_segment_export.yaml
   quantize: ../references/spec_template_quantize.yaml
   segment_train: ../references/spec_template_segment_train.yaml
   segment_evaluate: ../references/spec_template_segment_evaluate.yaml

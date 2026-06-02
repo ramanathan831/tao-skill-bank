@@ -22,7 +22,7 @@ tags:
 
 # DepthNet Fast Stereo Deploy
 
-DepthNet Fast Stereo deploy covers the TAO Deploy actions for an exported FFS (FastFoundationStereo) ONNX. Use the parent `depth-net-fast-stereo` model skill for training, checkpoint evaluation, export, or non-TensorRT (pyt) inference. Use this deploy sub-skill after export when the input artifact is an ONNX model and the desired output is a TensorRT engine or TensorRT-backed predictions.
+DepthNet Fast Stereo deploy covers the TAO Deploy actions for an exported FFS (FastFoundationStereo) ONNX. Use the parent `tao-train-fast-foundation-stereo` model skill for training, checkpoint evaluation, export, or non-TensorRT (pyt) inference. Use this deploy sub-skill after export when the input artifact is an ONNX model and the desired output is a TensorRT engine or TensorRT-backed predictions.
 
 Supported actions: `gen_trt_engine`, `evaluate`, `inference`.
 Direct TAO Deploy command name: `depth_net`.
@@ -66,7 +66,7 @@ Deploy action metadata is in `skill_info.yaml`. Deploy spec template lives at `.
 
 ## Deploy Workflow
 
-1. Train (optional) and export with the parent `depth-net-fast-stereo` skill. For the raw-bp2 use case, skip train and export directly from the bp2 ckpt.
+1. Train (optional) and export with the parent `tao-train-fast-foundation-stereo` skill. For the raw-bp2 use case, skip train and export directly from the bp2 ckpt.
 2. Keep the exported ONNX artifact and any sidecar files together in the mounted model directory.
 3. Build the TensorRT engine with this sub-skill.
 4. Run TensorRT `evaluate` or `inference` from the engine artifact produced by `gen_trt_engine`.
@@ -137,6 +137,7 @@ evaluate:
   input_width: 736
 model:
   model_type: FastFoundationStereo
+  max_disparity: 192
 dataset:
   test_dataset:
     augmentation:
@@ -277,15 +278,18 @@ The spec yaml's basename (modulo `.yaml`) must match the action verb passed on t
 
 **Engine profile mismatch**: Runtime batch size for `evaluate` or `inference` must fit within the TensorRT min/opt/max profile used during `gen_trt_engine`. Default profile in the spec template is `min=1 / opt=1 / max=1` (FFS-bp2 deploy uses static batch=1).
 
-**Deploy evaluate metric reduction fails after predictions**: In
-`tao-toolkit-deploy:7.0.0-rc-171`, FFS TensorRT evaluate can complete
-prediction generation and then fail in
-`nvidia_tao_deploy.cv.depth_net.evaluation.stereo_evaluator.compute()` with
-`TypeError: only 0-dimensional arrays can be converted to Python scalars`. The
-evaluator accumulates NumPy one-element arrays and casts them with `float()`,
-which is rejected by the NumPy version in the container. Until the deploy image
-contains the scalar extraction fix, use PyT `evaluate` for metrics and treat TRT
-`inference` plus generated predictions as the deploy smoke test.
+**Deploy evaluate metric reduction fails after predictions**: Current deploy
+source converts accumulated NumPy stereo metrics through scalar extraction before
+serializing results. If an older deploy image completes prediction generation and
+then raises `TypeError: only 0-dimensional arrays can be converted to Python
+scalars`, update or rebuild the deploy image so
+`nvidia_tao_deploy.cv.depth_net.evaluation.stereo_evaluator.compute()` includes
+that scalar extraction path.
+
+**Incorrect FFS metric mask**: FFS-bp2 uses `model.max_disparity: 192`.
+Current deploy evaluation reads this value from the spec. If an older deploy
+image still uses the FoundationStereo default of 416 for every stereo model,
+update or rebuild the deploy image before comparing TRT metrics against PyT.
 
 **Aspect-stretched predictions on variable-aspect inputs**: Forcing the engine input H/W to a fixed shape distorts samples whose source aspect ratio differs from the engine shape, inflating EPE vs pyt baseline. Recommended approach: dynamic-shape engine sized per "Sizing the profile" above, with each input pre-padded / resized to a stride-32 multiple before evaluation. `evaluate.native_padded: True` would conceptually fit this case but currently triggers a TRT 10.13 Cask Pooling Runner failure — see below.
 

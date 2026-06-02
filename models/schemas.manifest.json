@@ -93,6 +93,17 @@
       "failures": {},
       "network_arch": "dino"
     },
+    "tao-train-fast-foundation-stereo": {
+      "actions": [
+        "evaluate",
+        "export",
+        "inference",
+        "train"
+      ],
+      "automl_enabled": true,
+      "failures": {},
+      "network_arch": "depth_net_stereo"
+    },
     "tao-train-foundation-stereo": {
       "actions": [
         "evaluate",
@@ -340,8 +351,11 @@
     "tao-train-visual-changenet": {
       "actions": [
         "evaluate",
+        "export",
         "inference",
+        "quantize",
         "segment_evaluate",
+        "segment_export",
         "segment_inference",
         "segment_train",
         "train"

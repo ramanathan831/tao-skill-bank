@@ -7,7 +7,7 @@ dataset:
     batch_size: 1
 model:
   backbone:
-    type: fan_small_12_p4_hybrid
+    type: vit_large_nvdinov2
 gen_trt_engine:
   gpu_id: 0
   onnx_file: /models/model.onnx
@@ -15,7 +15,7 @@ gen_trt_engine:
   batch_size: -1
   tensorrt:
     data_type: fp16
-    workspace_size: 1024
+    workspace_size: 20
     min_batch_size: 1
     opt_batch_size: 1
     max_batch_size: 1

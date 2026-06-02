@@ -244,6 +244,24 @@
         "evaluate",
         "export",
         "inference",
+        "train"
+      ],
+      "automl_default_parameters": [
+        "train.optim.lr",
+        "train.optim.lr_decay"
+      ],
+      "automl_enabled": true,
+      "model": "tao-train-fast-foundation-stereo",
+      "network_arch": "depth_net_stereo",
+      "train_schema": "schemas/train.schema.json",
+      "train_schema_status": "schemas/train.schema.json is packaged and valid",
+      "train_spec_template": "references/spec_template_train.yaml"
+    },
+    {
+      "actions": [
+        "evaluate",
+        "export",
+        "inference",
         "quantize",
         "train"
       ],
@@ -793,8 +811,11 @@
     {
       "actions": [
         "evaluate",
+        "export",
         "inference",
+        "quantize",
         "segment_evaluate",
+        "segment_export",
         "segment_inference",
         "segment_train",
         "train"
@@ -848,13 +869,6 @@
       "model": "tao-finetune-cosmos-embed",
       "network_arch": "cosmos-embed",
       "reason": "automl_enabled is false in model metadata",
-      "train_schema_status": "schemas/train.schema.json is not packaged"
-    },
-    {
-      "automl_enabled": true,
-      "model": "tao-train-fast-foundation-stereo",
-      "network_arch": "depth_net_stereo",
-      "reason": "schemas/train.schema.json is not packaged",
       "train_schema_status": "schemas/train.schema.json is not packaged"
     }
   ]
