@@ -78,7 +78,10 @@ resolved from `versions.yaml` or the selected platform. A successful
 `gen_trt_engine` run does not prove deploy `evaluate` or `inference` works;
 inspect those action exit codes and logs separately, especially for CenterPose
 postprocessor errors such as `TypeError: only 0-dimensional arrays can be
-converted to Python scalars`.
+converted to Python scalars`. Deploy entrypoints can still exit with status 0
+after this traceback, so treat `Parameter validation error` or any Python
+traceback in the deploy log as an action failure even if Docker exits
+successfully.
 
 ## Required Inputs
 
