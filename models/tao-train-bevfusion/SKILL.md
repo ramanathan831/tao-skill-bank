@@ -177,6 +177,10 @@ empty checkpoint strings where needed; the 5.5 runners materialize the full
 experiment config before running the selected action. Use YAML null, not an
 empty string, for `train.pretrained_checkpoint` and
 `train.resume_training_checkpoint_path` when no checkpoint is intended.
+Do not set BEVFusion `dataset.*_dataset.num_workers` to `0`; the 5.5 runner
+builds PyTorch dataloaders with `persistent_workers=True`, so `num_workers: 0`
+fails before training starts. Use at least `1` worker, even for local smoke
+tests.
 
 **`ModuleNotFoundError: No module named 'mmdet3d'`**: The shared TAO PyTorch
 7.0 RC image does not include the BEVFusion `mmdet3d` dependency. Use
