@@ -20,4 +20,6 @@ model:
   dec_layers: 6
   enc_layers: 6
   num_queries: 300
+  num_select: 300
+  dim_feedforward: 1024
   with_box_refine: true
