@@ -135,3 +135,5 @@ Model-specific notes:
 **INT8 calibration missing:** INT8 builds need an extracted calibration image directory, a writable cache path, and enough images for `cal_batch_size * cal_batches`.
 
 **Mounted paths do not exist:** TAO Deploy checks local paths inside the container. Make sure every path in the spec has a matching Docker mount or job artifact mapping.
+
+**Zero samples in TensorRT evaluate:** The deploy retrieval loader resolves captions by image basename under `dataset.val.datasets[*].caption_dir`. If `image_list_file` contains nested image names like `class/image.jpg`, place a matching `image.txt` directly under `caption_dir` or use a flat validation layout; `caption_dir/class/image.txt` is not discovered by the current deploy loader.
