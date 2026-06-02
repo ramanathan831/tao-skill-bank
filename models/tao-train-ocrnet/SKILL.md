@@ -81,7 +81,8 @@ OCRNet training writes both `best_accuracy.pth` and epoch-step checkpoints such 
 - Use `best_accuracy.pth` for best-checkpoint `evaluate`, `inference`, `export`, and `prune` requests.
 - Use the exact requested `model_epoch_*_step_*.pth` for epoch/step-specific actions.
 - Use `train.resume_training_checkpoint_path` only for resume training, and use `model.pruned_graph_path` for retrain from a prune output. OCRNet does not expose a separate `ocrnet retrain` CLI subtask in the PyT image; the model-skill `retrain` action routes through `ocrnet train -e` with the pruned graph path set.
-- OCRNet `quantize` loads the model through PyTorch. For trusted checkpoints created by the same local run, set `TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1` if PyTorch 2.6+ rejects the checkpoint as a weights-only load.
+- OCRNet `quantize` loads PyTorch checkpoints through the SDK quantize entrypoint before backend-specific logic runs. Use the resolved checkpoint path for PyTorch backends; if the runtime raises `OCRNetModel.__init__() missing ... 'dm'`, the failure is in the SDK checkpoint-loading path and is not fixed by choosing a different checkpoint. The ONNX quantize path can be tested by setting `quantize.backend: modelopt.onnx` and `quantize.model_path` to the exported ONNX, but it requires a runtime with `modelopt.onnx.quantization` installed.
+- For trusted checkpoints created by the same local run, set `TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1` only if PyTorch 2.6+ rejects the checkpoint as a weights-only load.
 
 ### Typical Spec Overrides
 
@@ -231,6 +232,8 @@ Minimum 1 GPU(s), recommended 1 GPU(s). 8GB+ VRAM per GPU. OCR text recognition 
 **Character list mismatch**: All characters in training data must be present in the character_list file.
 
 **Export/prune output fields required**: `export.onnx_file` and `prune.pruned_file` must be writable output paths. These are declared in `references/skill_info.yaml` so SDK-backed model runs can create the paths automatically.
+
+**Quantize checkpoint loading**: If checkpoint-based `ocrnet quantize` fails with `OCRNetModel.__init__() missing ... 'dm'`, do not switch to `ocr_model_latest.pth` as a workaround. Keep the resolver-selected checkpoint in the report and record the SDK loading issue. For an ONNX fallback, first export the selected checkpoint and run `modelopt.onnx`; if the runtime lacks `modelopt.onnx.quantization`, document that as a container/runtime dependency issue rather than a model-skill path issue.
 
 **TensorRT lives in deploy**: The PyT OCRNet CLI exposes `dataset_convert`, `evaluate`, `export`, `inference`, `prune`, `quantize`, and `train`, but not `gen_trt_engine`. Use `deploy/SKILL.md` and `deploy/skill_info.yaml` for TensorRT engine generation and TensorRT-backed evaluate/inference.
 
