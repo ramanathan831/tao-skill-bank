@@ -272,7 +272,12 @@ The spec yaml's basename (modulo `.yaml`) must match the action verb passed on t
 
 ## TRT engine build time
 
-`gen_trt_engine` for FFS at static `[1, 3, 480, 736]` typically completes in a few minutes on x86 with a single A100 / L40 (faster than full FoundationStereo at the same shape due to FFS's pruned width). Plan the deploy chain accordingly; the build is one-time per (shape, precision) tuple.
+`gen_trt_engine` for FFS at static `[1, 3, 480, 736]` can spend a long quiet
+period in the TensorRT compiler backend, especially for static FP16. Do not mark
+the action blocked just because no additional log lines appear for 10 minutes.
+Allow at least 20-30 minutes before treating the build as stalled; a validated
+static FP16 build completed successfully after roughly 14 minutes. The build is
+one-time per (shape, precision) tuple.
 
 ## Common errors
 

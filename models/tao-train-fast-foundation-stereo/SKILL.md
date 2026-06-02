@@ -40,7 +40,9 @@ checkpoint (`model_best_bp2_serialize.pth`). The default PyT image does not
 guarantee that this file is present on disk, so treat the checkpoint path as a
 required user/registry artifact. If no bp2 checkpoint is available, scratch
 training is still usable for workflow validation, but the resulting metrics are
-not representative of the bp2 model.
+not representative of the bp2 model. If the allowed data/artifact sources do not
+contain a bp2 checkpoint, report that artifact as unavailable; do not count the
+missing artifact as a model-skill or runtime failure.
 
 1. **Raw deploy** — use the bp2 ckpt as-is. Skip `train`; run `inference` / `evaluate` / `export` / `gen_trt_engine` directly with the bp2 file as the action's checkpoint.
 2. **Finetune on user data** — set `train.pretrained_model_path` to the bp2 file, train on user data, then verify + deploy on the resulting ckpt. The full 7-action sequence (train → evaluate pyt → inference pyt → export → gen_trt_engine → inference deploy → evaluate deploy) is supported.
