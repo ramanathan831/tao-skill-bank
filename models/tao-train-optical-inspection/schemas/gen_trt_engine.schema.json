@@ -137,7 +137,7 @@
           "cal_batch_size": 1,
           "cal_batches": 1,
           "cal_cache_file": "???",
-          "cal_image_dir": "???"
+          "cal_image_dir": []
         },
         "data_type": "fp32,fp16",
         "layers_precision": [],
@@ -770,7 +770,7 @@
             "cal_batch_size": 1,
             "cal_batches": 1,
             "cal_cache_file": "???",
-            "cal_image_dir": "???"
+            "cal_image_dir": []
           },
           "data_type": "fp32,fp16",
           "layers_precision": [],
@@ -828,7 +828,7 @@
               "cal_batch_size": 1,
               "cal_batches": 1,
               "cal_cache_file": "???",
-              "cal_image_dir": "???"
+              "cal_image_dir": []
             },
             "data_type": "fp32,fp16",
             "layers_precision": [],
@@ -853,7 +853,7 @@
                 "cal_batch_size": 1,
                 "cal_batches": 1,
                 "cal_cache_file": "???",
-                "cal_image_dir": "???"
+                "cal_image_dir": []
               },
               "popular": [
                 "cal_batch_size",
