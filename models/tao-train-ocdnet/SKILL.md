@@ -186,13 +186,24 @@ Minimum 1 GPU(s), recommended 1 GPU(s). 8GB+ VRAM per GPU. OCDNet is lightweight
 
 **Quantize checkpoint type**: Do not pass `model_best.pth` to the PyTorch quantize path. Some older PyT runtimes wrote `model_best.pth` without full Lightning checkpoint metadata. The default `torchao` quantize path should use the intended full `model_epoch_<epoch>_step_<step>.pth` checkpoint and write `quantized_model_torchao.pth`.
 
+**Quantize runtime gaps in the 7.0 PyT image**: If PyTorch quantize fails with
+`OCDnetModel.__init__() missing 2 required positional arguments: 'dm' and
+'task'` while using a full `model_epoch_<epoch>_step_<step>.pth` checkpoint,
+this is a toolkit quantize loader issue rather than incorrect checkpoint
+selection. Retrying with `modelopt.pytorch` currently reaches the same loader
+path. Retrying with `modelopt.onnx` should use the exported ONNX, but some 7.0
+PyT images advertise `modelopt.onnx` while missing
+`modelopt.onnx.quantization`; in that case the action fails after calibration
+with `modelopt.onnx.quantization is not available`. Document the runtime gap
+instead of falling back to `model_best.pth` or `ocd_model_latest.pth`.
+
 **Default specs output directory**: `ocdnet default_specs` requires a writable `results_dir` override, for example `results_dir=/workspace/run/results/default_specs`.
 
 ## Checkpoint Handoff
 
 OCDNet train writes `model_best.pth` plus full Lightning epoch checkpoints such as `model_epoch_001_step_00046.pth`; it may also write `ocd_model_latest.pth` as a latest symlink. Use `model_best.pth` for `evaluate.checkpoint`, `inference.checkpoint`, `export.checkpoint`, and `prune.checkpoint` when the user asks for the best checkpoint. Use a specific `model_epoch_<epoch>_step_<step>.pth` for `train.resume_training_checkpoint_path` and for any action that explicitly needs a full Lightning checkpoint. Prune writes artifacts such as `pruned_<ch_sparsity>.pth`; use the exact pruned `.pth` artifact for `model.pruned_graph_path` when retraining from a pruned graph. Use a latest checkpoint only when the user explicitly asks for latest.
 
-If quantize is retried with a PyTorch backend, resolve the full `model_epoch_<epoch>_step_<step>.pth` that corresponds to the intended best epoch or requested epoch; do not pass `model_best.pth` to the PyTorch quantize path. If quantize is retried with `modelopt.onnx`, pass the exported ONNX as `quantize.model_path` and verify that the runtime image actually contains `modelopt.onnx.quantization`.
+If quantize is retried with a PyTorch backend, resolve the full `model_epoch_<epoch>_step_<step>.pth` that corresponds to the intended best epoch or requested epoch; do not pass `model_best.pth` to the PyTorch quantize path. If quantize is retried with `modelopt.onnx`, pass the exported ONNX as `quantize.model_path` and verify that the runtime image actually contains `modelopt.onnx.quantization`. If the full-checkpoint PyTorch path still raises the `dm` / `task` constructor error, or the ONNX path reports missing `modelopt.onnx.quantization`, treat the failure as an unresolved toolkit/runtime gap and record both attempted model paths.
 
 ## Spec Param / Parent Model Inference
 
