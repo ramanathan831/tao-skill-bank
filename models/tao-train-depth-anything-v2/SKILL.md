@@ -283,7 +283,7 @@ Defaults sourced from `nvidia_tao_pytorch/cv/depth_net/experiment_specs/experime
 }
 ```
 
-Known issue in `nvcr.io/nvstaging/tao/tao-toolkit-pyt:7.0.0-rc-226-multiarch`: mono `depth_net quantize` reaches the checkpoint load path and then fails inside the SDK with `MonoDepthNetPlModel` missing `load_state_dict_from_checkpoint`. Keep `quantize.model_path` wired to the selected checkpoint; do not replace it with a latest-file guess.
+Known issue in the default TAO 7.0.0 PyT image (also observed in earlier 7.0.0 RC images): mono `depth_net quantize` reaches the checkpoint load path and then fails inside the SDK with `MonoDepthNetPlModel` missing `load_state_dict_from_checkpoint`. Treat this as a runtime quantize implementation failure after verifying `quantize.model_path` points at the selected exact checkpoint; do not replace it with a latest-file guess or skip the action silently.
 
 ## Eval Dataset
 
