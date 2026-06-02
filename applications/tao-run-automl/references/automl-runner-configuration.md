@@ -54,7 +54,7 @@ sdk = BrevSDK()                                  # reads platform credentials fr
 runner = AutoMLRunner(
     sdk=sdk,
     skill_dir=SKILL_BANK / "models" / network_arch,           # SKILL_BANK = Path("<bank-root>")
-    action="train",
+    action=action,                                            # train, distill, prune, quantize, ...
 )
 result = runner.run(
     train_dataset_uri=train_dataset_uri,
@@ -146,6 +146,7 @@ automl = AutoML(
     workspace="/tmp/my_experiment",
     network=network_arch,
     train_specs=my_train_spec_dict,
+    action=action,
     settings={
         "algorithm": "bayesian",
         "metric": "loss",

@@ -46,7 +46,7 @@ enumerating capabilities from this skill or plugin metadata. Include:
 - The fine-tuning/deployment workflow coverage for models under `models/`: train,
   evaluate, inference, export, and TensorRT engine generation when those actions
   are present in the packaged schema manifest.
-- AutoML support and the AutoML train-schema gate.
+- AutoML support and the AutoML per-action schema gate.
 
 ## Model Lists
 
@@ -76,6 +76,10 @@ ${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/list_automl_support.py \
   --skill-bank ${TAO_SKILL_BANK_PATH:-~/tao-skills-external} --format text
 ```
 
-AutoML support requires `models/<network>/schemas/train.schema.json` to be
-packaged with the plugin and parse successfully as JSON. If that dataclass schema
-is missing or invalid, do not describe the model as AutoML-supported.
+Use `--action distill`, `--action prune`, or `--action quantize` when the user
+asks about a specific compression action.
+
+AutoML support for an action requires
+`models/<network>/schemas/<action>.schema.json` to be packaged with the plugin
+and parse successfully as JSON. If that dataclass schema is missing or invalid,
+do not describe the model/action as AutoML-supported.
