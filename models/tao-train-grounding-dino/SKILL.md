@@ -119,6 +119,17 @@ S3_EVAL = "s3://bucket/data/eval"
     "dataset.quant_calibration_data_sources": {"image_dir": f"{S3_EVAL}/images.tar.gz", "json_file": f"{S3_EVAL}/annotations.json"},
 }
 ```
+
+For PyTorch checkpoint quantization, the default backend/mode pair is
+`quantize.backend: torchao` and `quantize.mode: weight_only_ptq`; keep
+`quantize.model_path` wired to the exact selected checkpoint. For ONNX
+quantization, set `quantize.model_path` to the exported ONNX artifact and use
+`quantize.backend: modelopt.onnx` with `quantize.mode: static_ptq`. ONNX static
+PTQ calibration batches must all have the same tensor shape and should match
+the export input shape; use fixed-shape calibration data or set the eval
+augmentation knobs so every calibration sample resolves to the exported
+`export.input_height` / `export.input_width`. Mixed landscape/portrait batches
+can fail during calibration concatenation before quantization starts.
 ## Eval Dataset
 
 Optional. Validation uses COCO-format annotations for mAP even though training can use ODVG format.
@@ -187,6 +198,17 @@ loading a checkpoint, which fails in `post_process.py`. ONNX quantization uses
 the exported ONNX artifact and COCO calibration data, but the default rc-226
 PyTorch image also lacks the `modelopt.onnx.quantization` module. Treat this as
 an image/SDK blocker, not a checkpoint resolver issue.
+
+**ONNX quantize backend/mode and calibration shape**: For exported ONNX inputs,
+do not reuse the default `torchao` / `weight_only_ptq` settings. Use
+`quantize.backend: modelopt.onnx` and `quantize.mode: static_ptq`. The ONNX
+backend concatenates calibration tensors before quantization, so all calibration
+batches must share the same shape. If calibration images resize to mixed shapes,
+choose a fixed-shape calibration subset or align `dataset.augmentation` resize
+settings to the exported ONNX input shape. In images that do not package
+`modelopt.onnx.quantization`, the correctly configured ONNX path still fails
+after calibration with an import error; report that as an image dependency
+issue.
 
 **mat1 and mat2 shapes cannot be multiplied in `post_process.py`**: The text
 token length and label position maps are inconsistent, commonly because

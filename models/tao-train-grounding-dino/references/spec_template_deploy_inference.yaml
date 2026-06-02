@@ -1,3 +1,4 @@
+results_dir: /results
 dataset:
   infer_data_sources:
     image_dir:

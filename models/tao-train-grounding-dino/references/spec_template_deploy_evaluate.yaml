@@ -1,3 +1,4 @@
+results_dir: /results
 dataset:
   test_data_sources:
     image_dir: /data/images
