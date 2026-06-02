@@ -221,6 +221,8 @@ The dataset loader derives the video id from the local `.mp4` filename and filte
 
 Training writes full checkpoints under `results/train/checkpoints/iter_#########.pt`, updates `results/train/checkpoints/latest_checkpoint.txt`, and creates a `cosmos_embed1_model_latest.pth` symlink. For `evaluate.checkpoint`, `inference.checkpoint`, `export.checkpoint`, and `train.resume_training_checkpoint_path`, resolve and pass the exact `iter_#########.pt` file for the intended iteration. The action spec templates intentionally leave these checkpoint fields null so the model-skill runner or the user must provide the resolver-selected checkpoint. Use the latest symlink only when the user explicitly asks for latest.
 
+For a true training resume from a full Cosmos checkpoint, set both `train.resume_training_checkpoint_path` and `train.load_training_state: true`. That restores the model, scheduler, optimizer, gradient scaler, and saved iteration before continuing. Leave `train.load_training_state` false when the intended behavior is a warm-start or retrain from model weights only.
+
 For single-GPU resume/retrain from a consolidated checkpoint, set `model.fsdp_shard_size: 1`. The container default is 8, which sends resumed training through an FSDP apply path that Cosmos-Embed1 does not implement for this model class.
 
 Variants:
@@ -239,6 +241,7 @@ Keep `model.network.embed_dim`, `model.input_hw`, and `model.network.spatial_res
 |---|---|
 | `train.num_gpus` | `1` for single GPU, `>1` auto-launches `torchrun`, `-1` auto-detects visible GPUs. |
 | `train.max_iter` | Main training length. Use `1` only for smoke testing. |
+| `train.load_training_state` | Set `true` with `train.resume_training_checkpoint_path` for an actual resume; leave false for weight-only warm-starts. |
 | `train.optim.optim` | `fused_adamw` is faster when available; `adamw` is safer for smoke and portability. |
 | `model.lora.enabled` | Enables LoRA. Set `model.network.visual_encoder.transformer_engine=false` when LoRA is on. |
 | `model.lora.lora_rank` | LoRA rank. Start with `8`; try `4`, `8`, or `16` for manual or AutoML-style sweeps. |
