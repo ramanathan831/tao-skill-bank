@@ -68,7 +68,7 @@ Data source overrides are **mandatory for every action** — the agent MUST cons
 ```python
 DATA_ROOT = "s3://bucket/data/pointpillars"
 DATA_INFO = "/results/{dataset_convert_job_id}/results_dir/data_info"
-CHECKPOINT = "/results/{train_job_id}/results_dir/checkpoint_epoch_1.pth"
+CHECKPOINT = "/results/{train_job_id}/results_dir/checkpoint_epoch_1.tlt"
 PRUNED_MODEL = "/results/{prune_job_id}/results_dir/pruned_0.1.tlt"
 ```
 
@@ -194,7 +194,7 @@ Minimum 1 GPU(s), recommended 4 GPU(s). 16GB+ (V100 or A100) VRAM per GPU. Point
 
 **Epoch numbering**: PointPillars checkpoint epoch numbers may be offset by 1 from status.json reported epochs.
 
-**Checkpoint selection**: PointPillars training emits checkpoints named like `checkpoint_epoch_1.pth`. For evaluation, inference, export, prune, and resume, select the intended checkpoint through the model/job checkpoint resolver and pass that exact file to `evaluate.checkpoint`, `inference.checkpoint`, `export.checkpoint`, `prune.model`, or `train.resume_training_checkpoint_path`. Do not guess by taking the newest `model.pth`; this model does not use that filename.
+**Checkpoint selection**: PointPillars training emits encrypted checkpoints named like `checkpoint_epoch_1.tlt`. For evaluation, inference, export, prune, and resume, select the intended checkpoint through the model/job checkpoint resolver and pass that exact file to `evaluate.checkpoint`, `inference.checkpoint`, `export.checkpoint`, `prune.model`, or `train.resume_training_checkpoint_path`. Do not guess by taking the newest `model.pth`; this model does not use that filename.
 
 **Prune/retrain key**: PointPillars prune writes an encrypted `.tlt` artifact. Keep a non-empty `key` in the prune and retrain specs; the packaged templates use the TAO default `tlt_encode`. If `key` is omitted or `null`, the toolkit can still exit with a container success code while logging a passphrase error and creating an empty `pruned_0.1.tlt`. Always verify the pruned model is nonzero before using it for retrain.
 
