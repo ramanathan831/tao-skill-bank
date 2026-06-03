@@ -200,9 +200,9 @@ skill. This deploy sub-skill's `inference` action expects
 
 | Action | Output |
 |---|---|
-| `gen_trt_engine` | TensorRT engine at `gen_trt_engine.trt_engine` |
-| `evaluate` | COCO metrics in `<results_dir>/results.json` |
-| `inference` | Annotated images in `<results_dir>/images_annotated` and labels in `<results_dir>/labels` |
+| `gen_trt_engine` | TensorRT engine at `gen_trt_engine.trt_engine`; status files under `<results_dir>/gen_trt_engine` |
+| `evaluate` | COCO metrics in `<results_dir>/trt_evaluate/results.json` |
+| `inference` | Annotated images in `<results_dir>/trt_inference/images_annotated` and labels in `<results_dir>/trt_inference/labels` |
 
 ## Important Parameters
 
