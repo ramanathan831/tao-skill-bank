@@ -11,10 +11,10 @@ model:
     freeze_backbone: false
   decode_head:
     in_channels:
-    - 1024
-    - 1024
-    - 1024
-    - 1024
+    - 128
+    - 256
+    - 384
+    - 384
     in_index:
     - 0
     - 1
