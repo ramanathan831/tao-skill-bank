@@ -428,7 +428,13 @@ folder as a string:
 `train.resume=<train_output_dir>/<timestamp>/checkpoints/epoch_N/policy`.
 Avoid `train.resume=true` for local Docker epoch-based checkpoints because the
 current resolver scans `step_*` checkpoint directories and can miss the
-`epoch_*` folders. Do not count downloaded base-model shards under `ptm/`,
+`epoch_*` folders. `train.resume` restores optimizer and scheduler state, so use
+it for interrupted-run continuation with a compatible remaining schedule. To
+extend from a completed run, do not simply raise `train.epoch` on the completed
+policy checkpoint; the restored scheduler can continue past its original step
+horizon. Treat the concrete `safetensors/epoch_N` LoRA folder as the downstream
+handoff artifact, or start a deliberate new fine-tuning run from supported model
+weights. Do not count downloaded base-model shards under `ptm/`,
 launcher staging files under `inputs/`, or the broken `best` symlink itself as
 fine-tuned checkpoints for handoff.
 
