@@ -344,7 +344,7 @@ Minimum 1 GPU(s), recommended 4 GPU(s). 24GB+ (A100 recommended) VRAM per GPU. S
 
 Model-specific inference mappings belong in this MD file, not in `config.json`. Generated runners should read this section and apply the mappings with SDK helpers before `create_job()`. This mirrors the old microservices `infer_params.py` flow.
 
-DepthNet Stereo training writes checkpoint files under `<results_dir>/train/` using `model_epoch_<epoch>_step_<step>.pth` and a `dn_model_latest.pth` symlink. For `evaluate`, `inference`, `export`, `quantize`, and resume/retrain, select checkpoints through the SDK/model resolver so a requested best, epoch, or step checkpoint resolves to that exact file. Use `dn_model_latest.pth` only when the user explicitly asks for latest.
+DepthNet Stereo training writes checkpoint files directly under the configured training `results_dir` (for example, `train.results_dir: /results/train` writes `/results/train/model_epoch_<epoch>_step_<step>.pth`) and creates a `dn_model_latest.pth` symlink in the same directory. For `evaluate`, `inference`, `export`, `quantize`, and resume/retrain, select checkpoints through the SDK/model resolver so a requested best, epoch, or step checkpoint resolves to that exact file. Use `dn_model_latest.pth` only when the user explicitly asks for latest.
 
 Parent PyT `gen_trt_engine` is intentionally absent from the supported action set because the current `depth_net` entrypoint rejects it. The TensorRT engine mappings are owned by `deploy/SKILL.md`.
 
