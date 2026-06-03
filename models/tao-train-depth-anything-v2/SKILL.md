@@ -238,7 +238,7 @@ S3_EVAL = "aws://bucket/data/eval"
     "export.input_channel": 3,
     "export.input_height": 518,
     "export.input_width": 518,
-    "export.opset_version": 16,
+    "export.opset_version": 17,
     "export.on_cpu": False,
     "export.gpu_id": 0,
 }
@@ -283,7 +283,7 @@ Defaults sourced from `nvidia_tao_pytorch/cv/depth_net/experiment_specs/experime
 }
 ```
 
-Known issue in the default TAO 7.0.0 PyT image (also observed in earlier 7.0.0 RC images): mono `depth_net quantize` reaches the checkpoint load path and then fails inside the SDK with `MonoDepthNetPlModel` missing `load_state_dict_from_checkpoint`. Treat this as a runtime quantize implementation failure after verifying `quantize.model_path` points at the selected exact checkpoint; do not replace it with a latest-file guess or skip the action silently.
+In current TAO 7.0 PyT images, mono `depth_net quantize` supports `backend: torchao` with `mode: weight_only_ptq` and writes `quantized_model_torchao.pth`. Keep `quantize.model_path` pinned to the selected exact checkpoint; do not replace it with a latest-file guess.
 
 ## Eval Dataset
 
@@ -455,6 +455,8 @@ Minimum 1 GPU(s), recommended 2 GPU(s). 24GB+ VRAM per GPU. ViT-Large encoder is
 **Metric variant hyperparameter sourcing** (`dataset.normalize_depth`, `dataset.train_dataset.augmentation.input_mean`, `dataset.train_dataset.augmentation.input_std`): `MetricDepthAnything` requires depth normalization and ImageNet input statistics that match the checkpoint's training run. These are model- and dataset-specific (not skill-level defaults) — read them from the checkpoint's sibling `experiment.yaml` (or the upstream training spec). Common NYU-trained values: `normalize_depth: false`, `max_depth: 10.0`, `min_depth: 0.001`, `input_mean: [0.485, 0.456, 0.406]`, `input_std: [0.229, 0.224, 0.225]`. Mirror the depth-range values into the export spec — see Metric Variant Finetuning Recipe → Dataset normalization block.
 
 **Export refuses to overwrite an existing ONNX file**: `ValueError: Default onnx file <path> already exists`. The mono export action refuses to overwrite a prior artifact at `export.onnx_file`. Delete or rename the existing file, or change the spec's `export.onnx_file` to a fresh path before re-running.
+
+**Export logs ONNX version-conversion traceback but still succeeds**: When `export.opset_version: 17` is requested, the PyTorch exporter can build an opset 18 graph, fail to convert `Resize` back to opset 17, then continue and save a verified ONNX model. Treat this as a warning if `status.json` says `Export finished successfully` and the ONNX artifact plus any `.onnx.data` sidecar exist.
 
 ## Spec Param / Parent Model Inference
 

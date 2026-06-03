@@ -138,7 +138,7 @@ The spec yaml's basename (modulo `.yaml`) must match the action verb passed on t
 |---|---|
 | `gen_trt_engine` | TensorRT engine at `gen_trt_engine.trt_engine` |
 | `evaluate` | Depth metrics under `results_dir` (`abs_rel`, `d1`/`d2`/`d3` for mono; `rmse` is N/A for the scale-shift-invariant relative variant) |
-| `inference` | Predicted depth outputs under `results_dir` (colorized JPGs by default; `inference.save_raw_pfm: True` to add raw PFMs) |
+| `inference` | Predicted depth outputs under `results_dir` (current TAO Deploy writes colorized PNGs under `trt_inference/predicted_depth`) |
 
 ## Common errors
 
