@@ -292,6 +292,14 @@ Sparse4D quantize entrypoint or lack ONNX quantization dependencies; do not
 remove or skip the advertised `quantize` action if that occurs. Report the
 container/image failure and keep the exact checkpoint path visible.
 
+**Result JSON prefix**: Sparse4D evaluation and inference format predictions
+through `inference.jsonfile_prefix`. The value must be an absolute writable
+directory under the current job output directory. Do not leave the schema
+default `sparse4d_pred` in local Docker runs; Hydra may execute from an
+unwritable working directory. The model metadata maps
+`inference.jsonfile_prefix` from `output_dir` for both `evaluate` and
+`inference`.
+
 ## Spec Param / Parent Model Inference
 
 Model-specific inference mappings belong in this MD file, not in `config.json`. Generated runners should read this section and apply the mappings with SDK helpers before `create_job()`. This mirrors the old microservices `infer_params.py` flow.
@@ -303,6 +311,7 @@ Inference mappings from TAO Core `sparse4d.config.json`:
 | dataset_convert | `results_dir` | `output_dir` | current job results directory |
 | evaluate | `encryption_key` | `key` | encryption key |
 | evaluate | `evaluate.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
+| evaluate | `inference.jsonfile_prefix` | `output_dir` | writable prediction JSON output directory |
 | evaluate | `results_dir` | `output_dir` | current job results directory |
 | export | `encryption_key` | `key` | encryption key |
 | export | `export.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
@@ -310,6 +319,7 @@ Inference mappings from TAO Core `sparse4d.config.json`:
 | export | `results_dir` | `output_dir` | current job results directory |
 | inference | `encryption_key` | `key` | encryption key |
 | inference | `inference.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
+| inference | `inference.jsonfile_prefix` | `output_dir` | writable prediction JSON output directory |
 | inference | `results_dir` | `output_dir` | current job results directory |
 | quantize | `encryption_key` | `key` | encryption key |
 | quantize | `quantize.model_path` | `parent_model` | model file inferred from the parent job results folder |

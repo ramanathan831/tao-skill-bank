@@ -221,6 +221,7 @@ spec_params:
     encryption_key: key
     results_dir: output_dir
     evaluate.checkpoint: parent_model
+    inference.jsonfile_prefix: output_dir
   export:
     encryption_key: key
     results_dir: output_dir
@@ -230,6 +231,7 @@ spec_params:
     encryption_key: key
     results_dir: output_dir
     inference.checkpoint: parent_model
+    inference.jsonfile_prefix: output_dir
   quantize:
     encryption_key: key
     results_dir: output_dir

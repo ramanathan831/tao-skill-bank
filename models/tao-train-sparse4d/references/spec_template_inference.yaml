@@ -375,7 +375,7 @@ inference:
   trt_engine: ''
   results_dir: ''
   batch_size: -1
-  jsonfile_prefix: sparse4d_pred
+  jsonfile_prefix: ''
   output_nvschema: true
   tracking:
     enabled: true
