@@ -1,7 +1,7 @@
 encryption_key: tlt_encode
 results_dir: /results
 dataset:
-  num_classes: 4
+  num_classes: 5
   batch_size: 1
   augmentation:
     input_std:

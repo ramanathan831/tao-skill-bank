@@ -160,8 +160,8 @@ from.
 
 ## Important Parameters
 
-- **dataset.num_classes**: Number of object classes plus the background class. Default 91 (COCO). Must match annotations.
-- **dataset.eval_class_ids**: Foreground category ids to include in COCO metrics. Set this to every object category id in custom datasets; the template default evaluates class id 1 only.
+- **dataset.num_classes**: Number of object classes plus the background class. Default 91 (COCO). Must match annotations and be at least `max(category_id) + 1`.
+- **dataset.eval_class_ids**: Foreground category ids to include in COCO metrics. Set this to every object category id in custom datasets.
 - **model.backbone**: Default resnet_50. Supported: resnet_50, gcvit_tiny, gcvit_small, gcvit_base, gcvit_large, gcvit_large_384 (more limited than DINO).
 - **train.optim.lr**: Learning rate. Default 2e-4 (AdamW). lr_backbone is 2e-5.
 - **train.optim.lr_steps**: MultiStep LR schedule. Default [40]. For short runs, set to match ~80% of total epochs.
@@ -202,6 +202,8 @@ Minimum 1 GPU(s), recommended 4 GPU(s). 16GB+ (V100 or A100) VRAM per GPU. Sligh
 **return_interm_indices length must match num_feature_levels**: Default [1,2,3,4] with num_feature_levels=4.
 
 **Dataset size smaller than total batch size**: Reduce batch_size or num_gpus.
+
+**CUDA index assert from category IDs**: If COCO category IDs are one-based or otherwise not remapped to zero-based contiguous IDs, set `dataset.num_classes` to `max(category_id) + 1` and keep `dataset.eval_class_ids` aligned to the actual category IDs. For the packaged four-class S3 object-detection sample with IDs 1-4, use `dataset.num_classes: 5` and `dataset.eval_class_ids: [1, 2, 3, 4]`.
 
 ## Spec Param / Parent Model Inference
 

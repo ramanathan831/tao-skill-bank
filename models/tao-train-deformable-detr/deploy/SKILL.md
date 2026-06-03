@@ -104,7 +104,7 @@ Recommended starting overrides:
 
 Model-specific notes:
 
-- Carry `dataset.num_classes` as object classes plus background, matching train/export.
+- Carry `dataset.num_classes` as object classes plus background, matching train/export. For one-based COCO IDs, this is `max(category_id) + 1`; the packaged four-class sample with IDs 1-4 requires `dataset.num_classes: 5`.
 - Use FP16 for the starter-kit TensorRT engine path; INT8 requires a real calibration image folder and cache path.
 - Keep transformer structure fields such as `model.num_queries`, `model.num_select`, `model.num_feature_levels`, `model.enc_layers`, `model.dec_layers`, and `model.dim_feedforward` aligned with export.
 - Keep deploy input dimensions aligned with export. A small validation export that used 256x256 must use the same dimensions when building and running the TensorRT engine.

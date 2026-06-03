@@ -4,11 +4,14 @@ dataset:
   test_data_sources:
     image_dir: /data/images
     json_file: /data/annotations.json
-  num_classes: 4
+  num_classes: 5
   batch_size: 1
   workers: 8
   eval_class_ids:
   - 1
+  - 2
+  - 3
+  - 4
 model:
   num_feature_levels: 2
   dec_layers: 6

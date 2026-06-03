@@ -5,7 +5,7 @@ dataset:
     image_dir:
     - /data/images
     classmap: /data/label_map.txt
-  num_classes: 4
+  num_classes: 5
   batch_size: 1
   workers: 8
 inference:
@@ -14,7 +14,10 @@ inference:
   input_width: 960
   input_height: 544
   color_map:
-    person: green
+    fire_extinguisher: green
+    cone: blue
+    cart: red
+    forklift: orange
 model:
   num_feature_levels: 2
   dec_layers: 6
