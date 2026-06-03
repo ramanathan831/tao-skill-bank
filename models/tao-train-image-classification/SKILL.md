@@ -76,6 +76,10 @@ For local Docker, download the S3 archives, extract them first, and point
 `dataset.*.images_dir` at the extracted class-root folder. Do not pass
 `images_train.tar.gz`, `images_val.tar.gz`, or `images_test.tar.gz` directly to
 local Docker specs; the skill metadata declares these inputs as folders.
+Set `dataset.root_dir` to an existing writable directory for local Docker runs,
+for example a path under the mounted results directory. The Classification PyT
+dataset loader writes a generated `classes.txt` under `dataset.root_dir`, so a
+read-only data mount can fail even when all image folders are readable.
 
 **train (mandatory data sources):**
 ```python
@@ -186,6 +190,14 @@ Minimum 1 GPU(s), recommended 2 GPU(s). 16GB+ (V100 or A100) VRAM per GPU. Class
 **num_classes mismatch**: Ensure dataset.num_classes matches the actual class directories in your image tarballs and classes.txt.
 
 **Empty class directory**: Every class in classes.txt must have at least one image in the corresponding subdirectory.
+
+**Read-only or missing `dataset.root_dir`**: The local Docker dataset loader
+writes a generated `classes.txt` in `dataset.root_dir` and expects that
+directory to already exist. If the data mount is read-only, set
+`dataset.root_dir` to an existing writable run directory while keeping
+`dataset.train_dataset.images_dir`, `dataset.val_dataset.images_dir`,
+`dataset.test_dataset.images_dir`, and `dataset.classes_file` pointed at the
+extracted dataset inputs.
 
 **Distill scheduler default**: The bundled distill template and schema use
 `train.optim.policy: step`. Keep that setting for distill specs unless the
