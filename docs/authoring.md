@@ -29,10 +29,10 @@ The minimum viable skill is a single `SKILL.md`. Everything else — `references
 
 | Layer | Use when the skill is… | Examples |
 |---|---|---|
-| `models/` | A trainable network with `train` / `evaluate` / `inference` / `export` actions | `tao-finetune-cosmos-reason`, `tao-train-visual-changenet`, `tao-finetune-clip` |
-| `data/` | A data transformation — preparation, analysis, embedding, filtering | `omniverse-sdg`, `mining`, `changenet-data-prepare` |
-| `platform/` | A compute backend or runtime convention (where/how jobs run) | `tao-run-on-docker`, `tao-run-on-brev`, `tao-run-on-slurm`, `tao-run-platform` |
-| `applications/` | A workflow composing multiple skills (orchestrator) | `tao-run-deft-aoi`, `tao-train-single-step` |
+| `skills/models/` | A trainable network with `train` / `evaluate` / `inference` / `export` actions | `tao-finetune-cosmos-reason`, `tao-train-visual-changenet`, `tao-finetune-clip` |
+| `skills/data/` | A data transformation — preparation, analysis, embedding, filtering | `omniverse-sdg`, `mining`, `changenet-data-prepare` |
+| `skills/platform/` | A compute backend or runtime convention (where/how jobs run) | `tao-run-on-docker`, `tao-run-on-brev`, `tao-run-on-slurm`, `tao-run-platform` |
+| `skills/applications/` | A workflow composing multiple skills (orchestrator) | `tao-run-deft-aoi`, `tao-train-single-step` |
 
 If you're unsure: produces a trained model artifact → model. Transforms data → data. Infrastructure → platform. Orchestrates → application.
 
@@ -123,9 +123,9 @@ allowed-tools: Read Bash
 | Skill type | Recommended `compatibility:` value |
 |---|---|
 | Containerized model/data | `Requires docker + nvidia-container-toolkit + NGC API key.` |
-| `platform/tao-run-on-docker` | `Requires docker + nvidia-container-toolkit.` |
-| `platform/tao-run-on-brev` | `Requires the brev CLI (https://github.com/brevdev/brev-cli) and an active brev login.` |
-| `platform/tao-run-platform` | `Requires Python 3.10+ and the nvidia-tao-sdk package (pip install nvidia-tao-sdk).` |
+| `skills/platform/tao-run-on-docker` | `Requires docker + nvidia-container-toolkit.` |
+| `skills/platform/tao-run-on-brev` | `Requires the brev CLI (https://github.com/brevdev/brev-cli) and an active brev login.` |
+| `skills/platform/tao-run-platform` | `Requires Python 3.10+ and the nvidia-tao-sdk package (pip install nvidia-tao-sdk).` |
 | Local Python script (no container) | `Requires Python 3.8+ and Pillow.` (or whatever) |
 | Agent-prompt-driven | `Standalone — no external runtime requirements.` or omit the field. |
 
@@ -154,7 +154,7 @@ Body must contain at least one of:
 - A `docker run` code block
 - A `references/skill_info.yaml` file on disk
 - A `scripts/` or `hooks/` directory on disk
-- An SDK invocation example (`sdk.create_job`, `BrevSDK`, etc.) — for skills like `platform/tao-run-platform`
+- An SDK invocation example (`sdk.create_job`, `BrevSDK`, etc.) — for skills like `skills/platform/tao-run-platform`
 
 The validator enforces this.
 
@@ -238,7 +238,7 @@ To bump an RC, change one line — that's the entire diff.
 
 ### Skills that require the SDK
 
-Most skills run with just docker (no Python SDK). A few skills are SDK-orchestrated by design (e.g., `platform/tao-run-platform` (`tao-run-platform`), `applications/tao-run-automl` (`tao-run-automl`)). These need a **preflight** block at the top of `SKILL.md`:
+Most skills run with just docker (no Python SDK). A few skills are SDK-orchestrated by design (e.g., `skills/platform/tao-run-platform` (`tao-run-platform`), `skills/applications/tao-run-automl` (`tao-run-automl`)). These need a **preflight** block at the top of `SKILL.md`:
 
 ````markdown
 ## Preflight
@@ -316,11 +316,11 @@ When to add:
 Copy a starting point from `templates/skill-skeleton/`:
 
 ```bash
-cp -r templates/skill-skeleton/minimal models/<your-skill>      # bare SKILL.md only
-cp -r templates/skill-skeleton/model   models/<your-skill>      # full DAFT-style scaffolding
-cp -r templates/skill-skeleton/data    data/<your-skill>
-cp -r templates/skill-skeleton/platform platform/<your-skill>
-cp -r templates/skill-skeleton/workflow applications/<your-skill>
+cp -r templates/skill-skeleton/minimal skills/models/<your-skill>      # bare SKILL.md only
+cp -r templates/skill-skeleton/model   skills/models/<your-skill>      # full DAFT-style scaffolding
+cp -r templates/skill-skeleton/data    skills/data/<your-skill>
+cp -r templates/skill-skeleton/platform skills/platform/<your-skill>
+cp -r templates/skill-skeleton/workflow skills/applications/<your-skill>
 ```
 
 Rename the directory to your skill's kebab-case name. Fill in the placeholders.
@@ -336,7 +336,7 @@ List your skill under `tao-skills` (the marketplace's main plugin) so it ships w
     {
       "name": "tao-skills",
       "skills": [
-        "./models/my-new-network",
+        "./skills/models/my-new-network",
         ...
       ]
     }
@@ -346,7 +346,7 @@ List your skill under `tao-skills` (the marketplace's main plugin) so it ships w
 
 Users install with `/plugin install tao-skills@tao-skill-bank`. The plugin name (`tao-skills`) is what they type; the marketplace name (`tao-skill-bank`) is the source.
 
-Do not also add the skill under top-level `skills/`. That directory is only for Codex helper/router skills that generate capability answers or launch intake from the packaged manifests. Mirroring model, data, platform, or application skills under both places gives agents duplicate trigger surfaces and increases the chance of stale or hallucinated routing.
+Do not also add the skill under `skills/core/`. That directory is only for Codex helper/router skills that generate capability answers or launch intake from the packaged manifests. Mirroring model, data, platform, or application skills under both places gives agents duplicate trigger surfaces and increases the chance of stale or hallucinated routing.
 
 ## 8. Validate
 
@@ -357,10 +357,10 @@ Do not also add the skill under top-level `skills/`. That directory is only for 
 Errors (fail CI):
 
 - `marketplace.json` skill paths must resolve.
-- `skills/` must not contain symlink mirrors of canonical skills.
+- `skills/core/` must not contain symlink mirrors of canonical skills.
 - `SKILL.md` frontmatter must have `name`, `description`, and `license`.
 - `SKILL.md` body must have runnable info (Quick Start, docker run, scripts/, hooks/, or `references/skill_info.yaml`).
-- No `tao_sdk` symbol leaks into model/data/application skills (platform/* exempt; tao-run-automl exempted as SDK-native workflow).
+- No `tao_sdk` symbol leaks into model/data/application skills (skills/platform/* exempt; tao-run-automl exempted as SDK-native workflow).
 - Hook paths in frontmatter must resolve.
 - Any `skill_info.yaml` or `model_info.yaml` parses, including `deploy/skill_info.yaml`.
 - Container image keys resolve through `versions.yaml` (top-level and action-level).
@@ -389,9 +389,9 @@ Start a session, ask the agent to exercise the skill. Verify the agent reads it,
 - [ ] Body has Quick Start (or scripts/, hooks/, references/skill_info.yaml) — agent-runnable.
 - [ ] If the skill is non-trivial: External Dependencies, CLI Reference, Output Structure, Known Pitfalls sections present.
 - [ ] If using `skill_info.yaml`: `container_image` set, each model/data action has `command`, `mode`, `inputs`, `outputs`, and `upload_excludes`.
-- [ ] No SDK symbols (`tao_sdk`, `sdk.create_job`, etc.) in model/data/application skills (allowed in `platform/*`).
+- [ ] No SDK symbols (`tao_sdk`, `sdk.create_job`, etc.) in model/data/application skills (allowed in `skills/platform/*`).
 - [ ] Added to the marketplace manifest under the right plugin(s), when the packaging surface requires it.
-- [ ] No mirrored copy or symlink added under top-level `skills/`.
+- [ ] No mirrored copy or symlink added under `skills/core/`.
 - [ ] `scripts/validate-skills.sh` passes (no errors; warnings are informational).
 - [ ] Tested locally with the applicable plugin/runtime harness.
 
@@ -405,7 +405,7 @@ Start a session, ask the agent to exercise the skill. Verify the agent reads it,
 
 **Duplicating docker boilerplate.** If your skill explains `--gpus`, NGC login, or nvidia-container-toolkit, delete it and link to `tao-skill-bank:tao-run-on-docker`.
 
-**Mirroring skills under `skills/`.** Keep one canonical skill location under `models/`, `data/`, `platform/`, or `applications/`. The top-level `skills/` directory is a Codex helper surface, not a flat copy of the bank.
+**Mirroring skills under `skills/core/`.** Keep one canonical skill location under `skills/models/`, `skills/data/`, `skills/platform/`, or `skills/applications/`. The `skills/core/` directory is a Codex helper surface, not a flat copy of the bank.
 
 **Over-long SKILL.md.** Keep it under ~500 lines. Move long reference material to `references/` and link.
 
