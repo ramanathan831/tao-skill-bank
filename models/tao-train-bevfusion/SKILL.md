@@ -167,6 +167,16 @@ clouds under `training/velodyne_reduced` and expects camera images under
 `training/images/` defaults when chaining dataset_convert into train/evaluate or
 inference.
 
+**KITTI person-class filtering**: The 5.5 `KittiPersonDataset` is a single-class
+`person` dataset. Raw KITTI labels use `Pedestrian`; the converter maps usable
+pedestrian instances to class id 0 and ignores unrelated KITTI labels such as
+`Car`, `Van`, and `DontCare`. For small smoke splits, build `ImageSets/train.txt`
+and `ImageSets/val.txt` from frames that contain `Pedestrian`; car-only
+validation splits can produce empty `kitti_person_infos_val.pkl` files. Keep
+`dataset.classes: ["person"]` and `model.bbox_head.num_classes: 1` unless the
+run is deliberately using a different dataset type and matching annotation
+schema.
+
 **BEVFusion 5.5 config surface**: Use the 5.5 dataclass keys in packaged
 templates. Remove newer top-level/action keys such as `model_name`,
 `wandb.group`, `wandb.run_id`, `train.checkpoint_interval_unit`,
