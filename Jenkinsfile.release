@@ -20,6 +20,10 @@
 //   SDK_VERSION             bare PEP 440 version (e.g. "0.2.0"); applied to all
 //                           nvidia-tao-sdk wheel entries (tao_sdk,
 //                           tao_sdk_brev, tao_sdk_all)
+//   AUTOML_VERSION          bare PEP 440 version (e.g. "7.0.1rc1"); applied to
+//                           all nvidia-tao-automl wheel entries (tao_automl_slurm,
+//                           tao_automl_kubernetes, tao_automl_docker,
+//                           tao_automl_brev, tao_automl_all)
 //
 // Notes:
 // - Each agent relies on Jenkins's automatic `checkout scm` (job SCM is
@@ -134,6 +138,7 @@ pipeline {
                                     'COSMOS_EMBED_TAG'      : params.COSMOS_EMBED_TAG,
                                     'VILA_TAG'              : params.VILA_TAG,
                                     'SDK_VERSION'           : params.SDK_VERSION,
+                                    'AUTOML_VERSION'        : params.AUTOML_VERSION,
                                 ]
                                 def missing = required.findAll { k, v -> !(v?.toString()?.trim()) }
                                 if (missing) {
@@ -151,6 +156,7 @@ pipeline {
                                 env.COSMOS_EMBED_TAG        = params.COSMOS_EMBED_TAG
                                 env.VILA_TAG                = params.VILA_TAG
                                 env.SDK_VERSION             = params.SDK_VERSION
+                                env.AUTOML_VERSION          = params.AUTOML_VERSION
 
                                 echo "=== Bump plan ==="
                                 echo "TAO_VERSION            = ${TAO_VERSION_RESOLVED}"
@@ -163,6 +169,7 @@ pipeline {
                                 echo "COSMOS_EMBED_TAG       = ${params.COSMOS_EMBED_TAG}"
                                 echo "VILA_TAG               = ${params.VILA_TAG}"
                                 echo "SDK_VERSION            = ${params.SDK_VERSION}"
+                                echo "AUTOML_VERSION         = ${params.AUTOML_VERSION}"
                             }
                         }
                     }
@@ -251,6 +258,12 @@ PY
                                         patch_line "tao_sdk"        "nvidia-tao-sdk==${SDK_VERSION}"
                                         patch_line "tao_sdk_brev"   "nvidia-tao-sdk[brev]==${SDK_VERSION}"
                                         patch_line "tao_sdk_all"    "nvidia-tao-sdk[all]==${SDK_VERSION}"
+
+                                        patch_line "tao_automl_slurm"      "nvidia-tao-automl[slurm]==${AUTOML_VERSION}"
+                                        patch_line "tao_automl_kubernetes" "nvidia-tao-automl[kubernetes]==${AUTOML_VERSION}"
+                                        patch_line "tao_automl_docker"     "nvidia-tao-automl[docker]==${AUTOML_VERSION}"
+                                        patch_line "tao_automl_brev"       "nvidia-tao-automl[brev]==${AUTOML_VERSION}"
+                                        patch_line "tao_automl_all"        "nvidia-tao-automl[all]==${AUTOML_VERSION}"
 
                                         echo "----- BEGIN versions.yaml -----"
                                         cat "${VERSIONS_FILE}"
