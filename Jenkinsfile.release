@@ -19,7 +19,8 @@
 //   VILA_TAG                full image URI for images.tao_toolkit.vila
 //   SDK_VERSION             bare PEP 440 version (e.g. "0.2.0"); applied to all
 //                           nvidia-tao-sdk wheel entries (tao_sdk,
-//                           tao_sdk_brev, tao_sdk_all)
+//                           tao_sdk_brev, tao_sdk_slurm, tao_sdk_kubernetes,
+//                           tao_sdk_docker, tao_sdk_all)
 //   AUTOML_VERSION          bare PEP 440 version (e.g. "7.0.1rc1"); applied to
 //                           all nvidia-tao-automl wheel entries (tao_automl_slurm,
 //                           tao_automl_kubernetes, tao_automl_docker,
@@ -255,9 +256,12 @@ PY
                                         patch_line "cosmos_embed"       "${COSMOS_EMBED_TAG}"
                                         patch_line "vila"               "${VILA_TAG}"
 
-                                        patch_line "tao_sdk"        "nvidia-tao-sdk==${SDK_VERSION}"
-                                        patch_line "tao_sdk_brev"   "nvidia-tao-sdk[brev]==${SDK_VERSION}"
-                                        patch_line "tao_sdk_all"    "nvidia-tao-sdk[all]==${SDK_VERSION}"
+                                        patch_line "tao_sdk"            "nvidia-tao-sdk==${SDK_VERSION}"
+                                        patch_line "tao_sdk_brev"       "nvidia-tao-sdk[brev]==${SDK_VERSION}"
+                                        patch_line "tao_sdk_slurm"      "nvidia-tao-sdk[slurm]==${SDK_VERSION}"
+                                        patch_line "tao_sdk_kubernetes" "nvidia-tao-sdk[kubernetes]==${SDK_VERSION}"
+                                        patch_line "tao_sdk_docker"     "nvidia-tao-sdk[docker]==${SDK_VERSION}"
+                                        patch_line "tao_sdk_all"        "nvidia-tao-sdk[all]==${SDK_VERSION}"
 
                                         patch_line "tao_automl_slurm"      "nvidia-tao-automl[slurm]==${AUTOML_VERSION}"
                                         patch_line "tao_automl_kubernetes" "nvidia-tao-automl[kubernetes]==${AUTOML_VERSION}"
