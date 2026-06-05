@@ -14,12 +14,12 @@
 
 images:
   tao_toolkit:
-    pyt:                nvcr.io/nvidia/tao/tao-toolkit:7.0.0-pyt
-    deploy:             nvcr.io/nvidia/tao/tao-toolkit:7.0.0-deploy
-    data_services:      nvcr.io/nvidia/tao/tao-toolkit:7.0.0-data-services
-    cosmos_rl:          nvcr.io/nvidia/tao/tao-toolkit:7.0.0-cosmos-rl
-    cosmos_predict:     nvcr.io/nvidia/tao/tao-toolkit:7.0.0-cosmos-predict
-    cosmos_embed:       nvcr.io/nvidia/tao/tao-toolkit:7.0.0-cosmos-embed
+    pyt:                nvcr.io/nvstaging/tao/tao-toolkit-pyt:7.0.1-rc-231-multiarch
+    deploy:             nvcr.io/nvstaging/tao/tao-toolkit-deploy:7.0.1-rc-176-multiarch
+    data_services:      nvcr.io/nvstaging/tao/tao-toolkit-ds:7.0.1-rc-183-multiarch
+    cosmos_rl:          nvcr.io/nvstaging/tao/tao-toolkit:7.0.1-cosmos-rl
+    cosmos_predict:     nvcr.io/nvstaging/tao/tao-toolkit:7.0.1-cosmos-predict
+    cosmos_embed:       nvcr.io/nvstaging/tao/tao-toolkit:7.0.1-cosmos-embed
     vila:               nvcr.io/nvidia/tao/tao-toolkit:6.26.3-vila
 
   metropolis_sdg:
@@ -37,17 +37,17 @@ wheels:
   #
   # The `nvidia-tao-sdk` package consolidates what used to be multiple wheels
   # (tao-sdk, tao-sdk-brev). One entry per platform extra.
-  tao_sdk:            nvidia-tao-sdk==7.0.0
-  tao_sdk_brev:       nvidia-tao-sdk[brev]==7.0.0
-  tao_sdk_slurm:      nvidia-tao-sdk[slurm]==7.0.0
-  tao_sdk_kubernetes: nvidia-tao-sdk[kubernetes]==7.0.0
-  tao_sdk_docker:     nvidia-tao-sdk[docker]==7.0.0
-  tao_sdk_all:        nvidia-tao-sdk[all]==7.0.0
+  tao_sdk:            nvidia-tao-sdk==7.0.1rc28
+  tao_sdk_brev:       nvidia-tao-sdk[brev]==7.0.1rc28
+  tao_sdk_slurm:      nvidia-tao-sdk[slurm]==7.0.1rc28
+  tao_sdk_kubernetes: nvidia-tao-sdk[kubernetes]==7.0.1rc28
+  tao_sdk_docker:     nvidia-tao-sdk[docker]==7.0.1rc28
+  tao_sdk_all:        nvidia-tao-sdk[all]==7.0.1rc28
   # nvidia-tao-automl pulls nvidia-tao-sdk as a transitive dep. One entry per
   # platform extra; append `,llm` or `,wandb` to an extra at install time for
   # the agentic-search or experiment-tracking deps.
-  tao_automl_slurm:      nvidia-tao-automl[slurm]==7.0.0
-  tao_automl_kubernetes: nvidia-tao-automl[kubernetes]==7.0.0
-  tao_automl_docker:     nvidia-tao-automl[docker]==7.0.0
-  tao_automl_brev:       nvidia-tao-automl[brev]==7.0.0
-  tao_automl_all:        nvidia-tao-automl[all]==7.0.0
+  tao_automl_slurm:      nvidia-tao-automl[slurm]==7.0.1rc22
+  tao_automl_kubernetes: nvidia-tao-automl[kubernetes]==7.0.1rc22
+  tao_automl_docker:     nvidia-tao-automl[docker]==7.0.1rc22
+  tao_automl_brev:       nvidia-tao-automl[brev]==7.0.1rc22
+  tao_automl_all:        nvidia-tao-automl[all]==7.0.1rc22
