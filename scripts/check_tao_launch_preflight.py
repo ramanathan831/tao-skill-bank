@@ -21,7 +21,7 @@ from typing import Any
 DEFAULT_SKILL_BANK = Path(
     os.environ.get("TAO_SKILL_BANK_PATH", Path.home() / "tao-skills-external")
 )
-MANIFEST_REL = Path("platform") / "platforms.manifest.json"
+MANIFEST_REL = Path("skills") / "platform" / "platforms.manifest.json"
 REMOTE_SCHEMES = ("s3://", "azure://", "gs://", "http://", "https://")
 
 
