@@ -1,6 +1,6 @@
 results_dir: ''
 task:
-  type: its_directionality
+  type: ''
 dataset:
   annotation_path: ''
   media_dir: ''
@@ -8,14 +8,14 @@ dataset:
     CCTV footage. The vehicles that need attention are marked with bounding boxes
     and IDs.
 model:
-  model_name: nvidia/Cosmos-Reason2-8B
+  model_name: hf_model://nvidia/Cosmos3-Nano
   save_folder: cr1_1_zero_shot
   tokenizer_model_name: qwen2.5-vl-7b
   dtype: bfloat16
   max_length: 128000
   tp_size: 1
   enable_lora: false
-  base_model_path: ''
+  base_model_path: hf_model://nvidia/Cosmos3-Nano
 evaluation:
   answer_type: freeform
   num_processes: 40
