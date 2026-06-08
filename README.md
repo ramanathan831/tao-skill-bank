@@ -1,4 +1,4 @@
-# NVIDIA TAO Skill Bank
+# NVIDIA [TAO Skill Bank](https://github.com/NVIDIA-TAO/tao-skills-bank)
 
 Portable agent skills for training, evaluating, and running inference on NVIDIA TAO models. Works with Claude Code, Codex, Gemini CLI, or any coding agent that speaks the [Agent Skills open standard](https://agentskills.io). **Zero Python required** for local docker workflows — install the plugin, install docker + nvidia-container-toolkit, and an agent can run every skill by constructing `docker run` commands directly. For advanced features (job tracking, multi-node, S3 I/O wrapping), an optional Python layer — the [TAO Execution SDK](#optional-python-layer) — sits on top.
 
@@ -27,7 +27,19 @@ Codex setup has **two independent pieces** — the plugin (which surfaces the sk
 curl -fsSL https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-skills-external/-/raw/main/scripts/install-codex-agents.sh | bash
 ```
 
-…or, if you've already cloned the repo, `scripts/install-codex-agents.sh`. The script registers the marketplace, installs `tao-skill-bank`, and copies `AGENTS.md` to `~/.codex/AGENTS.md` so the TAO identity loads in every Codex session. It's idempotent and backs up any existing `~/.codex/AGENTS.md` before overwriting. Override the source with `TAO_SKILL_BANK_MARKETPLACE=…` and `TAO_SKILL_BANK_REF=…` to use a fork or pinned ref.
+…or, if you've already cloned or extracted the repo from a zip, run
+`scripts/install-codex-agents.sh` from that directory. The script registers the
+marketplace, installs `tao-skill-bank`, and copies `AGENTS.md` to
+`~/.codex/AGENTS.md` so the TAO identity loads in every Codex session. It's
+idempotent and backs up any existing `~/.codex/AGENTS.md` before overwriting.
+Override the source with `TAO_SKILL_BANK_MARKETPLACE=…` and
+`TAO_SKILL_BANK_REF=…` to use a fork, pinned ref, or local absolute path:
+
+```bash
+cd /absolute/path/to/tao-skills-external
+TAO_SKILL_BANK_MARKETPLACE=/absolute/path/to/tao-skills-external \
+  scripts/install-codex-agents.sh
+```
 
 #### Manual steps
 
@@ -42,6 +54,13 @@ codex plugin add tao-skill-bank@tao-local-plugins
 
 This installs the bundle to `~/.codex/plugins/cache/tao-local-plugins/tao-skill-bank/<version>/` (the `tao-local-plugins` segment comes from the `name` field in `.agents/plugins/marketplace.json`).
 
+For a local zip or clone, use the absolute path instead of the Git URL:
+
+```bash
+codex plugin marketplace add /absolute/path/to/tao-skills-external
+codex plugin add tao-skill-bank@tao-local-plugins
+```
+
 **2. Load the agent identity (`AGENTS.md`).** The plugin install does **not** auto-load [`AGENTS.md`](AGENTS.md) — Codex's `AGENTS.md` discovery walks down from the project root, not into the plugin cache (see [openai/codex#16430](https://github.com/openai/codex/issues/16430) for why plugin-bundled `SessionStart` hooks don't fix this yet). Pick one:
 
 - **Per-project**: `git clone` this repo and launch `codex` from inside the clone. Codex auto-loads `AGENTS.md` from the project root per the [agents.md](https://agents.md/) cross-runtime spec.
@@ -51,7 +70,10 @@ Once Codex starts honoring plugin-bundled hooks, the identity will install autom
 
 ### Credentials
 
-On first session start, the plugin looks for `~/.config/tao/.env` and auto-loads it. To set up:
+Credentials can be exported in the current shell or stored in an env file that
+the agent is allowed to source, such as `~/.config/tao/.env` or
+`~/.tao/secrets.env`. On first session start, the plugin looks for
+`~/.config/tao/.env` and auto-loads it. To set up:
 
 ```bash
 mkdir -p ~/.config/tao
@@ -59,7 +81,16 @@ cp "${CLAUDE_PLUGIN_ROOT}/.env.example" ~/.config/tao/.env  # template ships in 
 # Edit ~/.config/tao/.env and fill in NGC_KEY, S3 keys, etc.
 ```
 
-The `.env.example` is also at the [repo root](.env.example) for direct reference. The agent never reads credential values — it only checks presence.
+The `.env.example` is also at the [repo root](.env.example) for direct
+reference. The agent never reads credential values — it only checks presence.
+When a workflow needs Hugging Face access, get a token from
+[Hugging Face settings](https://huggingface.co/settings/tokens) and accept the
+model or dataset license before launch.
+
+If a readiness check reports a missing CLI, container image, backbone, or
+credential, the TAO skills can often install or stage the missing piece after
+you approve the action. Ask the agent to continue the original workflow after a
+blocker is resolved; it should rerun preflight and proceed from the same task.
 
 ### When does the SDK get installed?
 
@@ -110,9 +141,14 @@ In a Claude Code session with the plugin installed, ask:
 
 > *"Run Visual ChangeNet inference on this sample image: /tmp/sample.png. Write results to /tmp/vcn-out/."*
 
-The agent will read `models/tao-train-visual-changenet/SKILL.md` (skill name `tao-train-visual-changenet`, plus its `references/skill_info.yaml` if present), construct a `docker run --gpus all ...` invocation, and execute via Bash. **No Python needed.** No SDK install. Just docker + the plugin.
+The agent will read `models/tao-train-visual-changenet/SKILL.md` (skill name `tao-train-visual-changenet`, plus its `references/skill_info.yaml` if present), construct a `docker run --gpus all ...` invocation, and execute via Bash. **No Python needed.** No SDK install. Just docker + the plugin. For classify mode, expect per-image PASS/NO_PASS-style predictions and result files under `/tmp/vcn-out/`. For segment mode, expect binary change-mask outputs under the requested results directory.
 
-For more complex workflows (iterative fine-tuning with synthetic data augmentation), see `applications/tao-run-deft-aoi/SKILL.md` (`tao-run-deft-aoi`).
+For more complex workflows, see `applications/tao-run-deft-aoi/SKILL.md`
+(`tao-run-deft-aoi`) for iterative fine-tuning with synthetic data augmentation
+and `applications/tao-run-automl/SKILL.md` (`tao-run-automl`) for
+hyperparameter optimization. AutoML launch reviews should show the number of
+recommendations, metric, search space, expected runtime, and resolved train
+image before long-running jobs start.
 
 ## What's in the bank
 

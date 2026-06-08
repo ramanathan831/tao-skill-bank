@@ -228,6 +228,49 @@ Use these quick-start AutoML defaults without asking:
 
 If any required field is missing, ask the user. Do NOT guess dataset paths, skill bank paths, credentials, or hardware that the model skill marks as required.
 
+## Pre-Launch Review Gate
+
+Before launching any recommendation jobs, show a concrete launch review and get
+user confirmation. This gate applies to every AutoML run for every
+AutoML-supported model/network; it is not Cosmos-specific and must not be
+scoped to a single model skill. This applies even when platform and image
+preflight already passed. The review must include:
+
+- model/network, platform, image, GPU/node shape, and result/workspace root
+- dataset mode and concrete spec keys, including train/eval sample counts when
+  they can be read cheaply
+- algorithm, budget, max concurrent jobs, metric, and direction
+- searchable parameters and ranges, including default values when the user did
+  not provide an explicit search space
+- planned or first-generated recommendation configs when the algorithm can
+  produce them before launch; otherwise state that recommendations are sampled
+  lazily and show the search bounds
+- estimated runtime per recommendation and total expected wall time, with the
+  assumptions used
+- whether a baseline/pretrained evaluation will be run before tuning
+
+If the estimate is longer than the user's stated limit or materially longer
+than a normal interactive run, ask whether to reduce recommendations, epochs,
+dataset size, validation frequency, or search space before launch. Do not hide
+multi-day estimates in logs.
+
+## Dependency And Data Preflight
+
+If the selected workflow needs object storage or a platform CLI and the tool is
+missing, report the missing dependency and offer the exact install command
+before continuing. After user approval, install the smallest needed package and
+rerun preflight. For S3 paths, verify both credentials and path readability
+from the launch platform before creating runner artifacts. Do not wait for the
+first training container to discover a missing AWS CLI, S3 client, or unreadable
+URI.
+
+When the model skill defines sample-count-sensitive constraints, enforce them
+before launch. For example, reject or cap batch-size recommendations that would
+create zero training steps for the selected dataset and GPU shard count. If a
+recommendation later fails because the data is too small for the effective
+batch size, classify it as an invalid configuration, replace or adjust it only
+when remaining budget exists, and report the correction in the final summary.
+
 When asking for missing AutoML launch inputs, use a first-time-user friendly
 prompt. Do not say only "train dataset root" / "eval dataset root", and do not
 say "attached monitoring every 5 minutes" without explaining it. Include:
@@ -974,13 +1017,20 @@ Check common issues:
 - **Model or data download timeout** — inspect backend logs and model-skill error patterns.
 - **OOM** — reduce the model-specific batch, resolution, sequence length, or memory-heavy knobs recommended by the model skill.
 - **Cached data corruption** — inspect the model skill's dataset/cache error patterns and clear only the affected cache path if documented.
-- **LLM endpoint unreachable** (llm/hybrid/autoresearch only) — the brain falls back to random sampling. Check `AUTOML_LLM_ENDPOINT` and `AUTOML_LLM_API_KEY`. Verify with: `curl -s $AUTOML_LLM_ENDPOINT/models -H "Authorization: Bearer $AUTOML_LLM_API_KEY"`.
+- **LLM endpoint unreachable** (llm/hybrid/autoresearch only) — the brain falls back to random sampling. Check only whether `AUTOML_LLM_ENDPOINT` and `AUTOML_LLM_API_KEY` are set, then run a redacted client check that reports success/failure without printing the key or request headers.
 
 If the runner reports no new recommendations and there are no pending/running
 child jobs, treat the AutoML run as exhausted instead of continuing to poll
 forever. Inspect the failed child job logs, fix the model skill/config/setup
 issue, then relaunch from a fresh runner or resume only after the failed cause
 is corrected.
+
+For LLM-based algorithms, inspect the brain logs before calling the run valid.
+Verify that LLM calls succeeded, proposals were generated, prior metrics were
+used to choose later parameter changes, and logs show keep/discard or
+equivalent algorithm decisions. If the brain falls back to random sampling,
+classify the LLM workflow as failed or blocked instead of treating it as a
+valid LLM-guided run.
 
 ---
 

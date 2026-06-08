@@ -78,7 +78,7 @@
       },
       "model_gradient_checkpointing": true,
       "model_max_length": 40960,
-      "model_name_or_path": "nvidia/Cosmos-Reason2-8B",
+      "model_name_or_path": "hf_model://nvidia/Cosmos3-Nano",
       "parallelism": {
         "cp_rotate_method": "allgather",
         "cp_size": 1,
@@ -134,7 +134,7 @@
         "dataloader_num_workers": 0,
         "dataloader_prefetch_factor": 1,
         "dataset": {
-          "name": "its",
+          "name": "wts",
           "test_size": 0
         },
         "enable_dataset_cache": false,
@@ -398,7 +398,7 @@
         },
         "model_gradient_checkpointing": true,
         "model_max_length": 40960,
-        "model_name_or_path": "nvidia/Cosmos-Reason2-8B",
+        "model_name_or_path": "hf_model://nvidia/Cosmos3-Nano",
         "parallelism": {
           "cp_rotate_method": "allgather",
           "cp_size": 1,
@@ -568,7 +568,7 @@
           "type": "int"
         },
         "model_name_or_path": {
-          "default": "nvidia/Cosmos-Reason2-8B",
+          "default": "hf_model://nvidia/Cosmos3-Nano",
           "description": "Model name or path.",
           "title": "Model name or path",
           "type": "string"
@@ -718,7 +718,7 @@
           "dataloader_num_workers": 0,
           "dataloader_prefetch_factor": 1,
           "dataset": {
-            "name": "its",
+            "name": "wts",
             "test_size": 0
           },
           "enable_dataset_cache": false,
@@ -1069,7 +1069,7 @@
             "dataloader_num_workers": 0,
             "dataloader_prefetch_factor": 1,
             "dataset": {
-              "name": "its",
+              "name": "wts",
               "test_size": 0
             },
             "enable_dataset_cache": false,
@@ -1103,7 +1103,7 @@
             "dataset": {
               "automl_enabled": false,
               "default": {
-                "name": "its",
+                "name": "wts",
               "test_size": 0
               },
               "description": "Dataset config.",
