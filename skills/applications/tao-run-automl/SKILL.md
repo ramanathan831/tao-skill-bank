@@ -96,7 +96,7 @@ Collect these before runner construction:
 
 | Input | Requirement |
 |---|---|
-| `network_arch` | Model directory name under `skills/models/`. |
+| `model_skill` | Resolved model skill directory under `skills/models/`. Accept user aliases such as `network_arch` only after resolving them to the packaged skill directory. |
 | `platform` | One of the supported TAO platform skills. |
 | `train_dataset` / `eval_dataset` | Use model-specific spec keys and dataset layout. |
 | `results_root` | Local, Lustre, or S3 path appropriate for the platform. |
@@ -123,9 +123,8 @@ preflight already passed. The review must include:
 - algorithm, budget, max concurrent jobs, metric, and direction
 - searchable parameters and ranges, including default values when the user did
   not provide an explicit search space
-- planned or first-generated recommendation configs when the algorithm can
-  produce them before launch; otherwise state that recommendations are sampled
-  lazily and show the search bounds
+- exact generated recommendation configs for the initial launch batch, produced
+  in a review-only step before any recommendation job is submitted
 - estimated runtime per recommendation and total expected wall time, with the
   assumptions used
 - whether a baseline/pretrained evaluation will be run before tuning
@@ -146,11 +145,14 @@ first training container to discover a missing AWS CLI, S3 client, or unreadable
 URI.
 
 When the model skill defines sample-count-sensitive constraints, enforce them
-before launch. For example, reject or cap batch-size recommendations that would
-create zero training steps for the selected dataset and GPU shard count. If a
-recommendation later fails because the data is too small for the effective
-batch size, classify it as an invalid configuration, replace or adjust it only
-when remaining budget exists, and report the correction in the final summary.
+before launch. Reject or cap every batch-size recommendation that would create
+zero training steps for the selected dataset and GPU shard count. Use
+`scripts/check_tao_launch_preflight.py --effective-batch-limit
+train_annotation=<batch_size>,<shard_count>` for each generated recommendation
+before submitting it. If a recommendation later fails because the data is too
+small for the effective batch size, classify it as an invalid configuration,
+replace or adjust it only when remaining budget exists, and report the
+correction in the final summary.
 
 ## Algorithm Policy
 
@@ -201,12 +203,13 @@ metric. Use one of these:
 Do not map `kpi` to a metric unless the model skill explicitly defines that
 mapping.
 
-When the user's goal is improvement over a pretrained/base model, run or offer
-a baseline evaluation before AutoML. The final report should compare baseline
-metric, each recommendation's metric, and the selected best metric so users can
-see the impact of tuning. For model skills that require an `eval_fn` to compute
-the real task metric, use that evaluator instead of optimizing a convenient
-training loss unless the user explicitly accepts the proxy metric.
+When the user's goal is improvement over a pretrained/base model, run a baseline
+evaluation before AutoML unless the user explicitly declines it. The final
+report must compare baseline metric, each recommendation's metric, and the
+selected best metric so users can see the impact of tuning. For model skills
+that require an `eval_fn` to compute the real task metric, use that evaluator
+instead of optimizing a convenient training loss unless the user explicitly
+accepts the proxy metric.
 
 ## Runner Construction
 
@@ -218,7 +221,8 @@ from pathlib import Path
 from tao_automl.runner import AutoMLRunner
 
 skill_bank = Path("<absolute-tao-skill-bank>")
-skill_dir = skill_bank / "skills" / "models" / network_arch
+model_skill = "<resolved-model-skill-directory>"
+skill_dir = skill_bank / "skills" / "models" / model_skill
 
 runner = AutoMLRunner(
     skill_dir=str(skill_dir),

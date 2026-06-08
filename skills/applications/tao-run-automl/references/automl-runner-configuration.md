@@ -53,7 +53,7 @@ TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
 sdk = BrevSDK()                                  # reads platform credentials from env
 runner = AutoMLRunner(
     sdk=sdk,
-    skill_dir=SKILL_BANK / "models" / network_arch,           # SKILL_BANK = Path("<bank-root>")
+    skill_dir=SKILL_BANK / "skills" / "models" / model_skill, # resolved skill dir
     action="train",
 )
 result = runner.run(

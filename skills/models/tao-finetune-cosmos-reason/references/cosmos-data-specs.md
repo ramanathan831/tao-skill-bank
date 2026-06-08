@@ -66,6 +66,14 @@ Non-train actions such as `evaluate`, `inference`, and `quantize` stay in this m
   annotation JSON is readable and the referenced media path or archive is
   visible from the selected platform. Do not block, patch, or mutate
   annotations solely because optional fields are absent.
+- **Per-record video FPS:** the packaged train template uses
+  `custom.vision.nframes`, so per-record `video_fps` is not required by
+  default. If the user switches to `custom.vision.fps`, selects a dataset
+  profile that requires per-record timing, or uses an image/version that
+  requires `video_fps`, make it a preflight requirement with
+  `--json-required-field train_annotation=video_fps` and
+  `--json-required-field val_annotation=video_fps` before any download or
+  job launch.
 
 ### Launch Intake Reminder
 
@@ -97,8 +105,20 @@ scripts/check_tao_launch_preflight.py --platform slurm \
   --path train_annotation=/lustre/.../train/annotations.json \
   --path train_media=/lustre/.../train \
   --path val_annotation=/lustre/.../eval/annotations.json \
-  --path val_media=/lustre/.../eval
+  --path val_media=/lustre/.../eval \
+  --gpu-min-count 4 \
+  --gpu-min-memory-gb 80 \
+  --gpu-arch-allowlist cosmos_rl=sm_80,sm_90,sm_100,sm_120
 ```
+
+For Cosmos-RL, count and memory are necessary but not sufficient. Treat the run
+as launchable only when the target has at least 4 GPUs with 80GB-class memory or
+higher, the GPU architecture is in the image-supported allowlist above, and the
+normal Docker/platform, S3, and credential preflight checks pass. A remote image
+manifest that advertises `linux/arm64` only proves CPU architecture support; it
+does not prove CUDA SM support. Spark/GB10 `sm_121` must be blocked for this
+image unless direct image introspection confirms `sm_121` support or the user
+chooses a newer compatible image.
 
 ### Per-Action Dataset Requirements
 

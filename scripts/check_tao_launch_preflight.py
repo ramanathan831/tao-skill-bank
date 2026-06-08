@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import shlex
 import socket
@@ -56,6 +57,64 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=20,
         help="Number of JSON annotation records to sample for required fields.",
+    )
+    parser.add_argument(
+        "--gpu-arch-allowlist",
+        action="append",
+        default=[],
+        metavar="LABEL=SM[,SM...]",
+        help=(
+            "Require target GPU architectures to be supported by a model/image, "
+            "for example cosmos_rl=sm_80,sm_90,sm_100,sm_120."
+        ),
+    )
+    parser.add_argument(
+        "--gpu-arch",
+        action="append",
+        default=[],
+        metavar="SM",
+        help=(
+            "Known target GPU architecture such as sm_90 or 12.0. May be repeated. "
+            "If omitted, local nvidia-smi is used when an allowlist is provided."
+        ),
+    )
+    parser.add_argument(
+        "--gpu-min-count",
+        type=int,
+        default=None,
+        help="Require at least this many target GPUs before launch.",
+    )
+    parser.add_argument(
+        "--gpu-min-memory-gb",
+        type=float,
+        default=None,
+        help="Require each counted target GPU to have at least this much memory in GiB.",
+    )
+    parser.add_argument(
+        "--target-gpu-count",
+        type=int,
+        default=None,
+        help="Known target GPU count when nvidia-smi is not available on the launch host.",
+    )
+    parser.add_argument(
+        "--target-gpu-memory-gb",
+        action="append",
+        type=float,
+        default=[],
+        help=(
+            "Known target GPU memory in GiB. May be repeated once per GPU, or "
+            "provided once with --target-gpu-count to apply to all target GPUs."
+        ),
+    )
+    parser.add_argument(
+        "--effective-batch-limit",
+        action="append",
+        default=[],
+        metavar="LABEL=BATCH_SIZE,SHARD_COUNT",
+        help=(
+            "Require BATCH_SIZE <= JSON record_count / SHARD_COUNT for a "
+            "previously supplied annotation path label. May be repeated."
+        ),
     )
     parser.add_argument(
         "--skip-platform-access",
@@ -109,6 +168,73 @@ def parse_required_fields(values: list[str]) -> dict[str, list[str]]:
     return fields_by_label
 
 
+def normalize_gpu_arch(value: str) -> str:
+    normalized = value.strip().lower().replace("compute_", "sm_")
+    normalized = normalized.replace("-", "_")
+    if not normalized:
+        raise SystemExit("GPU architecture value must not be empty")
+    if re.fullmatch(r"sm_?\d{2,3}", normalized):
+        digits = normalized.split("_", 1)[-1] if "_" in normalized else normalized[2:]
+        return "sm_" + digits
+    if re.fullmatch(r"\d{2,3}", normalized):
+        return "sm_" + normalized
+    match = re.fullmatch(r"(\d+)\.(\d+)", normalized)
+    if match:
+        major, minor = match.groups()
+        return f"sm_{major}{minor}"
+    raise SystemExit(
+        f"Unsupported GPU architecture format: {value}. Use sm_90, 90, or 9.0."
+    )
+
+
+def parse_gpu_arch_allowlists(values: list[str]) -> dict[str, set[str]]:
+    allowlists: dict[str, set[str]] = {}
+    for value in values:
+        if "=" not in value:
+            raise SystemExit("--gpu-arch-allowlist must use LABEL=SM[,SM...] syntax")
+        label, raw_arches = value.split("=", 1)
+        label = label.strip()
+        arches = {
+            normalize_gpu_arch(arch)
+            for arch in raw_arches.split(",")
+            if arch.strip()
+        }
+        if not label or not arches:
+            raise SystemExit(
+                "--gpu-arch-allowlist must include a label and at least one SM value"
+            )
+        allowlists[label] = arches
+    return allowlists
+
+
+def parse_effective_batch_limits(values: list[str]) -> dict[str, list[tuple[int, int]]]:
+    limits: dict[str, list[tuple[int, int]]] = {}
+    for value in values:
+        if "=" not in value:
+            raise SystemExit(
+                "--effective-batch-limit must use LABEL=BATCH_SIZE,SHARD_COUNT syntax"
+            )
+        label, raw_values = value.split("=", 1)
+        parts = [part.strip() for part in raw_values.split(",") if part.strip()]
+        if len(parts) != 2:
+            raise SystemExit(
+                "--effective-batch-limit must include exactly BATCH_SIZE,SHARD_COUNT"
+            )
+        try:
+            batch_size = int(parts[0])
+            shard_count = int(parts[1])
+        except ValueError as exc:
+            raise SystemExit(
+                "--effective-batch-limit values must be integers"
+            ) from exc
+        if batch_size <= 0 or shard_count <= 0:
+            raise SystemExit(
+                "--effective-batch-limit values must be positive integers"
+            )
+        limits.setdefault(label.strip(), []).append((batch_size, shard_count))
+    return limits
+
+
 def env_missing(platform: dict[str, Any]) -> list[str]:
     missing = []
     for item in platform.get("required_credentials", []):
@@ -157,6 +283,156 @@ def run(
             stdout=exc.stdout or "",
             stderr=exc.stderr or "command timed out",
         )
+
+
+def detect_local_gpu_arches() -> list[str]:
+    if not shutil.which("nvidia-smi"):
+        return []
+    result = run(
+        ["nvidia-smi", "--query-gpu=compute_cap", "--format=csv,noheader"],
+        timeout=20,
+    )
+    if result.returncode != 0:
+        return []
+    arches = []
+    for line in result.stdout.splitlines():
+        value = line.strip()
+        if not value:
+            continue
+        arches.append(normalize_gpu_arch(value))
+    return arches
+
+
+def detect_local_gpu_memory_gb() -> list[float]:
+    if not shutil.which("nvidia-smi"):
+        return []
+    result = run(
+        ["nvidia-smi", "--query-gpu=memory.total", "--format=csv,noheader,nounits"],
+        timeout=20,
+    )
+    if result.returncode != 0:
+        return []
+    memory_gb = []
+    for line in result.stdout.splitlines():
+        value = line.strip()
+        if not value:
+            continue
+        try:
+            memory_gb.append(float(value) / 1024.0)
+        except ValueError:
+            continue
+    return memory_gb
+
+
+def check_gpu_arch_allowlists(
+    allowlists: dict[str, set[str]],
+    provided_arches: list[str],
+    skip_access: bool,
+) -> bool:
+    if not allowlists:
+        return True
+
+    if provided_arches:
+        target_arches = [normalize_gpu_arch(arch) for arch in provided_arches]
+    elif skip_access:
+        labels = ", ".join(sorted(allowlists))
+        print(
+            "GPU architecture allowlist present but target GPU detection was skipped: "
+            f"{labels}. Provide --gpu-arch sm_XX when the target architecture is known."
+        )
+        return True
+    else:
+        target_arches = detect_local_gpu_arches()
+
+    if not target_arches:
+        labels = ", ".join(sorted(allowlists))
+        print(
+            "GPU architecture check failed: could not detect target GPU architecture "
+            f"for {labels}. Run on the target GPU host or provide --gpu-arch sm_XX."
+        )
+        return False
+
+    ok = True
+    for label, allowed in allowlists.items():
+        label_ok = True
+        for arch in target_arches:
+            if arch not in allowed:
+                print(
+                    f"GPU architecture unsupported for {label}: target={arch}, "
+                    f"allowed={','.join(sorted(allowed))}"
+                )
+                label_ok = False
+                ok = False
+        if label_ok:
+            print(
+                f"GPU architecture OK for {label}: "
+                f"target={','.join(target_arches)}, allowed={','.join(sorted(allowed))}"
+            )
+    return ok
+
+
+def check_gpu_resources(
+    min_count: int | None,
+    min_memory_gb: float | None,
+    target_count: int | None,
+    target_memory_gb: list[float],
+    skip_access: bool,
+) -> bool:
+    if min_count is None and min_memory_gb is None:
+        return True
+    if min_count is not None and min_count <= 0:
+        raise SystemExit("--gpu-min-count must be a positive integer")
+    if min_memory_gb is not None and min_memory_gb <= 0:
+        raise SystemExit("--gpu-min-memory-gb must be positive")
+
+    if target_memory_gb:
+        memory_gb = list(target_memory_gb)
+        if target_count and len(memory_gb) == 1:
+            memory_gb = memory_gb * target_count
+    elif target_count:
+        memory_gb = [0.0] * target_count
+    elif skip_access:
+        print(
+            "GPU resource requirement present but target GPU detection was skipped. "
+            "Provide --target-gpu-count and --target-gpu-memory-gb when the target "
+            "hardware is known."
+        )
+        return True
+    else:
+        memory_gb = detect_local_gpu_memory_gb()
+
+    if not memory_gb:
+        print(
+            "GPU resource check failed: could not detect target GPU memory/count. "
+            "Run on the target GPU host or provide --target-gpu-count and "
+            "--target-gpu-memory-gb."
+        )
+        return False
+
+    if min_memory_gb is None:
+        qualifying = len(memory_gb)
+    else:
+        qualifying = sum(1 for value in memory_gb if value >= min_memory_gb)
+
+    required_count = min_count or 1
+    if qualifying < required_count:
+        detected = ",".join(f"{value:.1f}GiB" for value in memory_gb)
+        print(
+            "GPU resource check failed: "
+            f"qualifying_gpus={qualifying} < required={required_count}; "
+            f"min_memory_gb={min_memory_gb if min_memory_gb is not None else 'any'}; "
+            f"detected={detected}"
+        )
+        return False
+
+    detected = ",".join(f"{value:.1f}GiB" for value in memory_gb)
+    print(
+        "GPU resources OK: "
+        f"qualifying_gpus={qualifying}, required={required_count}, "
+        f"min_memory_gb={min_memory_gb if min_memory_gb is not None else 'any'}, "
+        f"detected={detected}"
+    )
+    return True
 
 
 JSON_FIELD_CHECK_SCRIPT = r"""
@@ -322,7 +598,8 @@ def check_s3_storage(paths: list[tuple[str, str]], skip_access: bool) -> bool:
     if not aws:
         print(
             "aws CLI not found, so s3:// dataset paths cannot be verified. "
-            "Install awscli or manually prove the paths are readable before launch."
+            "After user approval, install it with: python -m pip install awscli. "
+            "Alternatively, manually prove the paths are readable before launch."
         )
         return False
 
@@ -345,6 +622,104 @@ def check_s3_storage(paths: list[tuple[str, str]], skip_access: bool) -> bool:
             reason = detail[-1] if detail else "exit " + str(result.returncode)
             print(f"S3 path missing or inaccessible: {label}={uri}: {reason}")
             ok = False
+    return ok
+
+
+def load_json_payload(path: str) -> Any:
+    if path.startswith("s3://"):
+        aws = shutil.which("aws")
+        if not aws:
+            raise RuntimeError(
+                "aws CLI not found. After user approval, install it with: "
+                "python -m pip install awscli"
+            )
+        missing = [key for key in ("ACCESS_KEY", "SECRET_KEY") if not os.environ.get(key)]
+        if missing:
+            raise RuntimeError("Missing S3 requirement(s): " + ", ".join(missing))
+        env = os.environ.copy()
+        env["AWS_ACCESS_KEY_ID"] = os.environ["ACCESS_KEY"]
+        env["AWS_SECRET_ACCESS_KEY"] = os.environ["SECRET_KEY"]
+        env.setdefault("AWS_DEFAULT_REGION", os.environ.get("CLOUD_REGION", "us-east-1"))
+        command = [aws]
+        if os.environ.get("S3_ENDPOINT_URL"):
+            command.extend(["--endpoint-url", os.environ["S3_ENDPOINT_URL"]])
+        command.extend(["s3", "cp", path, "-"])
+        result = run(command, timeout=60, env=env)
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout).strip().splitlines()
+            reason = detail[-1] if detail else "exit " + str(result.returncode)
+            raise RuntimeError(f"S3 annotation download failed: {reason}")
+        return json.loads(result.stdout)
+
+    local_path = normalize_local_path(path)
+    if local_path is None:
+        raise RuntimeError(f"Cannot count records for remote path: {path}")
+    with Path(local_path).open("r", encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def json_record_count(path: str) -> int:
+    payload = load_json_payload(path)
+    if isinstance(payload, list):
+        records = payload
+    elif isinstance(payload, dict):
+        for key in ("annotations", "data", "samples", "items"):
+            value = payload.get(key)
+            if isinstance(value, list):
+                records = value
+                break
+        else:
+            records = [payload]
+    else:
+        raise RuntimeError(f"unsupported JSON top-level type: {type(payload).__name__}")
+    if not records:
+        raise RuntimeError("annotation JSON has no records")
+    return len(records)
+
+
+def check_effective_batch_limits(
+    paths: list[tuple[str, str]],
+    limits: dict[str, list[tuple[int, int]]],
+    skip_access: bool,
+) -> bool:
+    if not limits:
+        return True
+    if skip_access:
+        print(
+            "Effective batch limits present; skipped annotation record-count checks."
+        )
+        return True
+
+    path_by_label = dict(paths)
+    ok = True
+    count_cache: dict[str, int] = {}
+    for label, label_limits in limits.items():
+        path = path_by_label.get(label)
+        if not path:
+            print(f"Effective batch check failed: no --path found for label {label}")
+            ok = False
+            continue
+        try:
+            count = count_cache.setdefault(path, json_record_count(path))
+        except Exception as exc:
+            print(f"Effective batch check failed: {label}={path}: {exc}")
+            ok = False
+            continue
+        for batch_size, shard_count in label_limits:
+            max_batch = count / shard_count
+            if batch_size > max_batch:
+                print(
+                    "Effective batch check failed: "
+                    f"{label} records={count}, batch_size={batch_size}, "
+                    f"shard_count={shard_count}, max_batch_per_replica={max_batch:g}"
+                )
+                ok = False
+            else:
+                print(
+                    "Effective batch OK: "
+                    f"{label} records={count}, batch_size={batch_size}, "
+                    f"shard_count={shard_count}, max_batch_per_replica={max_batch:g}"
+                )
     return ok
 
 
@@ -658,6 +1033,8 @@ def main() -> int:
     platform = resolve_platform(args.skill_bank, args.platform)
     paths = parse_paths(args.path)
     required_json_fields = parse_required_fields(args.json_required_field)
+    gpu_arch_allowlists = parse_gpu_arch_allowlists(args.gpu_arch_allowlist)
+    effective_batch_limits = parse_effective_batch_limits(args.effective_batch_limit)
     name = platform["name"]
 
     if name == "slurm":
@@ -688,7 +1065,31 @@ def main() -> int:
         paths,
         args.skip_platform_access,
     )
-    ok = platform_ok and storage_ok and mounts_ok
+    gpu_arch_ok = check_gpu_arch_allowlists(
+        gpu_arch_allowlists,
+        args.gpu_arch,
+        args.skip_platform_access,
+    )
+    gpu_resources_ok = check_gpu_resources(
+        args.gpu_min_count,
+        args.gpu_min_memory_gb,
+        args.target_gpu_count,
+        args.target_gpu_memory_gb,
+        args.skip_platform_access,
+    )
+    effective_batch_ok = check_effective_batch_limits(
+        paths,
+        effective_batch_limits,
+        args.skip_platform_access,
+    )
+    ok = (
+        platform_ok
+        and storage_ok
+        and mounts_ok
+        and gpu_arch_ok
+        and gpu_resources_ok
+        and effective_batch_ok
+    )
 
     if ok:
         print("TAO launch preflight passed")

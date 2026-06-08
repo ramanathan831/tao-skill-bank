@@ -1,4 +1,9 @@
 network_arch: cosmos-rl
+aliases:
+- Cosmos Reason 3
+- Cosmos3 Nano Reasoner
+- Cosmos3-Nano
+- nvidia/Cosmos3-Nano
 automl_enabled: true
 container_image: tao_toolkit.cosmos_rl
 required_credentials:

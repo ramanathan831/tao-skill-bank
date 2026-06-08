@@ -65,6 +65,14 @@ Non-train actions such as `evaluate`, `inference`, and `quantize` stay in this m
   annotation JSON is readable and the referenced media path or archive is
   visible from the selected platform. Do not block, patch, or mutate
   annotations solely because optional fields are absent.
+- **Per-record video FPS:** the packaged train template uses
+  `custom.vision.nframes`, so per-record `video_fps` is not required by
+  default. If the user switches to `custom.vision.fps`, selects a dataset
+  profile that requires per-record timing, or uses an image/version that
+  requires `video_fps`, make it a preflight requirement with
+  `--json-required-field train_annotation=video_fps` and
+  `--json-required-field val_annotation=video_fps` before any download or
+  job launch.
 
 ### Launch Intake Reminder
 
@@ -96,8 +104,20 @@ scripts/check_tao_launch_preflight.py --platform slurm \
   --path train_annotation=/lustre/.../train/annotations.json \
   --path train_media=/lustre/.../train \
   --path val_annotation=/lustre/.../eval/annotations.json \
-  --path val_media=/lustre/.../eval
+  --path val_media=/lustre/.../eval \
+  --gpu-min-count 4 \
+  --gpu-min-memory-gb 80 \
+  --gpu-arch-allowlist cosmos_rl=sm_80,sm_90,sm_100,sm_120
 ```
+
+For Cosmos-RL, count and memory are necessary but not sufficient. Treat the run
+as launchable only when the target has at least 4 GPUs with 80GB-class memory or
+higher, the GPU architecture is in the image-supported allowlist above, and the
+normal Docker/platform, S3, and credential preflight checks pass. A remote image
+manifest that advertises `linux/arm64` only proves CPU architecture support; it
+does not prove CUDA SM support. Spark/GB10 `sm_121` must be blocked for this
+image unless direct image introspection confirms `sm_121` support or the user
+chooses a newer compatible image.
 
 ### Per-Action Dataset Requirements
 
@@ -181,6 +201,18 @@ LoRA settings, `train.epoch`, `train.train_batch_per_replica`,
 validation frequency, and logging. The packaged template keeps
 `custom.vision.nframes=8` for bounded 1-GPU memory; switch to `fps` only after
 checking token budget and GPU memory.
+
+Do not require per-record `video_fps` for the packaged `nframes` template. If a
+run switches to `custom.vision.fps` or a selected dataset/image profile
+requires per-record timing, validate the annotation files before launching:
+
+```bash
+scripts/check_tao_launch_preflight.py --platform <platform> \
+  --path train_annotation=/path/to/train.json \
+  --path val_annotation=/path/to/val.json \
+  --json-required-field train_annotation=video_fps \
+  --json-required-field val_annotation=video_fps
+```
 
 The packaged train/evaluate/inference/quantize templates default to
 `hf_model://nvidia/Cosmos3-Nano` for base-model fields. Override that only when
@@ -316,10 +348,11 @@ summarization/answering prompts when the user asks for semantic text quality.
 Use `val/avg_loss` only when the user accepts a proxy metric or no task metric
 is available.
 
-Before launching AutoML for an accuracy objective, run or offer a base-model
-evaluation on the same validation subset and report it as the baseline. The
-final AutoML summary must compare baseline accuracy, every recommendation's
-accuracy, and the selected best recommendation.
+Before launching AutoML for an accuracy objective, run a base-model evaluation
+on the same validation subset and report it as the baseline unless the user
+explicitly declines it. The final AutoML summary must compare baseline
+accuracy, every recommendation's accuracy, and the selected best
+recommendation.
 
 For the evaluator prompt "search over learning rate, batch size, number of
 epochs, weight decay, warmup ratio", map the requested knobs to:
@@ -366,8 +399,11 @@ custom_param_ranges={
 
 Keep `train.train_policy.mini_batch=1` unless the user explicitly changes it,
 so all listed batch sizes remain divisible by the micro-batch size. For small
-datasets, also cap `train.train_batch_per_replica` so it does not exceed
-`num_train_samples / policy.parallelism.dp_shard_size`.
+datasets, cap `train.train_batch_per_replica` so it does not exceed
+`num_train_samples / policy.parallelism.dp_shard_size`, and verify every
+generated recommendation before launch with
+`scripts/check_tao_launch_preflight.py --effective-batch-limit
+train_annotation=<batch_size>,<dp_shard_size>`.
 For integer knobs with discrete choices, include `value_type: "ordered_int"`
 with `valid_options`; integer `valid_options` alone are ignored by the current
 Bayesian sampler.
@@ -494,14 +530,18 @@ do not lower it to tiny values such as 128 for video calibration.
 
 **You are trying to access a gated repo**: The HuggingFace model `nvidia/Cosmos3-Nano` requires authentication. All ranks will retry in a loop until they time out. Fix: ensure `HF_TOKEN` is set in the process environment or a user-approved secret env file such as `~/.tao/secrets.env` or `~/.config/tao/.env`, verify only presence, and pass it into the container with `-e HF_TOKEN`. The user must also accept the model agreement at <https://huggingface.co/nvidia/Cosmos3-Nano>.
 
-**Unsupported GPU architecture for selected image**: Some Cosmos-RL images are
-built with a Torch/CUDA stack that supports only specific architectures (for
-example sm_80/sm_90/sm_100/sm_120). If the host reports a newer unsupported
-architecture such as sm_121, kernel JIT can fail with
-`nvrtc: invalid --gpu-architecture`. Check the selected image against the host
-GPU architecture during platform preflight. Use a compatible image or move the
-run to a supported A100/H100/B200-class platform instead of launching and
-failing inside training.
+**Cosmos-RL GPU resource and architecture gate**: The actionable launch gate is
+at least 4 GPUs with 80GB-class memory or higher, plus a GPU architecture
+supported by the selected Cosmos-RL image, plus normal platform, container, S3,
+and credential preflight. Run
+`scripts/check_tao_launch_preflight.py --gpu-min-count 4 --gpu-min-memory-gb 80 --gpu-arch-allowlist cosmos_rl=sm_80,sm_90,sm_100,sm_120`
+before launching. If the target architecture is known but cannot be detected
+from the launch host, pass `--gpu-arch sm_XX` explicitly. Spark/GB10 `sm_121`
+is not launchable with this image unless image introspection confirms `sm_121`
+support or a newer compatible image is selected. If a resource-qualified
+platform still fails with a kernel JIT error such as
+`nvrtc: invalid --gpu-architecture`, classify it as an image/toolchain defect to
+fix with a compatible image, not as a platform resource incompatibility.
 
 **TAO_API_JOB_ID status logging warnings in direct Docker**: `cosmos-rl-evaluate`, `cosmos-rl-inference`, and `cosmos-rl-quantize` may log a traceback from `tao_status_logger.py` when `TAO_API_JOB_ID` is unset. For direct local-Docker model-skill validation this is nonfatal if the process exits 0 and the action writes its expected result files. Do not hide a real action failure behind this warning, but do not mark an otherwise successful local run failed only because status-file logging was unavailable.
 
