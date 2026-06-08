@@ -127,12 +127,32 @@ preflight already passed. The review must include:
   in a review-only step before any recommendation job is submitted
 - estimated runtime per recommendation and total expected wall time, with the
   assumptions used
-- whether a baseline/pretrained evaluation will be run before tuning
+- the automatic baseline eval job id, metric value, and result path from the
+  post-preflight eval job, or an explicit blocker if the model has no runnable
+  evaluate action or validation data
 
 If the estimate is longer than the user's stated limit or materially longer
 than a normal interactive run, ask whether to reduce recommendations, epochs,
 dataset size, validation frequency, or search space before launch. Do not hide
 multi-day estimates in logs.
+
+## Automatic Baseline Eval Job
+
+After platform, image, credential, data, and model preflight pass, run the
+model's evaluate action once on the selected validation/eval data before
+submitting any AutoML recommendation jobs. This is required AutoML setup, not an
+optional "pretrained eval" question for the user. Use the same base model or
+checkpoint that the AutoML training run starts from, the model skill's evaluate
+spec/template, and the selected platform's normal job submission path. If the
+model skill recommends a smaller shape for evaluation than training, use that
+shape and call it out in the launch review.
+
+Share the eval metric number with the user in the launch review before asking
+for confirmation to launch recommendations. If the model has no packaged
+evaluate action, the eval dataset is missing, or the eval job fails, stop and
+report the blocker instead of silently falling back to a training-loss-only
+AutoML run. Continue without this baseline only when the user explicitly accepts
+that the run will optimize a proxy metric and will not have an impact baseline.
 
 ## Dependency And Data Preflight
 
@@ -203,13 +223,13 @@ metric. Use one of these:
 Do not map `kpi` to a metric unless the model skill explicitly defines that
 mapping.
 
-When the user's goal is improvement over a pretrained/base model, run a baseline
-evaluation before AutoML unless the user explicitly declines it. The final
-report must compare baseline metric, each recommendation's metric, and the
-selected best metric so users can see the impact of tuning. For model skills
-that require an `eval_fn` to compute the real task metric, use that evaluator
-instead of optimizing a convenient training loss unless the user explicitly
-accepts the proxy metric.
+For every AutoML run with a runnable evaluate action and validation/eval data,
+run the automatic baseline eval job after preflight and before recommendations.
+The final report must compare that baseline metric, each recommendation's
+metric, and the selected best metric so users can see the impact of tuning. For
+model skills that require an `eval_fn` to compute the real task metric, use
+that evaluator instead of optimizing a convenient training loss unless the user
+explicitly accepts the proxy metric.
 
 ## Runner Construction
 
@@ -281,8 +301,9 @@ At completion:
 3. Resolve the model checkpoint using the model skill's checkpoint metadata and
    SDK helpers; do not guess filenames such as `latest`.
 4. Report the exact search space, algorithm, budget, metric, and platform.
-5. Report baseline metric when measured, all recommendation metrics, failed
-   recommendations and root causes, elapsed time, and final runtime notes.
+5. Report the automatic baseline eval job id/result path/metric, all
+   recommendation metrics, failed recommendations and root causes, elapsed time,
+   and final runtime notes.
 6. If this feeds a workflow such as AutoML + DEFT, pass the winning spec
    overrides and checkpoint through the workflow's declared handoff fields.
 

@@ -26,7 +26,7 @@ Agent: I'll read the model skill for `<network_arch>` first, then generate a fre
 User: s3://bucket/data/train, 10 recs
 
 Agent: Launch review before I spend GPU budget:
-- model skill, network_arch, platform, image, GPU/node shape, workspace, dataset paths/counts, metric/direction, algorithm, budget, search bounds, estimated runtime, and baseline-eval plan
+- model skill, network_arch, platform, image, GPU/node shape, workspace, dataset paths/counts, metric/direction, algorithm, budget, search bounds, estimated runtime, and automatic baseline eval job id/result path/metric
 - exact generated recommendation configs for the initial launch batch, created in a review-only step before any recommendation job is submitted
 
 User: confirmed

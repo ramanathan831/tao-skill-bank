@@ -348,11 +348,14 @@ summarization/answering prompts when the user asks for semantic text quality.
 Use `val/avg_loss` only when the user accepts a proxy metric or no task metric
 is available.
 
-Before launching AutoML for an accuracy objective, run a base-model evaluation
-on the same validation subset and report it as the baseline unless the user
-explicitly declines it. The final AutoML summary must compare baseline
-accuracy, every recommendation's accuracy, and the selected best
-recommendation.
+Before launching AutoML for an accuracy objective, run the model's evaluate
+action once after preflight and before recommendation jobs on the same
+validation subset. Use the selected base model or starting checkpoint,
+`task=""`, and the same prompt/metric setup planned for per-recommendation
+evaluation. Report that eval job id, result path, and accuracy in the launch
+review before asking for confirmation to start recommendations. The final
+AutoML summary must compare this baseline accuracy, every recommendation's
+accuracy, and the selected best recommendation.
 
 For the evaluator prompt "search over learning rate, batch size, number of
 epochs, weight decay, warmup ratio", map the requested knobs to:

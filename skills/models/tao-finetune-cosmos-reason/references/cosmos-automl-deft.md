@@ -47,6 +47,13 @@ the evaluator's `accuracy` value and set `direction="maximize"`. Use
 `val/avg_loss` only when the user accepts a proxy metric or no task metric is
 available.
 
+Before launching Cosmos-Reason AutoML for an accuracy objective, run the
+evaluate action once after preflight and before recommendation jobs on the same
+validation subset. Use the selected base model or starting checkpoint,
+`task=""`, and the same prompt/metric setup planned for per-recommendation
+evaluation. Report that eval job id, result path, and accuracy in the launch
+review before asking for confirmation to start recommendations.
+
 For the evaluator prompt "search over learning rate, batch size, number of
 epochs, weight decay, warmup ratio", map the requested knobs to:
 

@@ -105,6 +105,16 @@ batch in a review-only step and show the exact configs to the user together
 with metric, direction, expected runtime, and effective-batch checks. Do not
 replace concrete configs with only search bounds.
 
+After all platform, image, credential, data, and model preflight checks pass,
+submit the model's evaluate action once against the selected validation/eval
+data before submitting AutoML recommendations. This is the automatic baseline
+eval job for the run. Show its job id, result path, and metric value in the
+launch review, then ask for confirmation before spending training budget on
+recommendations. If the eval job cannot run because the model has no packaged
+evaluate action, validation data is missing, or the eval job fails, stop and
+surface the blocker. Proceed without this baseline only when the user
+explicitly accepts a proxy-metric run with no impact baseline.
+
 **Customization gate:** After the required quick-start fields are resolved, you may briefly offer customization. If the user declines or does not ask for it, proceed with the defaults above. If the user chooses customization, then present the additional options below.
 
 Customization-only fields:
@@ -243,9 +253,9 @@ Only resume an existing runner/workspace when the user explicitly asks to resume
 - Training loss is cheap, but can overfit on small fine-tuning datasets. Prefer the model skill's recommended validation or task metric when available.
 - If the model skill recommends a validation proxy, also apply the model skill's required validation-related `spec_overrides` so the metric is actually emitted.
 - A real task metric via `eval_fn` is often the most honest but adds per-rec cost. Use it when the model skill says log-based metrics are insufficient or the user explicitly wants downstream evaluation.
-- For improvement-over-base objectives, run a baseline/pretrained evaluation
-  before AutoML unless the user explicitly declines it, and include that
-  baseline in the final comparison.
+- For AutoML runs with a runnable evaluate action and validation/eval data, run
+  the automatic baseline eval job after preflight and before recommendations,
+  then include that baseline metric in the final comparison.
 
 **Checkpoint / resume behavior**:
 
