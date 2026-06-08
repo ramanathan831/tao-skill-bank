@@ -43,7 +43,7 @@ The parent PyT CLI does not expose `gen_trt_engine`. Use `models/rtdetr/deploy` 
 
 - **Dataset type:** object_detection
 - **Formats:** coco, coco_raw
-- **Monitoring metric:** mAP50, maximize
+- **Monitoring metric:** mAP50 for quick operational checks; `val_mAP` for COCO/paper-style benchmark comparisons.
 
 ### Per-Action Dataset Requirements
 
@@ -241,7 +241,7 @@ for a different shape. The older packaged `960x544` template shape can fail
 during ONNX tracing with `The size of tensor a (...) must match the size of
 tensor b (...)` in `hybrid_encoder.py` positional embedding addition.
 
-**AutoML metric extraction**: RT-DETR train logs report validation detection metrics as `mAP50`/`Validation mAP50`. Default AutoML train launches must optimize `mAP50` with `direction: maximize`; do not optimize `val_loss` for default model invocations.
+**AutoML metric extraction**: RT-DETR emits detection metrics in structured training status and logs. For COCO/paper-style benchmark comparisons, optimize `val_mAP` with `direction: maximize`; for explicit AP50 workflows, optimize `mAP50`. Prefer `results_dir/train/status.json` or AutoML result state before parsing raw logs. Do not optimize `val_loss` for default detection model invocations.
 
 **Checkpoint handoff**: For evaluate/export/inference/quantize/distill/resume, use the checkpoint resolver on the best AutoML child job's `results_dir/train/` folder and select the action-appropriate `model_epoch_*.pth` checkpoint. RT-DETR may also write a latest symlink, but that should only be used when a caller explicitly requests latest. Keep `dataset.num_classes`, `dataset.eval_class_ids`, `model.num_queries`, and `model.num_select` consistent with training.
 

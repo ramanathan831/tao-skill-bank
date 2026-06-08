@@ -43,7 +43,8 @@ The agent MUST read this section before generating any training or AutoML script
 - **Dataset type:** object_detection
 - **Formats:** coco, coco_raw
 - **Accepted dataset intents:** training, evaluation, testing, calibration
-- **Monitoring metric:** mAP50
+- **Monitoring metric:** mAP50 for quick operational checks; `val_mAP` for
+  COCO/paper-style benchmark comparisons.
 
 **Required datasets — MUST resolve both:**
 
@@ -427,11 +428,14 @@ For no-input local DINO AutoML smoke runs, use `DINO_AUTOML_PROFILE` from
 **Training Requirements**. Do not inspect previous AutoML runs to infer dataset
 URIs, `num_classes`, recommendation count, or interval settings.
 
-**Recommended AutoML metric:** use explicit `metric="mAP50"` with
-`direction="maximize"` and pass a custom `metric_extractor` that reads
-`Validation mAP50`. Do not rely on `metric="kpi"` for generated DINO runners
-unless you have verified the local resolver maps it to mAP50; loose fallback
-parsing can otherwise optimize `val_loss`.
+**Recommended AutoML metric:** for quick operational checks, use explicit
+`metric="mAP50"` with `direction="maximize"` and pass a custom
+`metric_extractor` that reads `Validation mAP50`. For COCO or paper-style
+benchmark comparisons, use `metric="val_mAP"` with `direction="maximize"` so
+the reported number matches the standard mAP column rather than AP50. Do not
+rely on `metric="kpi"` for generated DINO runners unless you have verified the
+local resolver maps it to the intended detection metric; loose fallback parsing
+can otherwise optimize `val_loss`.
 
 ```python
 import re
@@ -449,6 +453,13 @@ runner.run(
     metric_extractor=extract_dino_map50,
 )
 ```
+
+When a benchmark run remains below target but the per-epoch `val_mAP` curve is
+still climbing at the final epoch, extend the best full-budget configuration
+before declaring the search plateaued. For dense datasets such as aerial or
+driving-scene detection, also preserve high-resolution input overrides and
+structural settings (`model.backbone`, `model.num_queries`,
+`model.num_select`, class metadata) when evaluating or resuming the checkpoint.
 
 **Recommended hyperparameters:**
 

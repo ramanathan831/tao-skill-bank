@@ -1,8 +1,9 @@
 ---
 name: tao-finetune-cosmos-reason
-description: Cosmos-Reason2-8B video QA supervised fine-tuning with FSDP parallelism. Use when training or evaluating video
-  question-answering models, fine-tuning Cosmos-Reason2 with SFT, or working with Cosmos-RL. Trigger phrases include
-  "fine-tune Cosmos-Reason", "Cosmos-RL SFT", "video QA fine-tune", "Cosmos-Reason2-8B training".
+description: Cosmos Reason video QA supervised fine-tuning with FSDP parallelism. Use when training or evaluating video
+  question-answering models, fine-tuning Cosmos-Reason2 or Cosmos3-Nano-Reasoner with SFT/LoRA, or working with Cosmos-RL.
+  Trigger phrases include "fine-tune Cosmos-Reason", "Cosmos3 Nano Reasoner", "Cosmos-RL SFT", "video QA fine-tune",
+  "Cosmos-Reason2-8B training".
 license: Apache-2.0
 compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
@@ -20,7 +21,10 @@ tags:
 
 # Cosmos-RL
 
-Supervised fine-tuning (SFT) of **nvidia/Cosmos-Reason2-8B** on video reasoning tasks. Pretrained weights are sourced from HuggingFace, not NGC. This is a **gated model** — requires `HF_TOKEN`.
+Supervised fine-tuning (SFT) of Cosmos Reason video QA models such as
+**nvidia/Cosmos-Reason2-8B** and **nvidia/Cosmos3-Nano-Reasoner**. Pretrained
+weights are sourced from HuggingFace, not NGC. Gated HuggingFace models require
+`HF_TOKEN`.
 
 Uses FSDP-based parallelism with `dp_shard_size` for GPU count and `dp_replicate_size` for node count (not the standard `num_gpus`/`num_nodes`).
 
@@ -36,12 +40,15 @@ Non-train actions such as `evaluate`, `inference`, and `quantize` stay in this m
 
 ## Credentials
 
-- **HF_TOKEN** (required): HuggingFace access token. The user must accept the model agreement at <https://huggingface.co/nvidia/Cosmos-Reason2-8B> and provide a token with read access. Passed to the container as a `docker_env_var`.
+- **HF_TOKEN** (required for gated models): HuggingFace access token. The user
+  must accept the target model's HuggingFace agreement, such as
+  `nvidia/Cosmos-Reason2-8B` or `nvidia/Cosmos3-Nano-Reasoner`, and provide a
+  token with read access. Passed to the container as a `docker_env_var`.
 
 ## Training Requirements
 
 - **Dataset type:** vlm
-- **Formats:** llava
+- **Formats:** llava, daft
 - **Accepted dataset intents:** training, evaluation, testing
 - **Monitoring metric:** val/avg_loss, val/reward_avg, val/loss
 - **Dataset URI examples:** `s3://bucket/cosmos/train`, `s3://bucket/cosmos/eval`, `/lustre/fsw/tao_datasets/cosmos_rl/train`, `/lustre/fsw/tao_datasets/cosmos_rl/eval`
@@ -105,6 +112,13 @@ convert for Cosmos-RL unless those actions are added to the model metadata.
 | inference | media | inference_dataset | one image/video or a media folder/archive | No |
 | quantize | dataset.annotation_path | calibration_dataset | annotations.json | No |
 | quantize | dataset.media_dir | calibration_dataset | dataset root containing media payload | No |
+
+For DAFT-style annotation files, use direct spec mode when the annotation file
+name is not `annotations.json` or when media is not colocated with the
+annotation file. Preserve the user's source files. If a required compatibility
+field such as `video_fps` is missing, create patched annotation copies under the
+run workspace and point the spec at those copies; do not edit the dataset in
+place.
 
 ## Spec construction
 
@@ -359,9 +373,11 @@ If the user's objective names `accuracy` or an accuracy target such as
 `eval_fn` to run the model skill's `evaluate` action on the validation dataset
 after each recommendation, with `task=""`, `model.enable_lora=true`, and
 `model.base_model_path` set to the same base model used for training. Return
-the evaluator's `accuracy` value and set `direction="maximize"`. Use
-`val/avg_loss` only when the user accepts a proxy metric or no task metric is
-available.
+the evaluator's task metric and set `direction="maximize"`. Use `accuracy` for
+constrained classification prompts and BERTScore F1 for free-form
+summarization/answering prompts when the user asks for semantic text quality.
+Use `val/avg_loss` only when the user accepts a proxy metric or no task metric
+is available.
 
 For the evaluator prompt "search over learning rate, batch size, number of
 epochs, weight decay, warmup ratio", map the requested knobs to:
@@ -439,6 +455,12 @@ Bayesian sampler.
 
 For multi-node, set `dp_replicate_size = num_nodes` and `dp_shard_size = gpus_per_node`. Cosmos-RL handles the distributed init internally via FSDP — it does **not** rely on the platform-level `MASTER_ADDR` / `WORLD_SIZE` env vars the way `torchrun`-launched jobs do. Just submit with `gpu_count=<gpus_per_node>` and `num_nodes=<N>` on the SDK; the Cosmos-RL spec keys drive the actual sharding.
 
+Training and evaluation can use different Slurm shapes. If the user requests
+multi-node training and single-node evaluation, preserve that distinction:
+submit train/AutoML recommendations with the requested multi-node shape and run
+Cosmos-RL evaluation on the smaller eval shape, usually 1 node with the
+requested GPUs per node.
+
 For platform-side multi-node setup (sbatch flags on SLURM, Indexed Job + Service on Kubernetes), see the platform skill's "Multi-node training" section: `platform/tao-run-on-slurm`, `platform/tao-run-on-kubernetes`. Brev and local Docker are single-host only.
 
 ### Optimization & Data Loading
@@ -477,9 +499,9 @@ fall back to "latest" silently.
 For evaluate, pass the resolved LoRA folder directly:
 `model.model_name=<train_output_dir>/<timestamp>/safetensors/epoch_N`,
 `model.enable_lora=true`, and
-`model.base_model_path=nvidia/Cosmos-Reason2-8B` (or the local base-model
-snapshot path). For resume/retrain, pass the exact Cosmos checkpoint policy
-folder as a string:
+`model.base_model_path=<same base model used for training>` (or the local
+base-model snapshot path). For resume/retrain, pass the exact Cosmos checkpoint
+policy folder as a string:
 `train.resume=<train_output_dir>/<timestamp>/checkpoints/epoch_N/policy`.
 Avoid `train.resume=true` for local Docker epoch-based checkpoints because the
 current resolver scans `step_*` checkpoint directories and can miss the

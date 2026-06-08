@@ -19,7 +19,8 @@ tags:
 
 Deformable DETR for 2D object detection. Uses deformable attention for efficient multi-scale feature processing. Lighter than DINO with competitive accuracy.
 
-Uses pretrained backbone weights. Set model.pretrained_backbone_path for backbone-only loading.
+Uses pretrained weights. Set `model.pretrained_backbone_path` for backbone-only
+loading or `train.pretrained_model_path` for full model initialization.
 
 Supported parent model actions are `train`, `evaluate`, `inference`, `export`, and `quantize`. The PyT model container does not support a native `gen_trt_engine` subtask for this network. The `gen_trt_engine` action declared in `references/skill_info.yaml` must run with the TAO Deploy container. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
 
@@ -37,7 +38,7 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 
 - **Dataset type:** object_detection
 - **Formats:** coco, coco_raw
-- **Monitoring metric:** val_mAP50
+- **Monitoring metric:** val_mAP50 for AP50; `val_mAP` for COCO/paper-style benchmark comparisons.
 
 ### Per-Action Dataset Requirements
 
@@ -203,6 +204,8 @@ Minimum 1 GPU(s), recommended 4 GPU(s). 16GB+ (V100 or A100) VRAM per GPU. Sligh
 
 **Dataset size smaller than total batch size**: Reduce batch_size or num_gpus.
 
+**AutoML metric extraction**: Deformable DETR emits detection metrics in structured training status and logs. For COCO/paper-style benchmark comparisons, optimize `val_mAP` with `direction: maximize`; for explicit AP50 workflows, optimize `val_mAP50`. Prefer `results_dir/train/status.json` or AutoML result state before parsing raw logs. Do not optimize `val_loss` for default detection model invocations.
+
 ## Spec Param / Parent Model Inference
 
 Model-specific inference mappings belong in this MD file, not in `config.json`. Generated runners should read this section and apply the mappings with SDK helpers before `create_job()`. This mirrors the old microservices `infer_params.py` flow.
@@ -229,6 +232,7 @@ Inference mappings from TAO Core `deformable_detr.config.json`:
 | train | `encryption_key` | `key` | encryption key |
 | train | `model.pretrained_backbone_path` | `ptm_if_no_resume_model` | PTM when no resume checkpoint exists |
 | train | `results_dir` | `output_dir` | current job results directory |
+| train | `train.pretrained_model_path` | `ptm_if_no_resume_model` | full model PTM when no resume checkpoint exists |
 | train | `train.resume_training_checkpoint_path` | `resume_model` | model file inferred from the current job results folder |
 
 For `parent_model` or `parent_model_folder`, pass the upstream train/export/AutoML child job id as `parent_job_id`. The SDK lists the parent result folder, filters checkpoint artifacts, and returns the selected model file or folder. Do not add these mappings back to `config.json` and do not patch generated runner scripts to guess checkpoint paths.

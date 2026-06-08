@@ -261,8 +261,10 @@ generate launch artifacts.
 
 For SLURM:
 
-1. Require `SLURM_USER`, `SLURM_HOSTNAME`, `SLURM_PARTITION`, and one of
-   `SSH_KEY_PATH` or `SSH_AUTH_SOCK`.
+1. Require `SLURM_USER`, `SLURM_HOSTNAME`, a partition intent, and one of
+   `SSH_KEY_PATH` or `SSH_AUTH_SOCK`. If the user says to use the cluster
+   default partition, pass an empty partition/omit the partition directive; do
+   not substitute a site-specific value such as `batch`.
    Use the selected platform helper's `Resource defaults` for runtime values.
    For the packaged SLURM defaults, generate launchers with
    `SLURM_TIME_HOURS=4` and `SLURM_TIMEOUT_HOURS=3.8`; never invent a
@@ -285,6 +287,17 @@ For SLURM:
 4. After SSH passes, validate dataset annotation/media paths on the remote login
    host with `test -e` or an equivalent read-only command.
 5. Only then create runner scripts, specs, workspaces, or submit jobs.
+6. For multi-GPU Slurm jobs, rely on the SDK Slurm backend to request
+   `--gpus-per-node=<N>`. Do not generate manual `--gpus=<N>` sbatch snippets;
+   that can spread GPUs across nodes and leave allocated GPUs idle.
+7. For full-matrix or multi-node launches, submit one smoke job first. Launch
+   the full matrix only after the smoke reaches training, emits the requested
+   metric/status record, and shows expected GPU utilization.
+
+For AutoML status, prefer structured controller/brain state and job metadata
+(`active_jobs.json`, `.automl/controller/*.json`, result JSON, and
+`results_dir/train/status.json`) before scanning raw logs. Parse logs only as a
+fallback or when the user specifically asks for log-level investigation.
 
 For local Docker, validate Docker/GPU access and local dataset paths before
 writing launch artifacts. For Brev and Kubernetes, validate API or

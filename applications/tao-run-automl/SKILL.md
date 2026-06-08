@@ -26,7 +26,7 @@ tags:
 This is a skill-bank **workflow** skill at `applications/tao-run-automl/`. The agent
 discovers it by reading this file directly (or via the `tao-skills` plugin).
 
-Run automated hyperparameter optimization (HPO) for any TAO network. The agent uses `AutoMLRunner` — a single interface that manages the full loop: generate hyperparameter recommendations, launch training jobs, extract metrics, and feed results back to the optimizer.
+Run automated hyperparameter optimization (HPO) for any TAO network. The agent uses `AutoMLRunner` — a single interface that manages the full loop: generate hyperparameter recommendations, launch training jobs, extract metrics from structured result/status files, and feed results back to the optimizer.
 
 The runner is **platform-agnostic** — it takes any object implementing the standard SDK shape (`create_job`, `get_job_status`, `get_job_logs`, `get_failure_analysis`) and calls those methods. Pick whichever SDK matches where you want jobs to run; the runner doesn't care:
 
@@ -146,7 +146,7 @@ TAO AutoML automates the "try different hyperparameter values → train → comp
 AutoML then:
 1. Picks hyperparameter values using a search algorithm (Bayesian, Hyperband, LLM, etc.)
 2. Launches a real training job on whichever backend the SDK targets (Brev, SLURM, Kubernetes, or local Docker)
-3. Reads the result metric from training logs
+3. Reads the result metric from structured AutoML state and training status files, falling back to logs only for debug/recovery
 4. Feeds the result back to the algorithm so it learns what works
 5. Repeats until budget is exhausted
 6. Returns the best configuration found
@@ -637,7 +637,9 @@ Some networks have built-in search-space exclusions or algorithm restrictions. D
 
 ### LLM Analyzer (server-side range narrowing)
 
-The controller supports automatic range narrowing via the LLM analyzer. Enable via environment variables before launching:
+The controller supports optional range narrowing via the LLM analyzer. Keep it disabled unless the user explicitly asks for LLM-guided clamping/narrowing; the default must be no hidden range changes. For hybrid/autoresearch controllers, pass the explicit `enable_range_narrowing=True` setting only for those opt-in runs.
+
+The standalone analyzer can also be enabled via environment variables before launching:
 
 ```python
 os.environ["AUTOML_LLM_ANALYZER_ENABLED"] = "true"
@@ -645,7 +647,7 @@ os.environ["AUTOML_LLM_ANALYZER_INTERVAL"] = "5"        # analyze every 5 comple
 os.environ["AUTOML_LLM_ANALYZER_NARROW_RANGES"] = "true" # auto-tighten custom_param_ranges
 ```
 
-When enabled, after every N completed experiments the analyzer reviews patterns, assesses convergence, and optionally narrows search ranges to focus on promising regions. This happens server-side and persists the narrowed ranges.
+When enabled, after every N completed experiments the analyzer reviews patterns, assesses convergence, and optionally narrows search ranges to focus on promising regions. This happens server-side and persists the narrowed ranges. Report narrowed ranges in AutoML status so the user can distinguish LLM-assisted clamping from the original schema bounds.
 
 ### `spec_overrides`
 
