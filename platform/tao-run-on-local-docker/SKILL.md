@@ -59,28 +59,24 @@ docker run --rm --runtime=nvidia --gpus all ubuntu nvidia-smi >/dev/null 2>&1 ||
 # nvidia-tao-sdk is not on public PyPI yet — install from the GitLab repo:
 REPO='git+https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-sdk.git'
 python -c "import tao_sdk" 2>/dev/null || {
-  echo "MISSING: nvidia-tao-sdk not installed. Run:"
-  echo "  pip install \"nvidia-tao-sdk[docker] @ $REPO\""
-  exit 1
+  echo "Installing missing Python requirement: nvidia-tao-sdk[docker]"
+  python -m pip install "nvidia-tao-sdk[docker] @ $REPO"
 }
 python -c "import docker" 2>/dev/null || {
-  echo "MISSING: docker Python client not installed. Run:"
-  echo "  pip install \"nvidia-tao-sdk[docker] @ $REPO\""
-  exit 1
+  echo "Installing missing Python requirement: nvidia-tao-sdk[docker]"
+  python -m pip install "nvidia-tao-sdk[docker] @ $REPO"
 }
 
-# DockerSDK attaches every job container to ${DOCKER_NETWORK:-tao_default}. If
-# the network does not exist, container start fails instantly with
-# `network <name> not found` for every create_job.
+# DockerSDK attaches every job container to ${DOCKER_NETWORK:-tao_default}.
+# Create the network if it is missing; the operation is local and idempotent.
 DOCKER_NETWORK_NAME="${DOCKER_NETWORK:-tao_default}"
-docker network ls --format '{{.Name}}' | grep -qx "$DOCKER_NETWORK_NAME" || {
-  echo "MISSING: docker network '$DOCKER_NETWORK_NAME' not found. After user approval, run:"
-  echo "  docker network create $DOCKER_NETWORK_NAME"
-  exit 1
+docker network inspect "$DOCKER_NETWORK_NAME" >/dev/null 2>&1 || {
+  echo "Creating missing Docker network '$DOCKER_NETWORK_NAME' for TAO SDK local-docker jobs."
+  docker network create "$DOCKER_NETWORK_NAME" >/dev/null
 }
 ```
 
-If a check fails, the agent prompts the user to authorize the install/fix via Bash before proceeding.
+If a check fails, the agent prompts the user to authorize the install/fix via Bash before proceeding. Pip-installable Python requirements and the Docker network creation above are exceptions: install/create them automatically, then rerun preflight.
 
 ## Credentials
 

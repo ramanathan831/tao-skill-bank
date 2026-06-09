@@ -50,15 +50,14 @@ fi
 # nvidia-tao-sdk is not on public PyPI yet — install from the GitLab repo:
 REPO='git+https://gitlab-master.nvidia.com/nvidia-tao-toolkit/tao-sdk.git'
 python -c "import tao_sdk" 2>/dev/null || {
-  echo "MISSING: nvidia-tao-sdk not installed. Run:"
-  echo "  pip install \"nvidia-tao-sdk[kubernetes] @ $REPO\""
-  exit 1
+  echo "Installing missing Python requirement: nvidia-tao-sdk[kubernetes]"
+  python -m pip install "nvidia-tao-sdk[kubernetes] @ $REPO"
 }
 python -c "import kubernetes" 2>/dev/null || {
-  echo "MISSING: kubernetes extra not installed. Run:"
-  echo "  pip install \"nvidia-tao-sdk[kubernetes] @ $REPO\""
-  exit 1
+  echo "Installing missing Python requirement: nvidia-tao-sdk[kubernetes]"
+  python -m pip install "nvidia-tao-sdk[kubernetes] @ $REPO"
 }
+python -c "import tao_sdk, kubernetes"
 
 # 2. Cluster reachable (kubeconfig OR in-cluster service account)
 python -c "from kubernetes import config; config.load_kube_config()" 2>/dev/null || \

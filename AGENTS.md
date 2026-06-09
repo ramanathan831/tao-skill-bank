@@ -12,8 +12,11 @@ need no Python.
 ## Discovery flow
 
 0. **Preflight the chosen platform.** Open `platform/<chosen>/SKILL.md` and run
-   its Preflight section. Bail if anything's missing — do not draft launch
-   commands against an unconfigured environment.
+   its Preflight section. If a missing prerequisite is a Python package that
+   can be installed with `python -m pip install ...`, install it by default in
+   the active Python environment, then rerun preflight. Bail on missing
+   non-Python/system prerequisites — do not draft launch commands against an
+   unconfigured environment.
 
 1. **Read the task skill.** `models/<arch>/SKILL.md` (network specifics),
    `data/<name>/SKILL.md` (transforms), or `applications/<name>/SKILL.md`
@@ -65,7 +68,8 @@ Reach for the SDK only when the user wants one of:
 - A managed platform: **Kubernetes, SLURM, Brev**
 
 Each platform skill's Preflight tells you which SDK extra to install
-(`pip install 'nvidia-tao-sdk[<platform>]'`). The four platform SDKs are
+(`python -m pip install 'nvidia-tao-sdk[<platform>]'`). Install missing pip
+requirements automatically, then rerun preflight. The four platform SDKs are
 equal-class peers — **no default**. If the user hasn't chosen, ask.
 
 ## Never do
@@ -78,7 +82,9 @@ equal-class peers — **no default**. If the user hasn't chosen, ask.
   equal-class peers; biasing toward one is wrong.
 - **Never start a side-effecting action without user confirmation.** This
   means: `docker run`, `sdk.create_job`, `git push`, file mutations outside
-  the working directory.
+  the working directory. Missing Python-package prerequisites installed with
+  `python -m pip install ...` are an explicit exception for TAO workflows:
+  install them by default and report what was installed.
 - **Never ask for API keys, tokens, or passwords via chat.** Credentials live
   in `~/.config/tao/.env` and are loaded into the session env by the plugin's
   hook.
@@ -86,5 +92,6 @@ equal-class peers — **no default**. If the user hasn't chosen, ask.
   `[ -n "$VAR_NAME" ] && echo SET || echo UNSET`. Never `cat`, `Read`,
   `grep`, or `head` on `.env` or `~/.config/tao/.env`.
 - **Never assume the SDK is installed.** Model and data skills must be
-  runnable with just docker. Run the chosen platform's Preflight first; reach
-  for the SDK only when the user explicitly opts in.
+  runnable with just docker. Run the chosen platform's Preflight first; when
+  the SDK path is selected and its pip package/extra is missing, install it by
+  default and rerun preflight.
