@@ -328,7 +328,7 @@ Resolve everything possible before asking the user. In order:
    The script exits non-zero (with a diagnostic on stderr) if a key is missing or empty. Hard stop here — without the export, bash silently substitutes `""`, the next step's `docker image inspect` reports `0` MISSING for every image, and the failure mode points at the wrong root cause.
 6. Verify every image resolved in step 5 is present locally (`docker image inspect "$TAO_PYT_IMAGE" "$AG_IMAGE" "$TAO_DS_IMAGE"`).
 7. Apply the path rule: pre-create iter dirs under `${RESULTS_DIR}/iter${ITER}/` and mount `<workspace>` into containers at the same absolute path. Sub-skills enforce their own container-level invariants (entrypoints, env vars); the loop just supplies the workspace mount and the resolved image URI.
-8. Verify GPU count. Probe the three AnomalyGen override slots under `augmentation/anomalygen/` (`checkpoints/<project>/`, `base_checkpoints/`, `datasets/<project>/`) and report `FOUND` / `(empty — paidf-anomalygen will handle)` in the Summary rather than halting; the loop does not own asset acquisition. If `base_checkpoints/` is pre-staged, export its host path as `COSMOS_MODELS_DIR` for downstream mounts. Resolve the ChangeNet pretrained backbone per `references/visual-changenet.md` → *ChangeNet backbone resolution* (rewrite `specs/baseline_spec.yaml::model.backbone.pretrained_backbone_path`); do not halt on a missing staged file. See `references/paidf-anomalygen.md` for invocation and mount layout.
+8. Verify GPU count. Probe the three AnomalyGen override slots under `augmentation/anomalygen/` (`checkpoints/<project>/`, `base_checkpoints/`, `datasets/<project>/`) and report their status in the Summary. **Empty slots are not missing — auto-fetch from HuggingFace is the default and requires no user action.** NVIDIA publishes the PCB fine-tuned checkpoint (`nvidia/Cosmos-AnomalyGen-PCB-2B`) and the PCB reference dataset (`nvidia/Cosmos-AnomalyGen-PCB-Dataset`) publicly on HuggingFace; paidf-anomalygen downloads them automatically on first use. Users who want to provide their own fine-tuned checkpoint or custom dataset can pre-stage the directory to override. Do not ask the user about missing AnomalyGen assets — treat empty slots as `will auto-fetch from HF (default)` and proceed. If `base_checkpoints/` is pre-staged, export its host path as `COSMOS_MODELS_DIR` for downstream mounts. Resolve the ChangeNet pretrained backbone per `references/visual-changenet.md` → *ChangeNet backbone resolution* (rewrite `specs/baseline_spec.yaml::model.backbone.pretrained_backbone_path`); do not halt on a missing staged file. See `references/paidf-anomalygen.md` for invocation and mount layout.
 9. **GPU memory sanity check.** ChangeNet classify with C-RADIOv2-B (ViT-B) at the spec defaults (`batch_size: 64`, `image_width/height: 224`, `cls_weight: [1.0, 10.0]`, learnable difference modules) OOMs on a single 48GB-class GPU. Inspect `nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits` and warn if the assembled spec's `dataset.classify.batch_size` is too large for the available memory: as a rule of thumb, **≤ 16 on 48GB GPUs, ≤ 8 on 24GB GPUs**. Surface the recommendation in the Pre-Flight Summary's `GPUs` row — let the user accept or override before launch rather than failing 30 seconds into training.
 10. Run train/validation leakage check before resuming any prior run.
 
@@ -342,6 +342,9 @@ Ask one consolidated question only for missing required inputs. Never ask about 
 - `min_similarity` (mining cosine cutoff): 0.9 — read from `config.mining_filter.min_similarity` in `deft_state.json`; the literal `0.9` referenced in Pipeline step 4 below is just the fallback default.
 - workspace root: user prompt, else `~/workspace`
 - pretrained backbone: first `*.pth` or `*.ckpt` under `augmentation/backbone/`; if absent, fall through to `https://huggingface.co/nvidia/C-RADIOv2-B` (HF_TOKEN required)
+- AnomalyGen checkpoint: pre-staged `augmentation/anomalygen/checkpoints/<project>/`; if absent, auto-download from `nvidia/Cosmos-AnomalyGen-PCB-2B` on HF (HF_TOKEN required)
+- AnomalyGen dataset: pre-staged `augmentation/anomalygen/datasets/<project>/`; if absent, auto-fetch from `nvidia/Cosmos-AnomalyGen-PCB-Dataset` on HF (HF_TOKEN required)
+- Cosmos base models: pre-staged `augmentation/anomalygen/base_checkpoints/`; if absent, container downloads on first run (~22 GB for 2B-only, ~140 GB with 14B + T5-11b)
 
 ### Pre-Flight Summary
 
@@ -372,13 +375,16 @@ Once all checks pass, print this summary and **STOP — wait for explicit user a
 | Images dir                     | <path>                                                                         |
 
 ### Augmentation
-| Field                          | Value                                                                          |
-| ------------------------------ | ------------------------------------------------------------------------------ |
-| AnomalyGen ckpt                | <path> (FOUND step N / will auto-download)                                     |
-| Defect spec                    | <N types: type1, type2, ...> (or "will auto-fetch from HF")                    |
-| Cosmos base models             | <path> (FOUND / will auto-download ~22 GB for 2B, ~140 GB with 14B + T5-11b)   |
-| SigLIP model                   | <cached / download / local path>                                               |
-| Backbone                       | <path> (FOUND / will auto-download from HF ~393 MB)                            |
+For all AnomalyGen assets, **auto-fetch from HuggingFace is the default** — no pre-staging required.
+Users may override any asset by pre-staging the directory before launch.
+
+| Field              | Value                                                                                                              |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| AnomalyGen ckpt    | `<path>` (FOUND, step N) **or** will auto-fetch from HF (`nvidia/Cosmos-AnomalyGen-PCB-2B`, ~5 GB) **[default]** |
+| Defect spec        | `<N types: type1, type2, ...>` (from staged dataset) **or** will auto-fetch from HF **[default]**                 |
+| Cosmos base models | `<path>` (FOUND) **or** will auto-download on first container run (~22 GB for 2B, ~140 GB with 14B + T5-11b) **[default]** |
+| SigLIP model       | `<cached / download / local path>`                                                                                 |
+| Backbone           | `<path>` (FOUND) **or** will auto-download from HF (`nvidia/C-RADIOv2-B`, ~393 MB) **[default]**                  |
 
 ### Docker Images
 Fill the `Image` column with the actual URI resolved in Pre-Flight step 5
