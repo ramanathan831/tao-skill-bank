@@ -100,12 +100,24 @@ credentials required by the selected workflow.
 > continue. Only stop if a step fails with an unrecoverable error or a hard-stop gate
 > fires. Print a one-line status update at each step milestone so the user can follow
 > progress.
+>
+> **Auto-mode required.** The post-gate loop fires constant side-effecting calls
+> (`docker run`, `${RESULTS_DIR}/` writes); without auto-accept / bypass-permissions mode it
+> stalls on the first prompt. Remind the user at the Pre-Flight Summary to enable auto-mode
+> (shift+tab) before approving.
+>
+> **Blocker recovery.** Fix recoverable blockers yourself — missing image (pull), unstaged
+> C-RADIO backbone (stage `.pth` per `references/visual-changenet.md`), missing pydeps (venv),
+> absent AnomalyGen assets (paidf auto-fetches) — then resume the Pre-Flight step you were on
+> (`<blocker> cleared → resuming step N`) and continue to the Summary. Halt only for what you
+> can't fix (missing workspace/specs/CSVs/credentials, empty pool, leakage). A fix is not the
+> user gate.
 
 ## Workflow
 
 Execute the loop in this order (full detail in `## Pipeline` and `## Stage Execution` below):
 
-1. **Pre-Flight.** Run every check in `## Pre-Flight`. Resolve workspace, specs, CSVs, checkpoints, container images. Hard stop on any missing input.
+1. **Pre-Flight.** Run every check in `## Pre-Flight`. Resolve workspace, specs, CSVs, checkpoints, container images. Hard stop only on missing input you can't resolve yourself (see `## Agent Behavior` → Blocker recovery).
 2. **Baseline.** If `deft_state.json` already has `iterations.baseline.stage_completed == "train"` and a `best_ckpt_path` pointing at an existing file (the upstream `automl-deft-pipeline` pre-seeds these from its Phase 1 AutoML winner — see its Phase 1 → Phase 2 handoff), **skip the train sub-step** and resume at `inference -> evaluate` against the pre-seeded checkpoint. Otherwise run `train -> inference -> evaluate` by invoking the `tao-skill-bank:tao-train-visual-changenet` skill. Either way, then `rca` by invoking `tao-skill-bank:tao-analyze-gaps-visual-changenet`. Read `references/visual-changenet.md` and `references/tao-analyze-gaps-visual-changenet.md` first for DEFT-loop-specific args (mounts, output dirs, `deft_state.json` updates).
 3. **Iterate.** For each iteration up to `max_iterations`, execute Pipeline steps 1-7. Between every step, re-read `results/loop_log.jsonl` tail + `results/deft_state.json` from disk — disk is canonical.
 4. **Stop** when the KPI target is met, `max_iterations` is reached, or a hard-stop gate fires (silent-drop, AMP allocation mismatch, train/val leakage). Never auto-retry hard stops.
@@ -343,11 +355,13 @@ Once all checks pass, print this summary and **STOP — wait for explicit user a
 | ------------------------------ | ------------------------------------------------------------------------------ |
 | KPI Target                     | FAR < X% at Recall=100%                                                        |
 | Max Iterations                 | N                                                                              |
+| Stop condition                 | KPI met **or** max_iterations reached — reaching the KPI is not guaranteed      |
 | Training Epochs                | N per iteration                                                                |
 | Num SDG                        | N synthetic samples per iteration                                              |
 | Mining cutoff                  | cosine ≥ <min_similarity> (default 0.9)                                        |
 | GPUs                           | N                                                                              |
 | Resuming                       | yes — iter N complete / no                                                     |
+| Est. runtime                   | ~max_iterations × 33 min on RTX 6000 Ada — estimate only (+~Yh downloads if MISSING) |
 
 ### Dataset
 | Field                          | Value                                                                          |
@@ -398,6 +412,20 @@ for var in TAO_PYT_IMAGE AG_IMAGE TAO_DS_IMAGE; do
   fi
 done
 ```
+
+### Runtime Estimate
+**Estimate only** — heuristic from a measured **RTX 6000 Ada (48 GB)** run at **~200 train rows**, default epochs; scales with rows/epochs/num_SDG. Per-iteration reference ≈ 33 min:
+
+| Stage | Time | Scales with |
+|---|---|---|
+| rca | ~2 min | KPI-test rows |
+| routing | <1 min | — |
+| anomalygen | ~15 min + 5–10 min ckpt load | # images |
+| data_mining | ~4 min | pool size |
+| train | ~11 min | train rows × epochs |
+| evaluate | ~2 min | KPI-test rows |
+
+`total ≈ baseline + max_iterations × ~33 min` + overhead (10 iters ≈ ~6.5h wall). Add the one-time ~22–140 GB base-checkpoint/image pull separately when image/Cosmos rows are `MISSING`.
 
 **Ask the user to confirm before proceeding.** Wait for explicit approval ("looks good", "go", "yes"). Do not start the loop until the user confirms.
 
