@@ -51,7 +51,9 @@ Preflight passes only after all of these are true:
    rerun.
 9. A launch review with image, platform, datasets, compute shape, expected
    runtime, and any generated/default configuration changes has been shown and
-   confirmed by the user.
+   confirmed by the user. For AutoML, the launch review must explicitly state
+   recommendation count/budget, max concurrency, algorithm, metric, direction,
+   and searched parameters/ranges even when defaults are used.
 
 If any item is missing, ask for the missing input and stop before generating
 artifacts. This applies to AutoML, normal train/eval/infer/export/TRT, and
