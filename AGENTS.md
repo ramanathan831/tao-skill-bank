@@ -74,9 +74,13 @@ equal-class peers — **no default**. If the user hasn't chosen, ask.
 
 ## Never do
 
-- **Never write flat dotted spec keys.** Specs are **nested dicts**:
-  `{"train": {"num_epochs": 12}}`, not `{"train.num_epochs": 12}`. This is
-  the most common agent mistake against the SDK boundary.
+- **Never write flat dotted spec keys in the actual spec.** Specs passed to
+  `build_entrypoint`, SDK job creation, config files, or containers are
+  **nested dicts**: `{"train": {"num_epochs": 12}}`, not
+  `{"train.num_epochs": 12}`. AutoMLRunner's `spec_overrides` argument is the
+  one exception: it accepts dotted path keys as an override map and expands
+  them into the nested spec before launch. Do not pass that override map
+  directly to SDK/container boundaries.
 - **Never default to one platform** when several would fit. If the user hasn't
   said SLURM vs. Brev vs. Docker vs. Kubernetes, ask. Four SDKs are
   equal-class peers; biasing toward one is wrong.

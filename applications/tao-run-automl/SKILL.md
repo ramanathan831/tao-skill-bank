@@ -111,6 +111,15 @@ Before running AutoML:
    ```
    **CRITICAL**: AutoML requires a packaged generated train dataclass schema at `<bank-root>/models/<network>/schemas/train.schema.json`. The schema must exist and parse as JSON — it's the AutoML support gate because it defines `automl_enabled` parameters, defaults, ranges, options, weights, and popular metadata. Schemas are generated during skill-bank maintenance and shipped with the plugin; the runtime must not expect `~/tao-core` to exist. If the packaged train schema is missing, do not run AutoML for that model.
 
+   After the JSON file check, validate the actual AutoML runtime import path before presenting the model as supported:
+   ```bash
+   python3 - <<'PY'
+   from tao_automl.runner import validate_skill_runtime
+   print(validate_skill_runtime("<bank-root>/models/<network>", action="train"))
+   PY
+   ```
+   This must succeed before launch. It catches packaged-schema/runtime mismatches such as `cosmos-rl` versus `cosmos_rl` imports that a JSON-only gate cannot catch.
+
    `references/spec_template_<action>.yaml` is required for **non-TAO-Core models** (cosmos-rl, clip, etc.) — without it the runner has no defaults and the trial spec will be missing keys. For **TAO Core / Hydra-based models** (DINO, BEVFusion, etc.) the template is optional; Hydra fills container-side defaults at runtime.
 4. **`nvidia-tao-automl` installed** with the platform extra you want. Not on public PyPI yet — install from the GitLab repo via `pip` direct-URL:
    ```bash
@@ -223,6 +232,8 @@ Use these quick-start AutoML defaults without asking:
 | `automl_max_recommendations` | model/workflow default if declared, otherwise `10` |
 | `automl_hyperparameters` | `None` so AutoML uses dataclass-schema params with `automl_enabled=true` |
 | `custom_param_ranges` | `None` so ranges/options/defaults come from the generated dataclass schema |
+| `run_baseline` | `true` when the model has an evaluate action and a pretrained/parent model can be evaluated |
+| `run_final_evaluation` | `true` when the model has an evaluate action for the selected best checkpoint/model |
 | `long_running_enabled` | `true` |
 | `status_interval_minutes` | `5` |
 
@@ -239,6 +250,8 @@ preflight already passed. The review must include:
 - model/network, platform, image, GPU/node shape, and result/workspace root
 - dataset mode and concrete spec keys, including train/eval sample counts when
   they can be read cheaply
+- staged dataset/media paths and `<workspace>/evaluations/data_staging.json`
+  location when large S3 media was copied or extracted before launch
 - algorithm, budget, max concurrent jobs, metric, and direction
 - searchable parameters and ranges, including default values when the user did
   not provide an explicit search space
@@ -247,29 +260,133 @@ preflight already passed. The review must include:
   lazily and show the search bounds
 - estimated runtime per recommendation and total expected wall time, with the
   assumptions used
-- whether a baseline/pretrained evaluation will be run before tuning
+- the pretrained/parent-model evaluation plan, including the exact evaluate
+  action inputs and where the baseline record will be stored; if no PTM/parent
+  model can be evaluated, state why
+- the post-AutoML final evaluation plan for the selected best checkpoint/model,
+  including the metric, dataset, and record path
 
 If the estimate is longer than the user's stated limit or materially longer
 than a normal interactive run, ask whether to reduce recommendations, epochs,
 dataset size, validation frequency, or search space before launch. Do not hide
 multi-day estimates in logs.
 
+## PTM Baseline And Final Evaluation
+
+For every AutoML run, inspect the selected model skill's `actions.evaluate`
+metadata and model-specific AutoML notes before launching recommendations.
+
+If an evaluate action exists and a pretrained/parent model is available from the
+model skill, packaged spec template, explicit user input, or model metadata, run
+the evaluate action on the same validation/eval dataset before AutoML starts.
+This is the PTM baseline. Store a structured record under the AutoML workspace,
+for example:
+
+```text
+<workspace>/evaluations/ptm_baseline.json
+```
+
+The record must include model/network, action, PTM/parent model path or URI,
+evaluation dataset spec keys, metric name, metric direction, metric value,
+evaluation job id or run directory, evaluate results path, timestamp, and any
+sample count used. Pass the measured metric to AutoML as
+`automl_settings["baseline_metric"]` or provide a `baseline_fn` that returns the
+same value and writes the same record.
+
+The AutoML runner owns the final evaluation step. Provide
+`final_eval_fn(best_rec, train_job_id)` to `AutoMLRunner.run`; the callback must
+evaluate the selected best checkpoint/model with the same evaluate action, same
+eval dataset, same metric, and same metric direction. Store the post-AutoML
+record beside the baseline, for example:
+
+```text
+<workspace>/evaluations/best_automl.json
+```
+
+If per-recommendation `eval_fn` already evaluated the selected best checkpoint
+with exactly the same action, dataset, metric, and stored result fields, set
+`automl_settings["reuse_best_metric_for_final_evaluation"]=True` and have the
+runner reuse that metric/record. Otherwise `final_eval_fn` must run a fresh
+final evaluate action and return the measured metric, or a dict containing
+`metric_value` plus metadata such as `record_path`. Do not run final evaluation
+as an agent-side post-`runner.run` step; `runner.run` must return
+`result["final_evaluation"]` with status `measured`, `provided`, `reused_best`,
+`skipped`, or `failure` plus a concrete reason.
+
+The final answer must compare:
+
+- PTM baseline metric
+- best AutoML training/selection metric
+- post-AutoML final evaluation metric
+- absolute delta and whether the requested metric improved according to
+  `direction`
+- failed recommendations, invalid recommendations, fallbacks, and adjustments
+
+Only skip the PTM baseline or final evaluation when the model has no evaluate
+action, no evaluable PTM/parent model, no eval dataset, or the user explicitly
+opts out. In all skipped cases, record the reason in the launch review and final
+summary.
+
 ## Dependency And Data Preflight
 
 If the selected workflow needs object storage or a platform CLI and the tool is
 missing, report the missing dependency and offer the exact install command
-before continuing. After user approval, install the smallest needed package and
-rerun preflight. For S3 paths, verify both credentials and path readability
-from the launch platform before creating runner artifacts. Do not wait for the
-first training container to discover a missing AWS CLI, S3 client, or unreadable
-URI.
+before continuing. After user approval, rerun
+`scripts/check_tao_launch_preflight.py` with `--install-missing-tools` so it
+installs the smallest needed package (currently `awscli`) and immediately
+retries path verification. For S3 paths, verify both credentials and path
+readability from the launch platform before creating runner artifacts. Do not
+wait for the first training container to discover a missing AWS CLI, S3 client,
+or unreadable URI.
+
+For models that read large media archives or directories during every training
+trial, do not let each AutoML recommendation repeatedly download the same
+`s3://` payload. Stage or extract the dataset once to storage visible from the
+execution platform, then point all recommendation specs at that staged path:
+
+- SLURM: shared filesystem path such as `/lustre/...`
+- local Docker: absolute path on the Docker host
+- remote Docker: absolute path on the remote Docker host behind `DOCKER_HOST`
+- Kubernetes/Brev: persistent volume or documented platform-local cache when
+  available; otherwise warn that S3 I/O may dominate the run
+
+Record the source URI, staged path, byte/file-count evidence when available, and
+timestamp in `<workspace>/evaluations/data_staging.json`. If staging is not
+possible, include the S3 performance risk in the pre-launch review and ask
+before spending a long AutoML budget on repeated large-media downloads.
 
 When the model skill defines sample-count-sensitive constraints, enforce them
 before launch. For example, reject or cap batch-size recommendations that would
 create zero training steps for the selected dataset and GPU shard count. If a
 recommendation later fails because the data is too small for the effective
-batch size, classify it as an invalid configuration, replace or adjust it only
-when remaining budget exists, and report the correction in the final summary.
+batch size, classify it as an invalid configuration, replace or adjust it, and
+report the correction in the final summary.
+When train sample count is known from an annotation file or cheap manifest
+read, pass it as `automl_settings["train_sample_count"]` to `AutoMLRunner.run`
+so the runner can cap impossible recommendations before submitting a job and
+record the adjustment in `result["history"][i]["adjustments"]`.
+For local JSON/JSONL annotation files, use the `records=<N>` output printed by
+`scripts/check_tao_launch_preflight.py`; for remote/object-store annotations,
+count records with a cheap platform-visible read before launch when the model
+has batch-size/sample-count constraints. Do not start a sample-count-sensitive
+AutoML run with unknown sample count unless the user explicitly accepts that
+invalid batch-size recommendations may fail and consume budget.
+
+For user-visible budgets, invalid recommendations do not satisfy the requested
+number of useful recommendations. Maintain a replacement plan before launch:
+
+- if the algorithm can pre-sample candidates, generate at least
+  `automl_max_recommendations + max(2, ceil(0.25 * automl_max_recommendations))`
+  candidates and reserve the extras as fallbacks
+- if the algorithm samples lazily, keep requesting candidates until the requested
+  number of valid recommendations complete or the approved wall-clock budget is
+  exhausted
+- first try model-documented deterministic repairs such as capping effective
+  batch size, lowering low-VRAM fields, or removing mutually exclusive fields
+- write each invalid recommendation and fallback to
+  `<workspace>/evaluations/fallbacks.jsonl` with `rec_id`, failure reason,
+  attempted specs, replacement specs, and whether it consumed wall-clock budget
+- surface the fallback ledger in the final comparison table
 
 When asking for missing AutoML launch inputs, use a first-time-user friendly
 prompt. Do not say only "train dataset root" / "eval dataset root", and do not
@@ -358,12 +475,22 @@ result = runner.run(
         "algorithm": "bayesian",
         "metric": metric,
         "automl_max_recommendations": 10,
+        "run_baseline": True,
+        "run_final_evaluation": True,
+        "evaluation_records_dir": f"./automl/{TIMESTAMP}/evaluations",
+        # Add when cheaply known from annotations/manifests:
+        # "train_sample_count": TRAIN_SAMPLE_COUNT,
+        # Add after the PTM evaluate action writes ptm_baseline.json:
+        # "baseline_metric": PTM_BASELINE_METRIC,
     },
     automl_hyperparameters=None,  # use schema params marked automl_enabled=true
     custom_param_ranges=None,     # use schema ranges/options/defaults
     spec_overrides={...},         # from model skill + dataset requirements
+    # baseline_fn=baseline_fn,    # runs evaluate action on PTM and writes ptm_baseline.json
+    # final_eval_fn=final_eval_fn, # runner-owned eval of selected best; writes best_automl.json
     workspace_path=f"./automl/{TIMESTAMP}",
 )
+# result["final_evaluation"] is populated before runner.run returns.
 ```
 
 Customization runner additions:
@@ -572,6 +699,7 @@ result = runner.run(
     # --- Hooks (all optional, opt-in) ---
     metric_extractor=None,                           # custom log→metric parser
     eval_fn=my_eval,                                 # post-training real-metric eval
+    final_eval_fn=my_final_eval,                     # runner-owned best-model final eval
     on_recommendation=lambda r: print(f"launching rec {r.id}: {r.specs}"),
     on_result=lambda r, metric, status: print(f"rec {r.id} {status} → {metric}"),
 
@@ -692,7 +820,17 @@ When enabled, after every N completed experiments the analyzer reviews patterns,
 
 ### `spec_overrides`
 
-`spec_overrides` keys are model-specific. Read the model skill's **Training Requirements**, **Per-Action Dataset Requirements**, and **Typical Spec Overrides** sections, then pass only the keys required or recommended there. Do not infer override keys from examples in this AutoML skill.
+`spec_overrides` is an AutoMLRunner override-path map, not the final spec shape.
+Its keys are model-specific dotted paths that AutoMLRunner expands into the
+nested spec loaded from the model's packaged template before calling
+`build_entrypoint`/SDK job creation. Do not pass the dotted override map
+directly to an SDK, config writer, or container command; those boundaries must
+receive the nested spec dict.
+
+Read the model skill's **Training Requirements**, **Per-Action Dataset
+Requirements**, and **Typical Spec Overrides** sections, then pass only the
+override paths required or recommended there. Do not infer override keys from
+examples in this AutoML skill.
 
 Every key you pass is validated against the skill's spec schema. Typos that look like existing keys raise `ValueError` with a suggestion; genuinely-new keys are accepted with a warning.
 
@@ -902,6 +1040,43 @@ runner.run(
 
 Exceptions from `eval_fn` are caught and logged — the runner falls back to the log-extracted metric for that rec.
 
+### `final_eval_fn(best_rec, train_job_id: str | None) → float | dict | None`
+
+Called once after AutoML selects the best recommendation and before
+`runner.run()` returns. This is the owner for post-AutoML final evaluation; do
+not run final evaluation as a separate agent sidecar after the runner exits.
+
+Use it when:
+- The selected best checkpoint/model must be evaluated with the model skill's
+  `evaluate` action.
+- The final report needs a stored record such as
+  `<workspace>/evaluations/best_automl.json`.
+- Per-rec `eval_fn` used a cheaper proxy or different record shape than the
+  final evaluation.
+
+```python
+def final_eval_best(best_rec, train_job_id):
+    record = run_model_specific_final_eval(best_rec, train_job_id)
+    return {
+        "metric_value": record["accuracy"],
+        "record_path": record["path"],
+        "job_id": record.get("job_id"),
+    }
+
+runner.run(
+    ...,
+    automl_settings={"metric": task_metric, "direction": direction, ...},
+    final_eval_fn=final_eval_best,
+)
+```
+
+If the per-rec `eval_fn` already uses exactly the same evaluate action, dataset,
+metric, and stored record fields, set
+`automl_settings["reuse_best_metric_for_final_evaluation"]=True`. Otherwise
+provide `final_eval_fn` or `automl_settings["final_evaluation_metric"]`; missing
+final evaluation is returned as `result["final_evaluation"]["status"] ==
+"unavailable"` with a reason.
+
 ---
 
 ## Step 4: Monitor Progress
@@ -982,25 +1157,50 @@ The result is a plain dict:
         "best_metric": 0.7077, "best_rec_id": 4,
         "algorithm": "bayesian",
     },
+    "baseline": {
+        "status": "measured",
+        "metric_value": 0.5123,
+        "comparison_to_best": {"delta": 0.1954, "improved": true},
+        "record_path": "./automl/run_.../evaluations/ptm_baseline.json",
+    },
+    "final_evaluation": {
+        "status": "measured",
+        "metric_value": 0.7012,
+        "comparison_to_baseline": {"delta": 0.1889, "improved": true},
+        "record_path": "./automl/run_.../evaluations/best_automl.json",
+    },
     "history": [
-        {"rec_id": 0, "metric": 0.6308, "status": "success"},
-        {"rec_id": 1, "metric": 0.7077, "status": "success"},
+        {"rec_id": 0, "metric": 0.6308, "status": "success", "adjustments": []},
+        {"rec_id": 1, "metric": 0.7077, "status": "success", "adjustments": []},
         ...
     ],
 }
 ```
 
-Metric values in `best` and `history` are always in the original scale the user provided — direction inversion (if any) is undone before the dict is returned.
+Metric values in `best`, `baseline`, `final_evaluation`, and `history` are
+always in the original scale the user provided — direction inversion (if any)
+is undone before the dict is returned.
 
 For multi-fidelity algorithms (`hyperband`, `bohb`, `asha`, `dehb`, `hyperband_es`, and `pbt`), `best` is selected from the largest observed training budget once those candidates exist. Report any lower-budget metric that beats the selected final-budget metric as promotion context rather than treating it as the downstream checkpoint.
 
 ### How to report to the user
 
-1. **Best config** — show the winning hyperparameters and metric value.
-2. **Comparison table** — rank recs by metric and highlight the best. For multi-fidelity algorithms, rank the largest-budget candidates first and include lower-budget winners as context when they differ from the selected final checkpoint.
-3. **Insights** — call out what the optimizer learned from the requested parameters and metric.
-4. **WandB link** — if tracking was enabled, provide the dashboard URL.
-5. **Next steps** — suggest:
+1. **PTM baseline vs final evaluation** — show baseline metric, final
+   post-AutoML evaluation metric, delta, and whether the selected best model
+   improved. Include links or paths to both stored evaluation records.
+2. **Best selection metric** — show the metric AutoML used to choose the winner
+   and call out if it differs from the final evaluation metric.
+3. **Best config** — show the winning hyperparameters and metric value.
+4. **Comparison table** — rank recs by metric and highlight the best. Include
+   any `adjustments` or `failure_reason` from `result["history"]`, especially
+   capped batch-size recommendations or invalid configurations.
+5. **Fallback ledger** — summarize any rows in
+   `<workspace>/evaluations/fallbacks.jsonl`.
+6. **Data staging** — if `<workspace>/evaluations/data_staging.json` exists,
+   show the staged dataset/media path used by all recommendations.
+7. **Insights** — call out what the optimizer learned from the requested parameters and metric.
+8. **WandB link** — if tracking was enabled, provide the dashboard URL.
+9. **Next steps** — suggest:
    - More recs (re-run with `resume=True` + higher `automl_max_recommendations`).
    - Train longer with the best config using `sdk.create_job(specs=result["best"]["specs"])`.
    - Run a downstream evaluation on the best checkpoint.
@@ -1044,7 +1244,7 @@ Model-specific notes do not belong in this AutoML skill. For every requested `ne
 2. **Wrong LLM endpoint (404).** Use `https://inference-api.nvidia.com` for NVIDIA inference API testing and pass it explicitly in `automl_settings`. The LLM brain falls back to random sampling on LLM failure, so check logs for "LLM call failed" before trusting the run as LLM-guided.
 3. **Model-specific training failures (data format, missing datasets, invalid params).** Each network has unique training requirements. ALWAYS read `<bank-root>/models/<network>/SKILL.md` — the "Training Requirements" and "Error Patterns" sections document model-specific failure modes that apply to AutoML recs too.
 4. **Workspace path collisions.** Running the same script twice overwrites the previous experiment. Always include a timestamp: `workspace_path=f"./automl_workspace/{TIMESTAMP}"` where `TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")`.
-5. **Using a weak proxy metric.** The brain can optimize a metric that does not reflect real task quality. Use the metric recommended by the model skill or provide `eval_fn`.
+5. **Using a weak proxy metric.** The brain can optimize a metric that does not reflect real task quality. Use the metric recommended by the model skill, provide `eval_fn`, and use `final_eval_fn` for the runner-owned best-model evaluation.
 6. **Implicit direction trap.** If the metric name does not imply the desired direction, set `direction` explicitly.
 7. **Spec-override typos.** `save_freq_in_epochs` (plural) used to silently do nothing; now raises `ValueError` with suggestion. If you see that error, it's the fix working.
 8. **Orchestrator dies mid-sweep.** Relaunch with the same `workspace_path` and `resume=True`. In-flight jobs are recovered from `active_jobs.json`.
@@ -1147,8 +1347,8 @@ Agent: Running a fresh job with a new runner, log, state file, and workspace. Th
 ### User: "I want the real task metric, not the default proxy"
 
 ```
-Agent: For a real task metric, I'll use the eval_fn hook described by the model skill. This adds per-rec cost, so I’ll adjust the budget if needed.
-[executes runner.run(metric=task_metric, direction=direction, eval_fn=model_specific_eval, ...)]
+Agent: For a real task metric, I'll use the eval_fn hook described by the model skill and keep final evaluation runner-owned with final_eval_fn. This adds evaluation cost, so I’ll adjust the budget if needed.
+[executes runner.run(metric=task_metric, direction=direction, eval_fn=model_specific_eval, final_eval_fn=model_specific_final_eval, ...)]
 ```
 
 ### User: "Use the LLM to figure out the best hyperparameters"

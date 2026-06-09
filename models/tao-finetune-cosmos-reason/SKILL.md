@@ -50,8 +50,17 @@ Non-train actions such as `evaluate`, `inference`, and `quantize` stay in this m
 - **Accepted dataset intents:** training, evaluation, testing
 - **Monitoring metric:** val/avg_loss, val/reward_avg, val/loss
 - **Dataset URI examples:** `s3://bucket/cosmos/train`, `s3://bucket/cosmos/eval`, `/lustre/fsw/tao_datasets/cosmos_rl/train`, `/lustre/fsw/tao_datasets/cosmos_rl/eval`
-- **Input modes:** accept either dataset roots or direct spec-key paths. Root mode maps `<root>/annotations.json` plus `<root>` as the media path. Direct spec mode is valid when annotations and media live in different locations, for example `custom.train_dataset.annotation_path=/lustre/.../train.json` and `custom.train_dataset.media_path=/lustre/.../videos.tar.gz`.
-- **Media handling:** do not ask the user to choose `videos.tar.gz` vs `images.tar.gz` unless they are using direct spec mode or the model/action requires a single media archive. In root mode, pass the dataset root as the media path.
+- **Input modes:** accept either dataset roots or direct spec-key paths. Root
+  mode maps `<root>/annotations.json` plus `<root>` as the media path. Direct
+  spec mode is valid when annotations and media live in different locations, for
+  example `custom.train_dataset.annotation_path=/lustre/.../train.json` and
+  `custom.train_dataset.media_path=/lustre/.../videos.tar.gz`.
+- **Media handling:** do not ask the user to choose `videos.tar.gz` vs
+  `images.tar.gz` unless they are using direct spec mode or the model/action
+  requires a single media archive. In root mode, pass the dataset root as the
+  media path. Use `<root>/videos`, `<root>/videos.tar.gz`, or another child path
+  only when the user provides it directly or the annotation `video` entries are
+  known to be relative to that child path.
 - **Annotation validation:** before launching train/AutoML/evaluate, verify the
   annotation JSON is readable and the referenced media path or archive is
   visible from the selected platform. Do not block, patch, or mutate
@@ -89,6 +98,37 @@ scripts/check_tao_launch_preflight.py --platform slurm \
   --path val_annotation=/lustre/.../eval/annotations.json \
   --path val_media=/lustre/.../eval
 ```
+
+For local Docker, pass the resolved Cosmos-RL image so preflight can enforce
+NVIDIA runtime, host GPU memory, smoke-container, and known image architecture
+checks before any model/data download:
+
+```bash
+scripts/check_tao_launch_preflight.py --platform local-docker \
+  --container-image <resolved-cosmos-rl-image> \
+  --path train_annotation=/abs/path/train/annotations.json \
+  --path train_media=/abs/path/train \
+  --path val_annotation=/abs/path/eval/annotations.json \
+  --path val_media=/abs/path/eval
+```
+
+The helper infers the known `cosmos-rl` image support list
+(`sm_80/sm_90/sm_100/sm_120`) from the image name. Pass
+`--image-supported-sm` explicitly if testing a custom image.
+
+For `s3://` paths, if this helper reports that `aws` is missing, ask for
+approval and rerun the same command with `--install-missing-tools` so the
+helper installs `awscli` and immediately verifies the dataset paths.
+
+Cosmos-RL video datasets can include large `videos.tar.gz` archives. Before
+AutoML, stage S3-backed media once to a platform-local/shared path and point
+every recommendation at the staged directory or archive; do not let each trial
+download the same large S3 object through the container. Prefer an extracted
+directory when the annotations reference individual files. Keep a
+`<workspace>/evaluations/data_staging.json` record with the original S3 URI, the
+staged path, and the command/log used to verify the copy. If the user insists on
+direct S3 media paths, state that large-media S3 I/O may dominate runtime and
+ask for confirmation before launching recommendations.
 
 ### Per-Action Dataset Requirements
 
@@ -333,23 +373,35 @@ provides a different HuggingFace model id, `hf_model://...` URI, or
 cluster-local snapshot.
 
 Do not hardcode dataset paths in this reusable model skill. Dataset locations
-must come from the user's current request, a selected dataset profile, or direct
-spec overrides for that run. For a user-provided Cosmos-RL train/eval root, map
-the run inputs to concrete spec keys:
+must come from the user's current request, a selected dataset profile, a
+canonical demo dataset link published in the product docs/scope deck, or direct
+spec overrides for that run. Do not substitute placeholder S3 paths in a demo
+prompt. If the user asks for a demo and no accessible dataset profile/link is
+available in the current repo/docs, stop and ask for the dataset source instead
+of fabricating one. For a user-provided Cosmos-RL train/eval root, map the run
+inputs to concrete spec keys:
+
+For demo requests, first read `references/demo_datasets.yaml`. Use only entries
+under `profiles` that have all required fields and are marked usable by product
+docs, a scope deck, or the user's current request. The current packaged manifest
+contains no approved public Cosmos-RL demo profile; therefore a generic "run a
+demo" request is blocked until a real profile is added or the user provides
+dataset paths/URIs. Never treat `s3://bucket/...`, `<train_root>`, or similar
+placeholder examples as runnable data.
 
 ```text
 custom.train_dataset.annotation_path=<train_root>/annotations.json
-custom.train_dataset.media_path=<train_root>/videos
+custom.train_dataset.media_path=<train_root>
 custom.val_dataset.annotation_path=<eval_root>/annotations.json
-custom.val_dataset.media_path=<eval_root>/videos
+custom.val_dataset.media_path=<eval_root>
 ```
 
 When annotation `video` values are relative to a `videos/` subdirectory, use
-direct spec mode for `media_path` rather than plain dataset-root mode. If media
-is packaged as `videos.tar.gz`, use the extracted `videos/` directory when
-present, or the archive only if the selected runtime extracts it before dataset
-lookup. Do not edit or patch the user's source annotation files unless the user
-explicitly asks for a dataset repair.
+direct spec mode and set `media_path=<root>/videos` rather than silently
+changing root-mode semantics. If media is packaged as `videos.tar.gz`, use the
+extracted `videos/` directory when present, or the archive only if the selected
+runtime extracts it before dataset lookup. Do not edit or patch the user's
+source annotation files unless the user explicitly asks for a dataset repair.
 
 If the user's objective names `accuracy` or an accuracy target such as
 `>=90%`, optimize an evaluation metric, not `val/avg_loss`. Use AutoMLRunner's
@@ -360,10 +412,36 @@ the evaluator's `accuracy` value and set `direction="maximize"`. Use
 `val/avg_loss` only when the user accepts a proxy metric or no task metric is
 available.
 
-Before launching AutoML for an accuracy objective, run or offer a base-model
-evaluation on the same validation subset and report it as the baseline. The
-final AutoML summary must compare baseline accuracy, every recommendation's
-accuracy, and the selected best recommendation.
+Before launching AutoML for an accuracy objective, run a PTM evaluation on the
+same validation subset by default. For Cosmos-RL, the PTM is the base model in
+`policy.model_name_or_path`, normally `hf_model://nvidia/Cosmos3-Nano` or the
+user-provided replacement. Use the model skill's `evaluate` action with:
+
+```text
+dataset.annotation_path=<eval annotation path>
+dataset.media_dir=<eval media path>
+model.model_name=<PTM or local PTM snapshot>
+model.enable_lora=false
+model.base_model_path=<same PTM>
+task=""
+```
+
+Store the PTM evaluation record at
+`<workspace>/evaluations/ptm_baseline.json`, pass the measured accuracy as
+`automl_settings["baseline_metric"]` or through `baseline_fn`, and include the
+record path in the pre-launch review.
+
+Pass `final_eval_fn` to `AutoMLRunner.run` so the runner owns the selected-best
+evaluation before it returns. The callback must run the same `evaluate` action on
+the selected LoRA/checkpoint folder with `model.enable_lora=true` and
+`model.base_model_path` set to the same PTM, store the final record at
+`<workspace>/evaluations/best_automl.json`, and return either the accuracy value
+or `{"metric_value": accuracy, "record_path": "<workspace>/evaluations/best_automl.json"}`.
+The final AutoML summary must compare PTM baseline accuracy, every valid
+recommendation's accuracy, `result["final_evaluation"]["metric_value"]`, and the
+absolute delta from PTM to final. Only skip either evaluation when the user
+explicitly opts out or evaluation is impossible; in that case, state the reason
+in the pre-launch review and final summary.
 
 For the evaluator prompt "search over learning rate, batch size, number of
 epochs, weight decay, warmup ratio", map the requested knobs to:
@@ -410,11 +488,25 @@ custom_param_ranges={
 
 Keep `train.train_policy.mini_batch=1` unless the user explicitly changes it,
 so all listed batch sizes remain divisible by the micro-batch size. For small
-datasets, also cap `train.train_batch_per_replica` so it does not exceed
-`num_train_samples / policy.parallelism.dp_shard_size`.
+datasets, cap `train.train_batch_per_replica` so it does not exceed
+`floor(num_train_samples / policy.parallelism.dp_shard_size)`. When the
+annotation count is known, pass it as `automl_settings["train_sample_count"]`;
+current `AutoMLRunner` versions use that to cap invalid batch-size
+recommendations before launch and record the adjustment in the AutoML history.
+If the cap removes every requested batch option, replace the search range with
+`[1]` and tell the user that the dataset is too small for meaningful batch-size
+search at the selected GPU shard count.
 For integer knobs with discrete choices, include `value_type: "ordered_int"`
 with `valid_options`; integer `valid_options` alone are ignored by the current
 Bayesian sampler.
+
+When an AutoML recommendation fails because the effective batch size is larger
+than samples per shard, retry with the same hyperparameters except
+`train.train_batch_per_replica` capped to the largest valid value. When a
+recommendation fails with a recoverable OOM on 40GB/48GB-class GPUs, retry once
+with the low-VRAM profile below before consuming another distinct search-space
+candidate. Record every retry or replacement in
+`<workspace>/evaluations/fallbacks.jsonl`.
 
 Before launching recommendation jobs, show the user the exact number of
 recommendations, search parameters, ranges/defaults, planned dataset subset
@@ -462,6 +554,7 @@ For platform-side multi-node setup (sbatch flags on SLURM, Indexed Job + Service
   - `nframes` (default in template): extract this many frames evenly across the clip. This is the safest default for 1-GPU AutoML smoke runs.
   - `fps`: extract frames at this rate. High motion: 3. Low motion/static: 1–2. Use when the selected videos, `policy.model_max_length`, and GPU memory can absorb the expanded token count.
   - Setting both makes qwen-vl-utils' decord backend error out (`Only accept either fps or nframes`) and silently fall back to torchvision, which deadlocks under multi-worker dataloading (`BlockingIOError [Errno 11]` swscaler errors). If you switch from `fps` to `nframes`, also delete `fps` from your spec.
+  - Default Cosmos AutoML search must not tune `custom.vision.fps` while the packaged template uses `custom.vision.nframes`. Only include `custom.vision.fps` when the user explicitly requests FPS tuning and the assembled spec deletes `custom.vision.nframes`.
 - **custom.vision.total_pixels**: Resolution constraint. Increase if the object of focus is small relative to the frame. Default 3136000.
 - **custom.system_prompt**: Instructions prepended to every prompt.
 
@@ -506,6 +599,27 @@ fine-tuned checkpoints for handoff.
 ## Hardware
 
 Cosmos-RL models are 8B parameters and benefit from multi-GPU training with FSDP sharding. `dp_shard_size` should equal total GPU count. Recommended: 8x A100 or H100 (80GB each).
+
+Before local Docker, remote Docker, or single-node AutoML launch, run
+`scripts/check_tao_launch_preflight.py --platform local-docker --container-image
+<resolved-cosmos-rl-image> ...` and show the GPU memory it reports in the
+pre-launch review. For 40GB/48GB-class GPUs, apply a low-VRAM profile unless
+the user explicitly chooses a larger platform:
+
+- keep `policy.model_gradient_checkpointing=true`
+- keep `train.train_policy.mini_batch=1`
+- do not tune `custom.vision.fps`; keep `custom.vision.nframes`
+- use `custom.vision.nframes=4` for smoke/fit checks, then raise toward 8 only
+  after a successful fit
+- cap `custom.vision.total_pixels` at `1003520` for the first fit check; raise
+  only after a successful fit and user confirmation
+- restrict `train.train_batch_per_replica` options to values that fit both
+  memory and `floor(num_train_samples / dp_shard_size)`
+- keep LoRA tuning; do not switch to full-model SFT on low-VRAM hardware
+
+If the user's target quality requires higher frames/resolution than the memory
+profile can fit, stop before launch and ask for a larger GPU platform rather
+than spending the AutoML budget on OOM failures.
 
 ## Error Patterns
 

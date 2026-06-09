@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import os
 import shutil
@@ -23,6 +24,11 @@ DEFAULT_SKILL_BANK = Path(
 )
 MANIFEST_REL = Path("platform") / "platforms.manifest.json"
 REMOTE_SCHEMES = ("s3://", "azure://", "gs://", "http://", "https://")
+DEFAULT_GPU_SMOKE_IMAGE = os.environ.get("TAO_GPU_SMOKE_IMAGE", "ubuntu:22.04")
+DEFAULT_LOW_VRAM_THRESHOLD_GB = 50.0
+KNOWN_IMAGE_SMS = {
+    "cosmos-rl": ["sm_80", "sm_90", "sm_100", "sm_120"],
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -34,6 +40,13 @@ def parse_args() -> argparse.Namespace:
         help="Path to the packaged TAO skill bank.",
     )
     parser.add_argument("--platform", required=True, help="TAO execution platform.")
+    parser.add_argument(
+        "--docker-host",
+        help=(
+            "Optional Docker daemon URL such as ssh://user@host. Sets "
+            "DOCKER_HOST for local-docker/remote-docker preflight."
+        ),
+    )
     parser.add_argument(
         "--path",
         action="append",
@@ -61,6 +74,65 @@ def parse_args() -> argparse.Namespace:
         "--skip-platform-access",
         action="store_true",
         help="Only validate environment variables and paths.",
+    )
+    parser.add_argument(
+        "--install-missing-tools",
+        action="store_true",
+        help=(
+            "Install small missing host/client tools needed for this preflight "
+            "after user approval, currently awscli for s3:// path checks."
+        ),
+    )
+    parser.add_argument(
+        "--container-image",
+        help=(
+            "Selected TAO container image. Local Docker preflight uses this for "
+            "GPU smoke checks and known image/GPU architecture compatibility."
+        ),
+    )
+    parser.add_argument(
+        "--gpu-smoke-image",
+        default=DEFAULT_GPU_SMOKE_IMAGE,
+        help=(
+            "Fallback image for the local Docker GPU smoke test when "
+            "--container-image is not supplied. Default: %(default)s"
+        ),
+    )
+    parser.add_argument(
+        "--pull-smoke-image",
+        action="store_true",
+        help=(
+            "Allow local Docker preflight to pull the smoke image before running "
+            "the GPU visibility check. Use only after user approval."
+        ),
+    )
+    parser.add_argument(
+        "--image-supported-sm",
+        action="append",
+        default=[],
+        metavar="SM[,SM...]",
+        help=(
+            "Supported GPU architectures for the selected image, for example "
+            "sm_80,sm_90,sm_100,sm_120. May be repeated. If omitted, known "
+            "limits are inferred from --container-image when possible."
+        ),
+    )
+    parser.add_argument(
+        "--min-gpu-memory-gb",
+        type=float,
+        help=(
+            "Fail local Docker preflight if any visible GPU has less than this "
+            "much memory."
+        ),
+    )
+    parser.add_argument(
+        "--low-vram-threshold-gb",
+        type=float,
+        default=DEFAULT_LOW_VRAM_THRESHOLD_GB,
+        help=(
+            "Print a low-VRAM warning for local Docker GPUs below this memory "
+            "threshold. Default: %(default)s"
+        ),
     )
     return parser.parse_args()
 
@@ -159,6 +231,23 @@ def run(
         )
 
 
+def command_detail(result: subprocess.CompletedProcess[str]) -> str:
+    detail = (result.stderr or result.stdout).strip().splitlines()
+    return detail[-1] if detail else "exit " + str(result.returncode)
+
+
+def docker_host_is_remote(docker_host: str | None) -> bool:
+    if not docker_host:
+        return False
+    value = docker_host.strip()
+    if not value:
+        return False
+    local_prefixes = ("unix://", "npipe://")
+    if value.startswith(local_prefixes):
+        return False
+    return value not in {"/var/run/docker.sock"}
+
+
 JSON_FIELD_CHECK_SCRIPT = r"""
 import json
 import sys
@@ -228,6 +317,38 @@ def check_json_required_fields_local(
     return False
 
 
+def json_record_count(path: str) -> int | None:
+    suffix = Path(path).suffix.lower()
+    try:
+        if suffix == ".jsonl":
+            with Path(path).open("r", encoding="utf-8") as handle:
+                return sum(1 for line in handle if line.strip())
+        with Path(path).open("r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        return None
+
+    if isinstance(payload, list):
+        return len(payload)
+    if isinstance(payload, dict):
+        for key in ("annotations", "data", "samples", "items"):
+            value = payload.get(key)
+            if isinstance(value, list):
+                return len(value)
+        return 1
+    return None
+
+
+def maybe_report_json_record_count(label: str, path: str) -> None:
+    lowered_label = label.lower()
+    lowered_name = Path(path).name.lower()
+    if "annotation" not in lowered_label and "annotation" not in lowered_name:
+        return
+    count = json_record_count(path)
+    if count is not None:
+        print(f"JSON record count: {label}={path}: records={count}")
+
+
 def check_json_required_fields_remote(
     host: str,
     label: str,
@@ -288,7 +409,7 @@ def has_unverified_remote_mounts(
     paths: list[tuple[str, str]],
     skip_access: bool,
 ) -> bool:
-    if skip_access or platform_name in {"slurm", "local-docker"}:
+    if skip_access or platform_name in {"slurm", "local-docker", "remote-docker"}:
         return False
 
     failed = False
@@ -304,7 +425,39 @@ def has_unverified_remote_mounts(
     return failed
 
 
-def check_s3_storage(paths: list[tuple[str, str]], skip_access: bool) -> bool:
+def ensure_aws_cli(install_missing_tools: bool) -> str | None:
+    aws = shutil.which("aws")
+    if aws:
+        return aws
+    install_command = [sys.executable, "-m", "pip", "install", "awscli"]
+    if not install_missing_tools:
+        print(
+            "aws CLI not found, so s3:// dataset paths cannot be verified. "
+            "Approve remediation and rerun with --install-missing-tools, or "
+            f"install manually with: {' '.join(install_command)}"
+        )
+        return None
+
+    print("aws CLI not found; installing awscli with pip before S3 checks.")
+    result = run(install_command, timeout=180)
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip().splitlines()
+        reason = detail[-1] if detail else "exit " + str(result.returncode)
+        print(f"awscli install failed: {reason}")
+        return None
+    aws = shutil.which("aws")
+    if not aws:
+        print("awscli install completed, but aws is still not on PATH.")
+        return None
+    print(f"aws CLI installed: {aws}")
+    return aws
+
+
+def check_s3_storage(
+    paths: list[tuple[str, str]],
+    skip_access: bool,
+    install_missing_tools: bool = False,
+) -> bool:
     targets = s3_paths(paths)
     if not targets:
         return True
@@ -318,12 +471,8 @@ def check_s3_storage(paths: list[tuple[str, str]], skip_access: bool) -> bool:
         print("S3 credentials are present; skipped object-store access checks.")
         return True
 
-    aws = shutil.which("aws")
+    aws = ensure_aws_cli(install_missing_tools)
     if not aws:
-        print(
-            "aws CLI not found, so s3:// dataset paths cannot be verified. "
-            "Install awscli or manually prove the paths are readable before launch."
-        )
         return False
 
     env = os.environ.copy()
@@ -346,6 +495,307 @@ def check_s3_storage(paths: list[tuple[str, str]], skip_access: bool) -> bool:
             print(f"S3 path missing or inaccessible: {label}={uri}: {reason}")
             ok = False
     return ok
+
+
+def parse_sm_list(values: list[str]) -> list[str]:
+    sms: list[str] = []
+    for value in values:
+        for item in value.split(","):
+            sm = item.strip()
+            if sm:
+                if sm.replace(".", "", 1).isdigit():
+                    sm = sm_from_compute_cap(sm)
+                sms.append(sm)
+    return sms
+
+
+def sm_from_compute_cap(value: str) -> str:
+    compact = value.strip().replace(".", "")
+    if not compact:
+        return ""
+    return "sm_" + compact
+
+
+def known_supported_sms(image: str | None, explicit_sms: list[str]) -> list[str]:
+    if explicit_sms:
+        return explicit_sms
+    if not image:
+        return []
+    lowered = image.lower()
+    for token, sms in KNOWN_IMAGE_SMS.items():
+        if token in lowered:
+            return sms
+    return []
+
+
+def docker_image_exists(image: str) -> bool:
+    result = run(["docker", "image", "inspect", image], timeout=20)
+    return result.returncode == 0
+
+
+def docker_runtimes() -> tuple[bool, set[str]]:
+    result = run(["docker", "info", "--format", "{{json .Runtimes}}"], timeout=20)
+    if result.returncode != 0:
+        print(f"Docker runtime query failed: {command_detail(result)}")
+        return False, set()
+    try:
+        payload = json.loads(result.stdout)
+        runtimes = set(payload.keys()) if isinstance(payload, dict) else set()
+    except json.JSONDecodeError:
+        runtimes = set()
+        if "nvidia" in result.stdout.lower():
+            runtimes.add("nvidia")
+    return True, runtimes
+
+
+def parse_gpu_query_output(stdout: str, has_compute_cap: bool) -> list[dict[str, Any]]:
+    gpus: list[dict[str, Any]] = []
+    for row in csv.reader(stdout.splitlines()):
+        if len(row) < 4:
+            continue
+        memory_mib = None
+        try:
+            memory_mib = float(row[3].strip())
+        except ValueError:
+            pass
+        compute_cap = row[4].strip() if has_compute_cap and len(row) > 4 else ""
+        gpus.append(
+            {
+                "index": row[0].strip(),
+                "name": row[1].strip(),
+                "driver_version": row[2].strip(),
+                "memory_mib": memory_mib,
+                "sm": sm_from_compute_cap(compute_cap) if compute_cap else "",
+            }
+        )
+    return gpus
+
+
+def print_gpus(gpus: list[dict[str, Any]], prefix: str = "Host GPU OK") -> None:
+    for gpu in gpus:
+        memory = gpu["memory_mib"]
+        memory_text = f"{memory / 1024:.1f}GB" if memory else "unknown"
+        sm_text = gpu["sm"] or "unknown-sm"
+        print(
+            f"{prefix}: "
+            f"index={gpu['index']} name={gpu['name']} "
+            f"driver={gpu['driver_version']} memory={memory_text} arch={sm_text}"
+        )
+
+
+def query_host_gpus() -> tuple[bool, list[dict[str, Any]]]:
+    if not shutil.which("nvidia-smi"):
+        print("nvidia-smi not found on host PATH")
+        return False, []
+
+    command = [
+        "nvidia-smi",
+        "--query-gpu=index,name,driver_version,memory.total,compute_cap",
+        "--format=csv,noheader,nounits",
+    ]
+    result = run(command, timeout=20)
+    has_compute_cap = result.returncode == 0
+    if not has_compute_cap:
+        command = [
+            "nvidia-smi",
+            "--query-gpu=index,name,driver_version,memory.total",
+            "--format=csv,noheader,nounits",
+        ]
+        result = run(command, timeout=20)
+    if result.returncode != 0:
+        print(f"nvidia-smi GPU query failed: {command_detail(result)}")
+        return False, []
+
+    gpus = parse_gpu_query_output(result.stdout, has_compute_cap)
+    if not gpus:
+        print("nvidia-smi did not report any GPUs")
+        return False, []
+    print_gpus(gpus)
+    return True, gpus
+
+
+def query_docker_gpus(image: str, pull_smoke_image: bool) -> tuple[bool, list[dict[str, Any]]]:
+    if not pull_smoke_image and not docker_image_exists(image):
+        print(
+            "Remote Docker GPU query image is not present on the Docker host: "
+            f"{image}. Pull it after user approval or rerun preflight with "
+            "--pull-smoke-image."
+        )
+        return False, []
+    command = [
+        "docker",
+        "run",
+        "--rm",
+        "--runtime=nvidia",
+        "--gpus",
+        "all",
+        image,
+        "nvidia-smi",
+        "--query-gpu=index,name,driver_version,memory.total,compute_cap",
+        "--format=csv,noheader,nounits",
+    ]
+    result = run(command, timeout=60)
+    has_compute_cap = result.returncode == 0
+    if not has_compute_cap:
+        command = [
+            "docker",
+            "run",
+            "--rm",
+            "--runtime=nvidia",
+            "--gpus",
+            "all",
+            image,
+            "nvidia-smi",
+            "--query-gpu=index,name,driver_version,memory.total",
+            "--format=csv,noheader,nounits",
+        ]
+        result = run(command, timeout=60)
+    if result.returncode != 0:
+        print(f"Remote Docker GPU query failed: image={image}: {command_detail(result)}")
+        return False, []
+    gpus = parse_gpu_query_output(result.stdout, has_compute_cap)
+    if not gpus:
+        print("Remote Docker GPU query did not report any GPUs")
+        return False, []
+    print_gpus(gpus, prefix="Remote Docker GPU OK")
+    return True, gpus
+
+
+def check_docker_bind_path(label: str, path: str, image: str, pull_smoke_image: bool) -> bool:
+    if not path.startswith("/"):
+        print(f"Remote Docker path is not absolute for {label}: {path}")
+        return False
+    if not pull_smoke_image and not docker_image_exists(image):
+        print(
+            "Remote Docker path-check image is not present on the Docker host: "
+            f"{image}. Pull it after user approval or rerun preflight with "
+            "--pull-smoke-image."
+        )
+        return False
+    command = [
+        "docker",
+        "run",
+        "--rm",
+        "--mount",
+        f"type=bind,source={path},target=/tao_preflight_path,readonly",
+        image,
+        "test",
+        "-e",
+        "/tao_preflight_path",
+    ]
+    result = run(command, timeout=45)
+    if result.returncode == 0:
+        print(f"Remote Docker path OK: {label}={path}")
+        return True
+    print(f"Remote Docker path missing or inaccessible: {label}={path}: {command_detail(result)}")
+    return False
+
+
+def check_gpu_memory(
+    gpus: list[dict[str, Any]],
+    min_gpu_memory_gb: float | None,
+    low_vram_threshold_gb: float,
+) -> bool:
+    ok = True
+    for gpu in gpus:
+        memory_mib = gpu.get("memory_mib")
+        if memory_mib is None:
+            print(f"GPU memory unknown: index={gpu.get('index')}")
+            continue
+        memory_gb = memory_mib / 1024
+        if min_gpu_memory_gb is not None and memory_gb < min_gpu_memory_gb:
+            print(
+                "GPU memory below required minimum: "
+                f"index={gpu['index']} memory={memory_gb:.1f}GB "
+                f"< required={min_gpu_memory_gb:.1f}GB"
+            )
+            ok = False
+        if memory_gb < low_vram_threshold_gb:
+            print(
+                "Low-VRAM GPU detected: "
+                f"index={gpu['index']} memory={memory_gb:.1f}GB. "
+                "Apply the selected model's low-VRAM profile before launch."
+            )
+    return ok
+
+
+def check_image_architecture(
+    gpus: list[dict[str, Any]],
+    container_image: str | None,
+    image_supported_sm: list[str],
+) -> bool:
+    supported = known_supported_sms(container_image, image_supported_sm)
+    if not supported:
+        if container_image:
+            print(
+                "Image architecture check skipped: no known supported SM list "
+                f"for image={container_image}. Pass --image-supported-sm to enforce it."
+            )
+        return True
+
+    supported_set = set(supported)
+    ok = True
+    for gpu in gpus:
+        sm = gpu.get("sm") or ""
+        if not sm:
+            print(
+                "Image architecture check failed: could not determine host GPU "
+                f"architecture for index={gpu.get('index')}"
+            )
+            ok = False
+            continue
+        if sm not in supported_set:
+            print(
+                "Image architecture unsupported: "
+                f"image={container_image or '<selected-image>'} "
+                f"gpu_index={gpu['index']} host_arch={sm} "
+                f"supported={','.join(supported)}"
+            )
+            ok = False
+    if ok:
+        print(
+            "Image architecture OK: "
+            f"host={','.join(sorted({gpu.get('sm') for gpu in gpus if gpu.get('sm')}))} "
+            f"supported={','.join(supported)}"
+        )
+    return ok
+
+
+def check_docker_gpu_smoke(
+    container_image: str | None,
+    gpu_smoke_image: str,
+    pull_smoke_image: bool,
+) -> bool:
+    image = container_image or gpu_smoke_image
+    if not image:
+        print("GPU smoke container check failed: no image provided")
+        return False
+    if not pull_smoke_image and not docker_image_exists(image):
+        print(
+            "GPU smoke container image is not present on the Docker host: "
+            f"{image}. Pull it after user approval or rerun preflight with "
+            "--pull-smoke-image."
+        )
+        return False
+
+    command = [
+        "docker",
+        "run",
+        "--rm",
+        "--runtime=nvidia",
+        "--gpus",
+        "all",
+        image,
+        "nvidia-smi",
+        "-L",
+    ]
+    result = run(command, timeout=60)
+    if result.returncode == 0 and "GPU" in result.stdout:
+        first = result.stdout.strip().splitlines()[0]
+        print(f"Docker GPU smoke OK: image={image}: {first}")
+        return True
+    print(f"Docker GPU smoke failed: image={image}: {command_detail(result)}")
+    return False
 
 
 def check_brev(platform: dict[str, Any], skip_access: bool) -> bool:
@@ -602,8 +1052,23 @@ def check_local_docker(
     required_json_fields: dict[str, list[str]],
     json_sample_limit: int,
     skip_access: bool,
+    container_image: str | None,
+    gpu_smoke_image: str,
+    pull_smoke_image: bool,
+    image_supported_sm: list[str],
+    min_gpu_memory_gb: float | None,
+    low_vram_threshold_gb: float,
+    require_remote_docker: bool,
 ) -> bool:
     ok = True
+    docker_host = os.environ.get("DOCKER_HOST")
+    remote_docker = docker_host_is_remote(docker_host)
+    if require_remote_docker and not remote_docker:
+        print(
+            "Missing remote Docker requirement: set DOCKER_HOST to a remote "
+            "daemon URL such as ssh://user@gpu-host."
+        )
+        return False
     if not skip_access:
         if not shutil.which("docker"):
             print("docker executable not found")
@@ -613,15 +1078,75 @@ def check_local_docker(
             if result.returncode == 0:
                 print("Docker daemon OK")
             else:
-                print("Docker daemon check failed")
+                print(f"Docker daemon check failed: {command_detail(result)}")
                 ok = False
+
+            runtime_query_ok, runtimes = docker_runtimes()
+            if runtime_query_ok and "nvidia" in runtimes:
+                print("Docker NVIDIA runtime OK")
+            elif runtime_query_ok:
+                print(
+                    "Docker NVIDIA runtime missing: install/configure "
+                    "NVIDIA Container Toolkit before launch."
+                )
+                ok = False
+            else:
+                ok = False
+
+            if remote_docker:
+                print(f"Remote Docker daemon requested: DOCKER_HOST={os.environ.get('DOCKER_HOST')}")
+                gpu_ok, gpus = query_docker_gpus(gpu_smoke_image, pull_smoke_image)
+            else:
+                gpu_ok, gpus = query_host_gpus()
+            ok = gpu_ok and ok
+            if gpu_ok:
+                ok = (
+                    check_gpu_memory(
+                        gpus,
+                        min_gpu_memory_gb,
+                        low_vram_threshold_gb,
+                    )
+                    and ok
+                )
+                ok = (
+                    check_image_architecture(
+                        gpus,
+                        container_image,
+                        image_supported_sm,
+                    )
+                    and ok
+                )
+            ok = (
+                check_docker_gpu_smoke(
+                    container_image,
+                    gpu_smoke_image,
+                    pull_smoke_image,
+                )
+                and ok
+            )
 
     for label, raw_path in paths:
         path = normalize_local_path(raw_path)
         if path is None:
             continue
+        if remote_docker:
+            if skip_access:
+                print(f"Remote Docker path accepted without access check: {label}={path}")
+                continue
+            if not check_docker_bind_path(label, path, gpu_smoke_image, pull_smoke_image):
+                ok = False
+                continue
+            fields = required_json_fields.get(label)
+            if fields:
+                print(
+                    "Remote Docker JSON field sampling skipped: "
+                    f"{label}={path}. Validate required fields from a mounted "
+                    "container image before launch if this model requires them."
+                )
+            continue
         if Path(path).exists():
             print(f"Local path OK: {label}={path}")
+            maybe_report_json_record_count(label, path)
         else:
             print(f"Local path missing: {label}={path}")
             ok = False
@@ -655,6 +1180,8 @@ def check_env_only(platform: dict[str, Any], paths: list[tuple[str, str]]) -> bo
 
 def main() -> int:
     args = parse_args()
+    if args.docker_host:
+        os.environ["DOCKER_HOST"] = args.docker_host
     platform = resolve_platform(args.skill_bank, args.platform)
     paths = parse_paths(args.path)
     required_json_fields = parse_required_fields(args.json_required_field)
@@ -668,12 +1195,19 @@ def main() -> int:
             args.json_sample_limit,
             args.skip_platform_access,
         )
-    elif name == "local-docker":
+    elif name in {"local-docker", "remote-docker"}:
         platform_ok = check_local_docker(
             paths,
             required_json_fields,
             args.json_sample_limit,
             args.skip_platform_access,
+            args.container_image,
+            args.gpu_smoke_image,
+            args.pull_smoke_image,
+            parse_sm_list(args.image_supported_sm),
+            args.min_gpu_memory_gb,
+            args.low_vram_threshold_gb,
+            name == "remote-docker",
         )
     elif name == "brev":
         platform_ok = check_brev(platform, args.skip_platform_access)
@@ -682,7 +1216,11 @@ def main() -> int:
     else:
         platform_ok = check_env_only(platform, paths)
 
-    storage_ok = check_s3_storage(paths, args.skip_platform_access)
+    storage_ok = check_s3_storage(
+        paths,
+        args.skip_platform_access,
+        args.install_missing_tools,
+    )
     mounts_ok = not has_unverified_remote_mounts(
         name,
         paths,

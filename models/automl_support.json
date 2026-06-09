@@ -32,7 +32,6 @@
         "train"
       ],
       "automl_default_parameters": [
-        "custom.vision.fps",
         "policy.lora.lora_alpha",
         "policy.lora.lora_dropout",
         "policy.lora.r",

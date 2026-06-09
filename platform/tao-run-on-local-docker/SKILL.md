@@ -1,8 +1,9 @@
 ---
 name: tao-run-on-local-docker
-description: Local Docker execution for TAO SDK job containers using the host Docker daemon and NVIDIA GPU runtime. Use
-  when running TAO jobs on the current machine or a directly attached Docker host. Trigger phrases include "run locally",
-  "local Docker", "use my GPU", "run on my machine", "host Docker daemon".
+description: Local or remote Docker execution for TAO SDK job containers using a Docker daemon with NVIDIA GPU runtime. Use
+  when running TAO jobs on the current machine, a directly attached Docker host, or a remote GPU box exposed through
+  DOCKER_HOST. Trigger phrases include "run locally", "local Docker", "remote Docker", "use my GPU", "run on my
+  machine", "host Docker daemon".
 license: Apache-2.0
 compatibility: Requires NVIDIA driver branch 580, CUDA Toolkit 13.0, Docker, and NVIDIA Container Toolkit 1.19.0. The TAO SDK with the docker extra (pip install 'nvidia-tao-sdk[docker]') is needed only if you want Job handles, S3 I/O wrapping, or run-folder durability via ActionWorkflow.
 metadata:
@@ -18,13 +19,19 @@ tags:
 # Local Docker
 
 Single-node execution platform that runs TAO jobs as named Docker containers on
-the local Docker daemon. It is useful for development, debugging, small runs,
-and machines where the agent host already has the required GPUs, NVIDIA driver,
-Docker, and NVIDIA Container Toolkit.
+a Docker daemon. The daemon can be local to the agent host or remote through
+`DOCKER_HOST=ssh://user@host` / a Docker context. It is useful for development,
+debugging, small runs, and workflows where a local coding agent submits jobs to
+a remote GPU box.
 
 Use local Docker when the data is local to the Docker host or accessible through
 mounted volumes/cloud credentials. Do not use it for remote cluster scheduling,
 multi-node training, or jobs that need SLURM queueing.
+
+Use remote Docker when the agent is running on a workstation or laptop but the
+Docker daemon and GPUs are on another single GPU server. In remote Docker mode,
+all local filesystem paths in specs are interpreted on the remote Docker host,
+not on the agent machine.
 
 ## Preflight
 
@@ -85,7 +92,8 @@ There are no platform credentials required beyond access to the Docker daemon.
 Optional environment:
 
 - **DOCKER_HOST**: Optional Docker daemon URL. If unset, the SDK uses the
-  Docker Python client's normal environment/default socket resolution.
+  Docker Python client's normal environment/default socket resolution. Required
+  for the `remote-docker` platform option.
 - **DOCKER_NETWORK**: Docker network for job containers. Default is
   `tao_default`.
 - **DOCKER_USERNAME**: Registry username. Default is `$oauthtoken` for NGC.
@@ -100,7 +108,11 @@ Optional environment:
 
 Before generating scripts or starting containers:
 
-1. Verify the Docker daemon is reachable and the NVIDIA runtime can see GPUs.
+1. Verify the Docker daemon is reachable, NVIDIA Container Toolkit is
+   registered as a Docker runtime, GPUs and driver version are reported, and a
+   smoke container can see GPUs before launch. For remote Docker, query GPUs
+   through `docker run ... nvidia-smi` against the remote daemon; do not use
+   local `nvidia-smi` from the agent machine.
 2. Verify every local/file dataset annotation and media path exists on the
    Docker host.
 3. For `s3://` datasets/results, verify `ACCESS_KEY` and `SECRET_KEY` are set
@@ -115,6 +127,67 @@ Before generating scripts or starting containers:
    host GPU compute capability with the container stack before launch. If the
    selected image cannot JIT or run kernels for the host architecture, block
    early and ask for a compatible image or platform.
+   Use the SDK helper when available:
+   ```bash
+   python3 - <<'PY'
+   from tao_sdk.preflight import query_host_sms, check_gpu_architecture_compatibility
+   host = query_host_sms()
+   print(host)
+   if host.ok:
+       print(check_gpu_architecture_compatibility(
+           host.details["sms"],
+           ["sm_80", "sm_90", "sm_100", "sm_120"],  # replace with selected image support list
+           image="<selected-image>",
+       ))
+   PY
+   ```
+   Treat unsupported hosts such as `sm_121` against an image that only lists
+   `sm_80/sm_90/sm_100/sm_120` as a pre-launch blocker, before image/model
+   downloads.
+
+Use the packaged helper for these checks when possible:
+
+```bash
+${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/check_tao_launch_preflight.py \
+  --platform local-docker \
+  --container-image "<selected-image>" \
+  --path train_annotation=/abs/path/to/annotations.json \
+  --path train_media=/abs/path/to/media
+```
+
+For a remote Docker daemon, use the `remote-docker` platform and pass or export
+`DOCKER_HOST`. The helper verifies remote GPU/runtime readiness and checks
+remote-host dataset paths through read-only bind mounts:
+
+```bash
+${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/check_tao_launch_preflight.py \
+  --platform remote-docker \
+  --docker-host ssh://user@gpu-host \
+  --container-image "<selected-image>" \
+  --gpu-smoke-image ubuntu:22.04 \
+  --path train_annotation=/remote/data/train/annotations.json \
+  --path train_media=/remote/data/train
+```
+
+The `--path` values above must exist on the remote Docker host. Do not pass
+paths that exist only on the local laptop or Codex host.
+
+For images with a known CUDA/Torch architecture limit, either rely on the
+helper's known-image rules (for example `cosmos-rl`) or pass the supported list
+explicitly:
+
+```bash
+${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/check_tao_launch_preflight.py \
+  --platform local-docker \
+  --container-image "<selected-image>" \
+  --image-supported-sm sm_80,sm_90,sm_100,sm_120
+```
+
+The helper fails if Docker is unreachable, the NVIDIA runtime is not registered,
+`nvidia-smi` cannot report GPUs, the smoke container cannot see GPUs, a known
+image cannot run on the host SM, or `--min-gpu-memory-gb` is not satisfied. It
+also prints host GPU memory; for low-VRAM GPUs, apply the model skill's
+low-VRAM profile before launch.
 
 ## Multi-GPU and multi-node
 
