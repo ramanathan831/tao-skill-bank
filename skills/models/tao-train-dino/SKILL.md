@@ -144,6 +144,7 @@ IMAGE_ARCHIVE = "images.tar.gz"
     "train.checkpoint_interval": 10,
     "train.validation_interval": 10,
     "train.num_gpus": 1,
+    "train.gpu_ids": [0],
 }
 ```
 
@@ -383,6 +384,15 @@ checkpoint from the parent job result files before submission:
 - **GPU Memory**: 24GB+ (A100 recommended)
 
 Transformer-based detection is memory-intensive. batch_size=4 fits on 24GB GPUs. For 16GB GPUs, reduce to batch_size=2. Multi-GPU with 4+ GPUs recommended for datasets > 10k images.
+
+## Multi-GPU Spec Consistency
+
+When increasing `train.num_gpus`, also set `train.gpu_ids` to the same visible
+device range. For example, an 8-GPU single-node Slurm run must include both
+`"train.num_gpus": 8` and `"train.gpu_ids": [0, 1, 2, 3, 4, 5, 6, 7]`.
+Leaving the template default `train.gpu_ids: [0]` while requesting multiple
+GPUs can make distributed startup inconsistent and can surface as NCCL
+collective timeouts instead of an immediate validation error.
 
 ## Error Patterns
 

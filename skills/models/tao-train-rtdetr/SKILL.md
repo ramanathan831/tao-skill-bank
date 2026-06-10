@@ -77,6 +77,7 @@ ONNX_FILE = "/results/{export_job_id}/results_dir/rtdetr.onnx"
     "train.checkpoint_interval": 10,
     "train.validation_interval": 10,
     "train.num_gpus": 1,
+    "train.gpu_ids": [0],
     "dataset.num_classes": "<num_classes> + 1",
     "dataset.train_data_sources": [{"image_dir": f"{S3_TRAIN}/images.tar.gz", "json_file": f"{S3_TRAIN}/annotations.json"}],
     "dataset.val_data_sources": {"image_dir": f"{S3_EVAL}/images.tar.gz", "json_file": f"{S3_EVAL}/annotations.json"},
@@ -180,6 +181,10 @@ Optional. Provides validation mAP at each checkpoint if supplied.
 | `train.num_nodes` | Number of nodes | 1 |
 | `train.distributed_strategy` | `ddp` or `fsdp` | `ddp` |
 
+- When increasing `train.num_gpus`, also set `train.gpu_ids` to the same
+  visible device range. For example, an 8-GPU single-node Slurm run must
+  include both `"train.num_gpus": 8` and
+  `"train.gpu_ids": [0, 1, 2, 3, 4, 5, 6, 7]`.
 - `CUDA_VISIBLE_DEVICES` is explicitly set (unlike Lightning-managed models which use `TAO_VISIBLE_DEVICES`)
 - `ddp` with activation checkpointing: `find_unused_parameters=False`
 - `ddp` without: `find_unused_parameters=True`
