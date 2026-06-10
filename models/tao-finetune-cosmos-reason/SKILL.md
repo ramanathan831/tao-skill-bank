@@ -100,7 +100,7 @@ scripts/check_tao_launch_preflight.py --platform slurm \
 ```
 
 For local Docker, pass the resolved Cosmos-RL image so preflight can enforce
-NVIDIA runtime, host GPU memory, smoke-container, and known image architecture
+NVIDIA runtime, host GPU memory, helper-container, and known image architecture
 checks before any model/data download:
 
 ```bash
@@ -129,6 +129,20 @@ directory when the annotations reference individual files. Keep a
 staged path, and the command/log used to verify the copy. If the user insists on
 direct S3 media paths, state that large-media S3 I/O may dominate runtime and
 ask for confirmation before launching recommendations.
+
+For Cosmos-RL staging, default to quiet, one-pass commands:
+
+- Use `aws s3 cp --no-progress ...` for `annotations.json` and
+  `videos.tar.gz`, or `aws s3 sync --no-progress ...` for directory-style
+  media. Do not use the default progress stream for multi-GB media archives.
+- Record low-frequency evidence instead: staged file sizes, extracted file
+  counts, annotation record counts, and the exact staged paths in
+  `<workspace>/evaluations/data_staging.json`.
+- Do not run unbounded `tar -tzf`/`tar -tf` probes on large `videos.tar.gz`
+  files. If the archive layout is unknown, use a short timeout and continue to a
+  one-time extraction when the timeout expires. After extraction, verify whether
+  the archive produced `videos/`; if annotations contain paths under `videos/`,
+  use direct spec mode with `media_path=<staged_root>/videos`.
 
 ### Per-Action Dataset Requirements
 
@@ -403,19 +417,13 @@ extracted `videos/` directory when present, or the archive only if the selected
 runtime extracts it before dataset lookup. Do not edit or patch the user's
 source annotation files unless the user explicitly asks for a dataset repair.
 
-If the user's objective names `accuracy` or an accuracy target such as
-`>=90%`, optimize an evaluation metric, not `val/avg_loss`. Use AutoMLRunner's
-`eval_fn` to run the model skill's `evaluate` action on the validation dataset
-after each recommendation, with `task=""`, `model.enable_lora=true`, and
-`model.base_model_path` set to the same base model used for training. Return
-the evaluator's `accuracy` value and set `direction="maximize"`. Use
-`val/avg_loss` only when the user accepts a proxy metric or no task metric is
-available.
-
-Before launching AutoML for an accuracy objective, run a PTM evaluation on the
-same validation subset by default. For Cosmos-RL, the PTM is the base model in
-`policy.model_name_or_path`, normally `hf_model://nvidia/Cosmos3-Nano` or the
-user-provided replacement. Use the model skill's `evaluate` action with:
+Cosmos-RL has a PTM, so follow the global AutoML workflow's mandatory
+evaluation sequence for every AutoML run: evaluate the PTM before AutoML on the
+same validation subset, run AutoML, then evaluate the selected best
+checkpoint/LoRA after AutoML completes. For Cosmos-RL, the PTM is the base
+model in `policy.model_name_or_path`, normally
+`hf_model://nvidia/Cosmos3-Nano` or the user-provided replacement. Use the
+model skill's `evaluate` action with:
 
 ```text
 dataset.annotation_path=<eval annotation path>
@@ -437,11 +445,29 @@ the selected LoRA/checkpoint folder with `model.enable_lora=true` and
 `model.base_model_path` set to the same PTM, store the final record at
 `<workspace>/evaluations/best_automl.json`, and return either the accuracy value
 or `{"metric_value": accuracy, "record_path": "<workspace>/evaluations/best_automl.json"}`.
-The final AutoML summary must compare PTM baseline accuracy, every valid
-recommendation's accuracy, `result["final_evaluation"]["metric_value"]`, and the
-absolute delta from PTM to final. Only skip either evaluation when the user
-explicitly opts out or evaluation is impossible; in that case, state the reason
-in the pre-launch review and final summary.
+The final AutoML summary must compare PTM baseline accuracy, AutoML
+recommendation metrics, `result["final_evaluation"]["metric_value"]`, and the
+absolute delta from PTM to final. Do not skip PTM baseline or final
+best-checkpoint evaluation for Cosmos-RL; if evaluation is impossible, stop
+before launch and report the missing skill/input contract.
+
+The required PTM baseline evaluation is the image/runtime compatibility gate for
+AutoML. Do not replace it with a reduced evaluator run. For Cosmos-RL AutoML,
+the launch sequence is: full PTM evaluation on the validation dataset, AutoML
+recommendations, then full evaluation of the selected best LoRA/checkpoint. If
+the selected image cannot load the PTM or run `cosmos-rl-evaluate` on the
+validation dataset, stop before launching recommendations and ask for a
+compatible image or evaluator path.
+
+If the user's objective names `accuracy` or an accuracy target such as
+`>=90%`, optimize an evaluation metric, not `val/avg_loss`. Use AutoMLRunner's
+`eval_fn` to run the model skill's `evaluate` action on the validation dataset
+after each recommendation, with `task=""`, `model.enable_lora=true`, and
+`model.base_model_path` set to the same base model used for training. Return
+the evaluator's `accuracy` value and set `direction="maximize"`. Use
+`val/avg_loss` only when the user accepts a proxy metric or no task metric is
+available; even then, still run the mandatory PTM baseline and final
+best-checkpoint evaluate actions for user-visible improvement comparison.
 
 For the evaluator prompt "search over learning rate, batch size, number of
 epochs, weight decay, warmup ratio", map the requested knobs to:
@@ -519,10 +545,10 @@ space only after user confirmation.
 
 ### Training Loop
 - **train.epoch**: Number of training epochs. Default 10. Use at least 2 for
-  local smoke or AutoML runs that need a host-visible best checkpoint for
+  local AutoML or validation runs that need a host-visible best checkpoint for
   evaluate/inference; one-epoch runs can leave only a broken `best` symlink
   after checkpoint cleanup.
-- **train.train_batch_per_replica**: Global batch size per training step. Ideally >= 32 for stability. CRITICAL: must be divisible by `train.train_policy.mini_batch` (default 1 in the packaged smoke-safe template). Recommended production value: 32.
+- **train.train_batch_per_replica**: Global batch size per training step. Ideally >= 32 for stability. CRITICAL: must be divisible by `train.train_policy.mini_batch` (default 1 in the packaged minimal template). Recommended production value: 32.
 - **train.compile**: Set to true for potential speedup on newer GPUs (H100), else false.
 - **train.output_dir**: Output directory for checkpoints and logs.
 
@@ -551,7 +577,7 @@ For platform-side multi-node setup (sbatch flags on SLURM, Indexed Job + Service
 
 ### Vision Encoders
 - **custom.vision.fps** *or* **custom.vision.nframes** — **mutually exclusive**, set exactly one.
-  - `nframes` (default in template): extract this many frames evenly across the clip. This is the safest default for 1-GPU AutoML smoke runs.
+  - `nframes` (default in template): extract this many frames evenly across the clip. This is the safest default for 1-GPU AutoML validation runs.
   - `fps`: extract frames at this rate. High motion: 3. Low motion/static: 1–2. Use when the selected videos, `policy.model_max_length`, and GPU memory can absorb the expanded token count.
   - Setting both makes qwen-vl-utils' decord backend error out (`Only accept either fps or nframes`) and silently fall back to torchvision, which deadlocks under multi-worker dataloading (`BlockingIOError [Errno 11]` swscaler errors). If you switch from `fps` to `nframes`, also delete `fps` from your spec.
   - Default Cosmos AutoML search must not tune `custom.vision.fps` while the packaged template uses `custom.vision.nframes`. Only include `custom.vision.fps` when the user explicitly requests FPS tuning and the assembled spec deletes `custom.vision.nframes`.
@@ -609,7 +635,7 @@ the user explicitly chooses a larger platform:
 - keep `policy.model_gradient_checkpointing=true`
 - keep `train.train_policy.mini_batch=1`
 - do not tune `custom.vision.fps`; keep `custom.vision.nframes`
-- use `custom.vision.nframes=4` for smoke/fit checks, then raise toward 8 only
+- use `custom.vision.nframes=4` for fit checks, then raise toward 8 only
   after a successful fit
 - cap `custom.vision.total_pixels` at `1003520` for the first fit check; raise
   only after a successful fit and user confirmation
@@ -633,7 +659,7 @@ than spending the AutoML budget on OOM failures.
 
 **Quantize image/video token mismatch**: `Mismatch in image token count between
 text and input_ids` during calibration means `quantize.max_sequence_length` is
-too small for the sampled media tokens. The packaged smoke template uses 4096;
+too small for the sampled media tokens. The packaged minimal template uses 4096;
 do not lower it to tiny values such as 128 for video calibration.
 
 **train_batch_per_replica not divisible by mini_batch**: The default `train_batch_per_replica=1` from the TAO Core schema is invalid because `mini_batch` defaults to 4. Immediate AssertionError on all ranks. Fix: set `train_batch_per_replica` to a multiple of `mini_batch` (recommended: 32 for large datasets, 4 for small datasets).
@@ -654,6 +680,17 @@ architecture such as sm_121, kernel JIT can fail with
 GPU architecture during platform preflight. Use a compatible image or move the
 run to a supported A100/H100/B200-class platform instead of launching and
 failing inside training.
+
+**Cosmos3-Nano evaluator image incompatibility**: If `cosmos-rl-evaluate` fails
+while loading `hf_model://nvidia/Cosmos3-Nano` with errors such as
+`model type cosmos3_omni` not recognized or
+`Cosmos3ForConditionalGeneration` not supported by vLLM, the selected image
+cannot satisfy the mandatory PTM baseline/final-evaluation contract. Do not
+launch AutoML recommendations with that image. Installing a newer
+`transformers` package may make `AutoConfig` recognize `cosmos3_omni`, but it
+does not fix a vLLM architecture registry that lacks
+`Cosmos3ForConditionalGeneration`; require a compatible Cosmos-RL image or a
+documented evaluator backend that supports the PTM.
 
 **TAO_API_JOB_ID status logging warnings in direct Docker**: `cosmos-rl-evaluate`, `cosmos-rl-inference`, and `cosmos-rl-quantize` may log a traceback from `tao_status_logger.py` when `TAO_API_JOB_ID` is unset. For direct local-Docker model-skill validation this is nonfatal if the process exits 0 and the action writes its expected result files. Do not hide a real action failure behind this warning, but do not mark an otherwise successful local run failed only because status-file logging was unavailable.
 
