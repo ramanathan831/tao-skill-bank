@@ -108,8 +108,17 @@ Before generating scripts or starting containers:
 2. Verify every local/file dataset annotation and media path exists on the
    Docker host.
 3. For `s3://` datasets/results, verify `ACCESS_KEY` and `SECRET_KEY` are set
-   and the exact paths are readable with `aws s3 ls`.
+   and the exact paths are readable with `aws s3 ls`. If `aws` is missing,
+   report the missing dependency and ask before installing it; rerun preflight
+   after installation.
 4. Verify model-specific credentials such as `HF_TOKEN` before launch.
+5. Check current GPU occupancy with `nvidia-smi` and avoid GPUs already used by
+   other running jobs when the user requested that constraint. Show the selected
+   GPU ids in the launch review.
+6. For model/container combinations with known architecture limits, compare
+   host GPU compute capability with the container stack before launch. If the
+   selected image cannot JIT or run kernels for the host architecture, block
+   early and ask for a compatible image or platform.
 
 ## Multi-GPU and multi-node
 
@@ -157,6 +166,8 @@ For GPU access, the handler auto-detects the host type:
 
 If `num_gpus` is `0`, no GPUs are assigned. If `num_gpus` is `-1`, all visible
 GPUs are requested. Prefer explicit GPU counts for shared development machines.
+When explicit device ids are available, prefer them over count-only selection
+on shared machines so the launch does not steal GPUs occupied by other tasks.
 
 ## Storage
 

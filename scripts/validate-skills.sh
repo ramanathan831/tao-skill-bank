@@ -12,12 +12,13 @@
 #      section, a docker run code block, OR a references/skill_info.yaml link).
 #   5. No SDK symbols leak into model/data/application SKILL.md (platform/* exempt).
 #   6. Hook paths in skill frontmatter resolve to existing scripts.
+#   7. AutoML guidance keeps the automatic post-preflight baseline eval gate.
 #
 # Optional (validated only if the file exists):
-#   7. Any skill_info.yaml parses, including deploy/skill_info.yaml files.
-#   8. Container image keys resolve through versions.yaml, including action-level overrides.
-#   9. Model/data action contracts declare command, mode, inputs, outputs, and upload_excludes.
-#  10. references/model_info.yaml (legacy name) parses if present — same rules.
+#   8. Any skill_info.yaml parses, including deploy/skill_info.yaml files.
+#   9. Container image keys resolve through versions.yaml, including action-level overrides.
+#  10. Model/data action contracts declare command, mode, inputs, outputs, and upload_excludes.
+#  11. references/model_info.yaml (legacy name) parses if present — same rules.
 #
 # Exit status = number of errors found.
 #
@@ -242,10 +243,55 @@ sys.exit(errs)
 PY
 [ $? -eq 0 ] && ok "all hook paths resolve" || errors=$((errors + $?))
 
-# ─── 6. optional structured metadata ────────────────────────────────────────
+# ─── 6. AutoML baseline eval guardrail ───────────────────────────────────────
+echo
+echo "=== 6. AutoML baseline eval guardrail ==="
+python3 - <<'PY'
+from pathlib import Path
+import sys
+
+required = {
+    "skills/applications/tao-run-automl/SKILL.md": [
+        "## Automatic Baseline Eval Job",
+        "post-preflight eval job",
+        "eval metric number",
+    ],
+    "skills/applications/tao-run-automl/references/automl-intent-algorithms.md": [
+        "automatic baseline eval job",
+        "job id, result path, and metric value",
+    ],
+    "skills/models/tao-finetune-cosmos-reason/SKILL.md": [
+        "run the model's evaluate",
+        "action once after preflight",
+        "Report that eval job id, result path, and accuracy",
+    ],
+}
+stale_phrases = (
+    "baseline/pretrained evaluation",
+    "pretrained evaluation before AutoML",
+    "baseline-eval plan",
+    "unless the user explicitly declines it",
+)
+
+errs = 0
+for rel, needles in required.items():
+    text = Path(rel).read_text(encoding="utf-8")
+    for needle in needles:
+        if needle not in text:
+            print(f"ERROR: {rel} — missing AutoML baseline eval guardrail text: {needle}", file=sys.stderr)
+            errs += 1
+    for phrase in stale_phrases:
+        if phrase in text:
+            print(f"ERROR: {rel} — stale optional baseline wording remains: {phrase}", file=sys.stderr)
+            errs += 1
+sys.exit(errs)
+PY
+[ $? -eq 0 ] && ok "AutoML baseline eval guidance is guarded" || errors=$((errors + $?))
+
+# ─── 7. optional structured metadata ────────────────────────────────────────
 if [ "${1:-}" != "--quick" ]; then
   echo
-  echo "=== 6. skill_info.yaml + legacy model_info.yaml (when present) ==="
+  echo "=== 7. skill_info.yaml + legacy model_info.yaml (when present) ==="
   python3 - <<'PY'
 import os, sys, yaml
 errs = 0

@@ -53,11 +53,11 @@
       ]
     },
     "model": {
-      "base_model_path": "",
+      "base_model_path": "hf_model://nvidia/Cosmos3-Nano",
       "dtype": "bfloat16",
       "enable_lora": false,
       "max_length": 128000,
-      "model_name": "nvidia/Cosmos-Reason2-8B",
+      "model_name": "hf_model://nvidia/Cosmos3-Nano",
       "save_folder": "cr1_1_zero_shot",
       "tokenizer_model_name": "qwen2.5-vl-7b",
       "tp_size": 1
@@ -69,7 +69,7 @@
       "save_metrics_summary": true
     },
     "task": {
-      "type": "its_directionality"
+      "type": ""
     },
     "vision": {
       "nframes": 8
@@ -353,11 +353,11 @@
     "model": {
       "automl_enabled": false,
       "default": {
-        "base_model_path": "",
+        "base_model_path": "hf_model://nvidia/Cosmos3-Nano",
         "dtype": "bfloat16",
         "enable_lora": false,
         "max_length": 128000,
-        "model_name": "nvidia/Cosmos-Reason2-8B",
+        "model_name": "hf_model://nvidia/Cosmos3-Nano",
         "save_folder": "cr1_1_zero_shot",
         "tokenizer_model_name": "qwen2.5-vl-7b",
         "tp_size": 1
@@ -365,7 +365,7 @@
       "description": "Model configuration",
       "properties": {
         "base_model_path": {
-          "default": "",
+          "default": "hf_model://nvidia/Cosmos3-Nano",
           "description": "Path to base model for LoRA merging (used when enable_lora is True)",
           "title": "Base model path",
           "type": "string"
@@ -391,7 +391,7 @@
           "type": "int"
         },
         "model_name": {
-          "default": "nvidia/Cosmos-Reason2-8B",
+          "default": "hf_model://nvidia/Cosmos3-Nano",
           "description": "Model name or path to safetensors directory",
           "title": "Model name",
           "type": "string"
@@ -460,12 +460,12 @@
     "task": {
       "automl_enabled": false,
       "default": {
-        "type": "its_directionality"
+        "type": ""
       },
       "description": "Task configuration for evaluation",
       "properties": {
         "type": {
-          "default": "its_directionality",
+          "default": "",
           "description": "Type of evaluation task (general, its_directionality)",
           "enum": [
             "its_directionality",

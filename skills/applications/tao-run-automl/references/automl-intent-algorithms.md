@@ -6,8 +6,9 @@ Load this file only when the compact `SKILL.md` points here for the current task
 
 ## Contents
 
-- network_arch is NOT a runner.run() arg anymore; it's encoded in
-- skill_dir which was passed to AutoMLRunner(skill_dir=...) at construction.
+- network_arch is NOT a runner.run() arg anymore; resolve the user's model
+- request to a packaged skill_dir, then read network_arch from that skill's
+- metadata.
 - Step 2: Select Algorithm
 - Classical Algorithms
 - LLM/Agentic Algorithms (NEW)
@@ -29,14 +30,16 @@ Extract these fields for a default run:
 
 | Field | Required | Example | How to get it |
 |---|---|---|---|
-| `network_arch` | Yes | `"<network_arch>"` | User states the model |
+| `requested_model` | Yes | `"cosmos-rl"` or `"tao-finetune-cosmos-reason"` | User states the model, model family, or network alias. |
+| `model_skill` | Yes | `"tao-finetune-cosmos-reason"` | Resolve `requested_model` to a packaged directory under `skills/models/` by using model metadata. Do not assume `network_arch` is the directory name. |
+| `network_arch` | Yes | `"cosmos-rl"` | Read from `<skill_dir>/references/skill_info.yaml` after resolving `model_skill`. |
 | `platform` | Yes | `"brev"`, `"slurm"`, `"local-docker"`, `"kubernetes"` | After the user confirms they want AutoML, run `scripts/list_tao_platforms.py --format text` and ask them to choose from that output. |
 | `train_dataset_uri` or direct train spec paths | Yes | `"s3://bucket/data/subset"`, `"/lustre/fsw/tao_datasets/<model>/train"`, or `custom.train_dataset.annotation_path=/...` | User provides a root URI/path, exact spec-key paths, or the model skill declares a default profile for this exact network/use case. |
 | `eval_dataset_uri` or direct eval spec paths | Model-dependent | `"s3://bucket/data/eval"`, `"/lustre/fsw/tao_datasets/<model>/eval"`, or `custom.val_dataset.media_path=/...` | Ask only if the model skill's Per-Action Dataset Requirements require an eval/validation source and no default profile supplies it. |
-| `image` | Yes | `"nvcr.io/..."` | Resolve the default with `scripts/resolve_tao_image.py --model <network_arch> --action train`, show it to the user, and require confirmation or `image=<override>` before creating the AutoML runner. |
+| `image` | Yes | `"nvcr.io/..."` | Resolve the default with `scripts/resolve_tao_image.py --model <requested_model> --action train`, show it to the user, and require confirmation or `image=<override>` before creating the AutoML runner. |
 | `metric` | No | `"<metric_name>"` | Use the model skill recommendation or ask if unclear. Do not choose model-specific metrics from this AutoML skill. |
 | `direction` | No | `"minimize"` or `"maximize"` | **Only needed if your metric name doesn't contain `"loss"` AND you want to minimize, or contains `"loss"` AND you want to maximize.** Otherwise the implicit "contains 'loss' → minimize, else maximize" rule applies. |
-| `skill_dir` | Yes | `"<bank-root>/models/tao-train-dino"` | Absolute path to the model directory in the skill bank. Combine the user's `network_arch` with the bank root the agent loaded this SKILL.md from. Passed explicitly to `AutoMLRunner(skill_dir=...)` — no env-var fallback. |
+| `skill_dir` | Yes | `"<bank-root>/skills/models/tao-train-dino"` | Absolute path to the resolved model skill directory in the skill bank. Passed explicitly to `AutoMLRunner(skill_dir=...)` — no env-var fallback. |
 | `long_running_enabled` | Yes | `true` | Ask during launch intake. If enabled, keep the agent attached and emit status until completion. Default: enabled. |
 | `status_interval_minutes` | Yes | `5` | Ask during launch intake. Default: 5 minutes. |
 | required credentials | Platform/model-dependent | `SLURM_USER`, `SLURM_HOSTNAME`, `SSH_KEY_PATH` or `SSH_AUTH_SOCK`, `HF_TOKEN` | First filter platform credentials with `scripts/list_tao_platforms.py --platform <platform>`, satisfy required credential groups, then add selected-model credentials. Do not ask for unrelated platform credentials. |
@@ -97,6 +100,21 @@ Also run any model-specific annotation content checks documented by the model
 skill. Missing required annotation fields are a preflight failure, not an
 AutoML recommendation failure.
 
+Before submitting any recommendation job, generate the initial recommendation
+batch in a review-only step and show the exact configs to the user together
+with metric, direction, expected runtime, and effective-batch checks. Do not
+replace concrete configs with only search bounds.
+
+After all platform, image, credential, data, and model preflight checks pass,
+submit the model's evaluate action once against the selected validation/eval
+data before submitting AutoML recommendations. This is the automatic baseline
+eval job for the run. Show its job id, result path, and metric value in the
+launch review, then ask for confirmation before spending training budget on
+recommendations. If the eval job cannot run because the model has no packaged
+evaluate action, validation data is missing, or the eval job fails, stop and
+surface the blocker. Proceed without this baseline only when the user
+explicitly accepts a proxy-metric run with no impact baseline.
+
 **Customization gate:** After the required quick-start fields are resolved, you may briefly offer customization. If the user declines or does not ask for it, proceed with the defaults above. If the user chooses customization, then present the additional options below.
 
 Customization-only fields:
@@ -115,8 +133,8 @@ Customization-only fields:
 
 For the selected model/action, read:
 
-- `${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/models/<network>/schemas/train.schema.json`
-- `${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/models/<network>/schemas/manifest.json`
+- `${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/skills/models/<model_skill>/schemas/train.schema.json`
+- `${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/skills/models/<model_skill>/schemas/manifest.json`
 
 AutoML is enabled by the model skill, but it can run only when
 `schemas/train.schema.json` is packaged with the plugin and valid for the
@@ -137,8 +155,8 @@ network has its own set; never hardcode them in this workflow skill.
 Quick-start runner shape:
 
 ```python
-# network_arch is NOT a runner.run() arg anymore; it's encoded in
-# skill_dir which was passed to AutoMLRunner(skill_dir=...) at construction.
+# network_arch is NOT a runner.run() arg anymore. It is read from the model
+# metadata at skill_dir, which was passed to AutoMLRunner(...) at construction.
 result = runner.run(
     train_dataset_uri=TRAIN_DATASET_URI,
     automl_settings={
@@ -181,7 +199,7 @@ If the runner does not receive valid LLM settings, the LLM brain may silently fa
 
 **MANDATORY: Read the model skill before generating the script.**
 
-AutoML runs training. Before generating any AutoML script, read `<bank-root>/models/<network>/SKILL.md` (where `<bank-root>` is wherever the agent loaded this SKILL.md from). The model skill contains all model-specific knowledge:
+AutoML runs training. Before generating any AutoML script, read `<bank-root>/skills/models/<model_skill>/SKILL.md` (where `<bank-root>` is wherever the agent loaded this SKILL.md from). The model skill contains all model-specific knowledge:
 
 - **Training Requirements** — dataset type, formats, monitoring metric, required dataset URIs to prompt for, required user prompts (data format, num_classes, etc.), and mandatory `spec_overrides`. Prompt the user for every required field. Apply mandatory spec_overrides exactly.
 - **Per-Action Dataset Requirements** — table mapping each action to its spec keys, data source, expected files, and whether the field is a list. Use this table to construct the correct data source `spec_overrides` for the requested action. If the model's Typical Spec Overrides mark data sources as "mandatory", construct them from this table and the user's dataset URIs.
@@ -193,7 +211,7 @@ Do NOT hardcode model-specific knowledge in the AutoML script without reading th
 
 **MANDATORY: No model-specific constants in this AutoML skill.**
 
-The AutoML skill must not define model-specific hyperparameter names, ranges, defaults, metric names, dataset layouts, archive names, class-count rules, spec override keys, container images, checkpoint quirks, or custom metric regexes. Hyperparameter metadata belongs in `<bank-root>/models/<network>/schemas/train.schema.json`; model-specific runtime guidance belongs in the model skill's **Training Requirements**, **Typical Spec Overrides**, **AutoML / HPO Notes**, and **Error Patterns** sections. This skill may describe how to read and apply those sources, but not the concrete per-model values.
+The AutoML skill must not define model-specific hyperparameter names, ranges, defaults, metric names, dataset layouts, archive names, class-count rules, spec override keys, container images, checkpoint quirks, or custom metric regexes. Hyperparameter metadata belongs in `<bank-root>/skills/models/<model_skill>/schemas/train.schema.json`; model-specific runtime guidance belongs in the model skill's **Training Requirements**, **Typical Spec Overrides**, **AutoML / HPO Notes**, and **Error Patterns** sections. This skill may describe how to read and apply those sources, but not the concrete per-model values.
 
 **MANDATORY: Timestamped workspace folders.**
 
@@ -235,6 +253,9 @@ Only resume an existing runner/workspace when the user explicitly asks to resume
 - Training loss is cheap, but can overfit on small fine-tuning datasets. Prefer the model skill's recommended validation or task metric when available.
 - If the model skill recommends a validation proxy, also apply the model skill's required validation-related `spec_overrides` so the metric is actually emitted.
 - A real task metric via `eval_fn` is often the most honest but adds per-rec cost. Use it when the model skill says log-based metrics are insufficient or the user explicitly wants downstream evaluation.
+- For AutoML runs with a runnable evaluate action and validation/eval data, run
+  the automatic baseline eval job after preflight and before recommendations,
+  then include that baseline metric in the final comparison.
 
 **Checkpoint / resume behavior**:
 

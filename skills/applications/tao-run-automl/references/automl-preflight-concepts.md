@@ -78,7 +78,7 @@ Before running AutoML:
    `custom.train_dataset.annotation_path=/lustre/.../annotations.json` and
    `custom.train_dataset.media_path=/lustre/.../videos.tar.gz`; do not force
    both files to share one parent directory.
-3. **Skill bank available**: the runner takes an explicit `skill_dir` — the **absolute path to a model directory** inside the skill bank, e.g. `<bank-root>/models/tao-train-dino`. No global env var; pass per run. The agent already knows the bank root (it loaded this SKILL.md from there) — use that same root. Common locations:
+3. **Skill bank available**: the runner takes an explicit `skill_dir` — the **absolute path to a model directory** inside the skill bank, e.g. `<bank-root>/skills/models/tao-train-dino`. No global env var; pass per run. The agent already knows the bank root (it loaded this SKILL.md from there) — use that same root. Resolve user model aliases to a packaged skill directory before constructing this path; do not assume `network_arch` equals the directory name. Common locations:
    - cloned standalone: `~/tao-skills-external/` (or wherever the user cloned).
    - Installed skill-bank cache: `<agent-cache>/tao-skill-bank/<version>/`.
    - Codex plugin: `~/.codex/plugins/cache/<marketplace>/tao-skill-bank/<version>/`.
@@ -86,25 +86,26 @@ Before running AutoML:
    ```python
    from pathlib import Path
    SKILL_BANK = Path("<bank-root>")        # substitute the actual path
-   skill_dir  = SKILL_BANK / "models" / network_arch
+   skill_dir  = SKILL_BANK / "skills" / "models" / model_skill
    ```
    The bank structure is:
    ```
    tao-skills-external/
-   ├── applications/         # workflow configs (this skill)
-   ├── models/               # per-network skill packages
-   │   ├── <network>/
-   │   │   ├── SKILL.md
-   │   │   ├── schemas/
-   │   │   │   └── train.schema.json          # REQUIRED AutoML gate
-   │   │   └── references/
-   │   │       ├── skill_info.yaml             # actions, data_sources, container image
-   │   │       └── spec_template_train.yaml    # default training spec (recommended)
-   │   └── ...
-   ├── data/
-   └── platform/
+   └── skills/
+       ├── applications/         # workflow configs (this skill)
+       ├── models/               # per-network skill packages
+       │   ├── <model_skill>/
+       │   │   ├── SKILL.md
+       │   │   ├── schemas/
+       │   │   │   └── train.schema.json          # REQUIRED AutoML gate
+       │   │   └── references/
+       │   │       ├── skill_info.yaml             # actions, data_sources, container image
+       │   │       └── spec_template_train.yaml    # default training spec (recommended)
+       │   └── ...
+       ├── data/
+       └── platform/
    ```
-   **CRITICAL**: AutoML requires a packaged generated train dataclass schema at `<bank-root>/models/<network>/schemas/train.schema.json`. The schema must exist and parse as JSON — it's the AutoML support gate because it defines `automl_enabled` parameters, defaults, ranges, options, weights, and popular metadata. Schemas are generated during skill-bank maintenance and shipped with the plugin; the runtime must not expect `~/tao-core` to exist. If the packaged train schema is missing, do not run AutoML for that model.
+   **CRITICAL**: AutoML requires a packaged generated train dataclass schema at `<bank-root>/skills/models/<model_skill>/schemas/train.schema.json`. The schema must exist and parse as JSON — it's the AutoML support gate because it defines `automl_enabled` parameters, defaults, ranges, options, weights, and popular metadata. Schemas are generated during skill-bank maintenance and shipped with the plugin; the runtime must not expect `~/tao-core` to exist. If the packaged train schema is missing, do not run AutoML for that model.
 
    `references/spec_template_<action>.yaml` is required for **non-TAO-Core models** (cosmos-rl, clip, etc.) — without it the runner has no defaults and the trial spec will be missing keys. For **TAO Core / Hydra-based models** (DINO, BEVFusion, etc.) the template is optional; Hydra fills container-side defaults at runtime.
 4. **`nvidia-tao-automl` installed** with the platform extra you want. Resolve

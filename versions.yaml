@@ -24,7 +24,7 @@ images:
 
   metropolis_sdg:
     paidf_anomalygen: nvcr.io/nvidia/paidf-anomalygen:1.0.0
-    
+
 wheels:
   # TAO Python wheels, published to public PyPI. Skill Preflight sections
   # resolve these keys via `scripts/resolve_versions_key.py wheels.<key>` —

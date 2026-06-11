@@ -19,7 +19,8 @@ tags:
 
 Deformable DETR for 2D object detection. Uses deformable attention for efficient multi-scale feature processing. Lighter than DINO with competitive accuracy.
 
-Uses pretrained backbone weights. Set model.pretrained_backbone_path for backbone-only loading.
+Uses pretrained weights. Set `model.pretrained_backbone_path` for backbone-only
+loading or `train.pretrained_model_path` for full model initialization.
 
 Supported parent model actions are `train`, `evaluate`, `inference`, `export`, and `quantize`. The PyT model container does not support a native `gen_trt_engine` subtask for this network. The `gen_trt_engine` action declared in `references/skill_info.yaml` must run with the TAO Deploy container. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
 
@@ -37,7 +38,7 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 
 - **Dataset type:** object_detection
 - **Formats:** coco, coco_raw
-- **Monitoring metric:** val_mAP50
+- **Monitoring metric:** val_mAP50 for AP50; `val_mAP` for COCO/paper-style benchmark comparisons.
 
 ### Per-Action Dataset Requirements
 
@@ -71,6 +72,7 @@ S3_EVAL = "s3://bucket/data/eval"
     "train.checkpoint_interval": 10,
     "train.validation_interval": 10,
     "train.num_gpus": 1,
+    "train.gpu_ids": [0],
     "dataset.num_classes": "<object classes> + 1",
     "dataset.eval_class_ids": [1, 2, "..."],
     "dataset.train_data_sources": [{"image_dir": f"{S3_TRAIN}/images.tar.gz", "json_file": f"{S3_TRAIN}/annotations.json"}],
@@ -182,6 +184,10 @@ from.
 
 Same DDP/FSDP behavior as DINO. Multi-node requires `WORLD_SIZE`, `NODE_RANK`, `MASTER_ADDR`, `MASTER_PORT` env vars set by orchestrator.
 
+When increasing `train.num_gpus`, also set `train.gpu_ids` to the same visible
+device range. For example, an 8-GPU single-node Slurm run must include both
+`"train.num_gpus": 8` and `"train.gpu_ids": [0, 1, 2, 3, 4, 5, 6, 7]`.
+
 ## Export / TRT Defaults
 
 - Export input: 640x640, opset 17
@@ -202,6 +208,8 @@ Minimum 1 GPU(s), recommended 4 GPU(s). 16GB+ (V100 or A100) VRAM per GPU. Sligh
 **return_interm_indices length must match num_feature_levels**: Default [1,2,3,4] with num_feature_levels=4.
 
 **Dataset size smaller than total batch size**: Reduce batch_size or num_gpus.
+
+**AutoML metric extraction**: Deformable DETR emits detection metrics in structured training status and logs. For COCO/paper-style benchmark comparisons, optimize `val_mAP` with `direction: maximize`; for explicit AP50 workflows, optimize `val_mAP50`. Prefer `results_dir/train/status.json` or AutoML result state before parsing raw logs. Do not optimize `val_loss` for default detection model invocations.
 
 ## Spec Param / Parent Model Inference
 
@@ -229,6 +237,7 @@ Inference mappings from TAO Core `deformable_detr.config.json`:
 | train | `encryption_key` | `key` | encryption key |
 | train | `model.pretrained_backbone_path` | `ptm_if_no_resume_model` | PTM when no resume checkpoint exists |
 | train | `results_dir` | `output_dir` | current job results directory |
+| train | `train.pretrained_model_path` | `ptm_if_no_resume_model` | full model PTM when no resume checkpoint exists |
 | train | `train.resume_training_checkpoint_path` | `resume_model` | model file inferred from the current job results folder |
 
 For `parent_model` or `parent_model_folder`, pass the upstream train/export/AutoML child job id as `parent_job_id`. The SDK lists the parent result folder, filters checkpoint artifacts, and returns the selected model file or folder. Do not add these mappings back to `config.json` and do not patch generated runner scripts to guess checkpoint paths.

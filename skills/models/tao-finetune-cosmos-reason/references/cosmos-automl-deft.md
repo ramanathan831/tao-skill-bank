@@ -11,13 +11,11 @@ Load this file only when the compact `SKILL.md` points here for the current task
 
 ## AutoML / HPO Notes
 
-When the user asks for "Cosmos Reason 3", "Cosmos3 Nano Reasoner", or
-`nvidia/Cosmos3-Nano-Reasoner`, route the request to this `cosmos-rl` skill and
-override the base model to `nvidia/Cosmos3-Nano-Reasoner` unless the user
-provides a different HuggingFace model id, `hf_model://...` URI, or
-cluster-local snapshot. The packaged template default is still
-`nvidia/Cosmos-Reason2-8B`; do not silently launch a Reason 3 request on
-Reason2 weights. Apply the same base model override consistently to train
+Requests for "Cosmos Reason 3", "Cosmos3 Nano Reasoner", or
+`nvidia/Cosmos3-Nano` are handled by this skill. The packaged default base
+model is `hf_model://nvidia/Cosmos3-Nano`; override it only when the user
+explicitly provides a different HuggingFace model id, `hf_model://...` URI, or
+cluster-local snapshot. Apply the same base model consistently to train
 (`policy.model_name_or_path`) and post-training evaluation
 (`model.base_model_path`).
 
@@ -37,10 +35,8 @@ When annotation `video` values are relative to a `videos/` subdirectory, use
 direct spec mode for `media_path` rather than plain dataset-root mode. If media
 is packaged as `videos.tar.gz`, use the extracted `videos/` directory when
 present, or the archive only if the selected runtime extracts it before dataset
-lookup. If the original annotation files do not contain `video_fps`, create
-patched annotation copies under the run workspace and point
-`custom.*.annotation_path` at those copies; do not edit the user's source dataset
-in place.
+lookup. Do not patch optional annotation fields or edit the user's source
+dataset unless the user explicitly asks for that dataset mutation.
 
 If the user's objective names `accuracy` or an accuracy target such as
 `>=90%`, optimize an evaluation metric, not `val/avg_loss`. Use AutoMLRunner's
@@ -50,6 +46,13 @@ after each recommendation, with `task=""`, `model.enable_lora=true`, and
 the evaluator's `accuracy` value and set `direction="maximize"`. Use
 `val/avg_loss` only when the user accepts a proxy metric or no task metric is
 available.
+
+Before launching Cosmos-Reason AutoML for an accuracy objective, run the
+evaluate action once after preflight and before recommendation jobs on the same
+validation subset. Use the selected base model or starting checkpoint,
+`task=""`, and the same prompt/metric setup planned for per-recommendation
+evaluation. Report that eval job id, result path, and accuracy in the launch
+review before asking for confirmation to start recommendations.
 
 For the evaluator prompt "search over learning rate, batch size, number of
 epochs, weight decay, warmup ratio", map the requested knobs to:

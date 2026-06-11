@@ -48,7 +48,7 @@ credentials, image choice, and compute shape are all proven.
   container image, inputs, outputs, upload exclusions, and `mode`.
 - `skills/platform/<platform>/SKILL.md`: selected platform preflight, credentials,
   resource shape, monitoring, and cancellation.
-- `skills/tao-launch-workflow/SKILL.md`: shared intake pattern for platform,
+- `skills/core/tao-launch-workflow/SKILL.md`: shared intake pattern for platform,
   credentials, dataset visibility, image confirmation, and user confirmation.
 
 ## Preflight
@@ -96,7 +96,7 @@ Collect these before runner construction:
 
 | Input | Requirement |
 |---|---|
-| `network_arch` | Model directory name under `models/`. |
+| `model_skill` | Resolved model skill directory under `skills/models/`. Accept user aliases such as `network_arch` only after resolving them to the packaged skill directory. |
 | `platform` | One of the supported TAO platform skills. |
 | `train_dataset` / `eval_dataset` | Use model-specific spec keys and dataset layout. |
 | `results_root` | Local, Lustre, or S3 path appropriate for the platform. |
@@ -108,6 +108,71 @@ Collect these before runner construction:
 
 Never ask for secret values. Verify required env vars with
 `[ -n "$VAR_NAME" ] && echo SET || echo UNSET`.
+
+## Pre-Launch Review Gate
+
+Before launching any recommendation jobs, show a concrete launch review and get
+user confirmation. This gate applies to every AutoML run for every
+AutoML-supported model/network; it is not Cosmos-specific and must not be
+scoped to a single model skill. This applies even when platform and image
+preflight already passed. The review must include:
+
+- model/network, platform, image, GPU/node shape, and result/workspace root
+- dataset mode and concrete spec keys, including train/eval sample counts when
+  they can be read cheaply
+- algorithm, budget, max concurrent jobs, metric, and direction
+- searchable parameters and ranges, including default values when the user did
+  not provide an explicit search space
+- exact generated recommendation configs for the initial launch batch, produced
+  in a review-only step before any recommendation job is submitted
+- estimated runtime per recommendation and total expected wall time, with the
+  assumptions used
+- the automatic baseline eval job id, metric value, and result path from the
+  post-preflight eval job, or an explicit blocker if the model has no runnable
+  evaluate action or validation data
+
+If the estimate is longer than the user's stated limit or materially longer
+than a normal interactive run, ask whether to reduce recommendations, epochs,
+dataset size, validation frequency, or search space before launch. Do not hide
+multi-day estimates in logs.
+
+## Automatic Baseline Eval Job
+
+After platform, image, credential, data, and model preflight pass, run the
+model's evaluate action once on the selected validation/eval data before
+submitting any AutoML recommendation jobs. This is required AutoML setup, not an
+optional "pretrained eval" question for the user. Use the same base model or
+checkpoint that the AutoML training run starts from, the model skill's evaluate
+spec/template, and the selected platform's normal job submission path. If the
+model skill recommends a smaller shape for evaluation than training, use that
+shape and call it out in the launch review.
+
+Share the eval metric number with the user in the launch review before asking
+for confirmation to launch recommendations. If the model has no packaged
+evaluate action, the eval dataset is missing, or the eval job fails, stop and
+report the blocker instead of silently falling back to a training-loss-only
+AutoML run. Continue without this baseline only when the user explicitly accepts
+that the run will optimize a proxy metric and will not have an impact baseline.
+
+## Dependency And Data Preflight
+
+If the selected workflow needs object storage or a platform CLI and the tool is
+missing, report the missing dependency and offer the exact install command
+before continuing. After user approval, install the smallest needed package and
+rerun preflight. For S3 paths, verify both credentials and path readability
+from the launch platform before creating runner artifacts. Do not wait for the
+first training container to discover a missing AWS CLI, S3 client, or unreadable
+URI.
+
+When the model skill defines sample-count-sensitive constraints, enforce them
+before launch. Reject or cap every batch-size recommendation that would create
+zero training steps for the selected dataset and GPU shard count. Use
+`scripts/check_tao_launch_preflight.py --effective-batch-limit
+train_annotation=<batch_size>,<shard_count>` for each generated recommendation
+before submitting it. If a recommendation later fails because the data is too
+small for the effective batch size, classify it as an invalid configuration,
+replace or adjust it only when remaining budget exists, and report the
+correction in the final summary.
 
 ## Algorithm Policy
 
@@ -158,6 +223,14 @@ metric. Use one of these:
 Do not map `kpi` to a metric unless the model skill explicitly defines that
 mapping.
 
+For every AutoML run with a runnable evaluate action and validation/eval data,
+run the automatic baseline eval job after preflight and before recommendations.
+The final report must compare that baseline metric, each recommendation's
+metric, and the selected best metric so users can see the impact of tuning. For
+model skills that require an `eval_fn` to compute the real task metric, use
+that evaluator instead of optimizing a convenient training loss unless the user
+explicitly accepts the proxy metric.
+
 ## Runner Construction
 
 Use the selected platform SDK only after its preflight passes. Construct SDKs
@@ -168,7 +241,8 @@ from pathlib import Path
 from tao_automl.runner import AutoMLRunner
 
 skill_bank = Path("<absolute-tao-skill-bank>")
-skill_dir = skill_bank / "models" / network_arch
+model_skill = "<resolved-model-skill-directory>"
+skill_dir = skill_bank / "skills" / "models" / model_skill
 
 runner = AutoMLRunner(
     skill_dir=str(skill_dir),
@@ -202,10 +276,21 @@ Use `runner` status output and the platform SDK's `get_job_status`,
 - current metric
 - best metric so far
 - selected hyperparameters for the current/best recommendation
+- elapsed time and updated ETA when enough timing data exists
 
 On failure, classify whether it is infrastructure, data visibility, image,
 credential, spec/schema, or model-code failure. Fix only the minimal cause and
 do not silently spend additional budget on repeated invalid recommendations.
+If a blocker is fixed during run setup, continue from the original task after
+showing the updated preflight/launch review instead of leaving the user to
+restate the request.
+
+For LLM-based algorithms, inspect the brain logs before calling the run valid.
+Verify that LLM calls succeeded, proposals were generated, prior metrics were
+used to choose later parameter changes, and logs show keep/discard or
+equivalent algorithm decisions. If the brain falls back to random sampling,
+classify the LLM workflow as failed or blocked instead of treating it as a
+valid LLM-guided run.
 
 ## Result Handoff
 
@@ -216,7 +301,10 @@ At completion:
 3. Resolve the model checkpoint using the model skill's checkpoint metadata and
    SDK helpers; do not guess filenames such as `latest`.
 4. Report the exact search space, algorithm, budget, metric, and platform.
-5. If this feeds a workflow such as AutoML + DEFT, pass the winning spec
+5. Report the automatic baseline eval job id/result path/metric, all
+   recommendation metrics, failed recommendations and root causes, elapsed time,
+   and final runtime notes.
+6. If this feeds a workflow such as AutoML + DEFT, pass the winning spec
    overrides and checkpoint through the workflow's declared handoff fields.
 
 ## Common Pitfalls

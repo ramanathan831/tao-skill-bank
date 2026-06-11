@@ -44,7 +44,8 @@ The agent MUST read this section before generating any training or AutoML script
 - **Dataset type:** object_detection
 - **Formats:** coco, coco_raw
 - **Accepted dataset intents:** training, evaluation, testing, calibration
-- **Monitoring metric:** mAP50
+- **Monitoring metric:** mAP50 for quick operational checks; `val_mAP` for
+  COCO/paper-style benchmark comparisons.
 
 **Required datasets — MUST resolve both:**
 
@@ -143,6 +144,7 @@ IMAGE_ARCHIVE = "images.tar.gz"
     "train.checkpoint_interval": 10,
     "train.validation_interval": 10,
     "train.num_gpus": 1,
+    "train.gpu_ids": [0],
 }
 ```
 
@@ -383,6 +385,15 @@ checkpoint from the parent job result files before submission:
 
 Transformer-based detection is memory-intensive. batch_size=4 fits on 24GB GPUs. For 16GB GPUs, reduce to batch_size=2. Multi-GPU with 4+ GPUs recommended for datasets > 10k images.
 
+## Multi-GPU Spec Consistency
+
+When increasing `train.num_gpus`, also set `train.gpu_ids` to the same visible
+device range. For example, an 8-GPU single-node Slurm run must include both
+`"train.num_gpus": 8` and `"train.gpu_ids": [0, 1, 2, 3, 4, 5, 6, 7]`.
+Leaving the template default `train.gpu_ids: [0]` while requesting multiple
+GPUs can make distributed startup inconsistent and can surface as NCCL
+collective timeouts instead of an immediate validation error.
+
 ## Error Patterns
 
 **CUDA out of memory**: Reduce dataset.batch_size (4 -> 2 -> 1). DINO uses multi-scale features that consume significant GPU memory, especially with high-resolution images (default max 1333px).
@@ -428,15 +439,25 @@ For no-input local DINO AutoML smoke runs, use `DINO_AUTOML_PROFILE` from
 **Training Requirements**. Do not inspect previous AutoML runs to infer dataset
 URIs, `num_classes`, recommendation count, or interval settings.
 
-**Recommended AutoML metric:** use explicit `metric="mAP50"` with
-`direction="maximize"` and pass a custom `metric_extractor` that reads
-`Validation mAP50`. Do not rely on `metric="kpi"` for generated DINO runners
-unless you have verified the local resolver maps it to mAP50; loose fallback
-parsing can otherwise optimize `val_loss`.
+**Recommended AutoML metric:** for quick operational checks, use explicit
+`metric="mAP50"` with `direction="maximize"` and pass a custom
+`metric_extractor` that reads `Validation mAP50`. For COCO or paper-style
+benchmark comparisons, use `metric="val_mAP"` with `direction="maximize"` so
+the reported number matches the standard mAP column rather than AP50. Do not
+rely on `metric="kpi"` for generated DINO runners unless you have verified the
+local resolver maps it to the intended detection metric; loose fallback parsing
+can otherwise optimize `val_loss`.
 
 Use a `metric_extractor` that reads the last `Validation mAP50` value from the
 logs, then run AutoML with `automl_settings={"metric": "mAP50",
 "direction": "maximize", ...}`.
+
+When a benchmark run remains below target but the per-epoch `val_mAP` curve is
+still climbing at the final epoch, extend the best full-budget configuration
+before declaring the search plateaued. For dense datasets such as aerial or
+driving-scene detection, also preserve high-resolution input overrides and
+structural settings (`model.backbone`, `model.num_queries`,
+`model.num_select`, class metadata) when evaluating or resuming the checkpoint.
 
 **Recommended hyperparameters:**
 
