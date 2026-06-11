@@ -89,12 +89,15 @@ equal-class peers — **no default**. If the user hasn't chosen, ask.
   the working directory. Missing Python-package prerequisites installed with
   `python -m pip install ...` are an explicit exception for TAO workflows:
   install them by default and report what was installed.
-- **Never ask for API keys, tokens, or passwords via chat.** Credentials live
-  in `~/.config/tao/.env` and are loaded into the session env by the plugin's
-  hook.
+- **Never ask for API keys, tokens, or passwords via chat.** Credentials come
+  from the **session environment** — the user exports them in their own shell
+  before launching. If a required var is missing, tell the user which one to
+  `export`; do not collect the value yourself. The skill bank does not read or
+  load any credentials file.
 - **Never read credential values.** To verify a var is set:
   `[ -n "$VAR_NAME" ] && echo SET || echo UNSET`. Never `cat`, `Read`,
-  `grep`, or `head` on `.env` or `~/.config/tao/.env`.
+  `grep`, or `head` a credentials file (e.g. any `.env` the user may have
+  created).
 - **Never assume the SDK is installed.** Model and data skills must be
   runnable with just docker. Run the chosen platform's Preflight first; when
   the SDK path is selected and its pip package/extra is missing, install it by

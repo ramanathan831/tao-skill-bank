@@ -220,7 +220,7 @@ do not lower it to tiny values such as 128 for video calibration.
 
 **Checkpoint save failure (scheduler is None)**: The cosmos-rl trainer crashes with `'NoneType' object has no attribute 'state_dict'` when saving a checkpoint before any training step has executed. This happens when the dataset is too small for the batch size (0 steps per epoch). See the batch size error above.
 
-**You are trying to access a gated repo**: The HuggingFace model `nvidia/Cosmos3-Nano` requires authentication. All ranks will retry in a loop until they time out. Fix: ensure `HF_TOKEN` is set in the process environment or a user-approved secret env file such as `~/.tao/secrets.env` or `~/.config/tao/.env`, verify only presence, and pass it into the container with `-e HF_TOKEN`. The user must also accept the model agreement at <https://huggingface.co/nvidia/Cosmos3-Nano>.
+**You are trying to access a gated repo**: The HuggingFace model `nvidia/Cosmos3-Nano` requires authentication. All ranks will retry in a loop until they time out. Fix: ensure `HF_TOKEN` is set in your environment (e.g., `export HF_TOKEN=...` in your shell) and passed into the container with `-e HF_TOKEN`. The user must also accept the model agreement at <https://huggingface.co/nvidia/Cosmos3-Nano>.
 
 **Cosmos-RL GPU resource and architecture gate**: The actionable launch gate is
 at least 4 GPUs with 80GB-class memory or higher, plus a GPU architecture

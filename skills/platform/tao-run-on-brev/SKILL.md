@@ -56,7 +56,7 @@ brev ls >/dev/null 2>&1 || {
   brev ls >/dev/null 2>&1 || {
     echo "MISSING: not logged in to brev. Run:"
     echo "  brev login                                    # interactive (opens browser)"
-    echo "  # or set BREV_API_TOKEN in ~/.config/tao/.env (then 'brev login --token \$BREV_API_TOKEN')"
+    echo "  # or export BREV_API_TOKEN in your shell before launching (then 'brev login --token \$BREV_API_TOKEN')"
     exit 1
   }
 }
@@ -68,7 +68,7 @@ If any non-pip step fails, the agent prompts the user to authorize the fix via B
 
 Two options:
 
-1. **Automated (recommended)**: Get an API token from the Brev console settings page. Set `BREV_API_TOKEN` as an environment variable (e.g., in `~/.config/tao/.env`). The handler auto-authenticates via `brev login --token` on first use.
+1. **Automated (recommended)**: Get an API token from the Brev console settings page. Set `BREV_API_TOKEN` as an environment variable (e.g., `export BREV_API_TOKEN=...` in your shell). The handler auto-authenticates via `brev login --token` on first use.
 
 2. **Manual**: Run `brev login` (opens browser). Tokens expire hourly — the handler refreshes automatically.
 
@@ -116,7 +116,7 @@ brev create my-instance \
   --workspace-group-id <workspaceGroupId>
 ```
 
-Discover the values once and stash them in `~/.config/tao/.env`:
+Discover the values once and export them in your shell before launching:
 
 ```bash
 brev ls --json | jq -r '.workspaces[0].workspaceGroupId'   # default group

@@ -51,7 +51,7 @@ via the Skill tool), **not** a TAO spec field. Two cases:
   actually uses inline): no action needed. The TAO entrypoint is plain training
   by default; AutoML lives behind a different code path that the SDK orchestrates.
   Effectively, every direct `docker run` is already `automl_policy: off`.
-- **SDK-orchestrated dispatch** (Lepton/Brev/SLURM/k8s with the SDK building the
+- **SDK-orchestrated dispatch** (Brev/SLURM/k8s with the SDK building the
   command): pass `automl_policy: off` to `VisualChangeNetSDK.train(...)` or the
   equivalent runner argument. The SDK uses it to pick the plain-train command
   instead of the AutoML wrapper.
