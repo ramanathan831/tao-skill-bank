@@ -1,6 +1,6 @@
 train:
   resume: false
-  epoch: 10
+  epoch: 2
   compile: false
   train_batch_per_replica: 1
   output_dir: output

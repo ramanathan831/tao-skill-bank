@@ -20,7 +20,7 @@ tags:
 
 # Cosmos-RL
 
-Supervised fine-tuning (SFT) of **hf_model://nvidia/Cosmos3-Nano** on video reasoning tasks. Pretrained weights are sourced from HuggingFace, not NGC. This is a **gated model** — requires `HF_TOKEN`.
+Supervised fine-tuning (SFT) of **hf_model://nvidia/Cosmos3-Nano** on video reasoning tasks. Pretrained weights are sourced from HuggingFace, not NGC. This is a **gated model** — requires `HF_TOKEN`. Some Cosmos-RL images cannot load the native Cosmos3 Omni checkpoint format directly; for those images, convert Cosmos3-Nano to a Qwen3-VL HF safetensors directory before train/evaluate and use that converted directory as the PTM path.
 
 Uses FSDP-based parallelism with `dp_shard_size` for GPU count and `dp_replicate_size` for node count (not the standard `num_gpus`/`num_nodes`).
 
@@ -42,6 +42,55 @@ Non-train actions such as `evaluate`, `inference`, and `quantize` stay in this m
 ## Credentials
 
 - **HF_TOKEN** (required): HuggingFace access token. The user must accept the model agreement at <https://huggingface.co/nvidia/Cosmos3-Nano> and provide a token with read access. Passed to the container as a `docker_env_var`.
+
+## Cosmos3 Checkpoint Conversion
+
+When a selected local Docker image cannot load the native Cosmos3 checkpoint
+format (`model_type="cosmos3_omni"` or `Cosmos3ForConditionalGeneration`), do
+not patch QwenVL, Transformers, or vLLM first. Use the upstream Cosmos Framework
+VLM conversion path to produce a Qwen3-VL HF safetensors directory, then point
+Cosmos-RL specs at that converted directory.
+
+The model skill packages a helper:
+
+```bash
+python models/tao-finetune-cosmos-reason/scripts/prepare_cosmos3_vlm_checkpoint.py \
+  --checkpoint-path /abs/path/Cosmos3-Nano \
+  --output-path /abs/path/Cosmos3-Nano-VLM \
+  --secrets-env ~/.tao/secrets.env \
+  --validate-with-image <cosmos-rl-image>
+```
+
+The helper:
+
+- uses `cosmos_framework.scripts.convert_model_to_vlm_safetensors` from
+  `NVIDIA/cosmos-framework`;
+- runs conversion in an isolated `nvcr.io/nvidia/pytorch:25.09-py3` container
+  and creates the framework's `cu130` uv environment when needed;
+- passes the approved secrets env file to the conversion container without
+  printing values;
+- validates that the output is a complete `model_type="qwen3_vl"` safetensors
+  directory with tokenizer files;
+- skips conversion and exits 0 when the output directory already contains a
+  complete converted checkpoint;
+- supports `--force` only when an existing output path is incomplete or must be
+  deliberately recreated.
+
+After conversion, use the converted directory consistently as the PTM:
+
+```text
+train:    policy.model_name_or_path=/abs/path/Cosmos3-Nano-VLM
+evaluate: model.model_name=/abs/path/Cosmos3-Nano-VLM
+evaluate: model.base_model_path=/abs/path/Cosmos3-Nano-VLM
+inference/quantize: use the corresponding model/base_model path fields
+```
+
+For local Docker, mount the converted directory read-only into the Cosmos-RL
+container, for example host `/models/Cosmos3-Nano-VLM` to container
+`/models/Cosmos3-Nano-VLM`, and set the spec to the container path. If a
+converted copy already exists and validates, reuse it for PTM baseline
+evaluation, AutoML recommendations, and final best-checkpoint evaluation rather
+than converting again.
 
 ## Training Requirements
 
@@ -302,7 +351,7 @@ These are the keys whose template defaults are wrong or where omission flips the
 
 | Parameter | Template Default | Required Value | Why |
 |---|---|---|---|
-| `policy.model_name_or_path` | `hf_model://nvidia/Cosmos3-Nano` | Direct Docker: `nvidia/Cosmos3-Nano`, `hf_model://nvidia/Cosmos3-Nano`, or a local HF snapshot path. SDK/managed platform predownload: `hf_model://nvidia/Cosmos3-Nano`. | Keep the train and evaluate base model aligned. |
+| `policy.model_name_or_path` | `hf_model://nvidia/Cosmos3-Nano` | Direct Docker: `nvidia/Cosmos3-Nano`, `hf_model://nvidia/Cosmos3-Nano`, a local HF snapshot path, or a converted `Cosmos3-Nano-VLM` path when the image cannot load native Cosmos3 Omni. SDK/managed platform predownload: `hf_model://nvidia/Cosmos3-Nano` unless a converted local path is explicitly mounted. | Keep the train and evaluate base model aligned. |
 | `policy.model_max_length` | 40960 | Keep at 40960 or higher | Smaller than ~40k causes `vision_embeds` shape mismatch on video inputs |
 | `train.train_batch_per_replica` | 32 | Any multiple of `train.train_policy.mini_batch` | Mismatch raises an immediate AssertionError |
 | `train.train_policy.type` | `"sft"` | Keep as `"sft"` for SFT workflows | If dropped during agent regeneration, cosmos-rl flips to RL mode → rollout replica allocated → multi-node attempted → hostname errors when `num_nodes=1` |
@@ -383,8 +432,10 @@ launch blocker for current Cosmos-RL SFT training.
 The packaged default base model is `hf_model://nvidia/Cosmos3-Nano`. Apply this
 base model consistently to train (`policy.model_name_or_path`) and
 post-training evaluation (`model.base_model_path`) unless the user explicitly
-provides a different HuggingFace model id, `hf_model://...` URI, or
-cluster-local snapshot.
+provides a different HuggingFace model id, `hf_model://...` URI,
+cluster-local snapshot, or converted `Cosmos3-Nano-VLM` directory. If the
+conversion helper was required for the selected image, treat the converted
+directory as the PTM for the whole run.
 
 Do not hardcode dataset paths in this reusable model skill. Dataset locations
 must come from the user's current request, a selected dataset profile, a
@@ -422,8 +473,8 @@ evaluation sequence for every AutoML run: evaluate the PTM before AutoML on the
 same validation subset, run AutoML, then evaluate the selected best
 checkpoint/LoRA after AutoML completes. For Cosmos-RL, the PTM is the base
 model in `policy.model_name_or_path`, normally
-`hf_model://nvidia/Cosmos3-Nano` or the user-provided replacement. Use the
-model skill's `evaluate` action with:
+`hf_model://nvidia/Cosmos3-Nano`, a converted `Cosmos3-Nano-VLM` directory, or
+the user-provided replacement. Use the model skill's `evaluate` action with:
 
 ```text
 dataset.annotation_path=<eval annotation path>
@@ -475,7 +526,7 @@ epochs, weight decay, warmup ratio", map the requested knobs to:
 ```text
 learning rate     -> train.optm_lr
 batch size        -> train.train_batch_per_replica
-number of epochs  -> train.epoch
+number of epochs  -> fixed train.epoch=2 by default; do not include in search unless explicitly requested
 weight decay      -> train.optm_weight_decay
 warmup ratio      -> train.optm_warmup_epochs, computed as round(train.epoch * ratio)
 ```
@@ -490,7 +541,6 @@ Example custom ranges for the Cosmos Reason 3 AutoML evaluation prompt:
 automl_hyperparameters=[
     "train.optm_lr",
     "train.train_batch_per_replica",
-    "train.epoch",
     "train.optm_weight_decay",
     "train.optm_warmup_epochs",
 ]
@@ -499,10 +549,6 @@ custom_param_ranges={
     "train.train_batch_per_replica": {
         "value_type": "ordered_int",
         "valid_options": [8, 16, 32],
-    },
-    "train.epoch": {
-        "value_type": "ordered_int",
-        "valid_options": [3, 5, 10],
     },
     "train.optm_weight_decay": {"valid_min": 0.0, "valid_max": 0.1},
     "train.optm_warmup_epochs": {
@@ -544,7 +590,9 @@ space only after user confirmation.
 ## Important Parameters
 
 ### Training Loop
-- **train.epoch**: Number of training epochs. Default 10. Use at least 2 for
+- **train.epoch**: Number of training epochs. Default 2. Keep it fixed for
+  default Cosmos-RL AutoML searches unless the user explicitly asks to tune it.
+  Use at least 2 for
   local AutoML or validation runs that need a host-visible best checkpoint for
   evaluate/inference; one-epoch runs can leave only a broken `best` symlink
   after checkpoint cleanup.
@@ -553,7 +601,7 @@ space only after user confirmation.
 - **train.output_dir**: Output directory for checkpoints and logs.
 
 ### Model & Policy
-- **policy.model_name_or_path**: HuggingFace model path. The packaged default is `hf_model://nvidia/Cosmos3-Nano`. Override this only when the user provides a different HuggingFace model id, `hf_model://...` URI, or cluster-local snapshot path.
+- **policy.model_name_or_path**: HuggingFace model path. The packaged default is `hf_model://nvidia/Cosmos3-Nano`. Override this only when the user provides a different HuggingFace model id, `hf_model://...` URI, cluster-local snapshot path, or a converted `Cosmos3-Nano-VLM` directory prepared for the selected image.
 - **policy.model_max_length**: Context window size. Must be 40960 for video SFT. Affected by FPS, resolution, and prompt length.
 - **policy.model_gradient_checkpointing**: Save VRAM by recomputing activations. Keep true for large models.
 
@@ -653,7 +701,13 @@ than spending the AutoML budget on OOM failures.
 
 **OOM during evaluation with LoRA**: Loading the base model + LoRA adapter uses more memory than zero-shot eval. If zero-shot eval passes but post-training eval OOMs, reduce `evaluation.batch_size` (e.g., from 10 to 1) or lower `vision.total_pixels`. The OOM typically manifests as the node killing the process mid-run (no Python traceback — just `ERR_PROGRAM` with a node-level OOM event). This is especially likely in DEFT workflows where the same eval spec is used for both zero-shot and post-training evaluation.
 
-**NaN loss**: Learning rate may be too high. Reduce `optm_lr` and increase `optm_warmup_epochs`.
+**NaN loss**: If the run is using a hand-patched or unconverted native
+Cosmos3-Nano checkpoint, first convert it with
+`scripts/prepare_cosmos3_vlm_checkpoint.py` and retry with the converted
+`Cosmos3-Nano-VLM` path. If the converted checkpoint still produces NaN/inf,
+treat it as an optimization issue: reduce `optm_lr`, increase
+`optm_warmup_epochs`, and keep the converted PTM path fixed while debugging
+hyperparameters.
 
 **vision_embeds.shape[0] must be equal to n_tokens**: `model_max_length` is too small for the video input at the current FPS and resolution. Increase `policy.model_max_length` to 40960.
 
@@ -685,12 +739,16 @@ failing inside training.
 while loading `hf_model://nvidia/Cosmos3-Nano` with errors such as
 `model type cosmos3_omni` not recognized or
 `Cosmos3ForConditionalGeneration` not supported by vLLM, the selected image
-cannot satisfy the mandatory PTM baseline/final-evaluation contract. Do not
-launch AutoML recommendations with that image. Installing a newer
-`transformers` package may make `AutoConfig` recognize `cosmos3_omni`, but it
-does not fix a vLLM architecture registry that lacks
-`Cosmos3ForConditionalGeneration`; require a compatible Cosmos-RL image or a
-documented evaluator backend that supports the PTM.
+cannot satisfy the mandatory PTM baseline/final-evaluation contract with the
+native checkpoint. Prepare a converted `Cosmos3-Nano-VLM` directory with
+`scripts/prepare_cosmos3_vlm_checkpoint.py --validate-with-image <image>` and
+use that converted path for `model.model_name`, `model.base_model_path`, and
+train `policy.model_name_or_path`. Do not launch AutoML recommendations until
+the selected image can load the PTM path used by the full PTM evaluation.
+Installing a newer `transformers` package may make `AutoConfig` recognize
+`cosmos3_omni`, but it does not fix a vLLM architecture registry that lacks
+`Cosmos3ForConditionalGeneration`; use the converted Qwen3-VL path or require a
+compatible Cosmos-RL image/evaluator backend.
 
 **TAO_API_JOB_ID status logging warnings in direct Docker**: `cosmos-rl-evaluate`, `cosmos-rl-inference`, and `cosmos-rl-quantize` may log a traceback from `tao_status_logger.py` when `TAO_API_JOB_ID` is unset. For direct local-Docker model-skill validation this is nonfatal if the process exits 0 and the action writes its expected result files. Do not hide a real action failure behind this warning, but do not mark an otherwise successful local run failed only because status-file logging was unavailable.
 
