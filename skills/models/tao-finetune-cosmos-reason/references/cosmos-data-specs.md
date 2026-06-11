@@ -27,7 +27,10 @@ Load this file only when the compact `SKILL.md` points here for the current task
 
 # Cosmos-RL
 
-Supervised fine-tuning (SFT) of **nvidia/Cosmos-Reason2-8B** on video reasoning tasks. Pretrained weights are sourced from HuggingFace, not NGC. This is a **gated model** — requires `HF_TOKEN`.
+Supervised fine-tuning (SFT) of Cosmos Reason video QA models. The packaged
+default base model is **hf_model://nvidia/Cosmos3-Nano**. Pretrained weights
+are sourced from HuggingFace, not NGC. Gated HuggingFace models require
+`HF_TOKEN`.
 
 Uses FSDP-based parallelism with `dp_shard_size` for GPU count and `dp_replicate_size` for node count (not the standard `num_gpus`/`num_nodes`).
 
@@ -43,7 +46,12 @@ Non-train actions such as `evaluate`, `inference`, and `quantize` stay in this m
 
 ## Credentials
 
-- **HF_TOKEN** (required): HuggingFace access token. The user must accept the model agreement at <https://huggingface.co/nvidia/Cosmos-Reason2-8B> and provide a token with read access. Passed to the container as a `docker_env_var`.
+- **HF_TOKEN** (required for gated models): HuggingFace access token. For the
+  packaged default, the user must accept the model agreement at
+  <https://huggingface.co/nvidia/Cosmos3-Nano> and provide a token with read
+  access. If the user explicitly overrides the base model, they must accept
+  that target model's agreement too. Passed to the container as a
+  `docker_env_var`.
 
 ## Training Requirements
 
@@ -54,10 +62,18 @@ Non-train actions such as `evaluate`, `inference`, and `quantize` stay in this m
 - **Dataset URI examples:** `s3://bucket/cosmos/train`, `s3://bucket/cosmos/eval`, `/lustre/fsw/tao_datasets/cosmos_rl/train`, `/lustre/fsw/tao_datasets/cosmos_rl/eval`
 - **Input modes:** accept either dataset roots or direct spec-key paths. Root mode maps `<root>/annotations.json` plus `<root>` as the media path. Direct spec mode is valid when annotations and media live in different locations, for example `custom.train_dataset.annotation_path=/lustre/.../train.json` and `custom.train_dataset.media_path=/lustre/.../videos.tar.gz`.
 - **Media handling:** do not ask the user to choose `videos.tar.gz` vs `images.tar.gz` unless they are using direct spec mode or the model/action requires a single media archive. In root mode, pass the dataset root as the media path.
-- **Annotation validation:** before launching train/AutoML/evaluate, sample the
-  annotation JSON from the selected platform and require `video_fps` in each
-  sampled record. Missing `video_fps` causes the Cosmos-RL SFT loader to fail
-  with `Error processing sample: 'video_fps'` after the SLURM job starts.
+- **Annotation validation:** before launching train/AutoML/evaluate, verify the
+  annotation JSON is readable and the referenced media path or archive is
+  visible from the selected platform. Do not block, patch, or mutate
+  annotations solely because optional fields are absent.
+- **Per-record video FPS:** the packaged train template uses
+  `custom.vision.nframes`, so per-record `video_fps` is not required by
+  default. If the user switches to `custom.vision.fps`, selects a dataset
+  profile that requires per-record timing, or uses an image/version that
+  requires `video_fps`, make it a preflight requirement with
+  `--json-required-field train_annotation=video_fps` and
+  `--json-required-field val_annotation=video_fps` before any download or
+  job launch.
 
 ### Launch Intake Reminder
 
@@ -81,8 +97,8 @@ ask whether to use it or override with `image=<override>`. Do not silently
 launch on the default image. This skill does not package a
 `skills/models/tao-finetune-cosmos-reason/config.json` file.
 
-For launch preflight, pass the concrete annotation paths to the shared helper
-and require `video_fps`:
+For launch preflight, pass the concrete annotation and media paths to the
+shared helper:
 
 ```bash
 scripts/check_tao_launch_preflight.py --platform slurm \
@@ -90,9 +106,19 @@ scripts/check_tao_launch_preflight.py --platform slurm \
   --path train_media=/lustre/.../train \
   --path val_annotation=/lustre/.../eval/annotations.json \
   --path val_media=/lustre/.../eval \
-  --json-required-field train_annotation=video_fps \
-  --json-required-field val_annotation=video_fps
+  --gpu-min-count 4 \
+  --gpu-min-memory-gb 80 \
+  --gpu-arch-allowlist cosmos_rl=sm_80,sm_90,sm_100,sm_120
 ```
+
+For Cosmos-RL, count and memory are necessary but not sufficient. Treat the run
+as launchable only when the target has at least 4 GPUs with 80GB-class memory or
+higher, the GPU architecture is in the image-supported allowlist above, and the
+normal Docker/platform, S3, and credential preflight checks pass. A remote image
+manifest that advertises `linux/arm64` only proves CPU architecture support; it
+does not prove CUDA SM support. Spark/GB10 `sm_121` must be blocked for this
+image unless direct image introspection confirms `sm_121` support or the user
+chooses a newer compatible image.
 
 ### Per-Action Dataset Requirements
 
@@ -125,7 +151,7 @@ spec / args" section for the load-template-then-override pattern.
 import yaml
 from pathlib import Path
 
-skill = Path.home() / "tao-sdk/tao-skills-external/models/tao-finetune-cosmos-reason"
+skill = Path.home() / "tao-sdk/tao-skills-external/skills/models/tao-finetune-cosmos-reason"
 action = "train"  # train, evaluate, inference, or quantize
 specs = yaml.safe_load((skill / f"references/spec_template_{action}.yaml").read_text())
 # Now apply your overrides on top of `specs` (next section).
@@ -169,7 +195,7 @@ EVAL_DATASET_URI = "s3://bucket/data/eval"
         "annotation_path": f"{EVAL_DATASET_URI}/annotations.json",
         "media_path": EVAL_DATASET_URI,
     },
-    "policy.model_name_or_path": "hf_model://nvidia/Cosmos-Reason2-8B",
+    "policy.model_name_or_path": "hf_model://nvidia/Cosmos3-Nano",
     "policy.model_max_length": 81920,
     "policy.parallelism.dp_shard_size": 4,
     "policy.parallelism.dp_replicate_size": 1,
@@ -209,14 +235,14 @@ validation set instead of silently falling back to training-only data.
     "dataset.media_dir": EVAL_DATASET_URI,
     # vision.nframes defaults to 8 — see Vision Encoders for fps vs nframes.
     "model.enable_lora": True,
-    "model.base_model_path": "hf_model://nvidia/Cosmos-Reason2-8B",
+    "model.base_model_path": "hf_model://nvidia/Cosmos3-Nano",
 }
 ```
 
 **inference (mandatory media):**
 ```python
 {
-    "model_path": "nvidia/Cosmos-Reason2-8B",
+    "model_path": "hf_model://nvidia/Cosmos3-Nano",
     "media": "/tao-workspace/media/videos/example.mp4",
     "type": "video",
     "prompt": "Briefly describe this video.",
@@ -231,7 +257,7 @@ validation set instead of silently falling back to training-only data.
 **quantize (mandatory calibration data):**
 ```python
 {
-    "model.model_path": "nvidia/Cosmos-Reason2-8B",
+    "model.model_path": "hf_model://nvidia/Cosmos3-Nano",
     "dataset.annotation_path": "/tao-workspace/calibration/annotations.json",
     "dataset.media_dir": "/tao-workspace/calibration/videos",
     "quantize.num_calibration_samples": 1,
@@ -252,7 +278,7 @@ These are the keys whose template defaults are wrong or where omission flips the
 
 | Parameter | Template Default | Required Value | Why |
 |---|---|---|---|
-| `policy.model_name_or_path` | `nvidia/Cosmos-Reason2-8B` | Direct Docker: `nvidia/Cosmos-Reason2-8B` or a local HF snapshot path. SDK/managed platform predownload: `hf_model://nvidia/Cosmos-Reason2-8B`. | The direct `cosmos-rl --config ...` CLI loads from HuggingFace at runtime and does not need the SDK URI wrapper. The `hf_model://` URI form is for SDK/platform launchers that pre-download model inputs before the container command starts. |
+| `policy.model_name_or_path` | `hf_model://nvidia/Cosmos3-Nano` | Direct Docker: `nvidia/Cosmos3-Nano`, `hf_model://nvidia/Cosmos3-Nano`, or a local HF snapshot path. SDK/managed platform predownload: `hf_model://nvidia/Cosmos3-Nano`. | Keep the train and evaluate base model aligned. |
 | `policy.model_max_length` | 40960 | Keep at 40960 or higher | Smaller than ~40k causes `vision_embeds` shape mismatch on video inputs |
 | `train.train_batch_per_replica` | 32 | Any multiple of `train.train_policy.mini_batch` | Mismatch raises an immediate AssertionError |
 | `train.train_policy.type` | `"sft"` | Keep as `"sft"` for SFT workflows | If dropped during agent regeneration, cosmos-rl flips to RL mode → rollout replica allocated → multi-node attempted → hostname errors when `num_nodes=1` |

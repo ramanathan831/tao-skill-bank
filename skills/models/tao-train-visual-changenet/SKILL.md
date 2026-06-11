@@ -488,4 +488,3 @@ Inference mappings from this model skill:
 | segment_inference | `inference.checkpoint` | `parent_model` | checkpoint inferred from parent train or AutoML child results |
 
 For `parent_model` or `parent_model_folder`, pass the upstream train/export/AutoML child job id as `parent_job_id`. The SDK lists the parent result folder, filters checkpoint artifacts, and returns the selected model file or folder. Do not add these mappings back to `config.json` and do not patch generated runner scripts to guess checkpoint paths.
-

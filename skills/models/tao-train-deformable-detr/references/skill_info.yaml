@@ -21,6 +21,9 @@ actions:
       model.pretrained_backbone_path:
         type: file
         optional: true
+      train.pretrained_model_path:
+        type: file
+        optional: true
       train.resume_training_checkpoint_path:
         type: file
         optional: true
@@ -131,6 +134,7 @@ spec_params:
     encryption_key: key
     model.pretrained_backbone_path: ptm_if_no_resume_model
     results_dir: output_dir
+    train.pretrained_model_path: ptm_if_no_resume_model
     train.resume_training_checkpoint_path: resume_model
   quantize:
     encryption_key: key

@@ -134,6 +134,13 @@ Optional. Validation data is typically part of the root_dir structure.
 - **train.optim.lr**: Learning rate. Default 6e-5.
 - **model.freeze_backbone**: Whether to freeze the backbone during training. Useful for fine-tuning with limited data.
 - **dataset.segment.batch_size**: Per-GPU batch size. Default 8.
+- **dataset.segment.label_transform**: Use the string `"None"` when no label
+  transform is desired. Do not set this to JSON/YAML null; strict schema merge
+  treats the field as a string enum.
+- **dataset.segment.palette**: For grayscale masks, use one integer per RGB
+  entry, for example `rgb: [85]`. Preserve the dataset's actual label ids and
+  class names rather than normalizing them unless the user explicitly asks for a
+  conversion.
 
 ## Multi-GPU / Multi-Node
 
@@ -165,6 +172,19 @@ Minimum 1 GPU(s), recommended 2 GPU(s). 16GB+ (V100 or A100) VRAM per GPU. SegFo
 **TensorBoard unsupported for segmentation training**: Keep `train.tensorboard.enabled: false`. The SegFormer training entrypoint asserts that TensorBoard visualization is not supported for segmentation, so do not enable TensorBoard just to extract AutoML metrics; use log parsing or a post-train evaluator instead.
 
 **AutoML metric extraction**: SegFormer train status files report `val_miou` alongside `val_loss`, `val_acc`, and other validation KPIs. Default AutoML train launches must optimize `val_miou` with `direction: maximize`; do not optimize `val_loss` for default model invocations.
+
+For AutoML or long segmentation sweeps, read `val_miou` from
+`results_dir/train/status.json` first. If the wrapper reports a terminal
+failure but the structured status file reached the configured training budget
+and contains finite `val_miou`, report the recovered metric with the wrapper
+failure noted instead of discarding the measurement.
+
+For high-resolution custom segmentation targets, keep dataset paths as per-run
+inputs. Do not add customer/user-specific roots to this reusable skill. When the
+user asks for a fixed full-budget search, remember that bracket algorithms
+(`asha`, `bohb`, `dehb`, `hyperband`, `hyperband_es`, `pbt`) may intentionally
+lower `train.num_epochs` for some recommendations; use Bayesian/BFBO or lock the
+budget if every recommendation must run the full epoch count.
 
 **Checkpoint handoff**: For evaluate/export/inference/quantize/resume, use the checkpoint resolver on the best AutoML child job's `results_dir/train/` folder and select the action-appropriate `model_epoch_*.pth` checkpoint, such as `model_epoch_000_step_00010.pth`. SegFormer may also write `segformer_model_latest.pth`, but that should only be used when a caller explicitly requests latest. Preserve `dataset.segment.num_classes`, `dataset.segment.img_size`, and `dataset.segment.root_dir` overrides for downstream actions.
 

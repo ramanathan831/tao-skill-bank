@@ -51,7 +51,7 @@ To evaluate a fine-tuned LoRA model, pass the checkpoint path via spec_overrides
 spec_overrides={
     'model.model_name': 's3://bucket/results/{train_job_id}/safetensors/epoch_2',
     'model.enable_lora': True,
-    'model.base_model_path': 'nvidia/Cosmos-Reason2-8B',
+    'model.base_model_path': 'hf_model://nvidia/Cosmos3-Nano',
     'evaluation.batch_size': 10,
 }
 ```
@@ -91,10 +91,11 @@ spec_overrides={
 
 **Eval dataset** is optional for plain training only when `train.train_policy.dataset.test_size` is used to auto-split training data. For AutoML or any workflow optimizing a validation metric such as `val/avg_loss`, require either an explicit `custom.val_dataset` or a deliberate auto-split setting before launch preflight passes. If a validation dataset is provided, validation metrics are computed at the frequency set by `validation.freq_in_epoch`.
 
-Every sampled annotation record must include `video_fps`. If this field is
-absent, stop before runner generation and ask the user to add it to the train
-and validation annotation files or provide corrected direct spec paths. Do not
-start AutoML to discover this inside torchrun.
+Before runner generation, verify the annotation JSON is readable and the
+referenced media path or archive is visible from the selected platform. Missing
+optional annotation fields are not a launch blocker for current Cosmos-RL SFT
+training, and the agent must not patch source annotations unless the user
+explicitly asks for that dataset mutation.
 
 ## Important Parameters
 
@@ -108,7 +109,7 @@ start AutoML to discover this inside torchrun.
 - **train.output_dir**: Output directory for checkpoints and logs.
 
 ### Model & Policy
-- **policy.model_name_or_path**: HuggingFace model path. The packaged default is `nvidia/Cosmos-Reason2-8B`. For a Cosmos Reason 3 evaluation, override this with `nvidia/Cosmos3-Nano-Reasoner` or the exact user-provided Reason 3 `hf_model://...` URI or cluster-local snapshot path; do not rely on the Reason2 default.
+- **policy.model_name_or_path**: HuggingFace model path. The packaged default is `hf_model://nvidia/Cosmos3-Nano`. Override this only when the user provides a different HuggingFace model id, `hf_model://...` URI, or cluster-local snapshot path.
 - **policy.model_max_length**: Context window size. Must be 40960 for video SFT. Affected by FPS, resolution, and prompt length.
 - **policy.model_gradient_checkpointing**: Save VRAM by recomputing activations. Keep true for large models.
 
@@ -129,12 +130,28 @@ For platform-side multi-node setup (sbatch flags on SLURM, Indexed Job + Service
 - **train.train_policy.mini_batch**: Micro-batch size per GPU. If OOM, reduce this. Constraint: `train_batch_per_replica % mini_batch == 0`.
 - **train.train_policy.dataset.name**: Unique ID for dataset cache. IMPORTANT: change this if you modify `fps` or `total_pixels` to force cache regeneration.
 - **train.train_policy.dataset.test_size**: Validation split. Float (0.0–1.0) = ratio; Int = absolute number.
+- For AutoML or small subsets, verify every generated recommendation before
+  launch with `scripts/check_tao_launch_preflight.py
+  --effective-batch-limit train_annotation=<batch_size>,<dp_shard_size>` and
+  reject/cap configs where `train_batch_per_replica >
+  num_train_samples / dp_shard_size`.
 
 ### Vision Encoders
 - **custom.vision.fps** *or* **custom.vision.nframes** — **mutually exclusive**, set exactly one.
   - `nframes` (default in template): extract this many frames evenly across the clip. This is the safest default for 1-GPU AutoML smoke runs.
   - `fps`: extract frames at this rate. High motion: 3. Low motion/static: 1–2. Use when the selected videos, `policy.model_max_length`, and GPU memory can absorb the expanded token count.
   - Setting both makes qwen-vl-utils' decord backend error out (`Only accept either fps or nframes`) and silently fall back to torchvision, which deadlocks under multi-worker dataloading (`BlockingIOError [Errno 11]` swscaler errors). If you switch from `fps` to `nframes`, also delete `fps` from your spec.
+- Do not require per-record `video_fps` for the packaged `nframes` template.
+  If a run switches to `custom.vision.fps` or a selected dataset/image profile
+  requires per-record timing, validate annotations before any download or job
+  launch:
+  ```bash
+  scripts/check_tao_launch_preflight.py --platform <platform> \
+    --path train_annotation=/path/to/train.json \
+    --path val_annotation=/path/to/val.json \
+    --json-required-field train_annotation=video_fps \
+    --json-required-field val_annotation=video_fps
+  ```
 - **custom.vision.total_pixels**: Resolution constraint. Increase if the object of focus is small relative to the frame. Default 3136000.
 - **custom.system_prompt**: Instructions prepended to every prompt.
 
@@ -159,9 +176,9 @@ fall back to "latest" silently.
 For evaluate, pass the resolved LoRA folder directly:
 `model.model_name=<train_output_dir>/<timestamp>/safetensors/epoch_N`,
 `model.enable_lora=true`, and
-`model.base_model_path=nvidia/Cosmos-Reason2-8B` (or the local base-model
-snapshot path). For resume/retrain, pass the exact Cosmos checkpoint policy
-folder as a string:
+`model.base_model_path=<same base model used for training>` (default
+`hf_model://nvidia/Cosmos3-Nano`, or the local base-model snapshot path). For
+resume/retrain, pass the exact Cosmos checkpoint policy folder as a string:
 `train.resume=<train_output_dir>/<timestamp>/checkpoints/epoch_N/policy`.
 Avoid `train.resume=true` for local Docker epoch-based checkpoints because the
 current resolver scans `step_*` checkpoint directories and can miss the
@@ -203,7 +220,20 @@ do not lower it to tiny values such as 128 for video calibration.
 
 **Checkpoint save failure (scheduler is None)**: The cosmos-rl trainer crashes with `'NoneType' object has no attribute 'state_dict'` when saving a checkpoint before any training step has executed. This happens when the dataset is too small for the batch size (0 steps per epoch). See the batch size error above.
 
-**You are trying to access a gated repo**: The HuggingFace model `nvidia/Cosmos-Reason2-8B` requires authentication. All ranks will retry in a loop until they time out. Fix: ensure `HF_TOKEN` is set in your environment (e.g., in `~/.config/tao/.env`) and passed into the container with `-e HF_TOKEN`. The user must also accept the model agreement at <https://huggingface.co/nvidia/Cosmos-Reason2-8B>.
+**You are trying to access a gated repo**: The HuggingFace model `nvidia/Cosmos3-Nano` requires authentication. All ranks will retry in a loop until they time out. Fix: ensure `HF_TOKEN` is set in the process environment or a user-approved secret env file such as `~/.tao/secrets.env` or `~/.config/tao/.env`, verify only presence, and pass it into the container with `-e HF_TOKEN`. The user must also accept the model agreement at <https://huggingface.co/nvidia/Cosmos3-Nano>.
+
+**Cosmos-RL GPU resource and architecture gate**: The actionable launch gate is
+at least 4 GPUs with 80GB-class memory or higher, plus a GPU architecture
+supported by the selected Cosmos-RL image, plus normal platform, container, S3,
+and credential preflight. Run
+`scripts/check_tao_launch_preflight.py --gpu-min-count 4 --gpu-min-memory-gb 80 --gpu-arch-allowlist cosmos_rl=sm_80,sm_90,sm_100,sm_120`
+before launching. If the target architecture is known but cannot be detected
+from the launch host, pass `--gpu-arch sm_XX` explicitly. Spark/GB10 `sm_121`
+is not launchable with this image unless image introspection confirms `sm_121`
+support or a newer compatible image is selected. If a resource-qualified
+platform still fails with a kernel JIT error such as
+`nvrtc: invalid --gpu-architecture`, classify it as an image/toolchain defect to
+fix with a compatible image, not as a platform resource incompatibility.
 
 **TAO_API_JOB_ID status logging warnings in direct Docker**: `cosmos-rl-evaluate`, `cosmos-rl-inference`, and `cosmos-rl-quantize` may log a traceback from `tao_status_logger.py` when `TAO_API_JOB_ID` is unset. For direct local-Docker model-skill validation this is nonfatal if the process exits 0 and the action writes its expected result files. Do not hide a real action failure behind this warning, but do not mark an otherwise successful local run failed only because status-file logging was unavailable.
 

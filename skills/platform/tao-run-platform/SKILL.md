@@ -295,7 +295,7 @@ The skill's action does not write a spec file — inputs are passed as `{contain
 ep = build_entrypoint(
     command="python infer.py --model /models/cosmos --input /data/in --output /results",
     inputs={                                              # path-keyed → infers passthrough mode
-        "/models/cosmos": "hf_model://nvidia/Cosmos-Reason2-8B",   # HF Hub
+        "/models/cosmos": "hf_model://nvidia/Cosmos3-Nano",        # HF Hub
         "/data/in":       "s3://bucket/test/in",                    # S3
         # also supported: "ngc://..."
     },
