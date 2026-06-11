@@ -1,8 +1,9 @@
 ---
 name: tao-run-on-local-docker
-description: Local Docker execution for TAO SDK job containers using the host Docker daemon and NVIDIA GPU runtime. Use
-  when running TAO jobs on the current machine or a directly attached Docker host. Trigger phrases include "run locally",
-  "local Docker", "use my GPU", "run on my machine", "host Docker daemon".
+description: Local or remote Docker execution for TAO SDK job containers using a Docker daemon with NVIDIA GPU runtime. Use
+  when running TAO jobs on the current machine, a directly attached Docker host, or a remote GPU box exposed through
+  DOCKER_HOST. Trigger phrases include "run locally", "local Docker", "remote Docker", "use my GPU", "run on my
+  machine", "host Docker daemon".
 license: Apache-2.0
 compatibility: Requires NVIDIA driver branch 580, CUDA Toolkit 13.0, Docker, and NVIDIA Container Toolkit 1.19.0. The TAO SDK with the docker extra (pip install 'nvidia-tao-sdk[docker]') is needed only if you want Job handles, S3 I/O wrapping, or run-folder durability via ActionWorkflow.
 metadata:
@@ -18,13 +19,19 @@ tags:
 # Local Docker
 
 Single-node execution platform that runs TAO jobs as named Docker containers on
-the local Docker daemon. It is useful for development, debugging, small runs,
-and machines where the agent host already has the required GPUs, NVIDIA driver,
-Docker, and NVIDIA Container Toolkit.
+a Docker daemon. The daemon can be local to the agent host or remote through
+`DOCKER_HOST=ssh://user@host` / a Docker context. It is useful for development,
+debugging, small runs, and workflows where a local coding agent submits jobs to
+a remote GPU box.
 
 Use local Docker when the data is local to the Docker host or accessible through
 mounted volumes/cloud credentials. Do not use it for remote cluster scheduling,
 multi-node training, or jobs that need SLURM queueing.
+
+Use remote Docker when the agent is running on a workstation or laptop but the
+Docker daemon and GPUs are on another single GPU server. In remote Docker mode,
+all local filesystem paths in specs are interpreted on the remote Docker host,
+not on the agent machine.
 
 ## Preflight
 
@@ -35,7 +42,7 @@ command, and rerun the preflight.
 ```bash
 # Host GPU runtime: NVIDIA driver 580, CUDA 13.0, NVIDIA Container Toolkit 1.19.0.
 TAO_SKILL_BANK_ROOT="${TAO_SKILL_BANK_ROOT:-$PWD}"
-SETUP_SCRIPT="${TAO_SKILL_BANK_ROOT}/platform/tao-setup-nvidia-gpu-host/scripts/setup-nvidia-gpu-host.sh"
+SETUP_SCRIPT="${TAO_SKILL_BANK_ROOT}/skills/platform/tao-setup-nvidia-gpu-host/scripts/setup-nvidia-gpu-host.sh"
 
 bash "$SETUP_SCRIPT" --backend docker --check-only || {
   echo "MISSING: TAO GPU host runtime is not ready."
@@ -58,29 +65,18 @@ docker run --rm --runtime=nvidia --gpus all ubuntu nvidia-smi >/dev/null 2>&1 ||
 # kwarg contract, build_entrypoint, and monitoring patterns.
 # nvidia-tao-sdk is on public PyPI; pin lives in versions.yaml (wheels.tao_sdk_docker).
 PIN=$("${TAO_SKILL_BANK_PATH:?}/scripts/resolve_versions_key.py" wheels.tao_sdk_docker)
-python -c "import tao_sdk" 2>/dev/null || {
-  echo "MISSING: nvidia-tao-sdk not installed. Run:"
-  echo "  pip install \"$PIN\""
-  exit 1
-}
-python -c "import docker" 2>/dev/null || {
-  echo "MISSING: docker Python client not installed. Run:"
-  echo "  pip install \"$PIN\""
-  exit 1
-}
+python -c "import tao_sdk" 2>/dev/null || python -m pip install "$PIN"
+python -c "import docker" 2>/dev/null || python -m pip install "$PIN"
+python -c "import tao_sdk, docker"
 
-# DockerSDK attaches every job container to ${DOCKER_NETWORK:-tao_default}. If
-# the network does not exist, container start fails instantly with
-# `network <name> not found` for every create_job.
+# DockerSDK attaches every job container to ${DOCKER_NETWORK:-tao_default}.
+# Create the network if it is missing; the operation is local and idempotent.
 DOCKER_NETWORK_NAME="${DOCKER_NETWORK:-tao_default}"
-docker network ls --format '{{.Name}}' | grep -qx "$DOCKER_NETWORK_NAME" || {
-  echo "MISSING: docker network '$DOCKER_NETWORK_NAME' not found. After user approval, run:"
-  echo "  docker network create $DOCKER_NETWORK_NAME"
-  exit 1
-}
+docker network inspect "$DOCKER_NETWORK_NAME" >/dev/null 2>&1 || \
+  docker network create "$DOCKER_NETWORK_NAME" >/dev/null
 ```
 
-If a check fails, the agent prompts the user to authorize the install/fix via Bash before proceeding.
+If a check fails, the agent prompts the user to authorize the install/fix via Bash before proceeding. Pip-installable Python requirements and Docker network creation above are exceptions: install/create them automatically, then rerun preflight.
 
 ## Credentials
 
@@ -89,7 +85,8 @@ There are no platform credentials required beyond access to the Docker daemon.
 Optional environment:
 
 - **DOCKER_HOST**: Optional Docker daemon URL. If unset, the SDK uses the
-  Docker Python client's normal environment/default socket resolution.
+  Docker Python client's normal environment/default socket resolution. Required
+  for the `remote-docker` platform option.
 - **DOCKER_NETWORK**: Docker network for job containers. Default is
   `tao_default`.
 - **DOCKER_USERNAME**: Registry username. Default is `$oauthtoken` for NGC.
@@ -104,7 +101,11 @@ Optional environment:
 
 Before generating scripts or starting containers:
 
-1. Verify the Docker daemon is reachable and the NVIDIA runtime can see GPUs.
+1. Verify the Docker daemon is reachable, NVIDIA Container Toolkit is registered
+   as a Docker runtime, GPUs and driver version are reported, and a smoke
+   container can see GPUs before launch. For remote Docker, query GPUs through
+   `docker run ... nvidia-smi` against the remote daemon; do not use local
+   `nvidia-smi` from the agent machine.
 2. Verify every local/file dataset annotation and media path exists on the
    Docker host.
 3. For `s3://` datasets/results, verify `ACCESS_KEY` and `SECRET_KEY` are set
@@ -119,6 +120,33 @@ Before generating scripts or starting containers:
    host GPU compute capability with the container stack before launch. If the
    selected image cannot JIT or run kernels for the host architecture, block
    early and ask for a compatible image or platform.
+
+Use the packaged helper for these checks when possible:
+
+```bash
+${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/check_tao_launch_preflight.py \
+  --platform local-docker \
+  --container-image "<selected-image>" \
+  --path train_annotation=/abs/path/to/annotations.json \
+  --path train_media=/abs/path/to/media
+```
+
+For a remote Docker daemon, use the `remote-docker` platform and pass or export
+`DOCKER_HOST`. The helper verifies remote GPU/runtime readiness and checks
+remote-host dataset paths through read-only bind mounts:
+
+```bash
+${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/check_tao_launch_preflight.py \
+  --platform remote-docker \
+  --docker-host ssh://user@gpu-host \
+  --container-image "<selected-image>" \
+  --gpu-smoke-image ubuntu:22.04 \
+  --path train_annotation=/remote/data/train/annotations.json \
+  --path train_media=/remote/data/train
+```
+
+The `--path` values above must exist on the remote Docker host. Do not pass
+paths that exist only on the local laptop or Codex host.
 
 ## Multi-GPU and multi-node
 
