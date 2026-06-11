@@ -19,7 +19,7 @@ tags:
   - nvidia-tao
   - computer-vision
   - training
-compatibility: Requires docker + nvidia-container-toolkit, NVIDIA GPU (driver ≥ 545, ≥ 24 GB VRAM for ≤3B models), ~40 GB free disk. Optional credentials (loaded from `~/.config/tao/.env` by the SessionStart hook) — HF_TOKEN is read only when the model/dataset is gated or `push_to_hub` is on; WANDB_API_KEY and WANDB_PROJECT only when WandB logging is enabled.
+compatibility: Requires docker + nvidia-container-toolkit, NVIDIA GPU (driver ≥ 545, ≥ 24 GB VRAM for ≤3B models), ~40 GB free disk. Optional credentials (read from the session environment, exported before launching) — HF_TOKEN is read only when the model/dataset is gated or `push_to_hub` is on; WANDB_API_KEY and WANDB_PROJECT only when WandB logging is enabled.
 metadata:
   author: NVIDIA Corporation
   version: '0.1'
@@ -68,7 +68,7 @@ line.
 **Required:**
 - `model_id` — HuggingFace model ID, e.g. `google/vit-base-patch16-224`
 
-**Conditional credentials (loaded by the SessionStart hook from `~/.config/tao/.env` when present):**
+**Conditional credentials (read from the session environment, exported before launching when present):**
 - `HF_TOKEN` — required only when the model or dataset is **gated** (read access) or `push_to_hub` is on (write access). Public model + public dataset + `push_to_hub: false` runs do not need it. The agent never reads the value — only checks presence with `[ -n "$HF_TOKEN" ]`.
 - `WANDB_API_KEY`, `WANDB_PROJECT` — required only when WandB monitoring is enabled. Set `WANDB_MODE=disabled` to opt out.
 
@@ -125,9 +125,9 @@ platform's execution pattern.
 `--check-only` mode. Do not duplicate the NCT / driver / `--gpus all` smoke
 logic here — if it needs to change, change it in `tao-setup-nvidia-gpu-host`.
 
-**Credentials preflight:** the SessionStart hook
-(`hooks/session_start.sh`) loads `~/.config/tao/.env` into the session
-env and lists the variable names (never values) in the session banner.
+**Credentials preflight:** credentials are read from the session
+environment (exported in your shell before launching); the SessionStart hook
+(`hooks/session_start.sh`) lists the variable names (never values) in the session banner.
 Step 2a only confirms presence of credentials that the current run
 *actually* needs — `HF_TOKEN` for gated downloads or `push_to_hub`,
 `WANDB_API_KEY`/`WANDB_PROJECT` if WandB is enabled — instead of hard-
@@ -271,8 +271,8 @@ hardware-dependent compat rules.
 **2a. Audit (hard gate):** the GPU host runtime check is owned by the
 `tao-setup-nvidia-gpu-host` skill (driver branch 580, CUDA Toolkit 13.0, NVIDIA
 Container Toolkit 1.19.0). Invoke it in `--check-only` mode; on failure, ask
-the user to authorize the install, then re-run. Credentials come from the
-SessionStart hook (`~/.config/tao/.env`) — only check the ones the current
+the user to authorize the install, then re-run. Credentials are read from the
+session environment (exported before launching) — only check the ones the current
 run actually needs.
 
 ```bash

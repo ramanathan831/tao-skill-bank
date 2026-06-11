@@ -3,7 +3,7 @@
 Read this file when the agent hits an SDK error — the entries map exception
 text or status conditions to root cause and fix.
 
-**`CredentialError: Missing BREV_API_TOKEN`**: env var not loaded. Run `source ~/.config/tao/.env` or check the SessionStart hook fired.
+**`CredentialError: Missing BREV_API_TOKEN`**: env var not loaded. Re-export it in your shell (the session inherits your launching shell's environment).
 
 **`CredentialError: S3_BUCKET_NAME env var required`**: any `inputs` or `outputs` argument needs S3 credentials. Set `S3_BUCKET_NAME`, `ACCESS_KEY`, `SECRET_KEY` (and `S3_ENDPOINT_URL` for non-AWS).
 

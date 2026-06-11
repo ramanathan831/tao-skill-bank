@@ -22,7 +22,7 @@ tags:
 # 1. SSH to the login node works without a password prompt
 SLURM_HOST="${SLURM_HOSTNAME%%,*}"
 [ -n "$SLURM_USER" ] && [ -n "$SLURM_HOST" ] || {
-  echo "MISSING: set SLURM_USER and SLURM_HOSTNAME (comma-separated for failover) in your env (~/.config/tao/.env)."
+  echo "MISSING: export SLURM_USER and SLURM_HOSTNAME (comma-separated for failover) in your shell before launching."
   exit 1
 }
 ssh -o BatchMode=yes -o ConnectTimeout=10 "${SLURM_USER}@${SLURM_HOST}" "true" 2>/dev/null || {

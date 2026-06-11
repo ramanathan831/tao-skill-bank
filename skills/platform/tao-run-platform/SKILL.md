@@ -42,7 +42,7 @@ Missing pip requirements are installed automatically by default and reported in 
 
 ## Setup
 
-Credentials come from **environment variables** — sourced from `~/.config/tao/.env` (auto-loaded by the skill bank's SessionStart hook).
+Credentials come from **environment variables** — read from the session environment (export them in your shell before launching).
 
 ```python
 from tao_sdk.platforms.brev   import BrevSDK     # Brev GPU instances
