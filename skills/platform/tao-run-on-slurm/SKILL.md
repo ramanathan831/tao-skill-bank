@@ -34,10 +34,10 @@ ssh -o BatchMode=yes -o ConnectTimeout=10 "${SLURM_USER}@${SLURM_HOST}" "true" 2
 # nvidia-tao-sdk is on public PyPI; pin lives in versions.yaml (wheels.tao_sdk_slurm).
 PIN=$("${TAO_SKILL_BANK_PATH:?}/scripts/resolve_versions_key.py" wheels.tao_sdk_slurm)
 python -c "import tao_sdk" 2>/dev/null || {
-  echo "MISSING: nvidia-tao-sdk not installed. Run:"
-  echo "  pip install \"$PIN\""
-  exit 1
+  echo "Installing missing Python requirement: $PIN"
+  python -m pip install "$PIN"
 }
+python -c "import tao_sdk"
 
 # 3. Enroot credentials on the cluster for private nvcr.io images.
 # Pyxis on the compute nodes invokes enroot to import the Docker image. Enroot
@@ -61,7 +61,7 @@ if [ -n "$NGC_KEY" ]; then
 fi
 ```
 
-If a check fails, the agent prompts the user to authorize the install/fix via Bash.
+If a check fails, the agent prompts the user to authorize the install/fix via Bash. Pip-installable Python requirements are the exception: install them automatically, then rerun preflight.
 
 The enroot-credentials step (#3) only needs to run **once per (cluster, user)** —
 subsequent SLURM sessions inherit the file. Use the `printf | ssh` heredoc

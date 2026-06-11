@@ -43,13 +43,10 @@
     },
     "train": {
       "automl_default_parameters": [
-        "custom.vision.fps",
         "policy.lora.lora_alpha",
         "policy.lora.lora_dropout",
         "policy.lora.r",
-        "train.epoch",
         "train.optm_weight_decay",
-        "train.optm_warmup_epochs",
         "train.optm_decay_type",
         "train.optm_lr",
         "train.train_batch_per_replica"

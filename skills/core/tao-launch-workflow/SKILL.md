@@ -51,7 +51,9 @@ Preflight passes only after all of these are true:
    rerun.
 9. A launch review with image, platform, datasets, compute shape, expected
    runtime, and any generated/default configuration changes has been shown and
-   confirmed by the user.
+   confirmed by the user. For AutoML, the launch review must explicitly state
+   recommendation count/budget, max concurrency, algorithm, metric, direction,
+   and searched parameters/ranges even when defaults are used.
 
 If any item is missing, ask for the missing input and stop before generating
 artifacts. This applies to AutoML, normal train/eval/infer/export/TRT, and
@@ -254,6 +256,8 @@ Ask for dataset examples that match the selected platform:
 - Local Docker: local paths visible to the Docker host, such as
   `/data/tao/<model>/train`, or direct spec paths visible inside the planned
   container mount.
+- Remote Docker: absolute paths visible on the remote Docker host named by
+  `DOCKER_HOST`, not paths on the local agent machine.
 
 Do not assume "dataset root" is the only acceptable input. When direct spec
 paths are supplied, validate the exact spec paths rather than appending default
@@ -270,6 +274,7 @@ Prefer the packaged preflight helper when the needed inputs are available:
 ${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/check_tao_launch_preflight.py \
   --skill-bank ${TAO_SKILL_BANK_PATH:-~/tao-skills-external} \
   --platform <platform> \
+  --container-image <selected-image> \
   --path train_annotation=<path> \
   --path train_media=<path>
 ```
@@ -278,11 +283,36 @@ Pass exact direct spec paths when the user supplied them. For root-mode inputs,
 expand model-required files first, then pass those concrete annotation/media
 paths to the helper.
 
+If the helper reports a missing client tool such as `aws` for `s3://` path
+verification, install the smallest needed package after user approval, then
+rerun the same command with `--install-missing-tools` and do not proceed until
+the rerun verifies the paths.
+
+When the selected model skill warns that large S3 media should be staged, copy
+or extract the data once to platform-visible storage before creating launch
+artifacts, then validate those staged paths with the same preflight helper.
+Record the source URI and staged path in the run workspace so AutoML summaries
+can distinguish data staging time from training/evaluation time.
+
+For `local-docker` and `remote-docker`, always pass the selected image with
+`--container-image` after resolving `container_image` from
+`skill_info.yaml`/`versions.yaml`. The helper verifies Docker reachability,
+NVIDIA Container Toolkit registration, GPU memory, selected-image architecture
+compatibility when known, and a GPU-visible smoke container before launch. For
+`remote-docker`, pass `--docker-host` or export `DOCKER_HOST`; the helper queries
+GPUs and validates bind-mounted paths through the remote daemon instead of using
+local host state. If the selected or smoke image is not present on the target
+Docker host, ask before pulling it or rerun with `--pull-smoke-image` after
+approval.
+
 When a model skill lists annotation-level required fields, pass them with
 `--json-required-field <path-label>=<field>[,<field>...]` so schema/data
 content issues fail during preflight rather than inside the first training
 container. Do not add required annotation fields from old failure history; only
 enforce fields documented as required by the current model skill.
+For local JSON/JSONL annotation paths, the helper prints `records=<N>`; use the
+train annotation count as `automl_settings["train_sample_count"]` for
+sample-count-sensitive AutoML runs before recommendations are generated.
 If the model skill documents a run-local patch strategy for a missing required
 field, create the patched copy in the current run workspace, update the spec
 paths to that copy, and rerun the content check before launch. Do not ask the

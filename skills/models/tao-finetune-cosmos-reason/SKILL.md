@@ -24,7 +24,10 @@ tags:
 Supervised fine-tuning (SFT) of Cosmos Reason video QA models. The packaged
 default base model is **hf_model://nvidia/Cosmos3-Nano**. Pretrained weights
 are sourced from HuggingFace, not NGC. Gated HuggingFace models require
-`HF_TOKEN`.
+`HF_TOKEN`. Some Cosmos-RL images cannot load the native Cosmos3 Omni checkpoint
+format directly; for those images, convert Cosmos3-Nano to a Qwen3-VL HF
+safetensors directory before train/evaluate and use that converted directory as
+the PTM path.
 
 Uses FSDP-based parallelism with `dp_shard_size` for GPU count and `dp_replicate_size` for node count (not the standard `num_gpus`/`num_nodes`). Extra references: `cosmos-data-specs.md` for datasets/specs, `cosmos-actions-parameters.md` for eval/parameters/errors, and `cosmos-automl-deft.md` for AutoML/DEFT notes; `detailed-guide.md` is only the map.
 
@@ -51,6 +54,38 @@ Non-train actions such as `evaluate`, `inference`, and `quantize` stay in this m
   access. If the user explicitly overrides the base model, they must accept
   that target model's agreement too. Passed to the container as a
   `docker_env_var`.
+
+## Cosmos3 Checkpoint Conversion
+
+When a selected image cannot load the native Cosmos3 checkpoint format
+(`model_type="cosmos3_omni"` or `Cosmos3ForConditionalGeneration`), do not patch
+QwenVL, Transformers, or vLLM first. Use the upstream Cosmos Framework VLM
+conversion path to produce a Qwen3-VL HF safetensors directory, then point
+Cosmos-RL specs at that converted directory.
+
+The model skill packages a helper:
+
+```bash
+python skills/models/tao-finetune-cosmos-reason/scripts/prepare_cosmos3_vlm_checkpoint.py \
+  --checkpoint-path /abs/path/Cosmos3-Nano \
+  --output-path /abs/path/Cosmos3-Nano-VLM \
+  --secrets-env ~/.tao/secrets.env \
+  --validate-with-image <cosmos-rl-image>
+```
+
+After conversion, use the converted directory consistently as the PTM:
+
+```text
+train:    policy.model_name_or_path=/abs/path/Cosmos3-Nano-VLM
+evaluate: model.model_name=/abs/path/Cosmos3-Nano-VLM
+evaluate: model.base_model_path=/abs/path/Cosmos3-Nano-VLM
+```
+
+For local Docker, mount the converted directory read-only into the Cosmos-RL
+container and set the spec to the container path. If a converted copy already
+exists and validates, reuse it for PTM baseline evaluation, AutoML
+recommendations, and final best-checkpoint evaluation rather than converting
+again.
 
 ## Training Requirements
 
@@ -109,6 +144,31 @@ scripts/check_tao_launch_preflight.py --platform slurm \
   --gpu-min-memory-gb 80 \
   --gpu-arch-allowlist cosmos_rl=sm_80,sm_90,sm_100,sm_120
 ```
+
+For local Docker, pass the resolved Cosmos-RL image so preflight can enforce
+NVIDIA runtime, host GPU memory, helper-container, and known image architecture
+checks before any model/data download:
+
+```bash
+scripts/check_tao_launch_preflight.py --platform local-docker \
+  --container-image <resolved-cosmos-rl-image> \
+  --path train_annotation=/abs/path/train/annotations.json \
+  --path train_media=/abs/path/train \
+  --path val_annotation=/abs/path/eval/annotations.json \
+  --path val_media=/abs/path/eval
+```
+
+For `s3://` paths, if this helper reports that `aws` is missing, ask for
+approval and rerun the same command with `--install-missing-tools` so the helper
+installs `awscli` and immediately verifies the dataset paths.
+
+Cosmos-RL video datasets can include large `videos.tar.gz` archives. Before
+AutoML, stage S3-backed media once to a platform-local/shared path and point
+every recommendation at the staged directory or archive; do not let each trial
+download the same large S3 object through the container. Prefer an extracted
+directory when annotations reference individual files. Keep a
+`<workspace>/evaluations/data_staging.json` record with the original S3 URI, the
+staged path, and the command/log used to verify the copy.
 
 For Cosmos-RL, count and memory are necessary but not sufficient. Treat the run
 as launchable only when the target has at least 4 GPUs with 80GB-class memory or
@@ -316,7 +376,9 @@ The packaged default base model is `hf_model://nvidia/Cosmos3-Nano`. Apply this
 base model consistently to train (`policy.model_name_or_path`) and
 post-training evaluation (`model.base_model_path`) unless the user explicitly
 provides a different HuggingFace model id, `hf_model://...` URI, or
-cluster-local snapshot.
+cluster-local snapshot, or converted `Cosmos3-Nano-VLM` directory. If the
+conversion helper was required for the selected image, treat the converted
+directory as the PTM for the whole run.
 
 Do not hardcode dataset paths in this reusable model skill. Dataset locations
 must come from the user's current request, a selected dataset profile, or direct
@@ -325,9 +387,9 @@ the run inputs to concrete spec keys:
 
 ```text
 custom.train_dataset.annotation_path=<train_root>/annotations.json
-custom.train_dataset.media_path=<train_root>/videos
+custom.train_dataset.media_path=<train_root>
 custom.val_dataset.annotation_path=<eval_root>/annotations.json
-custom.val_dataset.media_path=<eval_root>/videos
+custom.val_dataset.media_path=<eval_root>
 ```
 
 When annotation `video` values are relative to a `videos/` subdirectory, use
@@ -363,9 +425,9 @@ epochs, weight decay, warmup ratio", map the requested knobs to:
 ```text
 learning rate     -> train.optm_lr
 batch size        -> train.train_batch_per_replica
-number of epochs  -> train.epoch
+number of epochs  -> fixed train.epoch=2 by default; do not include in search unless explicitly requested
 weight decay      -> train.optm_weight_decay
-warmup ratio      -> train.optm_warmup_epochs, computed as round(train.epoch * ratio)
+warmup ratio      -> fixed train.optm_warmup_epochs=0 by default; do not include in search unless explicitly requested
 ```
 
 The schema exposes `train.optm_warmup_epochs`, not a native warmup-ratio field.
@@ -378,9 +440,7 @@ Example custom ranges for the Cosmos Reason 3 AutoML evaluation prompt:
 automl_hyperparameters=[
     "train.optm_lr",
     "train.train_batch_per_replica",
-    "train.epoch",
     "train.optm_weight_decay",
-    "train.optm_warmup_epochs",
 ]
 custom_param_ranges={
     "train.optm_lr": {"valid_min": 1e-5, "valid_max": 1e-3},
@@ -388,25 +448,17 @@ custom_param_ranges={
         "value_type": "ordered_int",
         "valid_options": [8, 16, 32],
     },
-    "train.epoch": {
-        "value_type": "ordered_int",
-        "valid_options": [3, 5, 10],
-    },
     "train.optm_weight_decay": {"valid_min": 0.0, "valid_max": 0.1},
-    "train.optm_warmup_epochs": {
-        "value_type": "ordered_int",
-        "valid_options": [0, 1, 2, 3, 4, 5],
-    },
 }
 ```
 
 Keep `train.train_policy.mini_batch=1` unless the user explicitly changes it,
 so all listed batch sizes remain divisible by the micro-batch size. For small
 datasets, cap `train.train_batch_per_replica` so it does not exceed
-`num_train_samples / policy.parallelism.dp_shard_size`, and verify every
-generated recommendation before launch with
-`scripts/check_tao_launch_preflight.py --effective-batch-limit
-train_annotation=<batch_size>,<dp_shard_size>`.
+`floor(num_train_samples / policy.parallelism.dp_shard_size)`. When the
+annotation count is known, pass it as `automl_settings["train_sample_count"]`;
+current `AutoMLRunner` versions use that to cap invalid batch-size
+recommendations before launch and record the adjustment in AutoML history.
 For integer knobs with discrete choices, include `value_type: "ordered_int"`
 with `valid_options`; integer `valid_options` alone are ignored by the current
 Bayesian sampler.
@@ -421,8 +473,9 @@ space only after user confirmation.
 ## Important Parameters
 
 ### Training Loop
-- **train.epoch**: Number of training epochs. Default 10. Use at least 2 for
-  local smoke or AutoML runs that need a host-visible best checkpoint for
+- **train.epoch**: Number of training epochs. Default 2. Keep it fixed for
+  default Cosmos-RL AutoML searches unless the user explicitly asks to tune it.
+  Use at least 2 for local AutoML or validation runs that need a host-visible best checkpoint for
   evaluate/inference; one-epoch runs can leave only a broken `best` symlink
   after checkpoint cleanup.
 - **train.train_batch_per_replica**: Global batch size per training step. Ideally >= 32 for stability. CRITICAL: must be divisible by `train.train_policy.mini_batch` (default 1 in the packaged smoke-safe template). Recommended production value: 32.
@@ -460,9 +513,10 @@ For platform-side multi-node setup (sbatch flags on SLURM, Indexed Job + Service
 
 ### Vision Encoders
 - **custom.vision.fps** *or* **custom.vision.nframes** — **mutually exclusive**, set exactly one.
-  - `nframes` (default in template): extract this many frames evenly across the clip. This is the safest default for 1-GPU AutoML smoke runs.
+  - `nframes` (default in template): extract this many frames evenly across the clip. This is the safest default for 1-GPU AutoML validation runs.
   - `fps`: extract frames at this rate. High motion: 3. Low motion/static: 1–2. Select this only when the selected videos, `policy.model_max_length`, and GPU memory can absorb the expanded token count.
   - Setting both makes qwen-vl-utils' decord backend error out (`Only accept either fps or nframes`) and silently fall back to torchvision, which deadlocks under multi-worker dataloading (`BlockingIOError [Errno 11]` swscaler errors). If you switch from `fps` to `nframes`, also delete `fps` from your spec.
+  - Default Cosmos AutoML search must not tune `custom.vision.fps` while the packaged template uses `custom.vision.nframes`. Only include `custom.vision.fps` when the user explicitly requests FPS tuning and the assembled spec deletes `custom.vision.nframes`.
 - **custom.vision.total_pixels**: Resolution constraint. Increase if the object of focus is small relative to the frame. Default 3136000.
 - **custom.system_prompt**: Instructions prepended to every prompt.
 

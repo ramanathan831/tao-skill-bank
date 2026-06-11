@@ -50,15 +50,14 @@ fi
 # nvidia-tao-sdk is on public PyPI; pin lives in versions.yaml (wheels.tao_sdk_kubernetes).
 PIN=$("${TAO_SKILL_BANK_PATH:?}/scripts/resolve_versions_key.py" wheels.tao_sdk_kubernetes)
 python -c "import tao_sdk" 2>/dev/null || {
-  echo "MISSING: nvidia-tao-sdk not installed. Run:"
-  echo "  pip install \"$PIN\""
-  exit 1
+  echo "Installing missing Python requirement: $PIN"
+  python -m pip install "$PIN"
 }
 python -c "import kubernetes" 2>/dev/null || {
-  echo "MISSING: kubernetes extra not installed. Run:"
-  echo "  pip install \"$PIN\""
-  exit 1
+  echo "Installing missing Python requirement: $PIN"
+  python -m pip install "$PIN"
 }
+python -c "import tao_sdk, kubernetes"
 
 # 2. Cluster reachable (kubeconfig OR in-cluster service account)
 python -c "from kubernetes import config; config.load_kube_config()" 2>/dev/null || \
