@@ -23,7 +23,7 @@ story.
 | `train/base/validation_set.csv` | Held-out rows, same schema. Must not overlap training (the loop hard-stops on leakage). |
 | `kpi/testing_set.csv` | KPI test rows, same schema. This is what FAR / recall is measured on. |
 | `kpi/images/` | The actual image files referenced by every CSV above (real inspection captures + their golden references). |
-| `.env` | `NGC_API_KEY` + `HF_TOKEN`. Copy `.env.example`. |
+| `.env` | `NGC_KEY` + `HF_TOKEN`. Copy `.env.example`. |
 
 **Auto-fetched on first use (do not pre-stage unless air-gapped):** the
 ChangeNet backbone (`nvidia/C-RADIOv2-B`), the Cosmos/AnomalyGen base

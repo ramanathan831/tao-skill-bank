@@ -35,7 +35,7 @@ Do not use this skill for a single standalone TAO training run, one-off inferenc
 
 ## Base Model
 
-The loop operates on **NVIDIA TAO Visual ChangeNet** classify with the **NVIDIA C-RADIOv2-B** backbone, fine-tuned end-to-end. The architecture is defined in `specs/baseline_spec.yaml` — that file is the source of truth. All pretrained weights come from HuggingFace (`HF_TOKEN` required); `NGC_API_KEY` only gates container pulls. ChangeNet backbone resolution + the staged-file/HF-URL fallback for `model.backbone.pretrained_backbone_path` are owned by `references/visual-changenet.md`. SigLIP for k-NN mining is owned by `references/tao-mine-aoi-images.md`. AnomalyGen-side checkpoints (Cosmos-Predict2, T5, NVDINOV2, C-RADIO-V3, DINOv2-large, SAM2, Qwen3-VL — ~22 GB for 2B-only, ~140 GB with 14B + T5-11b) live under `<workspace>/augmentation/anomalygen/base_checkpoints/`; the paidf-anomalygen container auto-downloads them on first use. The PCB reference dataset under `<workspace>/augmentation/anomalygen/datasets/<project>/` is also auto-fetchable. See `references/paidf-anomalygen.md`.
+The loop operates on **NVIDIA TAO Visual ChangeNet** classify with the **NVIDIA C-RADIOv2-B** backbone, fine-tuned end-to-end. The architecture is defined in `specs/baseline_spec.yaml` — that file is the source of truth. All pretrained weights come from HuggingFace (`HF_TOKEN` required); `NGC_KEY` only gates container pulls. ChangeNet backbone resolution + the staged-file/HF-URL fallback for `model.backbone.pretrained_backbone_path` are owned by `references/visual-changenet.md`. SigLIP for k-NN mining is owned by `references/tao-mine-aoi-images.md`. AnomalyGen-side checkpoints (Cosmos-Predict2, T5, NVDINOV2, C-RADIO-V3, DINOv2-large, SAM2, Qwen3-VL — ~22 GB for 2B-only, ~140 GB with 14B + T5-11b) live under `<workspace>/augmentation/anomalygen/base_checkpoints/`; the paidf-anomalygen container auto-downloads them on first use. The PCB reference dataset under `<workspace>/augmentation/anomalygen/datasets/<project>/` is also auto-fetchable. See `references/paidf-anomalygen.md`.
 
 ## Train AutoML Policy
 
@@ -112,6 +112,8 @@ credentials required by the selected workflow.
 > (`<blocker> cleared → resuming step N`) and continue to the Summary. Halt only for what you
 > can't fix (missing workspace/specs/CSVs/credentials, empty pool, leakage). A fix is not the
 > user gate.
+>
+> **Revised plan.** If any run parameter changes after the original summary was shown (user imposes a time limit, overrides epochs, changes max_iterations, etc.), always re-run Pre-Flight and show an updated summary before proceeding.
 
 ## Workflow
 
@@ -142,6 +144,7 @@ Never write `loop_log.jsonl` via `echo` or inline `jq` — the `seq` invariant r
 | `scripts/init_deft_state.py` | Write a fresh `${RESULTS_DIR}/deft_state.json` from CLI args. Guarantees unique top-level keys. Atomic write; refuses to overwrite without `--force`. Use only on fresh runs; never on resume. | `--results-dir PATH --workspace PATH --kpi-target STR --max-iterations INT --num-gpus INT --num-epochs INT --num-sdg INT --project STR --step INT [--batch-size INT] [--top-k-per-target INT] [--knn-metric STR] [--min-similarity FLOAT] [--train-container STR] [--ag-container STR] [--force]` |
 | `scripts/changenet_data_pair_prepare.py` | Build the ChangeNet `(input, golden, label, object_name)` CSV from `_ng/` + `_ok/` image directories. NV_PCB_Siamese mode (`--images-dir`) emits the 14-column siamese CSV and copies images into the staged tree. | `--input-dir PATH --golden-dir PATH` `[--output PATH=dataset.csv]` `[--label STR]` `[--images-dir PATH]` `[--subdir NAME=sdg]` `[--light NAME=SolderLight]` `[--image-ext EXT=.jpg]` |
 | `scripts/prepare_inference_spec.py` | Write `best_model.json` + `best_model_inference_spec.yaml` from `deft_state.json` + the training spec. Run once at loop end. See `references/prepare-for-inference.md`. | `--results-dir PATH` |
+| `scripts/stage_backbone.py` | Stage the ChangeNet pretrained backbone locally (download from HF, copy into the workspace). Idempotent; reuses an existing staged file. Hard-fails (non-zero exit) if it cannot produce a staged file. Prints the staged absolute path as the last stdout line. | `(--workspace PATH \| --dest PATH) [--repo-id STR=nvidia/C-RADIOv2-B] [--filename STR=model.safetensors] [--stage-name STR=c_radio_v2_b.safetensors] [--force]` |
 
 ## Agents
 
@@ -219,7 +222,7 @@ Inputs (all paths under `<workspace>` unless absolute):
 
 ```text
 <workspace>/
-├── .env                                     # NGC_API_KEY (nvcr.io/* image pulls — both nvstaging/tao and nv-metropolis-dev), HF_TOKEN (HuggingFace pre-flight pulls)
+├── .env                                     # NGC_KEY (nvcr.io/* image pulls — both nvstaging/tao and nv-metropolis-dev), HF_TOKEN (HuggingFace pre-flight pulls)
 ├── specs/baseline_spec.yaml                 # ChangeNet train/eval spec
 ├── train/base/
 │   ├── training_set.csv                     # seed training rows; ChangeNet 14-column siamese schema
@@ -299,17 +302,22 @@ Resolve everything possible before asking the user. In order:
 
 1. Locate workspace root, specs, CSVs, checkpoints, augmentation assets. Derive a timestamped run directory: `RESULTS_DIR=<workspace>/results/run_$(date +%Y%m%d_%H%M%S)`. If resuming an existing run, set `RESULTS_DIR` to the existing run directory instead (detect by checking for `results/run_*/deft_state.json`). All references to `results/` throughout this skill mean `${RESULTS_DIR}/`.
 
-   **Host Python deps.** `scripts/analyze_kpi.py` needs `pandas`, `numpy`, `matplotlib`. Verify with `python3 -c "import pandas, numpy, matplotlib"`. If missing, set up a venv (`python3 -m venv ~/.venvs/deft && ~/.venvs/deft/bin/pip install pandas numpy matplotlib`) and invoke via that interpreter — on Ubuntu 24.04+ / fresh Brev boxes a bare `pip3 install --user` hits PEP 668. Alternatively run analysis inside the TAO toolkit image. Do not silently skip — KPI plots are part of every loop's output.
+   **Host Python deps.** The DEFT loop needs `pandas`, `numpy`, `matplotlib` (KPI analysis), `pyarrow` (parquet I/O for routing and mining), `huggingface_hub` (backbone staging), and `boto3` (S3 ops). Verify with `python3 -c "import pandas, numpy, matplotlib, pyarrow, huggingface_hub, boto3"`. If any are missing, set up a venv:
+   ```bash
+   python3 -m venv ~/.venvs/deft
+   ~/.venvs/deft/bin/pip install pandas numpy matplotlib pyarrow huggingface_hub boto3
+   ```
+   Invoke scripts via that interpreter — on Ubuntu 24.04+ / fresh Brev boxes a bare `pip3 install --user` hits PEP 668. Alternatively run analysis inside the TAO toolkit image. Do not silently skip — KPI plots and parquet I/O are part of every loop's output.
 2. Read the relevant `references/*.md` files for command syntax and output contracts. See `## Stage Reference Modules` for the stage→skill mapping.
 3. Source `<workspace>/.env` if it exists (`set -a; source <workspace>/.env; set +a`). Then verify the credentials the workflow actually consumes:
 
    | Variable | Required for | Image prefix it gates |
    |---|---|---|
-   | `NGC_API_KEY` | All nvcr.io image pulls — TAO toolkit (train/infer/deploy/data services) and the paidf-anomalygen SDG container | `nvcr.io/nvstaging/tao/*`, `nvcr.io/nv-metropolis-dev/*` |
+   | `NGC_KEY` | All nvcr.io image pulls — TAO toolkit (train/infer/deploy/data services) and the paidf-anomalygen SDG container | `nvcr.io/nvstaging/tao/*`, `nvcr.io/nv-metropolis-dev/*` |
    | `HF_TOKEN` | Pre-Flight HuggingFace model downloads (ChangeNet backbone, Cosmos diffusion, T5, C-RADIO-V3, DINOv2, SAM2, Qwen-VL, SigLIP) — cached under `augmentation/anomalygen/base_checkpoints/`. Also gates the PCB reference dataset auto-fetch. | huggingface.co |
 
-   Both variables must be non-empty. The single `NGC_API_KEY` must have read access to both `nvstaging/tao` (TAO Toolkit images) and `nv-metropolis-dev` (paidf-anomalygen). If either is missing, show the user `.env.example` (next to this skill), ask them to copy it to `<workspace>/.env` and fill in values, and do not proceed until set.
-4. `docker login nvcr.io` once with `NGC_API_KEY` (username `$oauthtoken`, password = the key). nvcr.io stores one credential per host. Do not fall back to host-side TAO wrappers.
+   Both variables must be non-empty. The single `NGC_KEY` must have read access to both `nvstaging/tao` (TAO Toolkit images) and `nv-metropolis-dev` (paidf-anomalygen). If either is missing, show the user `.env.example` (next to this skill), ask them to copy it to `<workspace>/.env` and fill in values, and do not proceed until set.
+4. `docker login nvcr.io` once with `NGC_KEY` (username `$oauthtoken`, password = the key). nvcr.io stores one credential per host. Do not fall back to host-side TAO wrappers.
 5. **Resolve container image refs from `versions.yaml`.** The rest of this skill — including the Pre-Flight Summary's `docker image inspect` line, every stage launch, and the `references/*.md` files — references three env vars. They are **not** defined elsewhere; resolve them here using `scripts/resolve_versions_key.py` (the single owner of `versions.yaml` schema knowledge) and `export` them so all downstream commands see them:
 
    ```bash
@@ -327,21 +335,37 @@ Resolve everything possible before asking the user. In order:
 
    The script exits non-zero (with a diagnostic on stderr) if a key is missing or empty. Hard stop here — without the export, bash silently substitutes `""`, the next step's `docker image inspect` reports `0` MISSING for every image, and the failure mode points at the wrong root cause.
 6. Verify every image resolved in step 5 is present locally (`docker image inspect "$TAO_PYT_IMAGE" "$AG_IMAGE" "$TAO_DS_IMAGE"`).
+
+   **Architecture compatibility check.** The AnomalyGen (`$AG_IMAGE`) container is published as amd64-only and will fail silently on arm64 hosts (e.g. DGX Spark). This surfaces only after schema generation, credential injection, and a 24 GB download — so check it now:
+
+   ```bash
+   HOST_ARCH=$(uname -m)   # x86_64 on amd64, aarch64 on arm64
+   AG_ARCHS=$(docker manifest inspect "$AG_IMAGE" 2>/dev/null \
+     | python3 -c "import sys,json; [print(p['platform']['architecture']) for p in json.load(sys.stdin).get('manifests',[])]" \
+     2>/dev/null || echo "unknown")
+   echo "Host arch: $HOST_ARCH  |  AG image platforms: $AG_ARCHS"
+   ```
+
+   Map `x86_64` → `amd64` and `aarch64` → `arm64` before comparing. Hard stop with a clear message if the host architecture is not in the image's platform list — there is no emulation path for GPU workloads.
+
+   **GPU-arch runnability probe.** Matching CPU arch isn't sufficient — the image's CUDA build must also support the host GPU's compute capability (e.g. DGX Spark `sm_121` vs a `cu128` build passes the manifest check but fails at the first CUDA call). Probe it directly: `docker run --rm --gpus all "$TAO_PYT_IMAGE" python3 -c "import torch; torch.zeros(1).cuda()"` — a non-zero exit or `no kernel image is available` means the build can't target this GPU; hard stop.
+
 7. Apply the path rule: pre-create iter dirs under `${RESULTS_DIR}/iter${ITER}/` and mount `<workspace>` into containers at the same absolute path. Sub-skills enforce their own container-level invariants (entrypoints, env vars); the loop just supplies the workspace mount and the resolved image URI.
-8. Verify GPU count. Probe the three AnomalyGen override slots under `augmentation/anomalygen/` (`checkpoints/<project>/`, `base_checkpoints/`, `datasets/<project>/`) and report their status in the Summary. **Empty slots are not missing — auto-fetch from HuggingFace is the default and requires no user action.** NVIDIA publishes the PCB fine-tuned checkpoint (`nvidia/Cosmos-AnomalyGen-PCB-2B`) and the PCB reference dataset (`nvidia/Cosmos-AnomalyGen-PCB-Dataset`) publicly on HuggingFace; paidf-anomalygen downloads them automatically on first use. Users who want to provide their own fine-tuned checkpoint or custom dataset can pre-stage the directory to override. Do not ask the user about missing AnomalyGen assets — treat empty slots as `will auto-fetch from HF (default)` and proceed. If `base_checkpoints/` is pre-staged, export its host path as `COSMOS_MODELS_DIR` for downstream mounts. Resolve the ChangeNet pretrained backbone per `references/visual-changenet.md` → *ChangeNet backbone resolution* (rewrite `specs/baseline_spec.yaml::model.backbone.pretrained_backbone_path`); do not halt on a missing staged file. See `references/paidf-anomalygen.md` for invocation and mount layout.
+8. Verify GPU count. Probe the three AnomalyGen override slots under `augmentation/anomalygen/` (`checkpoints/<project>/`, `base_checkpoints/`, `datasets/<project>/`) and report their status in the Summary. **Empty slots are not missing — auto-fetch from HuggingFace is the default and requires no user action.** NVIDIA publishes the PCB fine-tuned checkpoint (`nvidia/Cosmos-AnomalyGen-PCB-2B`) and the PCB reference dataset (`nvidia/Cosmos-AnomalyGen-PCB-Dataset`) publicly on HuggingFace; paidf-anomalygen downloads them automatically on first use. Users who want to provide their own fine-tuned checkpoint or custom dataset can pre-stage the directory to override. Do not ask the user about missing AnomalyGen assets — treat empty slots as `will auto-fetch from HF (default)` and proceed. If `base_checkpoints/` is pre-staged, export its host path as `COSMOS_MODELS_DIR` for downstream mounts. Stage the ChangeNet pretrained backbone by running `scripts/stage_backbone.py --workspace <workspace>`, then set `specs/baseline_spec.yaml::model.backbone.pretrained_backbone_path` to the staged file and bind-mount it per `references/visual-changenet.md` → *Pre-Flight responsibility*. Staging is mandatory — hard-stop if the script exits non-zero; there is no URL fallback. See `references/paidf-anomalygen.md` for invocation and mount layout.
 9. **GPU memory sanity check.** ChangeNet classify with C-RADIOv2-B (ViT-B) at the spec defaults (`batch_size: 64`, `image_width/height: 224`, `cls_weight: [1.0, 10.0]`, learnable difference modules) OOMs on a single 48GB-class GPU. Inspect `nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits` and warn if the assembled spec's `dataset.classify.batch_size` is too large for the available memory: as a rule of thumb, **≤ 16 on 48GB GPUs, ≤ 8 on 24GB GPUs**. Surface the recommendation in the Pre-Flight Summary's `GPUs` row — let the user accept or override before launch rather than failing 30 seconds into training.
 10. Run train/validation leakage check before resuming any prior run.
 
 Ask one consolidated question only for missing required inputs. Never ask about a parameter with a default.
 
+**Required input — `max_iterations`.** No default; ask the user if not supplied and do not proceed past Pre-Flight without it. If the user gives a time limit instead, convert it to an estimated `max_iterations` using the §Runtime Estimate per-iteration figure and surface the estimate for confirmation.
+
 **Defaults:**
 
-- `max_iterations`: 3 (the loop's value emerges only across multiple iterations; 1 disables convergence detection entirely)
 - `training_epochs`: `num_epochs` from `specs/baseline_spec.yaml`. For a small seed set (~200 rows) use **10** — ChangeNet on the 150M-param C-RADIOv2-B backbone overfits a few-hundred-row set past ~10 epochs (val_loss climbs, FAR@recall=100% degrades). The bundled `references/baseline_spec.yaml` template ships `num_epochs: 10` for this reason. Raise toward 20 only once the combined CSV grows into the low thousands of rows across iterations.
 - `num_SDG`: 20 (per-iteration AnomalyGen output budget; raise explicitly when more synthetic coverage is needed)
 - `min_similarity` (mining cosine cutoff): 0.9 — read from `config.mining_filter.min_similarity` in `deft_state.json`; the literal `0.9` referenced in Pipeline step 4 below is just the fallback default.
 - workspace root: user prompt, else `~/workspace`
-- pretrained backbone: first `*.pth` or `*.ckpt` under `augmentation/backbone/`; if absent, fall through to `https://huggingface.co/nvidia/C-RADIOv2-B` (HF_TOKEN required)
+- pretrained backbone: first `*.pth`/`*.ckpt`/`*.safetensors` under `augmentation/backbone/`; if absent, stage it from `nvidia/C-RADIOv2-B` via the recipe in `references/visual-changenet.md` (HF_TOKEN required). Mandatory — a URL is not a valid value; hard-stop if it cannot be staged.
 - AnomalyGen checkpoint: pre-staged `augmentation/anomalygen/checkpoints/<project>/`; if absent, auto-download from `nvidia/Cosmos-AnomalyGen-PCB-2B` on HF (HF_TOKEN required)
 - AnomalyGen dataset: pre-staged `augmentation/anomalygen/datasets/<project>/`; if absent, auto-fetch from `nvidia/Cosmos-AnomalyGen-PCB-Dataset` on HF (HF_TOKEN required)
 - Cosmos base models: pre-staged `augmentation/anomalygen/base_checkpoints/`; if absent, container downloads on first run (~22 GB for 2B-only, ~140 GB with 14B + T5-11b)
@@ -358,7 +382,7 @@ Once all checks pass, print this summary and **STOP — wait for explicit user a
 | ------------------------------ | ------------------------------------------------------------------------------ |
 | KPI Target                     | FAR < X% at Recall=100%                                                        |
 | Max Iterations                 | N                                                                              |
-| Stop condition                 | KPI met **or** max_iterations reached — reaching the KPI is not guaranteed      |
+| Stop condition                 | KPI met **or** max_iterations reached — reaching the KPI is not guaranteed; FAR may regress between iterations |
 | Training Epochs                | N per iteration                                                                |
 | Num SDG                        | N synthetic samples per iteration                                              |
 | Mining cutoff                  | cosine ≥ <min_similarity> (default 0.9)                                        |
@@ -462,7 +486,7 @@ Baseline runs once before the loop: `train` → `inference` → `evaluate` (skil
 
    **SDG training contribution (INLINE).** Convert returned AnomalyGen outputs into ChangeNet paired training rows. Stage NG/OK image pairs under `results/iter${N}/dataset/images/synthetic_iter${N}_{ng,ok}/`, run `scripts/changenet_data_pair_prepare.py` with `--input-dir ${RESULTS_DIR}/iter${N}/anomalygen/sdg/reconstructed_image`, `--golden-dir ${RESULTS_DIR}/iter${N}/anomalygen/sdg/original_image`, `--images-dir`, `--subdir synthetic_iter${N}`. Rewrite the script's bare `synthetic_iter${N}_ng/` paths to workspace-root-relative form (`results/run_<TS>/iter${N}/dataset/images/synthetic_iter${N}_ng`) before appending into `mining_filter/mining_pool.csv`, since the per-iter training spec sets `images_dir=/data/workspace`. SDG rows skip k-NN filtering; only real-image mining applies the cosine threshold.
 
-4. **[SKILL — `tao-skill-bank:tao-mine-aoi-images`] Mining pool — real-image contribution.** Mine real images from `augmentation/mining_pool/mining_pool.csv` against the current iteration's weak samples (`routing_mining_parquet` from `deft_state.json`) using SigLIP k-NN embeddings. **Retain only entries with cosine similarity ≥ `state.config.mining_filter.min_similarity`** (default `0.9` when unset). Lower-similarity candidates are rejected. Append the retained rows into `mining_filter/mining_pool.csv` (same file as the SDG contribution above). Output: updated `mining_filter/mining_pool.csv` and `mining_filter/knn_summary.csv` (`candidate_count`, `kept_count`, `rejected_count`, `similarity_threshold=<value>`). See `references/tao-mine-aoi-images.md`.
+4. **[SKILL — `tao-skill-bank:tao-mine-aoi-images`] Mining pool — real-image contribution.** Mine real images from `augmentation/mining_pool/mining_pool.csv` against the current iteration's weak samples (`routing_mining_parquet` from `deft_state.json`) using SigLIP k-NN embeddings. **Retain only entries with cosine similarity ≥ `state.config.mining_filter.min_similarity`** (default `0.9` when unset). Lower-similarity candidates are rejected. Append the retained rows into `mining_filter/mining_pool.csv` (same file as the SDG contribution above). When converting mined filepaths into ChangeNet rows, follow the path-form rule in `references/tao-mine-aoi-images.md` → *Mined rows → ChangeNet CSV*. Output: updated `mining_filter/mining_pool.csv` and `mining_filter/knn_summary.csv` (`candidate_count`, `kept_count`, `rejected_count`, `similarity_threshold=<value>`). See `references/tao-mine-aoi-images.md`.
 
    **Mid-iteration leakage check.** Right after the mining stage finishes — before any further CSV assembly — diff `mining_filter/mining_pool.csv` against `train/base/validation_set.csv` on `(input_path, golden_path, label, object_name, boardname)` (use `scripts/validate_training_csv.py --csv <mining_pool.csv> --workspace-root <ws> --validation-csv <validation_set.csv>`). Hard-stop on any hit. Catching leakage here, with only the new rows in scope, is cheap and isolates the offending source. The post-assembly leakage check in step 6b stays as a defence-in-depth backstop.
 
@@ -532,7 +556,7 @@ After every stage finishes, before advancing:
 
 1. Re-read the last line of `loop_log.jsonl` and the full `deft_state.json` from disk. Trust disk over in-memory.
 2. If `status=error` — halt, surface the disk evidence verbatim, **do not auto-retry**.
-3. If `status=ok` — print one status line and advance. Render `DEFT_Loop_Report.html` only at iteration end (`trigger="after-iteration"`) and at loop end (`trigger="loop-end"`); never inline.
+3. If `status=ok` — print one status line in the standard format `[iter <N>/<max> · <stage>] <key metric> · <duration> · next: <stage>` (e.g. `[iter 2/3 · train] FAR 6.34% → 3.11% (target <0.5%) · 11m · next: evaluate`; show FAR-vs-target whenever a new FAR is available), then advance. Render `DEFT_Loop_Report.html` only at iteration end (`trigger="after-iteration"`) and at loop end (`trigger="loop-end"`); never inline.
 
 ## Reports
 
