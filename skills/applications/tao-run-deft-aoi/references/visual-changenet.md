@@ -135,7 +135,14 @@ Accepted forms (TAO 7.0.0-rc-224):
 
 ### Pre-Flight responsibility
 
-Pre-Flight **must stage the backbone locally** before launch. The HuggingFace repo `nvidia/C-RADIOv2-B` ships only `model.safetensors` (no `.pth`), so the canonical recipe is:
+Pre-Flight **must stage the backbone locally** before launch. The HuggingFace repo `nvidia/C-RADIOv2-B` ships only `model.safetensors` (no `.pth`). Use the packaged staging script (idempotent; reuses an existing staged file; hard-fails if it cannot produce one):
+
+```bash
+STAGED=$(python3 <skill_root>/scripts/stage_backbone.py --workspace <workspace>)
+# STAGED -> <workspace>/augmentation/backbone/c_radio_v2_b.safetensors
+```
+
+Equivalent manual recipe (only if running the script is not possible):
 
 ```bash
 python3 - <<'PY'
