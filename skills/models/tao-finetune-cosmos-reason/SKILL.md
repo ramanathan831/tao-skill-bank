@@ -67,7 +67,7 @@ The model skill packages a helper:
 
 ```bash
 python skills/models/tao-finetune-cosmos-reason/scripts/prepare_cosmos3_vlm_checkpoint.py \
-  --checkpoint-path /abs/path/Cosmos3-Nano \
+  --checkpoint-path hf_model://nvidia/Cosmos3-Nano \
   --output-path /abs/path/Cosmos3-Nano-VLM \
   --secrets-env ~/.tao/secrets.env \
   --validate-with-image <cosmos-rl-image>

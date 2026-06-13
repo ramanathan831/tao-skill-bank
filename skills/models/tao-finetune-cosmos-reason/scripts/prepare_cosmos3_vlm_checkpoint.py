@@ -20,6 +20,12 @@ from pathlib import Path
 DEFAULT_COSMOS_FRAMEWORK_REPO = "https://github.com/NVIDIA/cosmos-framework.git"
 DEFAULT_CONVERSION_IMAGE = "nvcr.io/nvidia/pytorch:25.09-py3"
 DEFAULT_VLM_MODEL_NAME = "Qwen/Qwen3-VL-8B-Instruct"
+COSMOS3_HF_TO_FRAMEWORK_CHECKPOINT = {
+    "hf_model://nvidia/Cosmos3-Nano": "Cosmos3-Nano",
+    "nvidia/Cosmos3-Nano": "Cosmos3-Nano",
+    "hf_model://nvidia/Cosmos3-Super": "Cosmos3-Super",
+    "nvidia/Cosmos3-Super": "Cosmos3-Super",
+}
 
 
 def expand_path(value: str | Path) -> Path:
@@ -90,9 +96,19 @@ def ensure_cosmos_framework(path: Path, repo: str, no_clone: bool) -> None:
     run(["git", "clone", repo, str(path)])
 
 
+def normalize_checkpoint_arg(checkpoint_path: str) -> str:
+    return COSMOS3_HF_TO_FRAMEWORK_CHECKPOINT.get(checkpoint_path.strip(), checkpoint_path)
+
+
 def docker_checkpoint_mount(checkpoint_path: str) -> tuple[list[str], str]:
+    normalized = normalize_checkpoint_arg(checkpoint_path)
+    if normalized != checkpoint_path:
+        return [], normalized
+
     host_path = expand_path(checkpoint_path)
     if not host_path.exists():
+        if Path(os.path.expandvars(os.path.expanduser(checkpoint_path))).is_absolute():
+            raise SystemExit(f"Checkpoint path does not exist: {host_path}")
         return [], checkpoint_path
     container_path = f"/checkpoint/{host_path.name}"
     return ["-v", f"{host_path}:{container_path}:ro"], container_path
@@ -239,6 +255,7 @@ def write_metadata(output_path: Path, args: argparse.Namespace, status: str) -> 
     metadata = {
         "status": status,
         "checkpoint_path": args.checkpoint_path,
+        "normalized_checkpoint_path": normalize_checkpoint_arg(args.checkpoint_path),
         "output_path": str(output_path),
         "vlm_model_name": args.vlm_model_name,
         "cosmos_framework_path": str(expand_path(args.cosmos_framework_path)),
@@ -252,7 +269,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--checkpoint-path",
         required=True,
-        help="Source Cosmos3 checkpoint path or model name, for example /models/Cosmos3-Nano.",
+        help=(
+            "Source Cosmos3 checkpoint path or model name, for example "
+            "/models/Cosmos3-Nano, Cosmos3-Nano, nvidia/Cosmos3-Nano, or "
+            "hf_model://nvidia/Cosmos3-Nano."
+        ),
     )
     parser.add_argument(
         "--output-path",
