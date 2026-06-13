@@ -26,23 +26,23 @@ The SDK is the **optional** Python layer for users who need job handles, S3 I/O 
 
 ## Preflight
 
-Install `nvidia-tao-sdk[all]` before using this platform — the `[all]` extra pulls in every platform-specific dependency (Brev, S3 utilities, etc.):
+Install `nvidia-tao-sdk[all]` before using this platform — the `[all]` extra pulls in every platform-specific dependency (Brev, S3 utilities, etc.). If it is missing, install it by default in the active Python environment and rerun the import check:
 
 ```bash
 python -c "import tao_sdk" 2>/dev/null || {
-  echo "MISSING: nvidia-tao-sdk not installed. Run:"
-  echo "  pip install nvidia-tao-sdk[all]"
-  exit 1
+  echo "Installing missing Python requirement: nvidia-tao-sdk[all]"
+  python -m pip install "nvidia-tao-sdk[all]"
 }
+python -c "import tao_sdk"
 ```
 
 The package index is environment-specific — the runner/container is expected to have a working `pip` configuration (e.g. `~/.pip/pip.conf`, `PIP_INDEX_URL`, `PIP_EXTRA_INDEX_URL`, or proxy). If the install fails for index/network reasons, that's a runner setup issue; this skill stays agnostic to the registry.
 
-If missing, the agent prompts the user to authorize the install via Bash, then re-runs the preflight. Never auto-install silently.
+Missing pip requirements are installed automatically by default and reported in the run log. Non-pip/system prerequisites still require a normal preflight failure and user-visible remediation.
 
 ## Setup
 
-Credentials come from **environment variables** — sourced from `~/.config/tao/.env` (auto-loaded by the skill bank's SessionStart hook).
+Credentials come from **environment variables** — read from the session environment (export them in your shell before launching).
 
 ```python
 from tao_sdk.platforms.brev   import BrevSDK     # Brev GPU instances

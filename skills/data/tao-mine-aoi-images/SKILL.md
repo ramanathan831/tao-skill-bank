@@ -60,7 +60,13 @@ A GPU is required for both the encoder forward pass and the cuML/cuDF k-NN searc
 
 ```bash
 WORKSPACE=<absolute path that contains all parquets, outputs, and the source-pool images>
-DOCKER="docker run --gpus all --rm --ipc=host --user $(id -u):$(id -g) -v $WORKSPACE:$WORKSPACE -w $WORKSPACE $DS_IMAGE"
+DOCKER="docker run --gpus all --rm --ipc=host -v $WORKSPACE:$WORKSPACE -w $WORKSPACE $DS_IMAGE"
+```
+
+Do **not** pass `--user $(id -u):$(id -g)`. The `data_services` image imports `transformers` at startup, which calls `getpass.getuser()` → `pwd.getpwuid(os.getuid())`. With a non-root host UID and no matching `/etc/passwd` entry inside the container, this raises `KeyError: 'getpwuid(): uid not found: <uid>'` before any embedding or mining work starts. The container runs as root; chown outputs back to the host UID afterward if needed:
+
+```bash
+docker run --rm -v "$WORKSPACE:/w" alpine chown -R "$(id -u):$(id -g)" "/w/<results_subdir>"
 ```
 
 Reuse `$DOCKER` for the three invocations below.
@@ -174,7 +180,6 @@ EOF
 
 # Step 1: embed targets
 docker run --gpus all --rm --ipc=host \
-    --user "$(id -u):$(id -g)" \
     -v "$WORKSPACE:$WORKSPACE" -w "$WORKSPACE" \
     "$IMG" embedding image_embeddings \
     -e "$EMBED_SPEC" \
@@ -183,7 +188,6 @@ docker run --gpus all --rm --ipc=host \
 
 # Step 2: embed source pool (SAME embedding spec as Step 1)
 docker run --gpus all --rm --ipc=host \
-    --user "$(id -u):$(id -g)" \
     -v "$WORKSPACE:$WORKSPACE" -w "$WORKSPACE" \
     "$IMG" embedding image_embeddings \
     -e "$EMBED_SPEC" \
@@ -192,13 +196,16 @@ docker run --gpus all --rm --ipc=host \
 
 # Step 3: mine nearest neighbours
 docker run --gpus all --rm --ipc=host \
-    --user "$(id -u):$(id -g)" \
     -v "$WORKSPACE:$WORKSPACE" -w "$WORKSPACE" \
     "$IMG" tmm nearest_neighbors \
     -e "$MINE_SPEC" \
     source_parquet="$OUT/source_embeddings.parquet" \
     target_parquet="$OUT/target_embeddings.parquet" \
     output_parquet="$OUT/mined.parquet"
+
+# Chown outputs back to the host UID (container runs as root)
+docker run --rm -v "$WORKSPACE:$WORKSPACE" alpine \
+    chown -R "$(id -u):$(id -g)" "$OUT"
 
 # Sanity print so the script-check hook sees row counts
 python3 -c "
@@ -240,6 +247,7 @@ The mined parquet is the artifact downstream training consumes. The two embeddin
 
 ## Common pitfalls
 
+- **Passing `--user $(id -u):$(id -g)` to the container** — kills the run with `KeyError: 'getpwuid(): uid not found: <uid>'` during `transformers`' lazy import chain, before any embedding work starts. Drop the flag; chown outputs back to the host UID via a small `alpine` container afterward (see Setup).
 - **Mismatched encoders between target and source embeddings** — the single most common cause of garbage mining output. Both embedding steps must consume the **same** `embedding_spec.yaml`, and any Hydra override that changes `model` / `model_path` / `batch_size` must be applied to *both* invocations or to neither. The hook checks for this.
 - **Skipping an embedding step** — the mining task requires both inputs to contain an embedding column; the raw filepath parquets cannot be fed to it directly.
 - **Missing `label` column with `filter_by_label=true`** — the filter silently no-ops with a warning rather than erroring. If the mined output looks too large or contains cross-label pairs, grep the docker log for the warning and confirm both embedding parquets carry `label`.

@@ -175,6 +175,8 @@ are idempotent — re-running a completed step exits quickly.
 # (a) Cosmos base checkpoints (~22 GB for 2B-only, ~140 GB with 14B + T5-11b).
 # WRITABLE mount (no :ro) so download_checkpoints.sh can populate the cache.
 docker run --rm \
+  --user $(id -u):$(id -g) -e USER="$(id -un)" -e HOME=/tmp \
+  -v /etc/passwd:/etc/passwd:ro -v /etc/group:/etc/group:ro \
   -e HF_TOKEN -e HF_HUB_DISABLE_XET=1 -e PYTHONPATH=/workspace/paidf-anomalygen \
   -v $COSMOS:/workspace/paidf-anomalygen/checkpoints \
   -w /workspace/paidf-anomalygen $AG_IMAGE \
@@ -185,6 +187,8 @@ docker run --rm \
 # use-case; unrelated to the host-side <project> directory label).
 if [ ! -f "$DS/defect_spec.jsonl" ]; then
   docker run --rm \
+    --user $(id -u):$(id -g) -e USER="$(id -un)" -e HOME=/tmp \
+    -v /etc/passwd:/etc/passwd:ro -v /etc/group:/etc/group:ro \
     -e HF_TOKEN -e HF_HUB_DISABLE_XET=1 -e PYTHONPATH=/workspace/paidf-anomalygen \
     -v $WS:$WS -w /workspace/paidf-anomalygen $AG_IMAGE \
     python3 -m scripts.utilities.prepare_dataset_uc1 $DS
@@ -198,6 +202,8 @@ from the per-UC HF repo (see *Fine-tuned checkpoint sources* above) via:
 # (c) AnomalyGen fine-tuned checkpoint (PCB UC; ~5 GB).
 if [ ! -f "$CKPT/checkpoints/latest_checkpoint.txt" ]; then
   docker run --rm \
+    --user $(id -u):$(id -g) -e USER="$(id -un)" -e HOME=/tmp \
+    -v /etc/passwd:/etc/passwd:ro -v /etc/group:/etc/group:ro \
     -e HF_TOKEN -e HF_HUB_DISABLE_XET=1 -e PYTHONPATH=/workspace/paidf-anomalygen \
     -v $WS:$WS -w /workspace/paidf-anomalygen $AG_IMAGE \
     bash -lc "scripts/utilities/download_anomalygen_checkpoints.sh \
@@ -217,6 +223,8 @@ STEP=$(sed 's/^iter_0*\([0-9]*\)\.pt$/\1/' $CKPT/checkpoints/latest_checkpoint.t
 
 # Phase 2: AMP routing → testcase.jsonl  (~10s, no GPU)
 docker run --rm --gpus all --ipc=host --shm-size=16g \
+  --user $(id -u):$(id -g) -e USER="$(id -un)" -e HOME=/tmp \
+  -v /etc/passwd:/etc/passwd:ro -v /etc/group:/etc/group:ro \
   -e HF_TOKEN -e HF_HUB_DISABLE_XET=1 -e PYTHONPATH=/workspace/paidf-anomalygen \
   -v $WS:$WS -v $COSMOS:/workspace/paidf-anomalygen/checkpoints:ro \
   -w /workspace/paidf-anomalygen $AG_IMAGE \
@@ -227,6 +235,8 @@ docker run --rm --gpus all --ipc=host --shm-size=16g \
 
 # Phase 3: SDG diffusion → reconstructed_image/ + original_image/  (1-3 min on Blackwell)
 docker run --rm --gpus all --ipc=host --shm-size=16g \
+  --user $(id -u):$(id -g) -e USER="$(id -un)" -e HOME=/tmp \
+  -v /etc/passwd:/etc/passwd:ro -v /etc/group:/etc/group:ro \
   -e HF_TOKEN -e HF_HUB_DISABLE_XET=1 -e PYTHONPATH=/workspace/paidf-anomalygen \
   -v $WS:$WS -v $COSMOS:/workspace/paidf-anomalygen/checkpoints:ro \
   -w /workspace/paidf-anomalygen $AG_IMAGE \

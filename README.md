@@ -15,7 +15,7 @@ In a Claude Code session, add the marketplace and install the plugin:
 /plugin install tao-skills@tao-skill-bank
 ```
 
-That's it — no `git clone`, no `pip install`. The `tao-skills` plugin bundles all 56 skills (every model, data, platform, and application). The plugin's [`SessionStart`](hooks/session_start.sh) hook loads the [`AGENTS.md`](AGENTS.md) identity at the start of every session.
+That's it — no `git clone`, no `pip install`. The TAO Skill Bank plugin bundles all 56 skills (every model, data, platform, and application). The plugin's [`SessionStart`](hooks/session_start.sh) hook loads the [`AGENTS.md`](AGENTS.md) identity at the start of every session.
 
 ### Codex
 
@@ -29,7 +29,7 @@ curl -fsSL https://raw.githubusercontent.com/NVIDIA-TAO/tao-skills-bank/main/scr
 
 …or, if you've already cloned or extracted the repo from a zip, run
 `scripts/install-codex-agents.sh` from that directory. The script registers the
-marketplace, installs `tao-skill-bank`, and copies `AGENTS.md` to
+marketplace, installs the TAO Skill Bank plugin, and copies `AGENTS.md` to
 `~/.codex/AGENTS.md` so the TAO identity loads in every Codex session. It's
 idempotent and backs up any existing `~/.codex/AGENTS.md` before overwriting.
 Override the source with `TAO_SKILL_BANK_MARKETPLACE=…` and
@@ -45,7 +45,7 @@ TAO_SKILL_BANK_MARKETPLACE=/absolute/path/to/tao-skills-external \
 
 If you'd rather drive each step yourself:
 
-**1. Install the plugin.** Either use the VS Code Codex extension's plugin UI, or from the CLI:
+**1. Install the plugin.** Either use the VS Code Codex extension's plugin UI (select **TAO Skill Bank**), or from the CLI:
 
 ```bash
 codex plugin marketplace add git@github.com:NVIDIA-TAO/tao-skills-bank.git
@@ -70,27 +70,30 @@ Once Codex starts honoring plugin-bundled hooks, the identity will install autom
 
 ### Credentials
 
-Credentials can be exported in the current shell or stored in an env file that
-the agent is allowed to source, such as `~/.config/tao/.env` or
-`~/.tao/secrets.env`. On first session start, the plugin looks for
-`~/.config/tao/.env` and auto-loads it. To set up:
+The skill bank reads credentials from the **session environment** — export what you need in your shell **before launching**, and the session inherits them:
 
 ```bash
-mkdir -p ~/.config/tao
-cp "${CLAUDE_PLUGIN_ROOT}/.env.example" ~/.config/tao/.env  # template ships in the plugin
-# Edit ~/.config/tao/.env and fill in NGC_KEY, S3 keys, etc.
+export NGC_KEY=...            # nvcr.io image pulls
+export HF_TOKEN=...           # gated HuggingFace models
 ```
 
-The `.env.example` is also at the [repo root](.env.example) for direct
-reference. The agent never reads credential values — it only checks presence.
-When a workflow needs Hugging Face access, get a token from
-[Hugging Face settings](https://huggingface.co/settings/tokens) and accept the
-model or dataset license before launch.
+The vars each skill looks for (export only the ones your workflow needs):
 
-If a readiness check reports a missing CLI, container image, backbone, or
-credential, the TAO skills can often install or stage the missing piece after
-you approve the action. Ask the agent to continue the original workflow after a
-blocker is resolved; it should rerun preflight and proceed from the same task.
+| Var | Used for |
+|---|---|
+| `NGC_KEY` | `nvcr.io` image pulls — required by almost everything |
+| `HF_TOKEN` | gated HuggingFace models / `push_to_hub` |
+| `BREV_API_TOKEN` | `tao-run-on-brev` (optional — `brev login` also works) |
+| `ACCESS_KEY`, `SECRET_KEY`, `S3_BUCKET_NAME`, `S3_ENDPOINT_URL`, `CLOUD_REGION` | S3 / object-storage I/O via `script_runner` |
+| `WANDB_API_KEY`, `WANDB_PROJECT` | WandB experiment logging (AutoML / HF fine-tune) |
+
+The plugin does **not** create, load, or source any credentials file. On session start the hook reports which of these it detects in the environment (names only). The agent never reads credential values — it only checks presence.
+
+When a workflow needs Hugging Face access, get a token from [Hugging Face settings](https://huggingface.co/settings/tokens) and accept the model or dataset license before launch.
+
+If a readiness check reports a missing CLI, container image, backbone, or credential, the TAO skills can often install or stage the missing piece after you approve the action. Ask the agent to continue the original workflow after a blocker is resolved; it should rerun preflight and proceed from the same task.
+
+> **Persisting secrets is your own responsibility.** If you'd rather not re-export each session, persist the exports yourself (shell rc, a sourced file, or a secrets manager) — the skill bank will not manage a credentials file on your behalf.
 
 ### When does the SDK get installed?
 
@@ -204,12 +207,11 @@ tao-skills-external/
 │   └── plugin.json                   # plugin manifest (fallback when loaded directly)
 ├── hooks/
 │   ├── hooks.json                    # SessionStart hook registration
-│   └── session_start.sh              # emits agent guidance; sources ~/.config/tao/.env
+│   └── session_start.sh              # emits agent guidance; reports credential vars present in the env
 ├── .codex-plugin/
 │   └── plugin.json                   # Codex plugin manifest
 ├── .agents/
 │   └── plugins/marketplace.json      # Codex marketplace entry
-├── .env.example                      # credential template (copy to ~/.config/tao/.env)
 ├── versions.yaml                     # single source of truth: container images + SDK wheel versions
 ├── README.md
 ├── docs/

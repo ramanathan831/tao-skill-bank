@@ -44,7 +44,7 @@ train:
   tensorboard:
     enabled: True
     infrequent_logging_frequency: 1
-results_dir: /results
+results_dir: /results   # PLACEHOLDER — the loop MUST override this to ${RESULTS_DIR}=<workspace>/results/run_<TS> at launch; never leave as bare /results (writes outside <workspace>)
 model:
   backbone:
     type: "c_radio_v2_vit_base_patch16_224"

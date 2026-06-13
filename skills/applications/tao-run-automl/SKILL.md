@@ -130,6 +130,8 @@ preflight already passed. The review must include:
 - the automatic baseline eval job id, metric value, and result path from the
   post-preflight eval job, or an explicit blocker if the model has no runnable
   evaluate action or validation data
+- the post-AutoML final evaluation plan for the selected best checkpoint/model,
+  including metric, dataset, and record path
 
 If the estimate is longer than the user's stated limit or materially longer
 than a normal interactive run, ask whether to reduce recommendations, epochs,
@@ -154,15 +156,34 @@ report the blocker instead of silently falling back to a training-loss-only
 AutoML run. Continue without this baseline only when the user explicitly accepts
 that the run will optimize a proxy metric and will not have an impact baseline.
 
+The AutoML runner owns final evaluation of the selected best checkpoint/model.
+When a runnable evaluate action and validation/eval data exist, pass a
+`final_eval_fn(best_rec, train_job_id)` callback to `AutoMLRunner.run`. The
+callback must evaluate the selected best checkpoint/model with the same metric,
+dataset, and direction used for the baseline, store a structured record under
+the workspace, and return the measured metric or a dict containing
+`metric_value` and metadata such as `record_path` and `job_id`. Do not run final
+evaluation as an agent-side step after `runner.run`; the returned result should
+contain `result["final_evaluation"]` with a concrete status and reason.
+
 ## Dependency And Data Preflight
 
 If the selected workflow needs object storage or a platform CLI and the tool is
 missing, report the missing dependency and offer the exact install command
-before continuing. After user approval, install the smallest needed package and
-rerun preflight. For S3 paths, verify both credentials and path readability
-from the launch platform before creating runner artifacts. Do not wait for the
-first training container to discover a missing AWS CLI, S3 client, or unreadable
-URI.
+before continuing. After user approval, rerun
+`scripts/check_tao_launch_preflight.py` with `--install-missing-tools` so it
+installs the smallest needed package and immediately retries path verification.
+For S3 paths, verify both credentials and path readability from the launch
+platform before creating runner artifacts. Do not wait for the first training
+container to discover a missing AWS CLI, S3 client, or unreadable URI.
+
+For models that read large media archives or directories during every training
+trial, stage or extract the dataset once to storage visible from the execution
+platform, then point all recommendation specs at that staged path. Record the
+source URI, staged path, byte/file-count evidence when available, and timestamp
+in `<workspace>/evaluations/data_staging.json`. If staging is not possible,
+include the repeated S3 I/O risk in the pre-launch review and ask before
+spending a long AutoML budget on it.
 
 When the model skill defines sample-count-sensitive constraints, enforce them
 before launch. Reject or cap every batch-size recommendation that would create
@@ -173,6 +194,10 @@ before submitting it. If a recommendation later fails because the data is too
 small for the effective batch size, classify it as an invalid configuration,
 replace or adjust it only when remaining budget exists, and report the
 correction in the final summary.
+When train sample count is known from an annotation file or cheap manifest read,
+pass it as `automl_settings["train_sample_count"]` to `AutoMLRunner.run` so the
+runner can cap impossible recommendations before submitting a job and record the
+adjustment in `result["history"][i]["adjustments"]`.
 
 ## Algorithm Policy
 
@@ -258,6 +283,7 @@ result = runner.run(
     custom_param_ranges=custom_param_ranges,
     metric_extractor=metric_extractor,  # optional
     eval_fn=eval_fn,                    # optional
+    final_eval_fn=final_eval_fn,        # optional but required when final eval is runnable
 )
 ```
 
@@ -302,8 +328,8 @@ At completion:
    SDK helpers; do not guess filenames such as `latest`.
 4. Report the exact search space, algorithm, budget, metric, and platform.
 5. Report the automatic baseline eval job id/result path/metric, all
-   recommendation metrics, failed recommendations and root causes, elapsed time,
-   and final runtime notes.
+   recommendation metrics, final evaluation status/result path/metric, failed
+   recommendations and root causes, elapsed time, and final runtime notes.
 6. If this feeds a workflow such as AutoML + DEFT, pass the winning spec
    overrides and checkpoint through the workflow's declared handoff fields.
 
