@@ -570,6 +570,17 @@ Cosmos-RL models are 8B parameters and benefit from multi-GPU training with FSDP
 
 **NaN loss**: Learning rate may be too high. Reduce `optm_lr` and increase `optm_warmup_epochs`.
 
+**Flat ~11.9 loss with zero gradient on WTS-style answer training**: A public
+`nvidia/Cosmos3-Nano` local-Docker smoke that logs `Loss: 11.93121`,
+`Grad norm: 0.00000`, and `val_loss=11.931214` is not learning. Stop the run
+and treat the selected image as unable to train the native Cosmos3 Omni
+checkpoint directly. Run the Cosmos3 checkpoint conversion helper above,
+relaunch with the converted Qwen3-VL directory as the PTM, and verify that loss
+decreases before launching Slurm. Do not change the skill default to an
+internal-only Reasoner checkpoint to mask this issue; the default must remain
+the public gated `hf_model://nvidia/Cosmos3-Nano` unless the user explicitly
+provides a different accessible model.
+
 **vision_embeds.shape[0] must be equal to n_tokens**: `model_max_length` is too small for the video input at the current FPS and resolution. Increase `policy.model_max_length` to 40960.
 
 **Quantize image/video token mismatch**: `Mismatch in image token count between
