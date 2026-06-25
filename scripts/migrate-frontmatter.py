@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 """Bulk-add DAFT-style frontmatter fields to every SKILL.md.
 
 Mechanical fields (no per-skill judgment required):
@@ -61,7 +64,6 @@ def compatibility_for(skill_path: str) -> str:
     platform_compat = {
         "docker": "Requires docker + nvidia-container-toolkit.",
         "brev": "Requires the brev CLI (https://github.com/brevdev/brev-cli) and an active brev login.",
-        "lepton": "Requires the tao-sdk Python package with the lepton extra (pip install 'tao-sdk[lepton]') plus LEPTON_WORKSPACE_ID and LEPTON_AUTH_TOKEN.",
         "tao-sdk": "Requires Python 3.10+ and the tao-sdk package (pip install tao-sdk).",
     }
     if layer == "platform" and name in platform_compat:
@@ -96,11 +98,10 @@ def compatibility_for(skill_path: str) -> str:
 # Skills that orchestrate workflows and persist state files — need `Write`.
 # Most other skills only read inputs and shell out (Bash for docker / python / aws).
 _ORCHESTRATOR_PATHS = {
-    "applications/workflow-deft-aoi-loop",
-    "applications/deft-cosmos-rl",
-    "applications/deft-vcn-aoi",
-    "applications/tao-automl",
-    "applications/normal-train",
+    "skills/applications/tao-run-deft-aoi",
+    "skills/applications/deft-vcn-aoi",
+    "skills/applications/tao-run-automl",
+    "skills/applications/tao-train-single-step",
 }
 
 

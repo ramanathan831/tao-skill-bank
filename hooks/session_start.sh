@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 # SessionStart hook for the TAO skill bank.
 #
 # Stdout is loaded into the agent's context as additionalContext at session
@@ -6,13 +9,14 @@
 #
 # Responsibilities:
 #   1. Emit TAO orchestration guidance (the agent's identity + discovery flow).
-#   2. Persist user credentials from ~/.config/tao/.env into the session via
-#      $CLAUDE_ENV_FILE. The agent never reads values; only checks presence.
+#   2. Report which credential env vars are present in the session (names only).
+#      This hook does NOT read or load any credentials file — users export
+#      credentials in their own shell; the session inherits that environment.
 #   3. Surface clear setup hints if docker is missing.
 #
 # This hook does NOT install Python packages. The TAO SDK is opt-in and
-# installed lazily by the skills that need it (platform/lepton, platform/tao-sdk,
-# applications/tao-automl) via their Preflight blocks.
+# installed lazily by the skills that need it (skills/platform/tao-run-platform,
+# skills/applications/tao-run-automl) via their Preflight blocks.
 
 set -u
 
@@ -46,34 +50,38 @@ if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -n "${CLAUDE_ENV_FILE:-}" ]]; then
 fi
 
 # ─── 2. Credentials ───────────────────────────────────────────────────────
-TAO_ENV_FILE="${HOME}/.config/tao/.env"
-if [[ -f "$TAO_ENV_FILE" ]]; then
-  # Persist to the session env file so subsequent Bash tool calls inherit them.
-  if [[ -n "${CLAUDE_ENV_FILE:-}" ]]; then
-    cat "$TAO_ENV_FILE" >> "$CLAUDE_ENV_FILE"
-  fi
-  echo "## Credentials"
-  echo
-  echo "Loaded from \`~/.config/tao/.env\`. The following vars are now in the session:"
-  # List only NAMES — never values.
-  awk -F= '/^[[:space:]]*(export[[:space:]]+)?[A-Z_][A-Z0-9_]*=/ {
-    sub(/^[[:space:]]*export[[:space:]]+/, "")
-    split($0, a, "=")
-    print "- " a[1]
-  }' "$TAO_ENV_FILE" | sort -u
-  echo
+# This hook does NOT read or load any credentials file. Export credentials in
+# your own shell (or shell rc / secrets manager) before launching; the session
+# inherits that environment. Whether and how to persist secrets to disk is the
+# user's own responsibility — the skill bank neither writes nor reads a
+# credentials file. The agent only checks presence (names), never values.
+echo "## Credentials"
+echo
+# Known credential vars across the platform/model skills. Names only.
+_tao_cred_vars="NGC_KEY BREV_API_TOKEN \
+ACCESS_KEY SECRET_KEY S3_BUCKET_NAME S3_ENDPOINT_URL HF_TOKEN WANDB_API_KEY"
+_tao_present=""
+for _v in $_tao_cred_vars; do
+  [[ -n "${!_v:-}" ]] && _tao_present="${_tao_present} ${_v}"
+done
+if [[ -n "${_tao_present// /}" ]]; then
+  echo "Detected in this session's environment (names only):"
+  for _v in $_tao_present; do echo "- $_v"; done
 else
-  echo "## Credentials"
-  echo
-  echo "No \`~/.config/tao/.env\` found. To set up:"
-  echo "\`\`\`bash"
-  echo "mkdir -p ~/.config/tao"
-  echo "cp \"\${CLAUDE_PLUGIN_ROOT}/.env.example\" ~/.config/tao/.env"
-  echo "# Edit ~/.config/tao/.env and fill in values."
-  echo "\`\`\`"
-  echo "Future sessions will auto-load it."
-  echo
+  echo "No TAO credential vars detected in this session's environment."
 fi
+echo
+echo "Credentials are read from the environment — export what you need in your"
+echo "shell **before launching**, e.g.:"
+echo "\`\`\`bash"
+echo "export NGC_KEY=...            # nvcr.io image pulls"
+echo "export HF_TOKEN=...           # gated HuggingFace models"
+echo "# platform-specific: BREV_API_TOKEN, ACCESS_KEY/SECRET_KEY/S3_*"
+echo "\`\`\`"
+echo "See the Credentials section of the skill bank README for the full var list."
+echo "The skill bank does not create or load a credentials file; persisting"
+echo "secrets to disk is your own responsibility."
+echo
 
 # ─── 3. Docker preflight ──────────────────────────────────────────────────
 if ! command -v docker >/dev/null 2>&1; then
@@ -84,7 +92,9 @@ if ! command -v docker >/dev/null 2>&1; then
   echo "- CUDA Toolkit 13.0"
   echo "- NVIDIA Container Toolkit 1.19.0"
   echo
-  echo "Use the \`nvidia-gpu-setup\` skill to check or install the NVIDIA pieces, and install Docker separately:"
-  echo "- Docker: https://docs.docker.com/engine/install/"
+  echo "Use the \`tao-setup-nvidia-gpu-host\` skill to check / install the NVIDIA pieces;"
+  echo "its \`--backend docker --install --yes\` path also installs Docker on"
+  echo "Debian/RHEL/SUSE-family hosts and adds you to the \`docker\` group."
+  echo "Manual install reference: https://docs.docker.com/engine/install/"
   echo
 fi

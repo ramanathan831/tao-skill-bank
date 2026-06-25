@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 """Summarize TAO Skill Bank capabilities for plugin capability answers."""
 
 from __future__ import annotations
@@ -151,7 +154,7 @@ def skill_capability_record(skill_bank: Path, skill_md: Path) -> dict[str, Any]:
 
 def application_capabilities(skill_bank: Path) -> list[dict[str, Any]]:
     """Read top-level application skills and turn them into capability records."""
-    application_root = skill_bank.expanduser() / "applications"
+    application_root = skill_bank.expanduser() / "skills" / "applications"
     records: list[dict[str, Any]] = []
 
     for skill_md in sorted(application_root.glob("*/SKILL.md")):
@@ -165,7 +168,7 @@ def application_capabilities(skill_bank: Path) -> list[dict[str, Any]]:
 
 def data_capabilities(skill_bank: Path) -> list[dict[str, Any]]:
     """Read data skills and turn them into capability records."""
-    data_root = skill_bank.expanduser() / "data"
+    data_root = skill_bank.expanduser() / "skills" / "data"
     records: list[dict[str, Any]] = []
 
     for skill_md in sorted(data_root.glob("*/SKILL.md")):
@@ -193,12 +196,12 @@ def build_capabilities(skill_bank: Path) -> dict[str, Any]:
         "applications": application_capabilities(skill_bank),
         "data_workflows": data_capabilities(skill_bank),
         "platforms": {
-            "source": "platform/platforms.manifest.json",
+            "source": "skills/platform/platforms.manifest.json",
             "prompt_defaults": prompt_defaults(skill_bank),
             "supported": supported_platforms(skill_bank),
         },
         "model_workflows": {
-            "source": "models/schemas.manifest.json",
+            "source": "skills/models/schemas.manifest.json",
             "actions": list(FLOW_ACTIONS),
             "training_capable_models": training_models,
             "full_train_eval_infer_export_trt_models": full_finetune_models,
@@ -283,20 +286,24 @@ def format_capabilities_text(data: dict[str, Any]) -> str:
         [
             "",
             "AutoML/HPO support:",
-            "- I can tune TAO models with AutoMLRunner when a valid packaged train "
-            f"schema is present. Supported models: {csv(automl_models)}",
-            f"- Gate: {automl['support_rule']}",
+            "- AutoML is enabled from model metadata, so workflows that train a "
+            "model should route through AutoMLRunner when automl_policy=on "
+            "(the default), unless the user explicitly asks for a plain single "
+            "run or sets automl_policy=off.",
+            "- Runnable AutoML still requires a valid packaged train schema. "
+            f"Runnable models: {csv(automl_models)}",
+            f"- Rule: {automl['support_rule']}",
         ]
     )
     if automl["unsupported"]:
         lines.append(
-            "- Not AutoML-supported from the packaged manifests: "
+            "- AutoML-enabled models waiting on train schema packaging: "
             + "; ".join(
                 f"{item['model']} ({item['reason']})" for item in automl["unsupported"]
             )
         )
     else:
-        lines.append("- Not AutoML-supported from the packaged manifests: none")
+        lines.append("- AutoML-enabled models waiting on train schema packaging: none")
 
     lines.extend(
         [

@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 """Maintenance tool: generate TAO Core dataclass schemas into model packages.
 
 The skill bank treats these schemas as the source of truth for AutoML
@@ -184,6 +187,31 @@ def generate_schema_for_action(
     from nvidia_tao_core.api_utils import dataclass2json_converter
 
     network_arch = skill_config.get("network_arch", model_name)
+    if network_arch == "sparse4d" and action == "dataset_convert":
+        module = importlib.import_module("nvidia_tao_ds.config.annotations.default_config")
+        exp_config = module.ExperimentConfig()
+        json_with_meta = dataclass2json_converter.dataclass_to_json(exp_config)
+        schema = dataclass2json_converter.create_json_schema(json_with_meta)
+        schema["default"]["data"]["input_format"] = "AICITY"
+        schema["default"]["data"]["output_format"] = "OVPKL"
+        schema["default"]["aicity"]["root"] = "???"
+        schema["properties"]["data"]["default"]["input_format"] = "AICITY"
+        schema["properties"]["data"]["default"]["output_format"] = "OVPKL"
+        schema["properties"]["data"]["properties"]["input_format"]["default"] = "AICITY"
+        schema["properties"]["data"]["properties"]["output_format"]["default"] = "OVPKL"
+        schema["properties"]["aicity"]["default"]["root"] = "???"
+        schema["properties"]["aicity"]["properties"]["root"]["default"] = "???"
+        schema["x_tao_schema"] = {
+            "schema_version": 1,
+            "model": model_name,
+            "network_arch": network_arch,
+            "action": action,
+            "schema_action": "convert",
+            "core_module": "annotations",
+            "source": "tao-dataservices annotations dataclass config",
+        }
+        return schema, "annotations", "convert"
+
     schema_action = ACTION_ALIASES.get(action, action)
     errors = []
 
@@ -230,6 +258,7 @@ def generate_for_model(model_dir: Path, clean: bool) -> dict[str, Any]:
         "schema_version": 1,
         "model": model_dir.name,
         "network_arch": skill_config.get("network_arch", model_dir.name),
+        "automl_enabled": True,
         "actions": {},
         "failures": {},
     }
@@ -270,6 +299,7 @@ def build_support_summary(manifests: list[dict[str, Any]]) -> dict[str, Any]:
                 {
                     "model": model,
                     "network_arch": manifest.get("network_arch", model),
+                    "automl_enabled": True,
                     "train_schema": actions["train"]["path"],
                     "train_spec_template": actions["train"].get("spec_template"),
                     "automl_default_parameters": actions["train"].get("automl_default_parameters", []),
@@ -281,13 +311,14 @@ def build_support_summary(manifests: list[dict[str, Any]]) -> dict[str, Any]:
                 {
                     "model": model,
                     "network_arch": manifest.get("network_arch", model),
+                    "automl_enabled": True,
                     "reason": reason,
                 }
             )
 
     return {
         "schema_version": 1,
-        "support_rule": "AutoML is supported only when models/<network>/schemas/train.schema.json is packaged and valid.",
+        "support_rule": "AutoML is enabled at model level; runnable AutoML also requires skills/models/<network>/schemas/train.schema.json to be packaged and valid.",
         "supported": sorted(supported, key=lambda item: item["model"]),
         "unsupported": sorted(unsupported, key=lambda item: item["model"]),
     }
@@ -300,7 +331,7 @@ def main() -> int:
     skill_bank = args.skill_bank.expanduser().resolve()
     sys.path.insert(0, str(tao_core))
 
-    models_root = skill_bank / "models"
+    models_root = skill_bank / "skills" / "models"
     selected = set(args.model)
     manifests = []
 
@@ -317,14 +348,15 @@ def main() -> int:
         "models": {
             manifest["model"]: {
                 "network_arch": manifest["network_arch"],
+                "automl_enabled": manifest.get("automl_enabled", True),
                 "actions": sorted(manifest["actions"].keys()),
                 "failures": manifest["failures"],
             }
             for manifest in manifests
         },
     }
-    dump_json(skill_bank / "models" / "schemas.manifest.json", summary)
-    dump_json(skill_bank / "models" / "automl_support.json", build_support_summary(manifests))
+    dump_json(skill_bank / "skills" / "models" / "schemas.manifest.json", summary)
+    dump_json(skill_bank / "skills" / "models" / "automl_support.json", build_support_summary(manifests))
 
     generated_actions = sum(len(manifest["actions"]) for manifest in manifests)
     failed_actions = sum(len(manifest["failures"]) for manifest in manifests)
