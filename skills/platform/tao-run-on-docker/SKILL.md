@@ -7,7 +7,7 @@ description: Docker conventions for running NVIDIA GPU container workloads — N
 license: Apache-2.0
 compatibility: Requires NVIDIA driver branch 580, CUDA Toolkit 13.0, Docker, and NVIDIA Container Toolkit 1.19.0.
 metadata:
-  version: '0.1'
+  version: "0.1.0"
   author: NVIDIA Corporation
 allowed-tools: Read Bash
 tags:
@@ -33,8 +33,8 @@ SETUP_SCRIPT="${TAO_SKILL_BANK_ROOT}/platform/tao-setup-nvidia-gpu-host/scripts/
 
 bash "$SETUP_SCRIPT" --backend docker --check-only || {
   echo "MISSING: TAO GPU host runtime is not ready."
-  echo "After user approval, run:"
-  echo "  bash \"$SETUP_SCRIPT\" --backend docker --install --yes"
+  echo "After user approval, run (append --yes for non-interactive agent runs):"
+  echo "  bash \"$SETUP_SCRIPT\" --backend docker --install"
   exit 1
 }
 
@@ -199,7 +199,7 @@ Most TAO training workloads don't need this — single container per job.
 
 ## Common error modes
 
-**`could not select device driver "" with capabilities: [[gpu]]`** — NVIDIA Container Toolkit missing or Docker is not configured for the NVIDIA runtime. Run `tao-setup-nvidia-gpu-host` with `--backend docker --install --yes` after user approval, then restart Docker.
+**`could not select device driver "" with capabilities: [[gpu]]`** — NVIDIA Container Toolkit missing or Docker is not configured for the NVIDIA runtime. Run `tao-setup-nvidia-gpu-host` with `--backend docker --install` after user approval (append `--yes` for a non-interactive agent run), then restart Docker.
 
 **`unauthorized: authentication required`** on `docker pull` — NGC key invalid/missing. Re-run `docker login nvcr.io`.
 

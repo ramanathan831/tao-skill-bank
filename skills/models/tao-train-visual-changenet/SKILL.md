@@ -8,7 +8,7 @@ license: Apache-2.0
 compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
   author: NVIDIA Corporation
-  version: '0.1'
+  version: "0.1.0"
 allowed-tools: Read Bash
 tags:
 - pcb
@@ -60,8 +60,8 @@ parent `references/skill_info.yaml`; do not present them as runnable parent-skil
 actions unless the metadata is extended with matching action wiring and schemas.
 The per-run `automl_policy` override does not change model metadata.
 
-For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference` for classify and segment variants), read `deploy/SKILL.md` first. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
-Deploy requires an exported ONNX artifact as `parent_model`. If no ONNX artifact exists and the parent skill does not expose an export action, report deploy as blocked instead of inventing an artifact.
+For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference` for classify and segment variants), read `references/tao-deploy-visual-changenet.md` first. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
+Deploy requires an exported ONNX artifact as `parent_model`. If no ONNX artifact exists and the main skill does not expose an export action, report deploy as blocked instead of inventing an artifact.
 
 ## Training Requirements
 
@@ -241,46 +241,9 @@ S3_EVAL = "s3://bucket/data/eval"
     "gen_trt_engine.tensorrt.calibration.cal_image_dir": [f"{S3_TRAIN}/images.tar.gz"],
 }
 ```
-## Local Docker Invocation
+## Optional: running via the TAO SDK
 
-When running without the TAO SDK (local docker), resolve the TAO pyt image from `versions.yaml` and invoke directly:
-
-```bash
-set -a; source <workspace>/.env; set +a
-
-# Resolve the TAO pyt container URI from versions.yaml. The awk fallback keeps
-# local Docker usable on hosts where the helper's PyYAML dependency is missing.
-TAO_PYT_IMAGE=$(
-    "${TAO_SKILL_BANK_PATH:?}/scripts/resolve_versions_key.py" images.tao_toolkit.pyt 2>/dev/null ||
-    awk '/^[[:space:]]*pyt:/{print $2; exit}' "${TAO_SKILL_BANK_PATH:?}/versions.yaml"
-)
-
-docker run --rm --gpus all --shm-size=8g \
-    -e NGC_API_KEY="${NGC_API_KEY}" \
-    -v <workspace>:/data/workspace \
-    -v <workspace>/results:/results \
-    -v <workspace>/kpi/images:/data/datasets/NV_PCB_Siamese/images \
-    -v <workspace>/train/base:/data/datasets/NV_PCB_Siamese/csv \
-    -v <workspace>/kpi:/data/datasets/NV_PCB_Siamese/kpi \
-    -v <workspace>/augmentation/backbone/c_radio_v2_b.safetensors:/data/pretrained_models/C-RADIOv2_B.safetensors \
-    "$TAO_PYT_IMAGE" \
-    visual_changenet <train|evaluate|inference|export|quantize> -e /data/workspace/specs/<spec>.yaml \
-    [key=value overrides...]
-```
-
-**`--shm-size=8g` is required** — without it, dataloader workers crash with `Unexpected bus error encountered in worker` due to insufficient shared memory.
-
-**Backbone mount**: mount the C-RADIO `.safetensors` file directly as a single
-file or mount its parent directory, and set
-`model.backbone.pretrained_backbone_path` to the container path
-`/data/pretrained_models/C-RADIOv2_B.safetensors`.
-
-Override checkpoint and results_dir on the command line to avoid editing the spec:
-```bash
-visual_changenet inference -e /data/workspace/specs/spec.yaml \
-    inference.checkpoint=/results/<iter>/train/model_epoch_<EEE>_step_<SSS>.pth \
-    inference.results_dir=/results/<iter>/inference/<label>
-```
+When running without the TAO SDK (local docker), resolve the TAO pyt image from `versions.yaml` and invoke `visual_changenet <train|evaluate|inference|export|quantize>` directly. `--shm-size=8g` is required, the C-RADIO `.safetensors` must be mounted to `/data/pretrained_models/C-RADIOv2_B.safetensors`, and checkpoint/results_dir can be overridden on the command line. See `references/local-docker.md` for the full `docker run` command, mounts, and overrides.
 
 ## Tasks
 
@@ -304,187 +267,20 @@ Dataset structure for segmentation differs from classify — uses paired directo
 
 ## Data Format
 
-### Classify Inputs
-
-The model needs two things from the dataset: a CSV file and an images directory. Find these in the user's dataset and set the corresponding spec fields:
-
-| Spec field | What to set it to | Description |
-|------------|-------------------|-------------|
-| `dataset.classify.train_dataset.csv_path` | S3 path to the training CSV | 4-column CSV: `input_path,golden_path,label,object_name` |
-| `dataset.classify.train_dataset.images_dir` | S3 path to the images directory | Contains subdirectories referenced by CSV paths |
-| `dataset.classify.validation_dataset.csv_path` | S3 path to the validation CSV (optional) | Same 4-column format |
-| `dataset.classify.validation_dataset.images_dir` | S3 path to the images directory (optional) | Can be same as training images_dir |
-
-**How to find the right files:** List the dataset URI with `aws s3 ls <uri>` (or your storage CLI equivalent). Look for:
-- A CSV with 4 columns (`input_path`, `golden_path`, `label`, `object_name`) — may be in a subdirectory, may have a descriptive name
-- An `images/` directory (or similar) containing the image subdirectories referenced by the CSV
-
-### Classify CSV Format
-
-```csv
-input_path,golden_path,label,object_name
-data/defect,data/golden,bridge,bridge_PCB+solder_00000
-```
-
-- **input_path**: Directory path (relative to `images_dir`) containing the test/defect image.
-- **golden_path**: Directory path (relative to `images_dir`) containing the golden/reference image.
-- **label**: Defect class label (e.g., `bridge`, `PASS`, `NO_PASS`). For binary classification with `num_classes: 2`, the downstream loader collapses all defect labels into one class.
-- **object_name**: Filename stem (no extension, no light suffix). TAO constructs the full path as: `{images_dir}/{input_path}/{object_name}_{light_suffix}{image_ext}`.
-
-### Evaluate / Inference Inputs
-
-| Spec field | What to set it to |
-|------------|-------------------|
-| `dataset.classify.test_dataset.csv_path` | S3 path to test CSV (evaluate) |
-| `dataset.classify.test_dataset.images_dir` | S3 path to images (evaluate) |
-| `dataset.classify.infer_dataset.csv_path` | S3 path to inference CSV (inference) |
-| `dataset.classify.infer_dataset.images_dir` | S3 path to images (inference) |
-| `evaluate.checkpoint` | S3 path to trained checkpoint (evaluate) |
-| `inference.checkpoint` | S3 path to trained checkpoint (inference) |
-
-### Segment Inputs
-
-| Spec field | What to set it to |
-|------------|-------------------|
-| `dataset.segment.root_dir` | S3 path to root directory containing `A/`, `B/`, `list/`, `label/` subdirectories |
-
-### Lighting Conventions
-
-TAO builds file paths by string concatenation:
-
-```
-{images_dir}/{input_path}/{object_name}_SolderLight.jpg
-```
-
-The `input_map` config controls which lighting conditions are loaded and their channel indices. The `object_name` in the CSV must NOT include the light suffix or file extension — TAO appends those.
-
-### Segment Data Layout
-
-Segmentation uses a directory structure instead of CSV:
-
-```
-{root_dir}/
-  A/           # Before images
-  B/           # After images (same filenames as A/)
-  list/        # Split files: train.txt, val.txt, test.txt
-  label/       # Binary mask PNGs (0=unchanged, 255=changed)
-```
-
-The `image_ext` field in the spec (default `.jpg`) must match the actual file extensions in your dataset. If your images are `.png`, set `dataset.classify.image_ext: .png`.
-
-## Lighting Conditions (input_map)
-
-Visual ChangeNet supports multi-lighting-condition input via `dataset.classify.input_map`. Each key is a lighting condition name and the value is its channel index:
-
-```yaml
-input_map:
-  SolderLight: 0
-```
-
-For single-lighting setups, use one entry with index 0. For multi-lighting (e.g., inspection with multiple illumination angles), add entries:
-
-```yaml
-input_map:
-  SolderLight: 0
-  WhiteLight: 1
-  UVLight: 2
-num_input: 3
-```
-
-Set `dataset.classify.num_input` to match the number of lighting conditions. The `grid_map` controls how multi-input images are tiled (default 2x2).
+Classify needs a 4-column CSV (`input_path,golden_path,label,object_name`) plus an images directory; segment uses a paired directory structure (`A/`, `B/`, `list/`, `label/`) under `dataset.segment.root_dir` instead of CSV. The `image_ext` field (default `.jpg`) must match the actual file extensions; if images are `.png`, set `dataset.classify.image_ext: .png`. Multi-lighting input is configured via `dataset.classify.input_map` (each lighting name maps to a channel index) with `dataset.classify.num_input` set to match. See `references/data-formats.md` for the per-field input tables (classify train/eval/inference, segment), CSV column semantics, lighting/path-concatenation conventions, the segment directory layout, and `input_map`/`grid_map` examples.
 
 ## Important Parameters
 
-- **train.validation_interval**: Default 50. Run validation every N epochs. **IMPORTANT: must be ≤ num_epochs**, otherwise no validation runs and training may fail or produce no metrics. For short runs (e.g., 10 epochs), set to 5.
-- **train.checkpoint_interval**: Default 200. Save checkpoint every N epochs. **IMPORTANT: must be ≤ num_epochs**, otherwise no checkpoint is saved and the training output is lost. For short runs, set to match num_epochs or lower.
-- **train.num_epochs**: Default 100. Defect detection datasets are typically small, so training may converge in 50-100 epochs. Monitor validation metrics to avoid overfitting.
-- **model.classify.train_margin_euclid**: Margin for the Euclidean distance loss during training (default 2.0). Larger values push embeddings further apart. Increase if the model struggles to separate defective from non-defective.
-- **model.classify.eval_margin**: Classification threshold during evaluation (default 0.3). Samples with embedding distance below this margin are classified as non-defective; above as defective. This is the primary knob for precision/recall tradeoff -- lower values increase recall (catch more defects), higher values increase precision (fewer false alarms).
-- **model.classify.embedding_vectors**: Number of embedding dimensions (default 5). Increase for more complex defect patterns; decrease for simpler binary tasks.
-- **dataset.classify.batch_size**: Default 16. Training uses the Optical Inspection dataloader and requires this value to be greater than 1; use 2 as the minimum smoke-test value. Can be increased for small images (224x224) on GPUs with sufficient VRAM.
-- **dataset.classify.fpratio_sampling**: False positive ratio for balanced sampling during training (default 0.25). Controls the ratio of non-defective to defective samples in each batch.
-- **train.classify.cls_weight**: Class weights for cross-entropy loss (default [1.0, 10.0]). The higher weight on class 1 (defective) compensates for class imbalance typical in defect detection datasets.
-
-## Hardware
-
-- **Minimum**: 1 GPU with 16GB+ VRAM (V100 or A100). Single-GPU training works for small datasets (<10k images).
-- **Recommended**: 8 GPUs for production training on larger datasets. Visual ChangeNet uses DDP (DistributedDataParallel) across GPUs.
-- GPU count is managed internally by TAO -- do not set `gpu_spec_key` in the spec. The `num_nodes` field (default 1) controls multi-node training.
+Key knobs include `train.validation_interval` (default 50, must be ≤ num_epochs), `train.checkpoint_interval` (default 200, must be ≤ num_epochs), `train.num_epochs` (default 100), `model.classify.eval_margin` (default 0.3, the precision/recall threshold), `model.classify.train_margin_euclid` (default 2.0), `model.classify.embedding_vectors` (default 5), `dataset.classify.batch_size` (default 16, must be > 1), `dataset.classify.fpratio_sampling` (default 0.25), and `train.classify.cls_weight` (default [1.0, 10.0]). Hardware: minimum 1 GPU with 16GB+ VRAM, recommended 8 GPUs (DDP); do not set `gpu_spec_key` (GPU count is managed internally by TAO), `num_nodes` (default 1) controls multi-node. See `references/tuning-parameters.md` for the full per-parameter guidance and hardware detail.
 
 ## Error Patterns
 
-**Checkpoint not found**: The evaluate, inference, export, and quantize actions
-require a valid checkpoint path. Current TAO 6.25.10 Visual ChangeNet training
-emits epoch/step checkpoint files such as `model_epoch_000_step_00012.pth`;
-it does not necessarily write `changenet_model_classify_latest.pth` or
-`changenet_model_segment_latest.pth`. Use the model-skill `parent_model`
-resolver for downstream actions and `resume_model` for resume, or pass the exact
-epoch/step checkpoint when running local Docker directly.
-
-**CSV format mismatch**: The classify CSV must have exactly four columns:
-`input_path`, `golden_path`, `label`, and `object_name`. Missing columns or
-extra headers cause a silent failure or KeyError. Verify the CSV has no BOM
-characters and uses comma delimiters (not semicolons or tabs).
-
-**Image extension mismatch**: If `dataset.classify.image_ext` is `.jpg` but the actual images are `.png` (or vice versa), the data loader will find zero samples and training will fail with an empty dataset error. Always verify the extension matches your data.
-
-**OOM during training**: Reduce `dataset.classify.batch_size` (16 -> 8 -> 4). With the default image size of 224x224, batch_size=16 typically fits on a 16GB GPU. If using larger images via `image_width`/`image_height`, reduce batch size proportionally.
-
-**Low evaluation accuracy with correct training loss**: The `eval_margin` threshold may be miscalibrated for your data. After training, run inference on a validation set and inspect the embedding distance distribution to pick an appropriate threshold. The default 0.3 is tuned for the reference dataset and may not generalize.
-
-**`AssertionError: Contrastive loss only supports Euclidean distance module`** at evaluate/inference: the spec dropped the `train` subtree. Model `__init__` reads `train.classify.loss` regardless of action; omitting it falls back to contrastive loss, which then conflicts with non-default `model.classify.difference_module` (e.g. `learnable`) saved in the checkpoint. Keep `train.classify.loss` (and `train.classify.cls_weight`) in the spec for evaluate and inference too.
-
-**Checkpoint load key mismatch at evaluate/inference**: Keep the classify model
-architecture fields aligned with the train spec. C-RADIO classify checkpoints
-require `model.backbone.type: c_radio_v2_vit_base_patch16_224`,
-`model.classify.difference_module: learnable`, `model.classify.embed_dec: 30`,
-`model.classify.eval_margin: 0.3`, `dataset.classify.num_input: 1`, and
-`dataset.classify.input_map: {SolderLight: 0}` unless the training run used a
-different override set.
-
-**Training does not converge**: Check that `train.classify.cls_weight` is appropriate for your class distribution. If defects are very rare (<1% of samples), increase the defective class weight. Also verify that `fpratio_sampling` is not too low, which would under-sample the majority class.
-
-**Backbone dimension mismatch** (segment only): If the log shows size mismatch
-errors while loading the backbone, such as a checkpoint tensor with shape
-`[1024, 1024]` being copied into a model tensor with shape `[384, 384]`, the
-checkpoint does not match `model.backbone.type`. Keep the packaged
-`vit_large_nvdinov2` segment templates when using `NV_DINOV2_518_16_256.ckpt`,
-or clear `model.backbone.pretrained_backbone_path` to use default
-initialization.
-
-**OSError: Could not load MultiScaleDeformableAttention...so** (segment only): CUDA ops not compiled. The ViT adapter backbone requires custom CUDA kernels that must be compiled on first run. Run `python setup.py develop` inside the container (~5 min compilation). This only applies to the segmentation task.
-
-**MisconfigurationException: current_epoch=N, but max_epochs=M**: Old checkpoints in results directory. PyTorch Lightning auto-resumes from checkpoints and crashes if the new `max_epochs` is lower than a previous run's epoch. Fix: use a fresh results directory or unique run name.
-
-**PYTHONPATH / ModuleNotFoundError: nvidia_tao_pytorch**: The TAO entrypoint spawns subprocesses that don't source `.bashrc`. Pass `PYTHONPATH` explicitly via environment variables, not shell init files. The TAO pyt container resolved from `versions.yaml::images.tao_toolkit.pyt` has PYTHONPATH pre-configured.
-
-**Epoch defaults**: Classify training typically uses 100-2000 epochs depending on dataset size. Segmentation uses 200 epochs by default. For small datasets (<1k images), 100 epochs may suffice. For large production datasets, 2000 epochs with early stopping is common. Monitor validation metrics to determine convergence.
+For checkpoint-not-found, CSV format mismatch, image extension mismatch, OOM, low evaluation accuracy, the contrastive-loss `AssertionError`, checkpoint load key mismatch at evaluate/inference, non-convergence, segment-only backbone dimension mismatch, the `MultiScaleDeformableAttention` `OSError`, the Lightning `MisconfigurationException`, `ModuleNotFoundError: nvidia_tao_pytorch`, and epoch defaults, see `references/troubleshooting.md` for the full symptom-and-fix list.
 
 ## Spec Param / Parent Model Inference
 
-Model-specific parent-model mappings are declared in `references/skill_info.yaml` under `spec_params`. Keep this section aligned with that metadata so generated runners and agents resolve checkpoints before `create_job()` instead of guessing file names.
+Model-specific parent-model mappings are declared in `references/skill_info.yaml` under `spec_params`, so generated runners and agents resolve checkpoints before `create_job()` instead of guessing file names. For `parent_model` or `parent_model_folder`, pass the upstream train/export/AutoML child job id as `parent_job_id`; the SDK lists the parent result folder, filters checkpoint artifacts, and returns the selected model file or folder. See `references/parent-model-inference.md` for the full per-action spec-field-to-inference-function mapping table.
 
-Inference mappings from this model skill:
+## Deployment
 
-| Action | Spec Field | Inference Function | Meaning |
-|---|---|---|---|
-| train | `results_dir` | `output_dir` | current job results directory |
-| train | `model.backbone.pretrained_backbone_path` | C-RADIO download descriptor | staged classify backbone |
-| train | `train.resume_training_checkpoint_path` | `resume_model` | resume checkpoint inferred from parent train results |
-| evaluate | `results_dir` | `output_dir` | current job results directory |
-| evaluate | `evaluate.checkpoint` | `parent_model` | checkpoint inferred from parent train or AutoML child results |
-| inference | `results_dir` | `output_dir` | current job results directory |
-| inference | `inference.checkpoint` | `parent_model` | checkpoint inferred from parent train or AutoML child results |
-| export | `results_dir` | `output_dir` | current job results directory |
-| export | `export.checkpoint` | `parent_model` | checkpoint inferred from parent train or AutoML child results |
-| export | `export.onnx_file` | `create_onnx_file` | ONNX artifact path created for deploy |
-| quantize | `results_dir` | `output_dir` | current job results directory |
-| quantize | `quantize.model_path` | `parent_model` | checkpoint inferred from parent train or AutoML child results |
-| segment_train | `results_dir` | `output_dir` | current job results directory |
-| segment_train | `train.resume_training_checkpoint_path` | `resume_model` | resume checkpoint inferred from parent train results |
-| segment_evaluate | `results_dir` | `output_dir` | current job results directory |
-| segment_evaluate | `evaluate.checkpoint` | `parent_model` | checkpoint inferred from parent train or AutoML child results |
-| segment_inference | `results_dir` | `output_dir` | current job results directory |
-| segment_inference | `inference.checkpoint` | `parent_model` | checkpoint inferred from parent train or AutoML child results |
-
-For `parent_model` or `parent_model_folder`, pass the upstream train/export/AutoML child job id as `parent_job_id`. The SDK lists the parent result folder, filters checkpoint artifacts, and returns the selected model file or folder. Do not add these mappings back to `config.json` and do not patch generated runner scripts to guess checkpoint paths.
+- [tao-deploy-visual-changenet](references/tao-deploy-visual-changenet.md)

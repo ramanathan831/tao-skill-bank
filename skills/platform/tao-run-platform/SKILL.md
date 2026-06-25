@@ -8,7 +8,7 @@ license: Apache-2.0
 compatibility: Requires Python 3.10+ and the nvidia-tao-sdk package (pip install nvidia-tao-sdk[all]).
 metadata:
   author: NVIDIA Corporation
-  version: '0.2'
+  version: "0.1.0"
 allowed-tools: Read Bash
 tags:
 - platform
@@ -191,124 +191,7 @@ The two shapes look superficially similar but mean different things. When in dou
 
 ### Constructing the spec / args
 
-The skill's action declares its config mechanism in `skill_info.yaml`'s `actions.<action>.mode` field. Treat missing `mode` as invalid metadata and fix the skill instead of inferring a default. The agent's construction strategy follows from that:
-
-| `mode` | How to construct |
-|---|---|
-| `args` | Copy the `actions.<a>.args` block from `skill_info.yaml` as your template. Substitute placeholders (`{storage_root}`, `{split_id}`, `{num_gpus}`, etc.) with the user's runtime values. Pass to `build_entrypoint(args=...)`. |
-| `config` + `references/spec_template_<a>.yaml` exists | Load the template via `yaml.safe_load(...)` as the base spec; apply user overrides on top. Pass to `build_entrypoint(specs=...)`. |
-| `config`, no template | Follow the model's `SKILL.md` — typically a "Critical Overrides" section lists which keys must be set. Construct the spec accordingly. Pass to `build_entrypoint(specs=...)`. |
-| `passthrough` | Bare command + path-keyed `inputs={container_path: uri}` / `outputs=[paths]`. Pass to `build_entrypoint(inputs=..., outputs=...)`. |
-
-**Recommended decision order:**
-
-1. Read `action_cfg = skill_info["actions"][action]`. Check `action_cfg["mode"]`.
-2. For `config` mode: check `references/spec_template_<action>.yaml`. If it exists, **load it as your base** — don't rebuild from scratch.
-3. Apply user overrides on top (plus any "Critical Overrides" rows from the model's `SKILL.md`).
-4. For `args` mode: copy `action_cfg["args"]`, fill placeholders, hand to `build_entrypoint(args=...)`.
-
-```python
-import yaml
-from pathlib import Path
-
-skill_dir = Path(bank) / "skills/models/<model>"
-skill_info = yaml.safe_load((skill_dir / "references/skill_info.yaml").read_text())
-action_cfg = skill_info["actions"][action]
-mode = action_cfg["mode"]
-
-if mode == "args":
-    args = dict(action_cfg["args"])
-    args["weak-video-list"] = args["weak-video-list"].format(storage_root=user_storage)
-    # ... substitute remaining placeholders
-    ep = build_entrypoint(command=action_cfg["command"], args=args, ...)
-
-elif mode == "config":
-    template = skill_dir / f"references/spec_template_{action}.yaml"
-    specs = yaml.safe_load(template.read_text()) if template.exists() else {}
-    # apply user overrides on top
-    specs.setdefault("policy", {})["model_name_or_path"] = user_model
-    # ... etc
-    ep = build_entrypoint(command=action_cfg["command"], specs=specs, ...)
-```
-
-### Spec-driven jobs
-
-The skill's action declares a config file (`config_format`, `command: ... {config_path} ...`). Covers TAO models (DINO, BEVFusion, classification-pyt, …) and cosmos-rl — anything whose container reads a spec file and writes outputs to declared spec keys. Use whichever platform SDK fits the target backend; the `build_entrypoint` call is identical across platforms.
-
-```python
-import yaml
-from tao_sdk.script_runner import build_entrypoint
-from tao_sdk.versions import resolve_container_image
-# pick the SDK matching your target platform:
-from tao_sdk.platforms.slurm      import SlurmSDK      # or
-from tao_sdk.platforms.kubernetes import KubernetesSDK # or
-from tao_sdk.platforms.docker     import DockerSDK     # or
-from tao_sdk.platforms.brev       import BrevSDK
-
-skill_info = yaml.safe_load(open(f"{bank}/models/tao-train-dino/references/skill_info.yaml"))
-action_cfg = skill_info["actions"]["train"]
-
-specs = {
-    "dataset": {
-        "train_data_sources": [{
-            "image_dir":  "s3://my-bucket/coco/train/images",
-            "json_file":  "s3://my-bucket/coco/train/annotations.json",
-        }],
-        "val_data_sources": [{
-            "image_dir":  "s3://my-bucket/coco/val/images",
-            "json_file":  "s3://my-bucket/coco/val/annotations.json",
-        }],
-        "num_classes": 80,
-    },
-    "train": {"num_epochs": 10, "num_gpus": 8},
-    # No results_dir — script_runner auto-fills at runtime.
-}
-
-ep = build_entrypoint(
-    command=action_cfg["command"],                       # e.g. "dino train -e {config_path}"
-    specs=specs,                                          # → infers config mode
-    inputs=action_cfg["inputs"],                          # spec-keyed dict from skill_info.yaml
-    outputs=action_cfg["outputs"],
-    config_format=action_cfg["config_format"],            # "yaml" / "toml" / "json"
-    upload_excludes=action_cfg.get("upload_excludes", []),
-)
-
-sdk = ...   # one of the SDKs above
-job = sdk.create_job(
-    image=resolve_container_image(skill_info["container_image"]),
-    command=ep["command"],
-    gpu_count=8,
-    # Platform-specific kwargs go here — see each platform's SKILL.md:
-    #   SLURM:      partition, account, num_nodes
-    #   Kubernetes: namespace, node_selector, tolerations, num_nodes
-    #   Docker:     mounts
-    #   Brev:       instance_id, gpu_type, cloud_cred_id, workspace_group_id
-)
-print(f"Job submitted: {job.id}    Results: {job.results_dir}")
-```
-
-### Path-keyed jobs (no config file)
-
-The skill's action does not write a spec file — inputs are passed as `{container_path: uri}` and outputs as a list of container paths. Covers HF inference scripts, custom commands, anything that takes its inputs via direct paths rather than a config file.
-
-```python
-ep = build_entrypoint(
-    command="python infer.py --model /models/cosmos --input /data/in --output /results",
-    inputs={                                              # path-keyed → infers passthrough mode
-        "/models/cosmos": "hf_model://nvidia/Cosmos3-Nano",        # HF Hub
-        "/data/in":       "s3://bucket/test/in",                    # S3
-        # also supported: "ngc://..."
-    },
-    outputs=["/results/"],
-)
-sdk.create_job(image=img, command=ep["command"], gpu_count=1)
-```
-
-In passthrough mode the runtime dispatches each input URI by scheme — `s3://`, `hf_model://`, `ngc://` — to the right downloader. No spec rewriting, no `{config_path}`. After the command, listed output paths are uploaded per the same destination resolution rules (S3 if `S3_BUCKET_NAME`, else mount, else container-ephemeral with warning).
-
-### Entrypoint shape follows declared `mode`
-
-Read `actions.<action>.mode` from `skill_info.yaml` first, then pass the matching argument shape to `build_entrypoint`:
+The skill's action declares its config mechanism in `skill_info.yaml`'s `actions.<action>.mode` field. Treat missing `mode` as invalid metadata and fix the skill instead of inferring a default. Read `actions.<action>.mode` first, then pass the matching argument shape to `build_entrypoint`:
 
 | Declared mode | What the agent passes |
 |---|---|
@@ -317,6 +200,8 @@ Read `actions.<action>.mode` from `skill_info.yaml` first, then pass the matchin
 | `passthrough` | path-keyed `inputs=...` and/or `outputs=...`; the helper downloads to listed paths, runs the command, and uploads listed outputs |
 
 Do not infer mode from missing metadata. Missing `mode` means the skill contract is stale.
+
+See [`references/spec-construction.md`](references/spec-construction.md) for the per-mode construction strategy, the recommended decision order, and worked `build_entrypoint` examples for spec-driven jobs (config file) and path-keyed jobs (no config file).
 
 ## Resolving container images
 
@@ -410,47 +295,7 @@ specs["dataset"]["train_csv"] = f"{base}/train.csv"   # nested — see "spec is 
 
 ## Platform-specific notes
 
-### Brev (`from tao_sdk.platforms.brev import BrevSDK`)
-- Jobs run on GPU instances via `brev exec`.
-- No shared storage — S3 only.
-- Pass `instance_id="<id>"` in kwargs to reuse an existing instance (skip 2–5 min boot).
-- Pass `gpu_type="L40S"` to control instance class for ephemeral instances.
-- Pass `cloud_cred_id="<id>"` and `workspace_group_id="<id>"` on multi-credential
-  or multi-workspace accounts. Without them, `brev create` rejects with a
-  placement error. Discover via `brev orgs --json` (cloud cred) and
-  `brev ls --json` (workspace group). See `skills/platform/tao-run-on-brev/SKILL.md` →
-  *Creating an instance — placement info* for the full lookup recipe.
-- The handler waits for both `status=RUNNING` and `brev exec ... -- true`
-  before returning, so a `create_job` → `get_job_logs` sequence won't race
-  sshd bring-up. The first remote exec uses a 600s timeout to absorb the
-  container-pull window; reused instances use 30s.
-- Use `sdk.delete_instance(instance_id)` when done with an ephemeral one.
-
-### SLURM
-- Jobs submit over SSH to a login node with `sbatch` and run containers through
-  Pyxis/Enroot `srun --container-image`.
-- Use the platform helper output to ask only for SLURM credentials and storage
-  settings. Do not ask for Brev or Kubernetes credentials.
-- Dataset paths must be visible from the cluster job, usually absolute Lustre or
-  shared filesystem paths; do not pass agent-host local paths to SLURM jobs.
-- Use the packaged SLURM runtime defaults unless the user gives a validated
-  override. For the common `polar,polar3,polar4,grizzly` queues, prefer the
-  four-hour default rather than generating 12-hour wrappers.
-
-### Kubernetes
-- Jobs run as Kubernetes Jobs on a configured GPU cluster.
-- Auth uses kubeconfig (`KUBECONFIG` or `~/.kube/config`) or an in-cluster
-  service account.
-- Requires NVIDIA GPU Operator or equivalent `nvidia.com/gpu` device plugin.
-- Do not ask for Brev or SLURM credentials for Kubernetes runs.
-- A local path on the agent host is not proof that the path is mounted inside
-  the job pod.
-
-### Local Docker
-- Jobs run on the local Docker daemon host.
-- Multi-node is not supported; multi-GPU on the local host is supported.
-- Verify local dataset paths, Docker daemon access, and NVIDIA runtime before
-  generating or launching runner artifacts.
+See [`references/platform-notes.md`](references/platform-notes.md) for per-platform behavior, kwargs, and credential scoping: Brev (`instance_id`/`gpu_type`/`cloud_cred_id`/`workspace_group_id`, ready-wait timeouts), SLURM (sbatch over SSH, Lustre paths, queue defaults), Kubernetes (kubeconfig, GPU Operator), and local Docker (single-host, multi-GPU).
 
 ## Error patterns
 
@@ -461,12 +306,4 @@ similar — the entries map exception text to the underlying cause.
 
 ## What the SDK does NOT do
 
-- It does **not** read or interpret skills. The agent reads `SKILL.md` and `references/skill_info.yaml`; the SDK just submits whatever command the agent constructs.
-- It does **not** do hyperparameter optimization by itself. The agent owns the
-  model-level AutoML policy: when model metadata has `automl_enabled: true`, use
-  `skills/applications/tao-run-automl` (which uses this SDK as a building block) with
-  `automl_policy: on` by default unless the workflow passes `automl_policy: off`
-  or the user explicitly asks for a plain single training run.
-- It does **not** decide what goes in the spec. The agent constructs the spec dict (loading templates, applying overrides) and passes it to `build_entrypoint`, which serializes the spec and inlines the in-container runner that writes it to `{config_path}` at job start. The SDK has no opinion about which keys you set.
-- It does **not** select platforms automatically. Pick the SDK matching your target backend explicitly: `BrevSDK`, `DockerSDK`, `SlurmSDK`, or `KubernetesSDK`.
-- It does **not** orchestrate multi-step workflows. The agent chains jobs by polling and constructing the next command.
+The SDK does not read/interpret skills, run AutoML on its own, decide spec contents, select platforms, or orchestrate multi-step workflows — those stay the agent's responsibility. See [`references/scope.md`](references/scope.md) for the full scope guardrails, including the model-level AutoML policy (`automl_enabled: true` → `skills/applications/tao-run-automl` unless `automl_policy: off` or the user asks for a plain single run).

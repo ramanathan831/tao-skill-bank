@@ -3,6 +3,14 @@
   "default_long_running_enabled": true,
   "default_status_interval_minutes": 5,
   "credential_definitions": {
+    "LEPTON_WORKSPACE_ID": {
+      "description": "Lepton/DGX Cloud workspace where TAO jobs will be submitted.",
+      "how_to_get": "Open the Lepton workspace UI or CLI context and use the workspace id for the target GPU workspace."
+    },
+    "LEPTON_AUTH_TOKEN": {
+      "description": "API token used to submit and monitor Lepton jobs.",
+      "how_to_get": "Create or copy a Lepton API token from the Lepton account/workspace settings."
+    },
     "BREV_API_TOKEN": {
       "description": "Brev API token used to create and manage GPU instances/jobs.",
       "how_to_get": "Create or copy a token from the Brev console settings page."
@@ -105,6 +113,77 @@
     }
   },
   "platforms": [
+    {
+      "name": "lepton",
+      "display_name": "Lepton / DGX Cloud",
+      "aliases": [
+        "dgx-cloud"
+      ],
+      "backend_type": "lepton",
+      "description": "Managed GPU compute on DGX Cloud through Lepton jobs.",
+      "required_credentials": [
+        {
+          "name": "LEPTON_WORKSPACE_ID",
+          "source": "env_var",
+          "description": "Lepton/DGX Cloud workspace where TAO jobs will be submitted.",
+          "how_to_get": "Open the Lepton workspace UI or CLI context and use the workspace id for the target GPU workspace."
+        },
+        {
+          "name": "LEPTON_AUTH_TOKEN",
+          "source": "env_var",
+          "description": "API token used to submit and monitor Lepton jobs.",
+          "how_to_get": "Create or copy a Lepton API token from the Lepton account/workspace settings."
+        }
+      ],
+      "optional_credentials": [
+        {
+          "name": "NGC_KEY",
+          "source": "env_var"
+        },
+        {
+          "name": "ACCESS_KEY",
+          "source": "env_var",
+          "only_when": "dataset or result URIs use s3://"
+        },
+        {
+          "name": "SECRET_KEY",
+          "source": "env_var",
+          "only_when": "dataset or result URIs use s3://"
+        },
+        {
+          "name": "S3_ENDPOINT_URL",
+          "source": "env_var",
+          "only_when": "using a custom S3-compatible endpoint"
+        },
+        {
+          "name": "S3_BUCKET_NAME",
+          "source": "env_var",
+          "only_when": "workflow needs a default output bucket"
+        },
+        {
+          "name": "CLOUD_REGION",
+          "source": "env_var",
+          "only_when": "S3-compatible storage requires a region"
+        }
+      ],
+      "storage": {
+        "protocol": "aws",
+        "uri_format": "s3://{bucket_name}/{path}",
+        "metadata_key": "aws"
+      },
+      "dataset_examples": [
+        "s3://my-bucket/cosmos_rl/train",
+        "s3://my-bucket/cosmos_rl/eval",
+        "custom.train_dataset.annotation_path=s3://my-bucket/cosmos_rl/train/annotations.json",
+        "custom.train_dataset.media_path=s3://my-bucket/cosmos_rl/media/videos.tar.gz"
+      ],
+      "preflight_checks": [
+        "Confirm LEPTON_WORKSPACE_ID and LEPTON_AUTH_TOKEN are set in the launch environment.",
+        "Verify Lepton API access for the workspace before generating runner scripts.",
+        "Verify s3:// dataset/result URIs with ACCESS_KEY/SECRET_KEY and aws s3 ls, or provide manual proof for mounted shared storage paths.",
+        "Verify model-specific credentials such as HF_TOKEN before generating runner scripts."
+      ]
+    },
     {
       "name": "brev",
       "display_name": "Brev",
@@ -343,94 +422,10 @@
         "custom.train_dataset.media_path=/data/tao/media/videos.tar.gz"
       ],
       "preflight_checks": [
-        "Confirm Docker is reachable from the launch host, the NVIDIA runtime is registered, host nvidia-smi reports GPUs/driver/memory, and a smoke container can see GPUs.",
+        "Confirm Docker is reachable from the launch host and the NVIDIA runtime can see GPUs.",
         "Validate local dataset annotation/media paths with test -e before generating runner scripts.",
         "For s3:// inputs, verify S3 credentials are present and aws s3 ls can read the dataset/result paths.",
-        "Verify model-specific credentials such as HF_TOKEN before launching the container.",
-        "For selected images with known architecture limits, block hosts whose GPU SM is unsupported before model/data downloads.",
-        "Print GPU memory and enforce --min-gpu-memory-gb when a model/workflow declares a hard memory floor."
-      ]
-    },
-    {
-      "name": "remote-docker",
-      "display_name": "Remote Docker",
-      "aliases": [
-        "remote docker",
-        "docker-remote"
-      ],
-      "backend_type": "local-docker",
-      "description": "Docker execution through a remote Docker daemon, usually DOCKER_HOST=ssh://user@host, for local agents that submit work to a remote GPU box.",
-      "required_credentials": [
-        {
-          "name": "DOCKER_HOST",
-          "source": "env_var"
-        }
-      ],
-      "optional_credentials": [
-        {
-          "name": "DOCKER_NETWORK",
-          "source": "env_var"
-        },
-        {
-          "name": "DOCKER_USERNAME",
-          "source": "env_var"
-        },
-        {
-          "name": "DOCKER_PULL_POLICY",
-          "source": "env_var"
-        },
-        {
-          "name": "DOCKER_AUTO_REMOVE",
-          "source": "env_var"
-        },
-        {
-          "name": "NGC_KEY",
-          "source": "env_var"
-        },
-        {
-          "name": "ACCESS_KEY",
-          "source": "env_var",
-          "only_when": "dataset or result URIs use s3://"
-        },
-        {
-          "name": "SECRET_KEY",
-          "source": "env_var",
-          "only_when": "dataset or result URIs use s3://"
-        },
-        {
-          "name": "S3_ENDPOINT_URL",
-          "source": "env_var",
-          "only_when": "using a custom S3-compatible endpoint"
-        },
-        {
-          "name": "S3_BUCKET_NAME",
-          "source": "env_var",
-          "only_when": "workflow needs a default output bucket"
-        },
-        {
-          "name": "HF_TOKEN",
-          "source": "env_var",
-          "only_when": "selected model requires HuggingFace access"
-        }
-      ],
-      "storage": {
-        "protocol": "remote-docker-host",
-        "uri_format": "file://{absolute_path_on_remote_docker_host}",
-        "metadata_key": "remote_docker"
-      },
-      "dataset_examples": [
-        "/data/tao/<model>/train",
-        "file:///data/tao/<model>/eval",
-        "custom.train_dataset.annotation_path=/data/tao/train/annotations.json",
-        "custom.train_dataset.media_path=/data/tao/media/videos.tar.gz"
-      ],
-      "preflight_checks": [
-        "Require DOCKER_HOST and verify docker info talks to that remote daemon.",
-        "Verify the remote daemon has the NVIDIA runtime registered.",
-        "Query remote GPU driver, memory, and SM through docker run rather than local nvidia-smi.",
-        "Validate remote Docker host dataset paths through read-only bind-mount checks from a smoke container.",
-        "For s3:// inputs, verify S3 credentials are present and aws s3 ls can read the dataset/result paths from the launch environment.",
-        "For selected images with known architecture limits, block remote hosts whose GPU SM is unsupported before model/data downloads."
+        "Verify model-specific credentials such as HF_TOKEN before launching the container."
       ]
     },
     {
