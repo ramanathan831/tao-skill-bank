@@ -22,11 +22,11 @@ repos / rate limits).
 
 CLI:
 
-    python scripts/stage_backbone.py --workspace ~/workspace
+    python scripts/stage_backbone.py --workspace /home/user/workspace
 
     # or an explicit destination / different repo:
     python scripts/stage_backbone.py \
-        --dest ~/workspace/augmentation/backbone/c_radio_v2_b.safetensors \
+        --dest /home/user/workspace/augmentation/backbone/c_radio_v2_b.safetensors \
         --repo-id nvidia/C-RADIOv2-B --filename model.safetensors
 
 On success the absolute staged path is printed to stdout as the last line, so a

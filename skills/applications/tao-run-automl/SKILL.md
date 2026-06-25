@@ -7,10 +7,10 @@ description: Run AutoML / hyperparameter optimization (HPO) for NVIDIA TAO netwo
   autoresearch, or wants to tune training hyperparameters for any TAO network. Platform-agnostic — runs on any SDK (Brev,
   SLURM, Kubernetes, Docker).
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit. Workflows declare additional requirements.
+compatibility: Requires docker + nvidia-container-toolkit. Sub-skills declare additional requirements.
 metadata:
   author: NVIDIA Corporation
-  version: "0.1.0"
+  version: '0.2'
 allowed-tools: Read Bash Write
 tags:
 - automl

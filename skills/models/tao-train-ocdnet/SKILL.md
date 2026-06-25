@@ -7,7 +7,7 @@ description: OCDNet for scene text detection. Detects arbitrary-oriented text re
 license: Apache-2.0
 compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  version: "0.1.0"
+  version: '0.1'
   author: NVIDIA Corporation
 allowed-tools: Read Bash
 tags:
@@ -21,9 +21,9 @@ OCDNet for scene text detection. Detects arbitrary-oriented text regions in natu
 
 Set `model.pretrained_model_path` for pretrained weights.
 
-For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference`), read `references/tao-deploy-ocdnet.md` first. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
+For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference`), read `deploy/SKILL.md` first. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
 
-The PyT OCDNet CLI supports `train`, `evaluate`, `export`, `inference`, `prune`, `quantize`, and `default_specs`. It does not expose PyT-side `retrain` or `gen_trt_engine` subcommands. The model skill exposes `retrain` by running `ocdnet train` with `model.load_pruned_graph: true` and `model.pruned_graph_path`. Resume from an epoch checkpoint uses `ocdnet train` plus `train.resume_training_checkpoint_path`. TensorRT engine generation is owned by the deploy workflow.
+The PyT OCDNet CLI supports `train`, `evaluate`, `export`, `inference`, `prune`, `quantize`, and `default_specs`. It does not expose PyT-side `retrain` or `gen_trt_engine` subcommands. The model skill exposes `retrain` by running `ocdnet train` with `model.load_pruned_graph: true` and `model.pruned_graph_path`. Resume from an epoch checkpoint uses `ocdnet train` plus `train.resume_training_checkpoint_path`. TensorRT engine generation is owned by the deploy sub-skill.
 
 ## Dataclass Schemas
 
@@ -220,7 +220,3 @@ Model handoff mappings:
 | train | `train.resume_training_checkpoint_path` | `resume_model` | model file inferred from the current job results folder |
 
 For `parent_model` or `parent_model_folder`, pass the upstream train/export/AutoML child job id as `parent_job_id`. The SDK lists the parent result folder, filters checkpoint artifacts, and returns the selected model file or folder. Do not add these mappings back to `config.json` and do not patch generated runner scripts to guess checkpoint paths.
-
-## Deployment
-
-- [tao-deploy-ocdnet](references/tao-deploy-ocdnet.md)

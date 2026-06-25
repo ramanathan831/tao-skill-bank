@@ -14,7 +14,7 @@ license: Apache-2.0
 compatibility: Runs `--check-only` on any Linux distribution. `--install` automates Ubuntu 22.04/24.04 + Debian 12 (apt), Fedora + RHEL/Rocky/AlmaLinux 9/10 (dnf), and openSUSE Leap / SLES 15 (zypper). Requires sudo/root, internet access to NVIDIA package repositories (and download.docker.com on rhel-family), and an x86_64 or aarch64 (sbsa) host. Other distributions (Arch, Alpine, Gentoo, NixOS, …) get a clear error that names the version targets and the NVIDIA install-guide URL.
 metadata:
   author: NVIDIA Corporation
-  version: "0.1.0"
+  version: '0.1'
 allowed-tools: Read Bash
 tags:
 - setup
@@ -62,18 +62,11 @@ From the skill bank root:
 bash skills/platform/tao-setup-nvidia-gpu-host/scripts/setup-nvidia-gpu-host.sh --backend docker --check-only
 
 # Install or repair after user approval.
-bash skills/platform/tao-setup-nvidia-gpu-host/scripts/setup-nvidia-gpu-host.sh --backend docker --install
+bash skills/platform/tao-setup-nvidia-gpu-host/scripts/setup-nvidia-gpu-host.sh --backend docker --install --yes
 
 # Check a Kubernetes GPU worker host.
 bash skills/platform/tao-setup-nvidia-gpu-host/scripts/setup-nvidia-gpu-host.sh --backend kubernetes --check-only
 ```
-
-> ⚠️ **Note — running non-interactively (agent/skill runs):** a skill run has no terminal, so the
-> installer's `Continue? [y/N]` prompt cannot be answered. After running `--check-only` to preview and
-> getting the user's approval, append the assume-yes flag (`--yes`) to the `--install` command so it
-> proceeds without a prompt — this auto-confirms installation of system packages (NVIDIA driver, CUDA
-> Toolkit, NVIDIA Container Toolkit, and Docker for Docker backends) and modifies the host, so only do
-> this on a host you control. A person running `--install` directly at a terminal gets the prompt instead.
 
 ## Workflow Contract
 
@@ -84,8 +77,8 @@ SETUP_SCRIPT="${TAO_SKILL_BANK_ROOT:-$PWD}/platform/tao-setup-nvidia-gpu-host/sc
 
 bash "$SETUP_SCRIPT" --backend docker --check-only || {
   echo "MISSING: TAO GPU host runtime is not ready."
-  echo "After user approval, run (append --yes for non-interactive agent runs):"
-  echo "  bash \"$SETUP_SCRIPT\" --backend docker --install"
+  echo "After user approval, run:"
+  echo "  bash \"$SETUP_SCRIPT\" --backend docker --install --yes"
   exit 1
 }
 ```

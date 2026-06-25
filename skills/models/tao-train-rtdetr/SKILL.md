@@ -7,7 +7,7 @@ description: RT-DETR (Real-Time DEtection TRansformer) for 2D object detection. 
 license: Apache-2.0
 compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  version: "0.1.0"
+  version: '0.1'
   author: NVIDIA Corporation
 allowed-tools: Read Bash
 tags:
@@ -21,7 +21,7 @@ RT-DETR (Real-Time DEtection TRansformer) for 2D object detection. Designed for 
 
 Set model.pretrained_backbone_path for backbone weights or train.pretrained_model_path for full model.
 
-For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference`), read `references/tao-deploy-rtdetr.md` first. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
+For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference`), read `deploy/SKILL.md` first. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
 
 ## Dataclass Schemas
 
@@ -35,7 +35,7 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 
 ## Supported Actions
 
-The packaged RT-DETR PyT CLI supports `train`, `distill`, `quantize`, `evaluate`, `export`, `inference`, and `default_specs`. This model skill exposes `train`, `distill`, `quantize`, `evaluate`, `export`, and `inference`; resume/retrain is performed through `train` with `train.resume_training_checkpoint_path`.
+The packaged RT-DETR PyT CLI supports `train`, `distill`, `quantize`, `evaluate`, `export`, `inference`, and `default_specs`. This parent model skill exposes `train`, `distill`, `quantize`, `evaluate`, `export`, and `inference`; resume/retrain is performed through `train` with `train.resume_training_checkpoint_path`.
 
 The parent PyT CLI does not expose `gen_trt_engine`. Use `models/rtdetr/deploy` for TensorRT engine generation, TensorRT evaluation, and TensorRT inference.
 
@@ -250,7 +250,7 @@ tensor b (...)` in `hybrid_encoder.py` positional embedding addition.
 
 **Checkpoint handoff**: For evaluate/export/inference/quantize/distill/resume, use the checkpoint resolver on the best AutoML child job's `results_dir/train/` folder and select the action-appropriate `model_epoch_*.pth` checkpoint. RT-DETR may also write a latest symlink, but that should only be used when a caller explicitly requests latest. Keep `dataset.num_classes`, `dataset.eval_class_ids`, `model.num_queries`, and `model.num_select` consistent with training.
 
-**Parent `rtdetr gen_trt_engine` rejected by the PyT CLI**: In the validated 7.0.0 PyT container, `rtdetr gen_trt_engine` is not a valid parent-model subtask. Use the RT-DETR deploy workflow (`references/tao-deploy-rtdetr.md`) for TensorRT engine generation, TensorRT evaluation, and TensorRT inference.
+**Parent `rtdetr gen_trt_engine` rejected by the PyT CLI**: In the validated 7.0.0 PyT container, `rtdetr gen_trt_engine` is not a valid parent-model subtask. Use the RT-DETR deploy sub-skill (`deploy/SKILL.md`) for TensorRT engine generation, TensorRT evaluation, and TensorRT inference.
 
 ## Spec Param / Parent Model Inference
 
@@ -285,7 +285,3 @@ Inference mappings from TAO Core `rtdetr.config.json`:
 | train | `train.resume_training_checkpoint_path` | `resume_model` | model file inferred from the current job results folder |
 
 For `parent_model` or `parent_model_folder`, pass the upstream train/export/AutoML child job id as `parent_job_id`. The SDK lists the parent result folder, filters checkpoint artifacts, and returns the selected model file or folder. Do not add these mappings back to `config.json` and do not patch generated runner scripts to guess checkpoint paths.
-
-## Deployment
-
-- [tao-deploy-rtdetr](references/tao-deploy-rtdetr.md)

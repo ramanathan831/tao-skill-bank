@@ -7,7 +7,7 @@ description: Masked Auto-Encoder (MAE) for self-supervised pretraining and fine-
 license: Apache-2.0
 compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  version: "0.1.0"
+  version: '0.1'
   author: NVIDIA Corporation
 allowed-tools: Read Bash
 tags:
@@ -22,10 +22,11 @@ MAE (Masked Autoencoder) for self-supervised pretraining and fine-tuning. Masks 
 
 Set train.pretrained_model_path for pretrained MAE weights when fine-tuning.
 
-For TAO Deploy TensorRT actions (`gen_trt_engine`), read `references/tao-deploy-mask-auto-encoder.md` first. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
+For TAO Deploy TensorRT actions (`gen_trt_engine`), read `deploy/SKILL.md` first. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
 
 The parent PyTorch `mae` CLI supports `train`, `evaluate`, `inference`, and
-`export`. Build TensorRT engines through the deploy workflow, not the model skill.
+`export`. Build TensorRT engines through the deploy subskill, not the parent
+model skill.
 
 ## Dataclass Schemas
 
@@ -186,7 +187,3 @@ Use the `convnextv2_atto_latest.pth` or other latest symlink only when latest
 is explicitly requested. Carry `train.stage`, `model.arch`, `model.num_classes`,
 and export input size forward into evaluate, inference, export, and deploy
 specs so the checkpoint and ONNX/engine shapes match.
-
-## Deployment
-
-- [tao-deploy-mask-auto-encoder](references/tao-deploy-mask-auto-encoder.md)

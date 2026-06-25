@@ -4,7 +4,7 @@ license: Apache-2.0
 compatibility: Requires docker + nvidia-container-toolkit and a CUDA GPU. Pulls the `metropolis_sdg.paidf_anomalygen` image declared in `versions.yaml` at the skill bank root.
 metadata:
   author: NVIDIA Corporation
-  version: "0.1.0"
+  version: '0.2'
 allowed-tools: Read Bash
 description: >-
   Full PAIDF AnomalyGen pipeline — fine-tune on a new anomaly dataset, generate
@@ -15,55 +15,53 @@ description: >-
   AnomalyGen", "generate anomaly images", "run PAIDF SDG", "evaluate SDG output
   quality", "run per-sample search", or run any part of the AnomalyGen pipeline,
   even if they only mention one phase.
-tags:
-- tao
-- data
 ---
 
 # PAIDF AnomalyGen
 
-Multi-phase pipeline (0–7); the `mode` flag selects which phases run.
+Multi-phase pipeline (0–7). The `mode` flag selects which phases run.
 
 | Phase | What runs | Mode(s) |
 |---|---|---|
 | 0 | Verify / download pretrained checkpoints | all |
 | 1 | Fine-tune on `dataset_dir` | `full`, `finetune_only` |
 | 2 | Prepare inference JSONL (AMP routing) | `full`, `inference_only` |
-| 3 | SDG — generate synthetic anomaly images → `original/` | `full`, `inference_only` |
+| 3 | SDG — generate synthetic anomaly images → `original/` (targets `num_SDG`; can be smaller if Phase 2 dropped a defect entirely due to total AMP failure — see Error handling) | `full`, `inference_only` |
 | 4 | Eval `original/` — emit `per_sample.csv` + `eval.log`, merge `nn_score` into `SDG_result.csv` | `full`, `inference_only` |
 | 5 | Per-sample `(guidance, crop_ratio)` search rounds → `rounds/round_NN/` (each round runs SDG + eval) | `full`, `inference_only` |
-| 6 | Assemble best-of-rounds into `searched/` (stitch only), plus `rounds/search_summary.csv` | `full`, `inference_only` |
-| 7 | Filter `searched/` by `nn_threshold` (default `0.4`), regen dropped samples, then canonical bucket eval → `searched/{per_sample.csv, eval.log}` | `full`, `inference_only` |
+| 6 | Assemble best-of-rounds into `searched/` (stitch only — copies images + carries over per-sample nn from each pick's source round; no re-eval), plus `rounds/search_summary.csv` | `full`, `inference_only` |
+| 7 | Filter `searched/` by `nn_threshold` (default `0.4`), regen dropped samples up to 5× via re-AMP, fall back to best-per-defect, then run the canonical bucket eval → `searched/{per_sample.csv, eval.log}` | `full`, `inference_only` |
 
 Run every phase through to completion without mid-run pauses. Collect all
-required parameters up front, and run every command from the repo root.
+required parameters up front. Run every command from the repo root.
 
-**Shell setup.** All `${ANOMALYGEN_SCRIPTS}` references resolve to the packaged
-helper-script directory. Inside the container this is preset (`ENV
-ANOMALYGEN_SCRIPTS=<dir>/scripts/utilities`); on the host, export it once per
-shell:
+**Shell setup.** All `${ANOMALYGEN_SCRIPTS}` references below resolve to
+the packaged helper-script directory. Inside the container this is preset
+(`ENV ANOMALYGEN_SCRIPTS=…/scripts/utilities`). On the host, export it
+once per shell:
 
 ```bash
 export ANOMALYGEN_SCRIPTS="$(git rev-parse --show-toplevel)/scripts/utilities"
 ```
 
-`python3 -m scripts.utilities.<name>` invocations work from any CWD inside the
-container (PYTHONPATH is preset) and from the repo root on the host. When inside
-a product container (`ANOMALYGEN_PRODUCT_MODE=1`), invoke `anomalygen-guard`
-before any GPU work; if it reports `BLOCKED`, fix the listed issues before
-continuing.
+`python3 -m scripts.utilities.<name>` invocations work from any CWD inside
+the container (PYTHONPATH is preset) and from the repo root on the host.
+
+When inside a product container (`ANOMALYGEN_PRODUCT_MODE=1`), invoke
+`anomalygen-guard` before any GPU work. If it reports `BLOCKED`, fix the
+listed issues before continuing.
 
 ## Quick Start
 
 The pipeline runs inside the `metropolis_sdg.paidf_anomalygen` container
-(declared in `versions.yaml`) or any host with the `cosmos-predict2` conda env
-active. All phase commands assume that environment, at the repo root, with
-`ANOMALYGEN_SCRIPTS` exported.
+(declared in `versions.yaml`) — or any host with the `cosmos-predict2` conda
+env active. All phase commands below assume you are in that environment, at the
+repo root, with `ANOMALYGEN_SCRIPTS` exported (see Shell setup above).
 
 Minimal end-to-end run (`mode=full`):
 
 ```bash
-# 1. Set the shared variables (see "Shared variables" for the full set).
+# 1. Set the shared variables (see "Shared variables" below for the full set).
 export ANOMALYGEN_SCRIPTS="$(git rev-parse --show-toplevel)/scripts/utilities"
 MODE=full
 NAME=my_exp
@@ -75,56 +73,102 @@ MODEL_SIZE=2b
 # 2. Phase 0 — verify / download checkpoints (~140 GB; needs HF_TOKEN).
 ${ANOMALYGEN_SCRIPTS}/check.sh || ${ANOMALYGEN_SCRIPTS}/download_checkpoints.sh
 
-# 3. Walk Phases 1→7 in order (see each Phase section).
+# 3. Walk Phases 1→7 in order, reading the referenced files first.
+#    See "Phase 1 — fine-tune" onward for the exact commands per phase.
 ```
 
-For `mode=inference_only` (reuse a checkpoint) also set `CKPT`/`STEP` and skip
-Phase 1. For `mode=finetune_only` run only Phases 0–1.
+For `mode=inference_only` (reuse an existing checkpoint) also set `CKPT` and
+`STEP`, and skip Phase 1. For `mode=finetune_only` run only Phases 0–1.
 
 ## Running in Docker — container launch, mounts & permissions
 
-The `paidf-anomalygen` image runs as a non-root baked-in user (`USER
-anomalygen`, `uid=10000`), independent of your host uid. Docker does not remap
-uids on bind mounts, so a host directory owned by your uid is not writable by
-uid 10000 and the container fails the instant it tries to create a file there.
-Run as your host uid with `--user "$(id -u):$(id -g)"` plus the mandatory
-`/etc/passwd`+`/etc/group` and `HOME`/cache-redirect companions, and run the
-fail-fast write preflight before Phase 0. See `references/docker.md` for the
-full `docker run` command, the load-bearing-flag table, the preflight snippet,
-and the uid-10000 `chown`/`chmod` fallback.
+The `paidf-anomalygen` image runs as a **non-root baked-in user**
+(`USER anomalygen`, `uid=10000`), independent of your host uid. Docker does
+**not** remap uids on bind mounts by default, so a host directory owned by
+your uid is **not writable by uid 10000**. The container fails the instant it
+tries to *create* a file/subdir inside such a mount — kernel checks write+exec
+on the **parent** dir. This surfaces early at Phase 0 (HF writes
+`stored_tokens` into `HF_HOME`) and again at Phase 2 (AMP creates
+`<name>/amp/<sample>/…` under `ag_inference/`). Any single host-owned ancestor
+in a runtime-created subtree breaks creation.
+
+**Recommended: run as your host uid (`--user`).** Outputs end up owned by you,
+no host `chmod` needed. Two companions are mandatory for *this* image:
+
+```bash
+WORK=/abs/path/to/run        # holds home/, checkpoints/, results/, ag_inference/, ag_configs/
+mkdir -p "$WORK"/{home,checkpoints,results,ag_inference,ag_configs}
+docker run -d --name agrun --gpus all \
+  --user "$(id -u):$(id -g)" \
+  -v /etc/passwd:/etc/passwd:ro -v /etc/group:/etc/group:ro \   `# ① uid must resolve to a name`\
+  -e HOME=/work/home -e HF_HOME=/work/home/hf \                 `# ② redirect all caches to a writable mount`\
+  -e XDG_CACHE_HOME=/work/home/.cache -e TRITON_CACHE_DIR=/work/home/.triton \
+  -e TORCHINDUCTOR_CACHE_DIR=/work/home/.inductor -e MPLCONFIGDIR=/work/home/.mpl \
+  -e HF_TOKEN="$HF_TOKEN" \
+  -v "$WORK/home:/work/home" \
+  -v "$WORK/checkpoints:/workspace/paidf-anomalygen/checkpoints" \
+  -v "$WORK/results:/workspace/paidf-anomalygen/results" \
+  -v "$WORK/ag_inference:/workspace/paidf-anomalygen/ag_inference" \
+  -v "$WORK/ag_configs:/workspace/paidf-anomalygen/ag_configs" \
+  <image> sleep infinity
+```
+
+Both companions are load-bearing — verified by smoke test:
+
+| Flag | Omit it and… |
+|---|---|
+| `--user $(id -u):$(id -g)` | container stays uid 10000 → can't write host mounts (the original error). |
+| `-v /etc/passwd:/etc/passwd:ro` (+`/etc/group`) | your uid has no name in the image → **Phase 4 eval crashes** in `torch.compile` (`getpass.getuser()` → `KeyError: getpwuid(): uid not found`). |
+| `-e HOME=…` + cache vars | real `HOME` (`/home/anomalygen`) is uid 10000's → HF / triton / inductor / matplotlib caches hit a fresh `EACCES`. |
+
+**Fail-fast preflight** (run before Phase 0 — catches the mismatch in seconds
+instead of mid-Phase 2):
+
+```bash
+docker run --rm --user "$(id -u):$(id -g)" -v "$WORK/ag_inference:/mnt" <image> \
+  bash -lc 'mkdir -p /mnt/.wtest/a/b && rm -rf /mnt/.wtest && echo OK \
+            || { echo "mount not writable by uid $(id -u)"; exit 1; }'
+```
+
+**Fallback (only when you cannot use `--user`** — e.g. shared host where output
+files *must* stay owned by uid 10000): keep the container at uid 10000 and make
+each **mount root** writable by it — `sudo chown -R 10000:10000 "$WORK"` (or
+`chmod -R 777 "$WORK"`). Apply it to the mount **root**, never just leaf output
+dirs: the pipeline creates deep subtrees (`amp/<sample>/`, `rounds/round_NN/`,
+`regens/regen_NN/`) at runtime, and one host-owned ancestor anywhere breaks it.
 
 ## Reference files — read before executing phases
 
-Read **`references/finetune.md`** before Phase 0/1 and **`references/inference.md`**
-before any of Phases 2–7; for `mode=full` read both before starting. The
-remaining references below are on-demand — read when troubleshooting or needing
-full detail for a specific phase.
+Read **`references/finetune.md`** before Phase 0 or Phase 1 (env check,
+checkpoint download details, dataset validation, config generation, training
+commands, best-checkpoint selection).
+
+Read **`references/inference.md`** before any of Phases 2–7 (AMP routing,
+JSONL validation, SDG flags, eval interpretation, search loop, filtering).
+
+**On-demand deep references** — read when troubleshooting or needing full detail for a specific phase:
 
 | File | Read when |
 |---|---|
-| `references/finetune.md` | Before Phase 0/1: env check, checkpoint download, dataset validation, config generation, training commands, best-checkpoint selection |
-| `references/finetune-commands.md` | Exact Phase 1 Step 1–4 commands and `CKPT`/`STEP` derivation |
-| `references/inference-commands.md` | Exact Phase 5 `run_round.sh` and Phase 7 `filter_with_regen` commands |
-| `references/inference.md` | Before Phases 2–7: AMP routing, JSONL validation, SDG flags, eval interpretation, search loop, filtering |
 | `references/setup.md` | Checkpoint download fails; first-time setup; HF_TOKEN / disk issues |
 | `references/datasets.md` | User needs to prepare or obtain a UC1 / UC2 / UC3 dataset; `dataset_dir` doesn't exist yet |
 | `references/prep-testcase.md` | AMP fails; need full param table, helper script descriptions, allocation invariant |
 | `references/sdg-inference.md` | NCCL hang; checkpoint validation error; multi-GPU VRAM question; full step list |
 | `references/eval.md` | Unexpected scores; FID column order confusion; eval output format reference |
 | `references/sdg-refine.md` | draws.json alignment; re-AMP heuristics; search output layout |
-| `references/guard-and-custom-counts.md` | Full guard preflight command; `--per-defect-counts` example |
-| `references/docker.md` | Container launch command, mount-permission flags, write preflight, uid-10000 fallback |
-| `references/output-layout.md` | Full `results/<name>/` directory tree with per-file annotations; post-run Verification checklist |
-| `references/error-handling.md` | Pipeline-level failure modes: missing mask dirs, short/empty AMP, mid-round resume, off-boundary `step` |
+
+For `mode=full`: read **both** `finetune.md` and `inference.md` before starting.
 
 ---
 
 ## Required parameters
 
-`num_SDG` allocation depends on `prep_testcase.sh --mode`: `inference` (default,
-Phase 2) is uniform across defect types, override per-defect via
-`--per-defect-counts`; `validation` (Phase 1's validation JSONL) is proportional
-to training mask counts (largest-remainder rounding) and enforces ≥1 per defect.
+`num_SDG` allocation depends on `prep_testcase.sh --mode`:
+- **`inference` (default, used by Phase 2)** — uniform across defect types;
+  override per-defect via `--per-defect-counts`.
+- **`validation` (used by Phase 1's validation JSONL)** — proportional to
+  training mask counts (largest-remainder rounding); enforces ≥1 per defect.
+
 See `references/prep-testcase.md` for the full mode table.
 
 | Parameter | Description |
@@ -147,8 +191,8 @@ See `references/prep-testcase.md` for the full mode table.
 |---|---|---|
 | `clean_dir` | `dataset_dir` | Clean images. Set only when they live outside the training dataset. Forwarded as `--clean-dir` to prep-testcase and `--clean-image-path` to finetune. |
 | `validation_jsonl` | auto-generated | Pre-built validation JSONL for Phase 1. When supplied, preflight verifies every `defect_spec` type appears and paths exist. |
-| `num_search_run` | `3` | Per-sample search budget for Phase 5. `0` skips search (only `original/`). *(Ignored when `mode=finetune_only`.)* |
-| `nn_threshold` | `0.4` | `nn_score` cutoff for Phase 7 (DINOv2 correspondence to real defects — key KPI). Samples below are regenerated; final `searched/` always has `num_SDG`. `0` disables filtering. |
+| `num_search_run` | `3` | Per-sample search budget for Phase 5. Set `0` to skip search (only `original/` produced). *(Ignored when `mode=finetune_only`.)* |
+| `nn_threshold` | `0.4` | `nn_score` cutoff for Phase 7 (DINOv2 correspondence to real defects — key KPI). Samples below the threshold are regenerated; final `searched/` always has `num_SDG`. Set to `0` to disable filtering. |
 | `max_iter` | `75000` | Phase 1 only. Total fine-tune iterations. |
 | `save_iter` | `5000` | Phase 1 only. Checkpoint save interval. |
 | `validation_iter` | `5000` | Phase 1 only. Validation (`nn_score`) logging interval. |
@@ -204,20 +248,37 @@ REGENS=${BASE}/regens
 
 ## Guard preflight (product mode only)
 
-When `ANOMALYGEN_PRODUCT_MODE=1`, run
-`.agents/skills/anomalygen-guard/scripts/preflight.py` before any GPU work and
-fix any `BLOCKED` issues. `--validation-jsonl` is forwarded only when the user
-supplied one; for `MODE=finetune_only` omit `--num-sdg` if not supplied. See
-`references/guard-and-custom-counts.md` for the full preflight command with all
-forwarded flags and the validation-JSONL / `allocate_samples.py` 0-entry
-checks.
+```bash
+if [[ "${ANOMALYGEN_PRODUCT_MODE:-}" == "1" ]]; then
+    python3 .agents/skills/anomalygen-guard/scripts/preflight.py \
+        --mode ${MODE} \
+        --name ${NAME} \
+        --dataset-dir ${DATASET_DIR} \
+        --defect-spec ${DEFECT_DESC} \
+        --num-search-run ${NUM_SEARCH_RUN} \
+        --model-size ${MODEL_SIZE} \
+        ${CLEAN_DIR:+--clean-dir ${CLEAN_DIR}} \
+        ${NUM_SDG:+--num-sdg ${NUM_SDG}} \
+        ${CKPT:+--checkpoint-dir ${CKPT}} \
+        ${STEP:+--step ${STEP}} \
+        ${VALIDATION_JSONL:+--validation-jsonl ${VALIDATION_JSONL}}
+fi
+```
+
+`--validation-jsonl` is forwarded only when the user supplied one; preflight
+then verifies every `defect_spec` type appears in the file and that
+`image_filename` / `mask_filename` paths exist. Auto-generated validation
+JSONLs are caught upstream by `allocate_samples.py`, which refuses to
+allocate 0 entries to any defect.
+
+For `MODE=finetune_only`, omit `--num-sdg` if the user did not supply one.
 
 ---
 
 ## Phase 0 — checkpoints
 
-Read `references/finetune.md §Phase 0` for HF_TOKEN requirements and what gets
-downloaded (~140 GB). Verify first; download only what is missing.
+Read `references/finetune.md §Phase 0` for HF_TOKEN requirements and what
+gets downloaded (~140 GB). Verify first; download only what is missing.
 
 ```bash
 ${ANOMALYGEN_SCRIPTS}/check.sh \
@@ -228,15 +289,53 @@ ${ANOMALYGEN_SCRIPTS}/check.sh \
 
 ## Phase 1 — fine-tune (skip when `MODE=inference_only`)
 
-Read `references/finetune.md §Phase 1` for dataset structure, config template
-details, and best-checkpoint selection. Four steps: (1) validate dataset /
-derive anomaly types, (2) generate the validation JSONL (skip if user supplied
-`VALIDATION_JSONL`), (3) generate the training config — **show it to the user
-and confirm before writing** — (4) launch training in the background. Then
-derive `CKPT` (path encodes upper-case `MODEL_SIZE`) and `STEP` (highest
-`nn_score` step from validation logs). If `MODE=finetune_only`, stop after
-training. See `references/finetune-commands.md` for the exact Step 1–4 commands
-and the `CKPT`/`STEP` derivation snippet.
+Read `references/finetune.md §Phase 1` for dataset structure, config
+template details, and best-checkpoint selection.
+
+```bash
+# Step 1: Validate dataset structure — derive anomaly types
+python3 -m scripts.utilities.validate_dataset ${DATASET_DIR}
+
+# Step 2: Generate validation JSONL (skip if user provided VALIDATION_JSONL)
+# num_SDG = total training mask count from Step 1 output
+# --mode validation is required (prep_testcase.sh default is inference).
+${ANOMALYGEN_SCRIPTS}/prep_testcase.sh \
+    --name validation_${NAME} \
+    --num-sdg <total_mask_count> \
+    --dataset-dir ${DATASET_DIR} \
+    --clean-dir ${CLEAN_DIR} \
+    --defect-spec ${DEFECT_DESC} \
+    --amp-output-dir ag_inference/validation_${NAME}/amp \
+    --output-jsonl ag_inference/validation_${NAME}/testcase.jsonl \
+    --mode validation
+VALIDATION_JSONL=ag_inference/validation_${NAME}/testcase.jsonl
+
+# Step 3: Generate training config — show to user and confirm before writing
+python3 -m scripts.utilities.generate_config \
+    --name ${NAME} --dataset-dir ${DATASET_DIR} \
+    --defect-spec ${DEFECT_DESC} --validation-jsonl ${VALIDATION_JSONL} \
+    --output ag_configs/${NAME}.yaml \
+    --model-size ${MODEL_SIZE} --max-iter ${MAX_ITER} \
+    --save-iter ${SAVE_ITER} --validation-iter ${VALIDATION_ITER} \
+    --lr ${LR} --batch-size ${BATCH_SIZE} \
+    --image-size ${IMAGE_SIZE}
+
+# Step 4: Launch training (run in background)
+${ANOMALYGEN_SCRIPTS}/launch_training.sh \
+    --ag-config ag_configs/${NAME}.yaml \
+    --num-gpus ${NUM_GPUS} \
+    --model-size ${MODEL_SIZE}
+```
+
+After training, derive `CKPT` and `STEP` (uppercase model_size in path):
+
+```bash
+MODEL_SIZE_UPPER="${MODEL_SIZE^^}"
+CKPT="./results/anomaly_gen/${NAME}/${NAME}_training_FP32_lr${LR}_bs=${BATCH_SIZE}_${MODEL_SIZE_UPPER}_${IMAGE_SIZE}x${IMAGE_SIZE}"
+# STEP = highest nn_score step from validation logs (see references/finetune.md)
+```
+
+If `MODE=finetune_only`: stop here.
 
 ---
 
@@ -244,8 +343,10 @@ and the `CKPT`/`STEP` derivation snippet.
 
 Read `references/inference.md §Phase 2` for AMP routing detail and n_seeds
 sizing. Do NOT pass `--seeds` — it is auto-computed and is not a recognized
-flag. `prep_testcase.sh` defaults to `--mode inference` (uniform allocation
-across defect types, no KPI floor), which Phase 2 always uses.
+flag.
+
+`prep_testcase.sh` defaults to `--mode inference` (uniform allocation across
+defect types, no KPI floor). Phase 2 always uses inference mode here.
 
 ```bash
 ${ANOMALYGEN_SCRIPTS}/prep_testcase.sh \
@@ -257,19 +358,34 @@ ${ANOMALYGEN_SCRIPTS}/prep_testcase.sh \
     --output-jsonl ${JSONL}
 ```
 
-**Custom per-defect counts:** when the user specifies counts per defect type,
-translate to `--num-sdg` plus a `--per-defect-counts` JSON dict (types absent
-from the dict get 0; sum should equal `--num-sdg`, else the script warns on
-stderr and uses the override sum). Confirm the allocation when intent is
-ambiguous. See `references/guard-and-custom-counts.md` for the full
-`--per-defect-counts` command example and the ambiguity-handling detail.
+**Custom per-defect counts (skill-driven from user intent):** when the user's
+natural-language request specifies counts per defect type (e.g. "give me 5
+IC+bridge and 10 passive_component+missing"), translate to `--num-sdg` +
+`--per-defect-counts`:
+
+```bash
+${ANOMALYGEN_SCRIPTS}/prep_testcase.sh \
+    --name ${NAME} --num-sdg 15 \
+    --dataset-dir ${DATASET_DIR} \
+    --clean-dir ${CLEAN_DIR} \
+    --defect-spec ${DEFECT_DESC} \
+    --amp-output-dir ag_inference/${NAME}/amp \
+    --output-jsonl ${JSONL} \
+    --per-defect-counts '{"IC+bridge":5,"passive_component+missing":10}'
+# passive_component+excess_solder gets 0 (not in dict).
+```
+
+Sum of `--per-defect-counts` should equal `--num-sdg`. If they disagree, the
+script prints a stderr warning and uses the override sum. Confirm the
+allocation with the user before invoking when the user's intent is
+ambiguous (e.g. "each defect 10" + "total only 1" — must clarify).
 
 ---
 
 ## Phase 3 — SDG → `original/`
 
 Read `references/inference.md §Phase 3` for JSONL validation against the
-checkpoint, multi-GPU caveats, and output verification.
+checkpoint, multi-GPU caveats, and output verification before eval.
 
 ```bash
 python3 -m scripts.utilities.validate_checkpoint ${CKPT} --step ${STEP}
@@ -287,9 +403,9 @@ ${ANOMALYGEN_SCRIPTS}/verify_output.sh ${JSONL} ${ORIGINAL}
 
 ## Phase 4 — eval `original/`
 
-Read `references/inference.md §Eval` for score interpretation and feature-count
-explanation. `run_eval.sh` writes `per_sample.csv` and `eval.log` inside
-`original/` and merges `nn_score` into `SDG_result.csv`.
+Read `references/inference.md §Eval` for score interpretation and feature
+count explanation. `run_eval.sh` writes three files inside `original/`:
+`per_sample.csv`, `eval.log`, and merges `nn_score` into `SDG_result.csv`.
 
 ```bash
 ${ANOMALYGEN_SCRIPTS}/run_eval.sh \
@@ -301,14 +417,22 @@ ${ANOMALYGEN_SCRIPTS}/run_eval.sh \
 
 ## Phase 5 — per-sample search rounds
 
-Read `references/inference.md §Phase 5` for draw strategy, ranges, and re-AMP
-guidance. For `r` in `1..NUM_SEARCH_RUN`:
+Read `references/inference.md §Phase 5` for draw strategy, ranges, and
+re-AMP guidance. For `r` in `1..NUM_SEARCH_RUN`:
 
 1. Read prior round's `per_sample.csv` (or `${ORIGINAL}/per_sample.csv` for `r=1`).
 2. Write `${ROUNDS}/round_${r}/draws.json` with selected `(guidance, crop_ratio)` per sample.
-3. Run round via `${ANOMALYGEN_SCRIPTS}/run_round.sh` (SDG + eval; the round dir
-   gets its own `sdg/{SDG_result.csv, per_sample.csv, eval.log}`). See
-   `references/inference-commands.md §Phase 5` for the full command and flags.
+3. Run round (SDG + eval; the round dir gets its own `sdg/{SDG_result.csv, per_sample.csv, eval.log}`):
+
+```bash
+${ANOMALYGEN_SCRIPTS}/run_round.sh \
+    --base-jsonl ${JSONL} \
+    --draws ${ROUNDS}/round_${r}/draws.json \
+    --output-dir ${ROUNDS}/round_${r} \
+    --real-path ${DATASET_DIR} --anomaly-types ${DEFECTS[@]} \
+    --checkpoint-dir ${CKPT} --step ${STEP} \
+    [--model-size ${MODEL_SIZE}]
+```
 
 `NUM_SEARCH_RUN=0` is valid — skip this phase entirely and let Phase 6
 clone `original/` into `searched/`.
@@ -317,11 +441,12 @@ clone `original/` into `searched/`.
 
 ## Phase 6 — assemble `searched/` (stitch only)
 
-Always run assemble (works with 0 rounds — `searched/` clones `original/`, so
-downstream always reads `searched/` regardless of `num_search_run`). Stitch-only:
-copies winning images per sample-index into `searched/` and carries over
-per-sample `nn_score` / `mnn_score` from each pick's source-round per_sample.csv.
-No eval — Phase 7 emits the canonical `searched/eval.log`.
+Always run assemble (works with 0 rounds — `searched/` clones
+`original/`, so downstream always reads `searched/` regardless of
+`num_search_run`). Stitch-only: copies winning images per sample-index
+into `searched/` and carries over per-sample `nn_score` / `mnn_score`
+from each pick's source-round per_sample.csv. No eval — Phase 7 emits
+the canonical `searched/eval.log`.
 
 ```bash
 mkdir -p ${ROUNDS}
@@ -335,17 +460,35 @@ python3 -m scripts.utilities.assemble_searched \
 ## Phase 7 — filter + regen + eval (default `nn_threshold=0.4`)
 
 Phase 7 **runs by default** (`nn_threshold=0.4`) on every `mode=full` and
-`mode=inference_only` invocation; pass `nn_threshold=0` to skip it. It filters
-`searched/` by `nn_threshold`, regenerates dropped samples via re-AMP (fresh
-`(clean, submask)` pairing in the same defect type) for up to 5 attempts, then
-falls back to best-scoring non-passing regens and finally to dropped originals,
-so the final bucket always equals `num_SDG`.
+`mode=inference_only` invocation. Pass `nn_threshold=0` to skip Phase 7.
 
-Run `python3 -m scripts.utilities.filter_with_regen`. It runs the final
-`run_eval.sh` internally — the only eval against `searched/`. Read
-`references/inference.md §Phase 7` for regen mechanics, source-column tracing,
-and the `regens/regen_summary.csv` schema; see
-`references/inference-commands.md §Phase 7` for the full command and flags.
+Filter `searched/` by `nn_threshold`. Dropped samples are regenerated
+via re-AMP (fresh `(clean, submask)` pairing in the same defect type)
+for up to 5 attempts. If still short, falls back to best-scoring
+non-passing regens, then to dropped originals. Final bucket always
+equals `num_SDG`.
+
+`filter_with_regen.py` runs the final `run_eval.sh` internally — this
+is the only eval against `searched/`. Read `references/inference.md
+§Phase 7` for the regen mechanics, source-column tracing, and
+`regens/regen_summary.csv` schema.
+
+```bash
+python3 -m scripts.utilities.filter_with_regen \
+    --searched-dir ${SEARCHED} \
+    --per-sample-csv ${SEARCHED}/per_sample.csv \
+    --threshold ${NN_THRESHOLD} \
+    --num-sdg ${NUM_SDG} \
+    --rounds-dir ${ROUNDS} \
+    --regens-dir ${REGENS} \
+    --dataset-dir ${DATASET_DIR} \
+    --clean-dir ${CLEAN_DIR} \
+    --defect-spec ${DEFECT_DESC} \
+    --real-path ${DATASET_DIR} \
+    --anomaly-types ${DEFECTS[@]} \
+    --checkpoint-dir ${CKPT} --step ${STEP} \
+    --model-size ${MODEL_SIZE} --num-gpus ${NUM_GPUS}
+```
 
 ---
 
@@ -354,20 +497,51 @@ and the `regens/regen_summary.csv` schema; see
 Every bucket that gets eval'd carries the same triad of files:
 `SDG_result.csv` (generation params + `nn_score`), `per_sample.csv`
 (per-sample nn + mnn), and `eval.log` (aggregate FID / per-defect avg).
-Buckets live under `results/<name>/` as `original/` (Phase 3+4), `searched/`
-(Phase 6 stitch + Phase 7 filter+regen+eval), `rounds/round_NN/` (Phase 5,
-plus `search_summary.csv`), and `regens/regen_NN/` (Phase 7, plus
-`regen_summary.csv`).
 
-See `references/output-layout.md` for the full directory tree with per-file
-annotations and the post-run **Verification** checklist (image counts per
-bucket, `search_summary.csv` / `regen_summary.csv` row checks, and the per-type
-`nn_score` / `mnn_score` / `fid` fields in each `eval.log`).
+```
+results/<name>/
+├── original/                              # Phase 3 + Phase 4
+│   ├── reconstructed_image/ + 3 sister dirs
+│   ├── SDG_result.csv                      # with nn_score
+│   ├── per_sample.csv
+│   └── eval.log
+├── searched/                              # final SDG bucket (Phase 6 stitch + Phase 7 filter+regen+eval)
+│   ├── reconstructed_image/ + 3 sister dirs
+│   ├── SDG_result.csv                      # with nn_score + source
+│   ├── per_sample.csv                      # bucket-evaluated (Phase 7)
+│   └── eval.log                            # canonical post-pipeline aggregate (Phase 7)
+├── rounds/                                # Phase 5
+│   ├── round_001/
+│   │   ├── draws.json
+│   │   ├── testcase.jsonl
+│   │   └── sdg/{images, SDG_result.csv, per_sample.csv, eval.log}
+│   ├── round_002/
+│   ├── ...
+│   └── search_summary.csv                  # per-sample best-of-round audit
+└── regens/                                # Phase 7
+    ├── regen_001/
+    │   ├── allocation.json
+    │   ├── amp_samples.json
+    │   ├── amp/
+    │   ├── testcase.jsonl
+    │   └── sdg/{images, SDG_result.csv, per_sample.csv, eval.log}
+    ├── regen_002/
+    ├── ...
+    └── regen_summary.csv                   # per-sample source + prev_nn + nn audit
+```
+
+## Verification
+
+1. `${ORIGINAL}/reconstructed_image/` has up to `num_SDG` images.
+2. `${SEARCHED}/reconstructed_image/` count == `num_SDG` (Phase 7 fills with regen + best-per-defect fallback if needed).
+3. `${ROUNDS}/search_summary.csv` has one row per sample.
+4. `original/eval.log`, each `rounds/round_NN/sdg/eval.log`, and `searched/eval.log` contain per-type `nn_score`, `mnn_score`, and `fid`.
+5. `${REGENS}/regen_summary.csv` exists when Phase 7 ran; `passed_threshold` column reports per-sample status, `prev_nn` vs `nn_score` reveals which samples regen actually improved.
 
 ## Error handling
 
-Common pipeline failure modes (missing mask dirs, short/empty AMP output and
-the `0 entries written` halt, mid-round SDG failure resume, off-boundary
-`step`) are covered in `references/error-handling.md`; see also
-`references/finetune.md` and `references/inference.md` for phase-specific
-error handling.
+- `dataset_dir` missing per-type mask dir → allocation scans zero and errors.
+- AMP output short of allocation for some defect → `build_jsonl.py` warns and writes what's available; JSONL is shorter than `num_SDG` by that delta. Check `run_auto_roi_amp.py` logs for `NO_DETECTION` / `FAILED`. If a defect produces **zero** AMP outputs, that defect is dropped (warn-only). If **every** defect produces zero, `build_jsonl.py` halts with `error: 0 entries written` since SDG cannot run on an empty JSONL.
+- SDG failure mid-round in Phase 5 → halts; re-run resumes from the next round (rounds are append-only).
+- `mode=inference_only` with a `step` not on a `save_iter` boundary → `torch.load` FileNotFoundError; `ls ${CKPT}/checkpoints/model/iter_*.pt` to find valid steps.
+- See `references/finetune.md` and `references/inference.md` for phase-specific error handling.

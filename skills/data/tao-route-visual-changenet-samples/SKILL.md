@@ -7,7 +7,7 @@ license: Apache-2.0
 compatibility: Standalone — no external runtime requirements.
 metadata:
   author: NVIDIA Corporation
-  version: "0.1.0"
+  version: '0.1'
 allowed-tools: Read Bash
 tags:
 - data

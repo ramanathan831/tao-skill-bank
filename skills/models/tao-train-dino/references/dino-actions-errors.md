@@ -93,7 +93,7 @@ for a root-level checkpoint path, resolve an actual file under
 
 **Parent `dino gen_trt_engine` rejected by the PyT CLI**: In the validated
 7.0.0 PyT container, `dino gen_trt_engine` is not a valid parent-model subtask.
-Use the DINO deploy workflow (`tao-deploy-dino.md`) for TensorRT engine
+Use the DINO deploy sub-skill (`deploy/SKILL.md`) for TensorRT engine
 generation, TensorRT evaluation, and TensorRT inference.
 
 **`dino convert` fails before reading the spec**: In the validated 7.0.0 PyT

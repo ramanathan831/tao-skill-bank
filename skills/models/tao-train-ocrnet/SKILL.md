@@ -7,7 +7,7 @@ description: OCRNet for scene text recognition. Recognizes text content from cro
 license: Apache-2.0
 compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  version: "0.1.0"
+  version: '0.1'
   author: NVIDIA Corporation
 allowed-tools: Read Bash
 tags:
@@ -21,7 +21,7 @@ OCRNet for scene text recognition. Recognizes text content from cropped text reg
 
 Set train.pretrained_model_path for pretrained OCR weights.
 
-For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference`), read `references/tao-deploy-ocrnet.md` first. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
+For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference`), read `deploy/SKILL.md` first. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
 
 ## Dataclass Schemas
 
@@ -232,7 +232,7 @@ Minimum 1 GPU(s), recommended 1 GPU(s). 8GB+ VRAM per GPU. OCR text recognition 
 
 **Export/prune output fields required**: `export.onnx_file` and `prune.pruned_file` must be writable output paths. These are declared in `references/skill_info.yaml` so SDK-backed model runs can create the paths automatically.
 
-**TensorRT lives in deploy**: The PyT OCRNet CLI exposes `dataset_convert`, `evaluate`, `export`, `inference`, `prune`, `quantize`, and `train`, but not `gen_trt_engine`. Use `references/tao-deploy-ocrnet.md` and `deploy/skill_info.yaml` for TensorRT engine generation and TensorRT-backed evaluate/inference.
+**TensorRT lives in deploy**: The PyT OCRNet CLI exposes `dataset_convert`, `evaluate`, `export`, `inference`, `prune`, `quantize`, and `train`, but not `gen_trt_engine`. Use `deploy/SKILL.md` and `deploy/skill_info.yaml` for TensorRT engine generation and TensorRT-backed evaluate/inference.
 
 ## Spec Param / Parent Model Inference
 
@@ -278,7 +278,3 @@ Inference mappings from TAO Core `ocrnet.config.json`:
 | train | `train.resume_training_checkpoint_path` | `resume_model` | model file inferred from the current job results folder |
 
 For `parent_model` or `parent_model_folder`, pass the upstream train/export/AutoML child job id as `parent_job_id`. The SDK lists the parent result folder, filters checkpoint artifacts, and returns the selected model file or folder. Do not add these mappings back to `config.json` and do not patch generated runner scripts to guess checkpoint paths.
-
-## Deployment
-
-- [tao-deploy-ocrnet](references/tao-deploy-ocrnet.md)

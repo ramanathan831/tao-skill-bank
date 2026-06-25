@@ -7,7 +7,7 @@ description: Mask Grounding DINO for grounded instance segmentation. Extends Gro
 license: Apache-2.0
 compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  version: "0.1.0"
+  version: '0.1'
   author: NVIDIA Corporation
 allowed-tools: Read Bash
 tags:
@@ -20,7 +20,7 @@ Mask Grounding DINO for grounded instance segmentation. Extends Grounding DINO w
 
 Set train.pretrained_model_path for full model weights.
 
-For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference`), read `references/tao-deploy-mask-grounding-dino.md` first. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
+For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference`), read `deploy/SKILL.md` first. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
 
 ## Dataclass Schemas
 
@@ -198,8 +198,4 @@ the intended epoch/step artifact exactly, for example
 valid only when latest is explicitly requested. The parent PyTorch
 `mask_grounding_dino` CLI supports `train`, `evaluate`, `inference`, `export`,
 and `quantize`; run TensorRT engine generation, TensorRT inference, and
-TensorRT evaluation through `references/tao-deploy-mask-grounding-dino.md`.
-
-## Deployment
-
-- [tao-deploy-mask-grounding-dino](references/tao-deploy-mask-grounding-dino.md)
+TensorRT evaluation through `deploy/SKILL.md`.

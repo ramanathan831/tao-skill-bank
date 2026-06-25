@@ -39,7 +39,7 @@ DINO (DETR with Improved DeNoising Anchor Boxes) for 2D object detection. Transf
 Uses pretrained backbone weights (e.g. ResNet-50 ImageNet). Set `model.pretrained_backbone_path` for backbone-only or `train.pretrained_model_path` for full model.
 
 For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and
-TensorRT `inference`), read `tao-deploy-dino.md` first. Deploy spec templates live
+TensorRT `inference`), read `deploy/SKILL.md` first. Deploy spec templates live
 in this skill's `references/` folder with the `spec_template_deploy_*.yaml`
 prefix.
 
@@ -238,7 +238,7 @@ fields, copy those too so the checkpoint shape matches the evaluation model.
 }
 ```
 
-**deploy/gen_trt_engine (use `tao-deploy-dino.md`):**
+**deploy/gen_trt_engine (use `deploy/SKILL.md`):**
 ```python
 {
     "gen_trt_engine.onnx_file": "<exported_onnx_uri>",
@@ -249,7 +249,7 @@ fields, copy those too so the checkpoint shape matches the evaluation model.
 }
 ```
 
-For deploy TensorRT evaluation, also read `tao-deploy-dino.md`; the deploy metric
+For deploy TensorRT evaluation, also read `deploy/SKILL.md`; the deploy metric
 path expects at least 100 selected detections per image.
 
 **inference (mandatory data sources):**

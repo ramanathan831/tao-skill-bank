@@ -6,6 +6,9 @@
   "plugins": [
     {
       "name": "tao-skill-bank",
+      "interface": {
+        "displayName": "TAO Skill Bank"
+      },
       "source": {
         "source": "local",
         "path": "./plugins/tao-skill-bank"

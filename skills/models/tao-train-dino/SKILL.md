@@ -7,7 +7,7 @@ description: DINO (DETR with Improved DeNoising Anchor Boxes) for 2D object dete
 license: Apache-2.0
 compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  version: "0.1.0"
+  version: '0.1'
   author: NVIDIA Corporation
 allowed-tools: Read Bash
 tags:
@@ -20,24 +20,12 @@ tags:
 DINO (DETR with Improved DeNoising Anchor Boxes) for 2D object detection. Transformer-based detector with denoising training, multi-scale features, and optional distillation support.
 
 Uses pretrained backbone weights (e.g. ResNet-50 ImageNet). Set `model.pretrained_backbone_path` for backbone-only or `train.pretrained_model_path` for full model.
-
-## When To Use
-
-Train, evaluate, export, distill, quantize, or run inference for a TAO DINO 2D object detector.
+Extra references: `dino-data-specs.md` for data-source arrays/spec overrides, `dino-actions-errors.md` for defaults/errors, and `dino-automl-sdk.md` for AutoML metrics, SDK internals, and checkpoint inference; `detailed-guide.md` is only the map.
 
 For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and
-TensorRT `inference`), read `references/tao-deploy-dino.md` first. Deploy spec templates live
+TensorRT `inference`), read `deploy/SKILL.md` first. Deploy spec templates live
 in this skill's `references/` folder with the `spec_template_deploy_*.yaml`
 prefix.
-
-## Reference Map
-
-- `references/dino-data-specs.md` — dataset contracts, per-action dataset requirements, per-action spec-override examples (train, evaluate, export, deploy/gen_trt_engine, inference, quantize, distill), data-source arrays, checkpoint inference, and dataset layout.
-- `references/dino-actions-errors.md` — important parameters, default values, evaluate/export defaults, hardware, and the full error-pattern catalog.
-- `references/dino-tuning-multigpu.md` — full AutoML/HPO notes (metrics, hyperparameters, extractor) and multi-GPU spec consistency.
-- `references/dino-automl-sdk.md` — AutoML metrics, SDK orchestration internals, data-source gap, and spec-param/parent-model inference.
-- `references/tao-deploy-dino.md` — TensorRT deploy workflow.
-- `references/detailed-guide.md` — map to the detailed model guide.
 
 ## Dataclass Schemas
 
@@ -110,81 +98,412 @@ archive and rewrites the runtime spec to the extracted folder named after the
 archive stem (`images.tar.gz` -> `images`). Only deviate if the user explicitly
 provides a different image artifact name.
 
-## Core Workflow
+### Per-Action Dataset Requirements
 
-DINO supports train, evaluate, export, distill, quantize, and inference. Data-source
-overrides are **mandatory for every action** — DINO's `config.json` has empty
-`data_sources` because the runner cannot auto-resolve array-of-objects spec keys.
-The agent MUST construct data source paths and include them in `spec_overrides`.
+| Action | Spec Key | Source | Files | List? |
+|---|---|---|---|---|
+| distill | dataset.train_data_sources | train_datasets | image_dir: images.tar.gz, json_file: annotations.json | Yes |
+| distill | dataset.val_data_sources | train_datasets | image_dir: images.tar.gz, json_file: annotations.json | Yes |
+| evaluate | evaluate.checkpoint | trained_model | DINO .pth/.tlt checkpoint | No |
+| evaluate | dataset.test_data_sources.image_dir | eval_dataset | images.tar.gz | No |
+| evaluate | dataset.test_data_sources.json_file | eval_dataset | annotations.json | No |
+| deploy/gen_trt_engine | gen_trt_engine.tensorrt.calibration.cal_image_dir | calibration_dataset | images.tar.gz | Yes |
+| inference | dataset.infer_data_sources.image_dir | inference_dataset | images.tar.gz | Yes |
+| inference | dataset.infer_data_sources.classmap | inference_dataset | label_map.txt | No |
+| quantize | dataset.train_data_sources | train_datasets | image_dir: images.tar.gz, json_file: annotations.json | Yes |
+| quantize | dataset.val_data_sources | train_datasets | image_dir: images.tar.gz, json_file: annotations.json | Yes |
+| quantize | dataset.quant_calibration_data_sources | train_datasets | image_dir: images.tar.gz, json_file: annotations.json | No |
+| train | dataset.train_data_sources | train_datasets | image_dir: images.tar.gz, json_file: annotations.json | Yes |
+| train | dataset.val_data_sources | train_datasets | image_dir: images.tar.gz, json_file: annotations.json | Yes |
 
-See `references/dino-data-specs.md` for the per-action dataset requirements table,
-the standard dataset artifact (`images.tar.gz` + `annotations.json`) and runtime
-folder rewrite rules, and the complete per-action `spec_overrides` examples for
-train, evaluate, export, deploy/gen_trt_engine, inference, quantize, and distill —
-including checkpoint inference via `parent_model`, the `results_dir/train/`
-checkpoint location, and the distillation FAN-teacher / student rules.
+### Typical Spec Overrides
 
-## Important Parameters And Defaults
+Data source overrides are **mandatory for every action** — DINO's `config.json` has empty `data_sources` because the runner cannot auto-resolve array-of-objects spec keys (see Internal Details). The agent MUST construct data source paths from the Per-Action Dataset Requirements table above and include them in `spec_overrides`.
 
-Key defaults: `num_epochs=10`, `batch_size=4`, `learning_rate=2e-4`,
-`lr_backbone=2e-5`, `num_classes=91`, `backbone=resnet_50`.
+```python
+S3_TRAIN = "s3://bucket/data/train"
+S3_VAL = "s3://bucket/data/val"    # can be same as S3_TRAIN
+S3_EVAL = "s3://bucket/data/eval"  # for evaluate/inference
 
-- **dataset.num_classes**: Default 91 (COCO). Must be >= `max(category_id) + 1`. Too low causes `CUDA error: device-side assert triggered`. Set as `<num_classes> + 1` in spec overrides.
-- **num_epochs**: default 10 (quick iteration); real datasets typically need 30-50+ epochs for good mAP.
+# Standard DINO dataset artifact. Pass the archive path as the remote input.
+# At runtime the SDK extracts it and points DINO at the extracted "images" folder.
+IMAGE_ARCHIVE = "images.tar.gz"
+```
 
-See `references/dino-actions-errors.md` for the full parameter list (backbone
-options, `train.optim.lr`/`lr_steps`, `model.num_queries`, `batch_size`),
-default values, evaluate defaults, export defaults (input 960x544, opset 17,
-TRT data types, workspace 1024 MB), and hardware requirements.
+**train (mandatory):**
+```python
+{
+    "dataset.train_data_sources": [
+        {"image_dir": f"{S3_TRAIN}/{IMAGE_ARCHIVE}", "json_file": f"{S3_TRAIN}/annotations.json"}
+    ],
+    "dataset.val_data_sources": [
+        {"image_dir": f"{S3_VAL}/{IMAGE_ARCHIVE}", "json_file": f"{S3_VAL}/annotations.json"}
+    ],
+    "dataset.num_classes": "<num_classes> + 1",
+    "train.num_epochs": 10,
+    "train.checkpoint_interval": 10,
+    "train.validation_interval": 10,
+    "train.num_gpus": 1,
+    "train.gpu_ids": [0],
+}
+```
 
-## Multi-GPU And AutoML / HPO
+**evaluate (mandatory checkpoint + data sources):**
+```python
+{
+    "evaluate.checkpoint": "<checkpoint_uri>",
+    "dataset.test_data_sources.image_dir": f"{S3_EVAL}/{IMAGE_ARCHIVE}",
+    "dataset.test_data_sources.json_file": f"{S3_EVAL}/annotations.json",
+    "dataset.num_classes": "<num_classes> + 1",
+    "model.backbone": "<backbone used for training>",
+    "model.num_queries": "<num_queries used for training>",
+    "model.dropout_ratio": "<dropout_ratio used for training>",
+}
+```
+
+For standard DINO eval datasets, do not search S3 to discover filenames. Build
+the eval image and annotation URIs directly from the eval dataset base URI using
+`images.tar.gz` and `annotations.json`, unless the user explicitly provides a
+different layout.
+
+For a DINO model trained by this SDK or by an AutoML child train job, prefer
+microservices-style parent model inference instead of hardcoding the checkpoint
+URI. Use this model-MD inference mapping:
+
+```json
+"spec_params": {
+  "evaluate": {
+    "evaluate.checkpoint": "parent_model"
+  }
+}
+```
+
+Use the train job id, or the AutoML best child train job id, as
+`parent_job_id`. The SDK will list the parent result folder, filter `.pth`
+checkpoints, and select the model file:
+
+```python
+checkpoint_uri = sdk.resolve_spec_param(
+    eval_job_id,
+    "parent_model",
+    network_arch="dino",
+    parent_job_id=train_job_id,
+)
+```
+
+Equivalently, when resolving the checkpoint outside a spec-param loop:
+
+```python
+checkpoint_uri = sdk.get_model_results_path(train_job_id, network_arch="dino")
+```
+
+If cloud listing is unavailable but only the training job id is known, list the
+training job result folder and choose the intended epoch/step checkpoint under:
+
+```python
+checkpoint_prefix = f"s3://{S3_BUCKET_NAME}/results/{train_job_id}/results_dir/train/"
+```
+
+Do not use `s3://<bucket>/results/<train_job_id>/dino_model_latest.pth`; DINO
+training uploads checkpoints under `results_dir/train/`. The
+`dino_model_latest.pth` symlink under that folder is valid only when latest is
+explicitly requested.
+
+When evaluating an AutoML-trained model, carry forward the winning rec's
+structural model settings into the eval spec. At minimum copy
+`model.backbone`, `model.num_queries`, `model.dropout_ratio`, and
+`dataset.num_classes`. If future HPO runs tune additional structural model
+fields, copy those too so the checkpoint shape matches the evaluation model.
+
+**export:**
+```python
+{
+    "export.checkpoint": "<checkpoint_uri>",
+    "export.onnx_file": "<output_onnx_path>",
+    "dataset.num_classes": "<num_classes> + 1",
+}
+```
+
+**deploy/gen_trt_engine (use `deploy/SKILL.md`):**
+```python
+{
+    "gen_trt_engine.onnx_file": "<exported_onnx_uri>",
+    "gen_trt_engine.trt_engine": "<output_engine_path>",
+    "gen_trt_engine.tensorrt.calibration.cal_image_dir": [f"{S3_TRAIN}/{IMAGE_ARCHIVE}"],
+    "gen_trt_engine.tensorrt.data_type": "FP16",
+    "dataset.num_classes": "<num_classes> + 1",
+}
+```
+
+For deploy TensorRT evaluation, also read `deploy/SKILL.md`; the deploy metric
+path expects at least 100 selected detections per image.
+
+**inference (mandatory data sources):**
+```python
+{
+    "dataset.infer_data_sources.image_dir": [f"{S3_EVAL}/{IMAGE_ARCHIVE}"],
+    "dataset.infer_data_sources.classmap": f"{S3_EVAL}/label_map.txt",
+    "dataset.num_classes": "<num_classes> + 1",
+}
+```
+
+**quantize (mandatory data sources):**
+```python
+{
+    "dataset.train_data_sources": [
+        {"image_dir": f"{S3_TRAIN}/{IMAGE_ARCHIVE}", "json_file": f"{S3_TRAIN}/annotations.json"}
+    ],
+    "dataset.val_data_sources": [
+        {"image_dir": f"{S3_VAL}/{IMAGE_ARCHIVE}", "json_file": f"{S3_VAL}/annotations.json"}
+    ],
+    "dataset.quant_calibration_data_sources": {
+        "image_dir": f"{S3_TRAIN}/{IMAGE_ARCHIVE}", "json_file": f"{S3_TRAIN}/annotations.json"
+    },
+    "dataset.num_classes": "<num_classes> + 1",
+}
+```
+
+**distill (mandatory data sources):**
+```python
+{
+    "distill.pretrained_teacher_model_path": "<fan_teacher_checkpoint_uri>",
+    "distill.teacher.backbone": "fan_tiny",
+    "distill.bindings": [
+        {"student_module_name": "pred_logits", "teacher_module_name": "pred_logits", "criterion": "L2", "weight": 1.0},
+        {"student_module_name": "pred_boxes", "teacher_module_name": "pred_boxes", "criterion": "L1", "weight": 1.0},
+    ],
+    "dataset.train_data_sources": [
+        {"image_dir": f"{S3_TRAIN}/{IMAGE_ARCHIVE}", "json_file": f"{S3_TRAIN}/annotations.json"}
+    ],
+    "dataset.val_data_sources": [
+        {"image_dir": f"{S3_VAL}/{IMAGE_ARCHIVE}", "json_file": f"{S3_VAL}/annotations.json"}
+    ],
+    "dataset.num_classes": "<num_classes> + 1",
+}
+```
+
+DINO distillation uses a FAN-family teacher (`fan_tiny`, `fan_small`,
+`fan_base`, or `fan_large`) and a supported student such as `resnet_50`. The
+teacher checkpoint must match the teacher architecture. Do not point
+`distill.pretrained_teacher_model_path` at a ResNet training checkpoint unless
+`distill.teacher.backbone` is also a compatible ResNet teacher in a future SDK.
+
+## Dataset
+
+COCO JSON format. train_data_sources and val_data_sources are lists supporting multiple data source entries. Each entry has image_dir and json_file (COCO annotations JSON).
+
+**`image_dir` remote path**: For the standard TAO DINO dataset, set
+`image_dir` to the archive path, e.g. `s3://bucket/data/images.tar.gz`.
+The SDK downloads and extracts it, then rewrites the runtime training spec to
+the extracted folder path, e.g. `/mnt/lustre/.../images`.
+
+Do not ask the user whether to use `images` or `images.tar.gz` for standard
+DINO datasets. Use `images.tar.gz`. If the user explicitly supplies a different
+archive filename, derive the runtime folder from the archive stem:
+`<name>.tar.gz` -> `<name>`, `<name>.tgz` -> `<name>`, `<name>.tar` -> `<name>`.
+
+Supported formats: coco, coco_raw.
+
+### Train Data Sources
+
+- **image_dir**: `images.tar.gz` remote archive; runtime folder is `images`
+- **json_file**: `annotations.json`
+
+### Val Data Sources (ALWAYS required)
+
+- **image_dir**: `images.tar.gz` remote archive; runtime folder is `images`
+- **json_file**: `annotations.json`
+
+### Inference Data Sources
+
+- **image_dir**: `images.tar.gz` remote archive; runtime folder is `images`
+- **classmap**: `label_map.txt`
+
+### Evaluate Data Sources
+
+- **checkpoint**: `evaluate.checkpoint`, a `.pth` or `.tlt` model file. For SDK
+  train jobs and AutoML child train jobs, resolve it with `parent_model`
+  inference so the SDK lists the result folder and selects an actual checkpoint
+  file. Prefer concrete epoch/step files such as
+  `results_dir/train/model_epoch_000_step_00025.pth`. Use
+  `dino_model_latest.pth` only when the user explicitly requests the latest
+  checkpoint; it is a symlink alias and should not replace best/specific
+  checkpoint resolution.
+- **image_dir**: `images.tar.gz` remote archive; runtime folder is `images`
+- **json_file**: `annotations.json`
+
+## Important Parameters
+
+- **dataset.num_classes**: Number of object classes. Default is 91 (COCO). Must be >= `max(category_id) + 1`. Too low causes `CUDA error: device-side assert triggered`.
+- **model.backbone**: Backbone architecture. Default resnet_50. Supported values include `resnet_34`, `resnet_50`, `fan_tiny`, `fan_small`, `fan_base`, `fan_large`, `gc_vit_xxtiny`, `gc_vit_xtiny`, `gc_vit_tiny`, `gc_vit_small`, `gc_vit_base`, `gc_vit_large`, `gc_vit_large_384`, `vit_large_nvdinov2`, `vit_large_dinov2`, `swin_tiny_224_1k`, `swin_base_224_22k`, `swin_base_384_22k`, `swin_large_224_22k`, `swin_large_384_22k`, and `efficientvit_b0` through `efficientvit_b3`.
+- **train.optim.lr**: Learning rate. Default 2e-4 (AdamW). lr_backbone defaults to 2e-5 (10x lower). Reduce both if training diverges.
+- **train.num_epochs**: DINO typically needs 30-50+ epochs for good mAP on real datasets. The default of 10 is suitable for quick iteration.
+- **train.optim.lr_steps**: MultiStep LR decay schedule. Default [11]. For longer training, set to e.g. [30, 40] for a 50-epoch run.
+- **model.num_queries**: Number of object queries. Default 300. Increase for dense scenes with many objects per image. num_select must be < num_queries * num_classes.
+- **dataset.batch_size**: Per-GPU batch size. Default 4. Reduce to 2 if OOM on 16GB GPUs. Total batch = batch_size * num_gpus.
+
+## Default Values
+
+- **num_epochs**: `10`
+- **batch_size**: `4`
+- **learning_rate**: `2e-4`
+- **lr_backbone**: `2e-5`
+- **num_classes**: `91`
+- **backbone**: `resnet_50`
+
+## Evaluate Defaults
+
+Use `references/spec_template_evaluate.yaml` (when present) as the base spec
+for `action="evaluate"`, then apply the mandatory checkpoint and data-source
+overrides above. `references/skill_info.yaml` declares the required evaluate
+inputs so the SDK script runner downloads and rewrites them before running
+the container. This model MD also documents
+`evaluate.checkpoint = parent_model`, so generated runners should infer the
+checkpoint from the parent job result files before submission:
+
+```json
+{
+  "evaluate.checkpoint": {"type": "file"},
+  "dataset.test_data_sources.image_dir": {"type": "file"},
+  "dataset.test_data_sources.json_file": {"type": "file"}
+}
+```
+
+## Export Defaults
+
+- **input_width**: `960`
+- **input_height**: `544`
+- **opset_version**: `17`
+- **trt_data_types**: `[FP32, FP16, INT8]`
+- **trt_workspace_size_mb**: `1024`
+
+## Hardware
+
+- **Minimum**: 1 GPU
+- **Recommended**: 4 GPUs
+- **GPU Memory**: 24GB+ (A100 recommended)
+
+Transformer-based detection is memory-intensive. batch_size=4 fits on 24GB GPUs. For 16GB GPUs, reduce to batch_size=2. Multi-GPU with 4+ GPUs recommended for datasets > 10k images.
+
+## Multi-GPU Spec Consistency
 
 When increasing `train.num_gpus`, also set `train.gpu_ids` to the same visible
-device range, or distributed startup can be inconsistent.
-
-AutoML runs training — all **Training Requirements** above apply. For no-input
-local smoke runs, use `DINO_AUTOML_PROFILE`. Recommended metric is `mAP50`
-(`val_mAP` for benchmark comparisons) with `direction="maximize"` and a custom
-`metric_extractor`.
-
-See `references/dino-tuning-multigpu.md` for the full multi-GPU spec-consistency
-rule (8-GPU example, NCCL timeout note) and the full AutoML/HPO notes (metric
-selection, `metric_extractor`, recommended hyperparameters, `weight_decay`
-behavior, dense-dataset resume guidance). See `references/dino-automl-sdk.md` for
-AutoML metric extractor code, SDK orchestration internals, and parent-model
-inference mappings.
+device range. For example, an 8-GPU single-node Slurm run must include both
+`"train.num_gpus": 8` and `"train.gpu_ids": [0, 1, 2, 3, 4, 5, 6, 7]`.
+Leaving the template default `train.gpu_ids: [0]` while requesting multiple
+GPUs can make distributed startup inconsistent and can surface as NCCL
+collective timeouts instead of an immediate validation error.
 
 ## Error Patterns
 
-Common failures include CUDA OOM (reduce `batch_size`), missing `val_data_sources`
-(`FileNotFoundError` at startup — always supply val), `num_classes` too low (`CUDA
-device-side assert`), and the parent `dino gen_trt_engine` / `dino convert` PyT-CLI
-restrictions.
+**CUDA out of memory**: Reduce dataset.batch_size (4 -> 2 -> 1). DINO uses multi-scale features that consume significant GPU memory, especially with high-resolution images (default max 1333px).
 
-See `references/dino-actions-errors.md` for the complete error-pattern catalog
-with diagnostics and fixes.
+**num_select must be < num_queries * num_classes**: Ensure model.num_select (default 300) is less than num_queries * dataset.num_classes.
+
+**Error merging spec.yaml with schema**: Hydra/OmegaConf validation error. num_epochs and num_gpus must be under 'train.*', not at spec root. Use the SDK spec_shorthand_keys mapping.
+
+**Dataset size smaller than total batch size**: Total batch = batch_size * num_gpus. If val dataset has fewer samples, reduce dataset.batch_size or num_gpus. The agent should proactively check this.
+
+**return_interm_indices length must match num_feature_levels**: Default is [1,2,3,4] with num_feature_levels=4. If changing one, update the other.
+
+**`FileNotFoundError` on images**: The archive extraction/cache and annotation paths are out of sync. For standard DINO datasets, pass remote `images.tar.gz`; the SDK should rewrite the runtime spec to `images`. If DINO looks under `/mnt/lustre/.../images/<file>.jpg` and files are missing, clear the stale `<images.tar.gz>.extracted` marker and re-extract/download the archive, or inspect the archive top-level layout.
+
+**`FileNotFoundError` at startup (val)**: `val_data_sources` missing or pointing to non-existent data. DINO unconditionally builds a val dataloader — this is required even when only optimizing `train_loss`.
+
+**`CUDA device-side assert`**: `num_classes` too low. Set `num_classes >= max(category_id) + 1`.
+
+**S3 inputs not downloaded inside container**: When the agent invokes DINO via SDK orchestration, `references/skill_info.yaml` must declare `actions.train.inputs` with `[0]`-indexed spec keys (see "Optional: SDK orchestration internals"). Use `s3://...` for S3-compatible datasets; do not generate `aws://...` URIs.
+
+**Evaluate checkpoint not found at result root**: DINO train jobs upload
+checkpoints under `results_dir/train/`. If eval fails with `FileNotFoundError`
+for a root-level checkpoint path, resolve an actual file under
+`s3://<bucket>/results/<train_job_id>/results_dir/train/`, normally an exact
+`model_epoch_<epoch>_step_<step>.pth` file selected by the resolver.
+
+**Parent `dino gen_trt_engine` rejected by the PyT CLI**: In the validated
+7.0.0 PyT container, `dino gen_trt_engine` is not a valid parent-model subtask.
+Use the DINO deploy sub-skill (`deploy/SKILL.md`) for TensorRT engine
+generation, TensorRT evaluation, and TensorRT inference.
+
+**`dino convert` fails before reading the spec**: In the validated 7.0.0 PyT
+container, DINO dataset conversion fails during Hydra schema initialization
+because `DINODatasetConvertConfig` declares string fields with `None` defaults.
+Do not advertise DINO dataset conversion as a model-skill action until the SDK
+schema is fixed.
+
+## AutoML / HPO Notes
+
+AutoML runs training — all requirements from **Training Requirements** above apply. The agent must read that section first.
+
+For no-input local DINO AutoML smoke runs, use `DINO_AUTOML_PROFILE` from
+**Training Requirements**. Do not inspect previous AutoML runs to infer dataset
+URIs, `num_classes`, recommendation count, or interval settings.
+
+**Recommended AutoML metric:** for quick operational checks, use explicit
+`metric="mAP50"` with `direction="maximize"` and pass a custom
+`metric_extractor` that reads `Validation mAP50`. For COCO or paper-style
+benchmark comparisons, use `metric="val_mAP"` with `direction="maximize"` so
+the reported number matches the standard mAP column rather than AP50. Do not
+rely on `metric="kpi"` for generated DINO runners unless you have verified the
+local resolver maps it to the intended detection metric; loose fallback parsing
+can otherwise optimize `val_loss`.
+
+Use a `metric_extractor` that reads the last `Validation mAP50` value from the
+logs, then run AutoML with `automl_settings={"metric": "mAP50",
+"direction": "maximize", ...}`.
+
+When a benchmark run remains below target but the per-epoch `val_mAP` curve is
+still climbing at the final epoch, extend the best full-budget configuration
+before declaring the search plateaued. For dense datasets such as aerial or
+driving-scene detection, also preserve high-resolution input overrides and
+structural settings (`model.backbone`, `model.num_queries`,
+`model.num_select`, class metadata) when evaluating or resuming the checkpoint.
+
+**Recommended hyperparameters:**
+
+Suggested knobs: `train.optim.lr`, `train.optim.weight_decay`,
+`model.backbone`, `model.num_queries`, and `model.dropout_ratio`. Constrain
+`model.backbone` to supported names such as `resnet_50` and `resnet_34`; the
+LLM brain may otherwise propose legacy or invalid DINO backbone names.
+
+`train.optim.weight_decay` is not in the default DINO spec schema — the runner accepts it with a warning. It still works; the DINO training code picks it up from the config.
+
+All model-specific metadata is documented in the Training Requirements table and
+`references/skill_info.yaml`. DINO data-source arrays are not auto-resolved from
+TAO Core metadata; provide dataset paths explicitly in the spec overrides.
 
 ## Spec Param / Parent Model Inference
 
-Model-specific inference mappings belong in this MD file, not in `config.json`.
-Generated runners read the mappings and apply them with SDK helpers before
-`create_job()`. For `parent_model`/`parent_model_folder`, pass the upstream
-train/export/AutoML child job id as `parent_job_id`; the SDK lists the parent
-result folder, filters checkpoint artifacts, and returns the selected model.
+Model-specific inference mappings belong in this MD file, not in `config.json`. Generated runners should read this section and apply the mappings with SDK helpers before `create_job()`. This mirrors the old microservices `infer_params.py` flow.
 
-See `references/dino-automl-sdk.md` for the full inference-mapping table (per
-action: `parent_model`, `key`, `output_dir`, `ptm_if_no_resume_model`,
-`resume_model`, `create_onnx_file`) and the TensorRT-mapping note. TensorRT
-mappings live in the deploy workflow, not the PyT model skill.
+Inference mappings from TAO Core `dino.config.json`:
 
-## Optional: running via the TAO SDK
+| Action | Spec Field | Inference Function | Meaning |
+|---|---|---|---|
+| distill | `distill.pretrained_teacher_model_path` | `parent_model` | model file inferred from the parent job results folder |
+| distill | `encryption_key` | `key` | encryption key |
+| distill | `results_dir` | `output_dir` | current job results directory |
+| evaluate | `encryption_key` | `key` | encryption key |
+| evaluate | `evaluate.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
+| evaluate | `results_dir` | `output_dir` | current job results directory |
+| export | `encryption_key` | `key` | encryption key |
+| export | `export.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
+| export | `export.onnx_file` | `create_onnx_file` | output ONNX path |
+| export | `results_dir` | `output_dir` | current job results directory |
+| inference | `encryption_key` | `key` | encryption key |
+| inference | `inference.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
+| inference | `results_dir` | `output_dir` | current job results directory |
+| quantize | `encryption_key` | `key` | encryption key |
+| quantize | `quantize.model_path` | `parent_model` | model file inferred from the parent job results folder |
+| quantize | `results_dir` | `output_dir` | current job results directory |
+| train | `encryption_key` | `key` | encryption key |
+| train | `model.pretrained_backbone_path` | `ptm_if_no_resume_model` | PTM when no resume checkpoint exists |
+| train | `results_dir` | `output_dir` | current job results directory |
+| train | `train.pretrained_model_path` | `ptm_if_no_resume_model` | PTM when no resume checkpoint exists |
+| train | `train.resume_training_checkpoint_path` | `resume_model` | model file inferred from the current job results folder |
 
-When running DINO through the TAO SDK (`script_runner` orchestration, S3 I/O
-wrapping, AutoML), skills read `references/skill_info.yaml` for input and
-spec-param mappings. See `references/dino-automl-sdk.md` for SDK orchestration
-internals, including the data-sources gap and the `[0]`-indexed `inputs`
-declarations. Skip this when running locally with `docker run`.
+For `parent_model` or `parent_model_folder`, pass the upstream train/export/AutoML child job id as `parent_job_id`. The SDK lists the parent result folder, filters checkpoint artifacts, and returns the selected model file or folder. Do not add these mappings back to `config.json` and do not patch generated runner scripts to guess checkpoint paths.
 
-## Deployment
-
-- [tao-deploy-dino](references/tao-deploy-dino.md)
+TensorRT mappings (`gen_trt_engine.onnx_file`, `evaluate.trt_engine`, and
+`inference.trt_engine`) live in `deploy/skill_info.yaml` because TensorRT runs
+through the DINO deploy sub-skill, not the parent PyT model skill.
