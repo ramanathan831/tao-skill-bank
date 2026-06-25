@@ -83,7 +83,7 @@ section if running locally with `docker run`.
 DINO packages `references/spec_template_<action>.yaml` for the advertised
 parent model actions. Use those templates directly and apply the required
 dataset/checkpoint overrides from this file. TensorRT templates for the deploy
-sub-skill use the `spec_template_deploy_*.yaml` names.
+workflow use the `spec_template_deploy_*.yaml` names.
 
 #### Data Sources Gap
 
@@ -162,4 +162,4 @@ For `parent_model` or `parent_model_folder`, pass the upstream train/export/Auto
 
 TensorRT mappings (`gen_trt_engine.onnx_file`, `evaluate.trt_engine`, and
 `inference.trt_engine`) live in `deploy/skill_info.yaml` because TensorRT runs
-through the DINO deploy sub-skill, not the parent PyT model skill.
+through the DINO deploy workflow, not the PyT model skill.

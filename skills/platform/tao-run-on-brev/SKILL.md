@@ -7,7 +7,7 @@ license: Apache-2.0
 compatibility: Requires the brev CLI (https://github.com/brevdev/brev-cli) and an active brev login.
 metadata:
   author: NVIDIA Corporation
-  version: '0.1'
+  version: "0.1.0"
 allowed-tools: Read Bash
 tags:
 - gpu
@@ -149,7 +149,7 @@ Available via `brev search`:
 
 ## Storage
 
-No shared NFS/Lustre. All data flows through S3 via the script_runner's fsspec integration. Instance-local disk at `/home/ubuntu/` persists across stop/start but not across delete/create.
+No shared NFS/Lustre. All data flows through S3 via the script_runner's fsspec integration. Instance-local disk at `~/` persists across stop/start but not across delete/create.
 
 ## Docker on Brev
 
@@ -161,7 +161,7 @@ brev exec <instance> -- docker login nvcr.io -u '$oauthtoken' -p <NGC_KEY>
 
 # Run a TAO training job
 brev exec <instance> -- docker run --gpus all --rm \
-  -v /home/ubuntu/data:/data \
+  -v ~/data:/data \
   nvcr.io/nvidia/tao/tao-toolkit:6.26.3-pyt \
   visual_changenet train -e /data/spec.yaml
 ```

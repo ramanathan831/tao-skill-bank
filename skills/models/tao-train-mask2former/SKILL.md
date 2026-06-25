@@ -7,7 +7,7 @@ description: Mask2Former for universal image segmentation (panoptic, instance, a
 license: Apache-2.0
 compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  version: '0.1'
+  version: "0.1.0"
   author: NVIDIA Corporation
 allowed-tools: Read Bash
 tags:
@@ -20,7 +20,7 @@ Mask2Former for universal image segmentation (panoptic, instance, and semantic).
 
 Set model.backbone.pretrained_weights for Swin backbone weights.
 
-For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference`), read `deploy/SKILL.md` first. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
+For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference`), read `references/tao-deploy-mask2former.md` first. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
 
 ## Dataclass Schemas
 
@@ -237,7 +237,7 @@ Optional. Val data sources are part of the dataset config alongside train.
 - TRT data types: FP32, FP16 only — **INT8 is NOT supported**
 - The parent PyTorch `mask2former` CLI supports `train`, `evaluate`,
   `inference`, `export`, and `quantize`; run TensorRT engine generation,
-  TensorRT inference, and TensorRT evaluation through `deploy/SKILL.md`.
+  TensorRT inference, and TensorRT evaluation through `references/tao-deploy-mask2former.md`.
   Export semantic ONNX (`model.mode: semantic`) when validating TensorRT
   evaluation because the current deploy evaluator accepts semantic engines.
 - Keep export input dimensions compatible with the deploy templates. The
@@ -314,3 +314,7 @@ When selecting a Mask2Former checkpoint outside the SDK resolver, match the
 intended epoch/step artifact exactly, for example
 `model_epoch_000_step_00100.pth`. The `mask2former_model_latest.pth` symlink
 is valid only when latest is explicitly requested.
+
+## Deployment
+
+- [tao-deploy-mask2former](references/tao-deploy-mask2former.md)

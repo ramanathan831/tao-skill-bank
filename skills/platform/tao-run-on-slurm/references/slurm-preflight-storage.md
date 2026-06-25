@@ -253,8 +253,10 @@ After that, rerun with SSH_KEY_PATH=~/.ssh/id_ed25519.
 Results default to:
 
 ```text
-/lustre/fsw/portfolios/edgeai/users/<slurm_user>/results/<job_id>
+/lustre/fsw/portfolios/edgeai/<your-dir>/results/<job_id>
 ```
+
+`<your-dir>` is your per-user directory on the cluster's Lustre share.
 
 The runner sets `TAO_API_RESULTS_DIR` to the parent results directory because
 container code appends the job id when writing status and artifacts.
