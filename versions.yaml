@@ -14,12 +14,12 @@
 
 images:
   tao_toolkit:
-    pyt:                nvcr.io/nvstaging/tao/tao-toolkit:7.0.1-pyt
-    deploy:             nvcr.io/nvstaging/tao/tao-toolkit:7.0.1-deploy
-    data_services:      nvcr.io/nvstaging/tao/tao-toolkit:7.0.1-data-services
-    cosmos_rl:          nvcr.io/nvstaging/tao/tao-toolkit:7.0.1-cosmos-rl
-    cosmos_predict:     nvcr.io/nvstaging/tao/tao-toolkit:7.0.1-cosmos-predict
-    cosmos_embed:       nvcr.io/nvstaging/tao/tao-toolkit:7.0.1-cosmos-embed
+    pyt:                nvcr.io/nvidia/tao/tao-toolkit:7.0.1-pyt
+    deploy:             nvcr.io/nvidia/tao/tao-toolkit:7.0.1-deploy
+    data_services:      nvcr.io/nvidia/tao/tao-toolkit:7.0.1-data-services
+    cosmos_rl:          nvcr.io/nvidia/tao/tao-toolkit:7.0.1-cosmos-rl
+    cosmos_predict:     nvcr.io/nvidia/tao/tao-toolkit:7.0.1-cosmos-predict
+    cosmos_embed:       nvcr.io/nvidia/tao/tao-toolkit:7.0.1-cosmos-embed
     vila:               nvcr.io/nvidia/tao/tao-toolkit:6.26.3-vila
 
   metropolis_sdg:
