@@ -7,7 +7,7 @@ description: Sparse4D for multi-camera temporal 3D object detection and tracking
 license: Apache-2.0
 compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  version: '0.1'
+  version: "0.1.0"
   author: NVIDIA Corporation
 allowed-tools: Read Bash
 tags:
@@ -152,61 +152,8 @@ CONVERTED = "s3://bucket/results/<dataset_convert_job_id>"
 }
 ```
 
-For local-docker runs, keep Sparse4D conversion rooted at `/data/aicity_root` and train/eval data roots at the converted split folder, for example `/data/aicity_root/train`. Mount the same host directory at `/data/aicity_root` for dataset_convert, train, evaluate, and inference; the converter extracts RGB frames there and writes those absolute frame paths into the pickle files. The annotations converter writes absolute RGB paths under the conversion root and relative depth paths under the split, so both mounts must stay stable across conversion and training. When `aicity.depth_format: h5`, normalize the converted pickle depth tuples before training if the H5 files live under `depth_maps/`:
+See `references/local_docker_conversion.md` for local-docker conversion roots and mounts, H5 depth-path normalization, converted annotation filenames, smoke-run `max_num_cams`/anchor contracts for export compatibility, and converted-artifact verification before train/evaluate/inference.
 
-```bash
-models/sparse4d/scripts/normalize_depth_paths.py \
-  --data-root /path/to/aicity_root/train \
-  /path/to/results/<dataset_convert_job_id>/results_dir/train
-```
-
-Use the actual converted annotation filename emitted by Data Services. For the
-packaged AICity smoke dataset the basename is
-`subsetscene+bev-sensor-random-0`, so the train file is
-`train/subsetscene+bev-sensor-random-0_infos_train.pkl`; do not strip the
-BEV-sensor suffix back to `subsetscene_infos_train.pkl`.
-
-For small local smoke runs with fewer camera streams than the production
-default, keep `model.head.deformable_model.max_num_cams: 20` if the resulting
-checkpoint will be exported. The current Sparse4D ONNX exporter constructs a
-20-camera dummy input, so checkpoints trained with `max_num_cams` reduced to the
-dataset camera count can load for evaluate/inference but fail export with a
-deformable-attention reshape error. It is safe to keep `max_num_cams: 20` while
-training/evaluating on fewer real cameras because the runtime projection matrix
-controls the active camera count. Only reduce `num_cams` for smoke data when
-needed; leave `max_num_cams` at 20 for export-compatible checkpoints.
-
-For export-compatible smoke checkpoints, also keep the default anchor contract:
-`model.head.instance_bank.num_anchor: 900`,
-`model.head.instance_bank.num_temp_instances: 600`, and
-`model.head.num_output: 900`. Sparse4D export currently creates cached feature
-and anchor tensors sized for the default 600 temporal instances. If a tiny
-dataset conversion produces fewer anchors, for example a 3-frame conversion that
-emits a 72-row `anchor_init.npy`, evaluate/inference can still run with matching
-reduced config values but export will fail during memory-bank update. Prefer
-rerunning `dataset_convert` with enough real frames to initialize 900 anchors
-instead of padding or inventing anchors.
-
-When reusing a previous dataset conversion for AutoML or repeated training,
-copy or mount the conversion output by the explicit `dataset_convert_job_id`,
-not by the first `results_dir` found under a results root. Before launching
-train/evaluate/inference, verify all required converted artifacts exist:
-
-```bash
-CONVERTED="/path/to/results/${dataset_convert_job_id}/results_dir"
-test -f "${CONVERTED}/anchor_init.npy"
-test -f "${CONVERTED}/train/subsetscene+bev-sensor-random-0_infos_train.pkl"
-test -f "${CONVERTED}/train/subsetscene+bev-sensor-random-1_infos_train.pkl"
-test -f "${CONVERTED}/train/subsetscene+bev-sensor-random-2_infos_train.pkl"
-```
-
-If any check fails, rerun `dataset_convert` with the `tao_toolkit.data_services`
-image instead of launching train. A wrong conversion artifact often surfaces as
-`FileNotFoundError: .../anchor_init.npy` during model construction.
-
-The AICity converter may extract the full camera videos to RGB frames even when
-`aicity.num_frames` is set to a small value for the converted pickle. Plan for
-the raw-data mount to hold the extracted frames as well as the H5 depth maps.
 ## Eval Dataset
 
 Optional. Val/test splits configured via dataset ann_file paths.
@@ -294,29 +241,4 @@ container/image failure and keep the exact checkpoint path visible.
 
 ## Spec Param / Parent Model Inference
 
-Model-specific inference mappings belong in this MD file, not in `config.json`. Generated runners should read this section and apply the mappings with SDK helpers before `create_job()`. This mirrors the old microservices `infer_params.py` flow.
-
-Inference mappings from TAO Core `sparse4d.config.json`:
-
-| Action | Spec Field | Inference Function | Meaning |
-|---|---|---|---|
-| dataset_convert | `results_dir` | `output_dir` | current job results directory |
-| evaluate | `encryption_key` | `key` | encryption key |
-| evaluate | `evaluate.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
-| evaluate | `results_dir` | `output_dir` | current job results directory |
-| export | `encryption_key` | `key` | encryption key |
-| export | `export.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
-| export | `export.onnx_file` | `create_onnx_file` | output ONNX path |
-| export | `results_dir` | `output_dir` | current job results directory |
-| inference | `encryption_key` | `key` | encryption key |
-| inference | `inference.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
-| inference | `results_dir` | `output_dir` | current job results directory |
-| quantize | `encryption_key` | `key` | encryption key |
-| quantize | `quantize.model_path` | `parent_model` | model file inferred from the parent job results folder |
-| quantize | `results_dir` | `output_dir` | current job results directory |
-| train | `encryption_key` | `key` | encryption key |
-| train | `results_dir` | `output_dir` | current job results directory |
-| train | `train.pretrained_model_path` | `ptm_if_no_resume_model` | PTM when no resume checkpoint exists |
-| train | `train.resume_training_checkpoint_path` | `resume_model` | model file inferred from the current job results folder |
-
-For `parent_model` or `parent_model_folder`, pass the upstream train/export/AutoML child job id as `parent_job_id`. The SDK lists the parent result folder, filters checkpoint artifacts, and returns the selected model file or folder. Do not add these mappings back to `config.json` and do not patch generated runner scripts to guess checkpoint paths.
+See `references/spec_param_inference.md` for the model-specific inference mappings from TAO Core `sparse4d.config.json` (the per-action spec-field to inference-function table) and the `parent_model`/`parent_job_id` checkpoint-resolution rules that generated runners apply with SDK helpers before `create_job()`.

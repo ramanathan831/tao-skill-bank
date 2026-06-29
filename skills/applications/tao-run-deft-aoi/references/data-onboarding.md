@@ -1,7 +1,7 @@
 # DEFT AOI — Data Onboarding
 
 Read this when a user wants to run the loop and either (a) has no workspace yet,
-or (b) needs the exact data formats to assemble one. The parent SKILL.md links
+or (b) needs the exact data formats to assemble one. The main SKILL.md links
 here from its data sections.
 
 This loop trains on **your** AOI inspection data. There is **no public AOI

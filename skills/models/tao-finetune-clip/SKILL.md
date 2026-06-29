@@ -7,7 +7,7 @@ license: Apache-2.0
 compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
   author: NVIDIA Corporation
-  version: '1.0'
+  version: "0.1.0"
 allowed-tools: Read Bash
 tags:
 - vision-language
@@ -39,7 +39,7 @@ Use this skill for NVIDIA TAO CLIP jobs: training, evaluation, embedding inferen
 
 For dataset-backed actions, collect the required image, caption, list, or prompt files from the user and place the resolved paths in `spec_overrides`. For local Docker runs, mount extracted folders in the container and point `image_dir` / `caption_dir` at those folders; if a data source provides `.tar.gz` archives, extract them before running the in-container CLIP commands. For `export` and `gen_trt_engine`, infer parent artifacts from the upstream job when available; otherwise require explicit checkpoint, ONNX, or engine paths. Run `gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference` in the TAO Deploy image.
 
-For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference`), read `deploy/SKILL.md` first. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
+For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference`), read `references/tao-deploy-clip.md` first. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
 
 ## Training Requirements
 
@@ -185,65 +185,12 @@ Single-GPU training works for small datasets. Use 4+ GPUs for datasets with more
 
 ## Error Patterns
 
-**CUDA out of memory**: Reduce `dataset.train.batch_size`, `dataset.val.batch_size`, or the TensorRT opt/max batch sizes. For export/deploy, check `export.input_height` and `export.input_width` against the selected fixed-resolution backbone.
-
-**NaN loss**: Learning rate is too high for fine-tuning. Reduce `train.optim.vision_lr` and `train.optim.text_lr`, increase `train.optim.warmup_steps`, and verify that captions are valid non-empty text.
-
-**Zero retrieval or classification quality**: Check that captions and prompts match the target label vocabulary. CLIP compares image and text embeddings, so prompt wording matters.
-
-**No CLIP-compatible dataset in a bucket prefix**: Training requires either
-custom-format `images.tar.gz` + `captions.tar.gz` + `image_list.txt`, or WDS
-`.tar` shards plus a shard list/root. Image-classification archives with
-`classes.txt` are not sufficient unless the user explicitly asks to generate
-caption files from labels as a separate data-preparation step.
-
-**Dataset size smaller than total batch size**: The total batch size is `batch_size * num_gpus`. If the dataset, especially validation, has fewer samples than this, reduce `dataset.val.batch_size` or `dataset.train.batch_size`.
-
-**Radio-CLIP config validation error**: Set `model.adaptor_name` explicitly to `siglip` or `clip`.
-
-**Unsupported model identifier or transform error**: Use a TAO-registered CLIP model ID supported by the current container. For minimal AutoML validation, prefer `ViT-L-14-SigLIP-CLIPA-224`. Generic OpenCLIP built-ins that are not in TAO's CLIP registry can bypass TAO's augmentation adapter and fail on transform keys.
-
-**ONNX external data missing**: Models larger than 2 GB export an ONNX file plus an external data file. Keep both files in the same directory and do not rename the external data file before `gen_trt_engine`.
-
-**TensorRT shape mismatch**: When using dynamic batch export, provide min/opt/max shape profiles for every input. Text sequence length must match the tokenizer length, commonly 77 for CLIP tokenizers and 64 for SigLIP2 tokenizers.
-
-**PyTorch 2.6 checkpoint load failure**: If a trusted TAO CLIP Lightning checkpoint fails with a `Weights only load failed` / `numpy.dtypes.Float64DType` unpickling error, rerun checkpoint-dependent PyTorch actions with `TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1`. For known parent outputs, set this environment variable up front on checkpoint-backed `evaluate`, `inference`, `export`, and resume train actions. Do not use this override for untrusted checkpoints.
-
-**PyTorch inference with null checkpoint**: If `clip inference` fails with `TypeError: expected str, bytes or os.PathLike object, not NoneType`, the spec did not provide `inference.checkpoint`. Use the exact resolved checkpoint from a parent train job for PyTorch inference, or use the export plus TensorRT image-only deploy path when no training checkpoint exists.
-
-**CLIP TensorRT text or retrieval failure**: Full TensorRT retrieval needs both `_vision.engine` and `_text.engine` artifacts in the same directory, or a combined engine. If `clip evaluate` fails with `Text engine not loaded`, build the matching text ONNX with `clip gen_trt_engine` before rerunning evaluation. If an older deploy image fails while parsing `input_ids` or `attention_mask`, fall back to image-only TensorRT inference with the `_vision.engine` and document text/retrieval deployment as blocked for that image.
-
-**attention_mask warning**: `attention_mask` is currently accepted by exported graphs for compatibility, but TAO ignores its values and may remove it in a future release. Do not build new direct-ONNX inference code that depends on mask values.
-
-**Error merging spec.yaml with schema**: A Hydra/OmegaConf config validation error. Common causes are putting `num_epochs` or `num_gpus` at the spec root instead of under `train.*`, or mixing up training image size (`model.image_size`) with export dimensions (`export.input_height` and `export.input_width`).
+See `references/error-patterns.md` for the full list of CLIP error symptoms and fixes (CUDA OOM, NaN loss, retrieval quality, dataset format/size, Radio-CLIP and model-ID validation, ONNX external data, TensorRT shape mismatch, PyTorch 2.6 checkpoint load, null-checkpoint inference, TensorRT text/retrieval failures, `attention_mask` handling, and spec/schema merge errors).
 
 ## Spec Param / Parent Model Inference
 
-Model-specific inference mappings belong in this MD file, not in `config.json`. Generated runners should read this section and apply the mappings with SDK helpers before `create_job()`. This mirrors the old microservices `infer_params.py` flow.
+See `references/spec-param-inference.md` for the model-specific inference mappings (the full `clip.config.json` action/spec-field/inference-function table) that generated runners apply with SDK helpers before `create_job()`, plus `parent_job_id` resolution rules.
 
-Inference mappings from TAO Core `clip.config.json`:
+## Deployment
 
-| Action | Spec Field | Inference Function | Meaning |
-|---|---|---|---|
-| evaluate | `encryption_key` | `key` | encryption key |
-| evaluate | `evaluate.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
-| evaluate | `evaluate.trt_engine` | `parent_model` | model file inferred from the parent job results folder |
-| evaluate | `results_dir` | `output_dir` | current job results directory |
-| export | `encryption_key` | `key` | encryption key |
-| export | `export.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
-| export | `export.onnx_file` | `create_onnx_file` | output ONNX path |
-| export | `results_dir` | `output_dir` | current job results directory |
-| gen_trt_engine | `encryption_key` | `key` | encryption key |
-| gen_trt_engine | `gen_trt_engine.onnx_file` | `parent_model` | model file inferred from the parent job results folder |
-| gen_trt_engine | `gen_trt_engine.trt_engine` | `create_engine_file` | output TensorRT engine path |
-| gen_trt_engine | `results_dir` | `output_dir` | current job results directory |
-| inference | `encryption_key` | `key` | encryption key |
-| inference | `inference.checkpoint` | `parent_model` | model file inferred from the parent job results folder |
-| inference | `inference.trt_engine` | `parent_model` | model file inferred from the parent job results folder |
-| inference | `results_dir` | `output_dir` | current job results directory |
-| train | `encryption_key` | `key` | encryption key |
-| train | `results_dir` | `output_dir` | current job results directory |
-| train | `train.pretrained_model_path` | `ptm_if_no_resume_model` | PTM when no resume checkpoint exists |
-| train | `train.resume_training_checkpoint_path` | `resume_model` | model file inferred from the current job results folder |
-
-For `parent_model` or `parent_model_folder`, pass the upstream train/export/AutoML child job id as `parent_job_id`. The SDK lists the parent result folder, filters checkpoint artifacts, and returns the selected model file or folder. Do not add these mappings back to `config.json` and do not patch generated runner scripts to guess checkpoint paths.
+- [tao-deploy-clip](references/tao-deploy-clip.md)

@@ -7,7 +7,7 @@ description: SegFormer for semantic segmentation. Lightweight transformer-based 
 license: Apache-2.0
 compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  version: '0.1'
+  version: "0.1.0"
   author: NVIDIA Corporation
 allowed-tools: Read Bash
 tags:
@@ -20,7 +20,7 @@ SegFormer for semantic segmentation. Lightweight transformer-based architecture 
 
 Set model.backbone.pretrained_backbone_path for backbone weights.
 
-For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference`), read `deploy/SKILL.md` first. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
+For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference`), read `references/tao-deploy-segformer.md` first. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
 
 ## Dataclass Schemas
 
@@ -34,7 +34,7 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 
 ## Supported Actions
 
-The packaged SegFormer PyT CLI supports `train`, `evaluate`, `export`, `inference`, `quantize`, and `default_specs`. This parent model skill exposes `train`, `evaluate`, `export`, `inference`, and `quantize`; resume/retrain is performed through `train` with `train.resume_training_checkpoint_path`.
+The packaged SegFormer PyT CLI supports `train`, `evaluate`, `export`, `inference`, `quantize`, and `default_specs`. This model skill exposes `train`, `evaluate`, `export`, `inference`, and `quantize`; resume/retrain is performed through `train` with `train.resume_training_checkpoint_path`.
 
 The parent PyT CLI does not expose `gen_trt_engine`. Use `models/segformer/deploy` for TensorRT engine generation, TensorRT evaluation, and TensorRT inference.
 
@@ -199,7 +199,7 @@ model and deploy specs have been validated at another resolution. The packaged
 fresh-install path is validated at `256x256`, matching the default SegFormer
 dataset and deploy templates.
 
-**Parent `segformer gen_trt_engine` rejected by the PyT CLI**: In the validated 7.0.0 PyT container, `segformer gen_trt_engine` is not a valid parent-model subtask. Use the SegFormer deploy sub-skill (`deploy/SKILL.md`) for TensorRT engine generation, TensorRT evaluation, and TensorRT inference.
+**Parent `segformer gen_trt_engine` rejected by the PyT CLI**: In the validated 7.0.0 PyT container, `segformer gen_trt_engine` is not a valid parent-model subtask. Use the SegFormer deploy workflow (`references/tao-deploy-segformer.md`) for TensorRT engine generation, TensorRT evaluation, and TensorRT inference.
 
 ## Spec Param / Parent Model Inference
 
@@ -231,3 +231,7 @@ Inference mappings from TAO Core `segformer.config.json`:
 | train | `train.resume_training_checkpoint_path` | `resume_model` | model file inferred from the current job results folder |
 
 For `parent_model` or `parent_model_folder`, pass the upstream train/export/AutoML child job id as `parent_job_id`. The SDK lists the parent result folder, filters checkpoint artifacts, and returns the selected model file or folder. Do not add these mappings back to `config.json` and do not patch generated runner scripts to guess checkpoint paths.
+
+## Deployment
+
+- [tao-deploy-segformer](references/tao-deploy-segformer.md)

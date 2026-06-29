@@ -7,7 +7,7 @@ description: Grounding DINO for open-set object detection. Combines DINO-style d
 license: Apache-2.0
 compatibility: Requires docker + nvidia-container-toolkit.
 metadata:
-  version: '0.1'
+  version: "0.1.0"
   author: NVIDIA Corporation
 allowed-tools: Read Bash
 tags:
@@ -21,7 +21,7 @@ Grounding DINO for open-set object detection. Combines DINO-style detection with
 
 Set train.pretrained_model_path for full Grounding DINO weights or model.pretrained_backbone_path for backbone-only.
 
-For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference`), read `deploy/SKILL.md` first. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
+For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and TensorRT `inference`), read `references/tao-deploy-grounding-dino.md` first. Deploy spec templates live in this skill's `references/` folder with the `spec_template_deploy_*.yaml` prefix.
 
 ## Dataclass Schemas
 
@@ -79,7 +79,7 @@ S3_EVAL = "s3://bucket/data/eval"
 }
 ```
 
-**deploy/gen_trt_engine (use `deploy/SKILL.md`):**
+**deploy/gen_trt_engine (use `references/tao-deploy-grounding-dino.md`):**
 ```python
 {
     "gen_trt_engine.onnx_file": "<exported_onnx_uri>",
@@ -164,7 +164,7 @@ Same DDP/FSDP behavior as DINO. Multi-node requires `WORLD_SIZE`, `NODE_RANK`, `
   `torch.onnx.export`.
 - The parent PyTorch `grounding_dino` CLI supports `train`, `evaluate`,
   `inference`, `export`, and `quantize`. Run TensorRT engine generation,
-  TensorRT inference, and TensorRT evaluation through `deploy/SKILL.md`.
+  TensorRT inference, and TensorRT evaluation through `references/tao-deploy-grounding-dino.md`.
 - TRT data types: FP32, FP16 only — **INT8 is NOT supported**
 - TRT workspace: 8192 MB (8x larger than other OD models)
 - TRT max_batch_size: 4
@@ -242,3 +242,7 @@ as `model.backbone`, `model.num_queries`, `model.num_select`,
 `model.num_feature_levels`, `model.max_text_len`, and export input resolution
 forward into evaluate, inference, export, and deploy specs so checkpoint and
 engine shapes match.
+
+## Deployment
+
+- [tao-deploy-grounding-dino](references/tao-deploy-grounding-dino.md)
