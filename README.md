@@ -187,16 +187,24 @@ You don't have to pre-install — the relevant skills (`tao-run-platform`, `tao-
 
 ## Contributing a new skill
 
-See [docs/authoring.md](docs/authoring.md) for the full guide. The minimum viable skill is just `SKILL.md` — `references/skill_info.yaml` and friends are optional and only added when they earn their keep.
+> **Read first:** [`docs/skill-requirements.md`](docs/skill-requirements.md) —
+> the **must-follow** rules for naming, frontmatter, size, `evals/evals.json`,
+> and the security-scanner gotchas that block at signing. CI errors and
+> signing-pipeline blockers are called out separately. Treat this as the
+> authoritative gate list; [`docs/authoring.md`](docs/authoring.md) is the
+> longer walkthrough.
+
+See [`docs/authoring.md`](docs/authoring.md) for the full authoring guide. The minimum viable skill is just `SKILL.md` — `references/skill_info.yaml` and friends are optional and only added when they earn their keep.
 
 In brief:
 
 1. Pick the layer (`skills/models/`, `skills/data/`, `skills/platform/`, `skills/applications/`).
 2. Copy a template from [`templates/skill-skeleton/`](templates/skill-skeleton/) — `minimal/` for the bare path, `model/`, `data/`, `platform/`, or `workflow/` for richer scaffolding.
 3. Fill in frontmatter and SKILL.md body. Body must contain a `## Quick Start` section, a `docker run` block, an SDK call, or a link to `references/skill_info.yaml`.
-4. Add the skill path to [`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json) under the relevant plugin(s).
-5. Do not add a mirror entry under `skills/core/`; Codex helper skills route to the canonical layer directories.
-6. Validate with `scripts/validate-skills.sh` before submitting a PR.
+4. Add `evals/evals.json` (required for Tier-3 signing — see [`docs/skill-requirements.md`](docs/skill-requirements.md) § 2.3). `eval.config` is optional and only needed if you want live-execution coverage.
+5. Add the skill path to [`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json) under the relevant plugin(s).
+6. Do not add a mirror entry under `skills/core/`; Codex helper skills route to the canonical layer directories.
+7. Validate with `scripts/validate-skills.sh` before submitting a PR.
 
 ## Repository structure
 
@@ -215,6 +223,7 @@ tao-skills-external/
 ├── versions.yaml                     # single source of truth: container images + SDK wheel versions
 ├── README.md
 ├── docs/
+│   ├── skill-requirements.md         # must-follow rules: naming + signing gates (read first)
 │   ├── authoring.md                  # guide for adding new skills
 │   └── maintenance.md                # RC bump procedure for versions.yaml
 ├── templates/skill-skeleton/         # copy-paste starting points (minimal + per-layer)

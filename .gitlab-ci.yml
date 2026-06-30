@@ -1,10 +1,11 @@
 # Stages declared up front so includes that bring in extra ones (the
 # container-mode template adds `detect` + `eval`) don't clobber `test`
-# used by `validate-skills`.
+# used by `validate-skills`. `test` runs first so cheap content/frontmatter
+# checks fail fast before the GPU-runner `eval` stage spends budget.
 stages:
+  - test
   - detect
   - eval
-  - test
 
 include:
   # End-to-end skill execution eval — CONTAINER MODE.

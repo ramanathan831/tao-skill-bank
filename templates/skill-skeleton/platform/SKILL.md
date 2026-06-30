@@ -9,7 +9,7 @@ license: Apache-2.0
 compatibility: REPLACE — examples — `Requires the brev CLI and an active brev login.` or `Requires the tao-sdk Python package (pip install 'tao-sdk[<platform>]') plus <PLATFORM>_API_TOKEN.`
 metadata:
   author: REPLACE-WITH-AUTHOR-NAME
-  version: "0.1"
+  version: "0.1.0"
 allowed-tools: Read Bash
 ---
 

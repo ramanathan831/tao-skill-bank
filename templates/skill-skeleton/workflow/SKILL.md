@@ -9,7 +9,7 @@ license: Apache-2.0
 compatibility: Requires docker + nvidia-container-toolkit. Sub-skills declare additional requirements.
 metadata:
   author: REPLACE-WITH-AUTHOR-NAME
-  version: "0.1"
+  version: "0.1.0"
 allowed-tools: Read Bash
 ---
 
