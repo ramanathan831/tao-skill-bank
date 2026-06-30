@@ -10,7 +10,7 @@ license: Apache-2.0
 # compatibility: Describe runtime requirements only — what the user must have installed (docker, CLI, Python packages, env vars). Do NOT mention agent harness; the skill bank is harness-agnostic.
 # metadata:
 #   author: Your Name
-#   version: "0.1"
+#   version: "0.1.0"
 # allowed-tools: Read Bash    # Pre-approve tools the skill needs frequently to reduce user prompts.
 ---
 
