@@ -11,7 +11,7 @@ license: Apache-2.0
 compatibility: Requires Python 3.12+ and uv. CUDA GPU recommended; CPU-only supported.
 metadata:
   author: NVIDIA Corporation
-  version: "0.2.0"
+  version: "0.1.0"
 allowed-tools: Read Bash
 tags:
   - anomaly-detection
