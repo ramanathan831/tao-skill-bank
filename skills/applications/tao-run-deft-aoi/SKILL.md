@@ -129,7 +129,7 @@ All pipeline stages run inline in the parent context — the parent invokes the 
 
 ### Using Bundled Scripts
 
-Run bundled scripts from `scripts/` via `run_script()` when the harness provides it (a Claude Code plugin runtime helper, not a function defined in this repo); otherwise fall back to direct `python`. Resolve every path argument to an absolute host path first. Never write `loop_log.jsonl` via `echo` or inline `jq` — the `seq` invariant requires reading the live tail through `next_seq()`. See `references/scripts-and-agents.md` for the full **Available Scripts** table, the `agents/reporter.md` spawn contract, the **Stage Reference Modules** stage→skill mapping, the path-rule invariant, and the workflow-level AutoML-policy pitfall. For per-script invocation examples, see `references/SCRIPT_USAGE.md`.
+Run bundled scripts from `scripts/` via `run_script()` when the harness provides it (a Claude Code plugin runtime helper, not a function defined in this repo); otherwise fall back to direct `python`. Resolve every path argument to an absolute host path first. Never write `loop_log.jsonl` via `echo` or inline `jq` — the `seq` invariant requires reading the live tail through `next_seq()`. See `references/scripts-and-agents.md` for the full **Available Scripts** table, per-script **invocation examples** (`run_script()` / direct-python / in-process), the `agents/reporter.md` spawn contract, the **Stage Reference Modules** stage→skill mapping, the path-rule invariant, and the workflow-level AutoML-policy pitfall.
 
 ## Stage Reference Modules
 
@@ -141,7 +141,7 @@ Each pipeline stage maps to one underlying skill in the bank; the matching `refe
 
 | Topic | Reference | Contents |
 |---|---|---|
-| Bring-your-own-data, data contract, output layout, augmentation pool | `references/data-layout.md` | No public AOI dataset; full `<workspace>` input tree, ChangeNet 14-column CSV schema pointer, `${RESULTS_DIR}/` output tree, and the two-source mining-pool table |
+| Bring-your-own-data, data contract, output layout, augmentation pool | `references/data-layout.md` | No public AOI dataset; full `<workspace>` input tree, ChangeNet four-column required CSV schema, `${RESULTS_DIR}/` output tree, and the two-source mining-pool table |
 | Pre-Flight checks, defaults, Pre-Flight Summary template, runtime estimate | `references/preflight.md` | The 10 ordered Pre-Flight checks, required input `max_iterations`, all defaults, the full Pre-Flight Summary table + populate commands, and the per-iteration runtime estimate |
 | Pipeline steps, state/logging, stage execution, reports, runtime behavior | `references/pipeline-and-state.md` | Baseline pre-seed/skip-train logic, the 7 iteration Pipeline steps, `deft_state.json` + `loop_log.jsonl` schema and `seq` cadence, post-stage check, per-iteration HTML render, and the loop-end sequence |
 | Bundled scripts, reporter agent, stage modules, AutoML pitfall | `references/scripts-and-agents.md` | Available Scripts table, `agents/reporter.md` spawn contract, Stage Reference Modules table, path-rule invariant, AutoML-policy spec trap |
