@@ -85,7 +85,7 @@ Once all checks pass, print this summary and **STOP — wait for explicit user a
 | Field                          | Value                                                                          |
 | ------------------------------ | ------------------------------------------------------------------------------ |
 | KPI Target                     | FAR < X% at Recall=100%                                                        |
-| Max Iterations                 | N                                                                              |
+| Max DEFT Iterations            | N                                                                              |
 | Stop condition                 | KPI met **or** max_iterations reached — reaching the KPI is not guaranteed; FAR may regress between iterations |
 | Training Epochs                | N per iteration                                                                |
 | Num SDG                        | N synthetic samples per iteration                                              |
