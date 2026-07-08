@@ -25,8 +25,6 @@ tags:
 
 # AutoML + DEFT Pipeline
 
-> **Standalone install?** If this session was not initialized by the TAO skill bank plugin, run the `tao-setup` skill first (host preflight, credentials, cross-skill discovery).
-
 A workflow-bridge skill that runs **three phases** in sequence by delegating to two existing skills — `tao-run-automl` for HPO and a DEFT application skill (default `tao-run-deft-aoi` for AOI; other `skills/applications/deft-*` skills for non-AOI cases) for the iterative data-improvement loop.
 
 This skill **does not** re-implement AutoML or DEFT. It owns only the connective tissue: HPO spec inputs, the spec-handoff between AutoML and DEFT, and the post-DEFT AutoML re-run on the augmented dataset.
