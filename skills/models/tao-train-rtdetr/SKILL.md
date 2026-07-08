@@ -17,6 +17,8 @@ tags:
 
 # RT-DETR
 
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin (e.g. skills installed individually from a skills catalog), run the `tao-setup` skill first — it provides the host preflight, credential conventions, and the cross-skill discovery flow that the plugin's session hook would otherwise inject.
+
 RT-DETR (Real-Time DEtection TRansformer) for 2D object detection. Designed for real-time inference with competitive accuracy. Supports distillation and quantization for deployment optimization.
 
 Set model.pretrained_backbone_path for backbone weights or train.pretrained_model_path for full model.

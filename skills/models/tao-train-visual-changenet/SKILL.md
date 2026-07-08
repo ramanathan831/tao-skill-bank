@@ -22,6 +22,8 @@ tags:
 
 # Visual ChangeNet
 
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin (e.g. skills installed individually from a skills catalog), run the `tao-setup` skill first — it provides the host preflight, credential conventions, and the cross-skill discovery flow that the plugin's session hook would otherwise inject.
+
 Visual ChangeNet is a TAO Toolkit model for visual inspection and defect detection. It supports two tasks:
 
 - **Classify** — Binary image classification using a siamese-style architecture with a shared backbone (C-RADIO ViT) and a learnable difference module. Compares image pairs to classify defects as PASS/NO_PASS.

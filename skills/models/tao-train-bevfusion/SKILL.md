@@ -19,6 +19,8 @@ tags:
 
 # BEVFusion
 
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin (e.g. skills installed individually from a skills catalog), run the `tao-setup` skill first — it provides the host preflight, credential conventions, and the cross-skill discovery flow that the plugin's session hook would otherwise inject.
+
 BEVFusion for multi-sensor 3D object detection. Fuses LiDAR point clouds and camera images in bird's-eye-view (BEV) space. Used in autonomous driving for robust 3D perception.
 
 Set pretrained backbone paths for Swin image backbone.

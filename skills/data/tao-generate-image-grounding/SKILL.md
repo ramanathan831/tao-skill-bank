@@ -21,6 +21,8 @@ tags:
 
 # Image Grounding Pipeline
 
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin (e.g. skills installed individually from a skills catalog), run the `tao-setup` skill first — it provides the host preflight, credential conventions, and the cross-skill discovery flow that the plugin's session hook would otherwise inject.
+
 Turn `(image, caption)` pairs into per-image grounded annotations: cleaned captions, referring expressions with character spans, and pixel-space bounding boxes for each expression. A single VLM (Gemini or any OpenAI-compatible endpoint) handles both steps.
 
 ## Purpose

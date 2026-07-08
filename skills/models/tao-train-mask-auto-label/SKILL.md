@@ -16,6 +16,8 @@ tags:
 
 # MAL
 
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin (e.g. skills installed individually from a skills catalog), run the `tao-setup` skill first — it provides the host preflight, credential conventions, and the cross-skill discovery flow that the plugin's session hook would otherwise inject.
+
 MAL (Mask Auto-Label) for weakly-supervised segmentation. Produces segmentation masks from minimal annotations (e.g., point or box annotations). Uses ViT-MAE backbone.
 
 Set train.pretrained_model_path for ViT-MAE pretrained weights.

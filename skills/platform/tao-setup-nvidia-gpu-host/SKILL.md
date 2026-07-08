@@ -26,6 +26,8 @@ tags:
 
 # NVIDIA GPU Host Setup
 
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin (e.g. skills installed individually from a skills catalog), run the `tao-setup` skill first — it provides the host preflight, credential conventions, and the cross-skill discovery flow that the plugin's session hook would otherwise inject.
+
 Use this setup skill before TAO workflows run on the `docker`, `local-docker`,
 or `kubernetes` backend. It standardizes the host GPU runtime on:
 

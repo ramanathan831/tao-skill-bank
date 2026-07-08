@@ -16,6 +16,8 @@ tags:
 
 # CenterPose
 
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin (e.g. skills installed individually from a skills catalog), run the `tao-setup` skill first — it provides the host preflight, credential conventions, and the cross-skill discovery flow that the plugin's session hook would otherwise inject.
+
 CenterPose for keypoint / pose estimation. Detects object centers and regresses keypoint locations. Used for 6-DoF object pose estimation.
 
 Set model.backbone.pretrained_backbone_path.

@@ -29,6 +29,8 @@ allowed-tools: Read Bash Write
 
 # tao-finetune-huggingface-model
 
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin (e.g. skills installed individually from a skills catalog), run the `tao-setup` skill first — it provides the host preflight, credential conventions, and the cross-skill discovery flow that the plugin's session hook would otherwise inject.
+
 Local NVIDIA GPU fine-tuning for HuggingFace models, grounded in live-fetched
 documentation with curated references as a fallback safety net. One NGC container,
 a few focused scripts, one push to HF Hub. Follow the rules in this file; don't

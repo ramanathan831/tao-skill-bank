@@ -19,6 +19,8 @@ tags:
 
 # Kubernetes
 
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin (e.g. skills installed individually from a skills catalog), run the `tao-setup` skill first — it provides the host preflight, credential conventions, and the cross-skill discovery flow that the plugin's session hook would otherwise inject.
+
 Submits TAO container jobs as Kubernetes Jobs. Works on any cluster reachable via kubeconfig (EKS / GKE / AKS / on-prem) or in-cluster service account (when the SDK runs inside a pod).
 
 Single-pod by default; opt into multi-node distributed training via `num_nodes > 1` (uses Indexed Job + headless Service, see [Multi-node training](#multi-node-training-distributed) below).

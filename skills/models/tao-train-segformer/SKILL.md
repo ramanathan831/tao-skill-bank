@@ -16,6 +16,8 @@ tags:
 
 # SegFormer
 
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin (e.g. skills installed individually from a skills catalog), run the `tao-setup` skill first — it provides the host preflight, credential conventions, and the cross-skill discovery flow that the plugin's session hook would otherwise inject.
+
 SegFormer for semantic segmentation. Lightweight transformer-based architecture with hierarchical feature extraction. Efficient for real-time segmentation tasks.
 
 Set model.backbone.pretrained_backbone_path for backbone weights.

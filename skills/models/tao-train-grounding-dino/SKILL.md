@@ -17,6 +17,8 @@ tags:
 
 # Grounding DINO
 
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin (e.g. skills installed individually from a skills catalog), run the `tao-setup` skill first — it provides the host preflight, credential conventions, and the cross-skill discovery flow that the plugin's session hook would otherwise inject.
+
 Grounding DINO for open-set object detection. Combines DINO-style detection with BERT text encoder for language-guided detection. Detects objects described by text prompts without fixed class vocabulary.
 
 Set train.pretrained_model_path for full Grounding DINO weights or model.pretrained_backbone_path for backbone-only.

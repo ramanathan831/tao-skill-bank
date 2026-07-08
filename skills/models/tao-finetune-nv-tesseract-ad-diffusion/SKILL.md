@@ -24,6 +24,8 @@ tags:
 
 # NV-Tesseract AD Diffusion
 
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin (e.g. skills installed individually from a skills catalog), run the `tao-setup` skill first — it provides the host preflight, credential conventions, and the cross-skill discovery flow that the plugin's session hook would otherwise inject.
+
 Diffusion-based anomaly detection and fine-tuning for multivariate time series. The model
 reconstructs randomly masked segments and scores each timestep by MAE between reconstruction
 and original signal; adaptive thresholding (SCS or MACS) converts scores to binary labels.

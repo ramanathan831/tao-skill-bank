@@ -24,6 +24,8 @@ allowed-tools: Read Bash Write
 
 # Image Referring Expression Pipeline
 
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin (e.g. skills installed individually from a skills catalog), run the `tao-setup` skill first — it provides the host preflight, credential conventions, and the cross-skill discovery flow that the plugin's session hook would otherwise inject.
+
 Generate referring-expression and grounding annotations from images with KITTI-format bounding box labels. A single VLM (Gemini or any OpenAI-compatible endpoint) runs four steps: per-object region descriptions, holistic image captions, grouped grounding expressions tied to bboxes, and an optional double-check verification pass.
 
 ## Purpose

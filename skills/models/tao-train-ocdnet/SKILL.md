@@ -17,6 +17,8 @@ tags:
 
 # OCDNet
 
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin (e.g. skills installed individually from a skills catalog), run the `tao-setup` skill first — it provides the host preflight, credential conventions, and the cross-skill discovery flow that the plugin's session hook would otherwise inject.
+
 OCDNet for scene text detection. Detects arbitrary-oriented text regions in natural images using a differentiable binarization approach.
 
 Set `model.pretrained_model_path` for pretrained weights.

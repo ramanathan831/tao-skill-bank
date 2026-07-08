@@ -18,6 +18,8 @@ tags:
 
 # Local Docker
 
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin (e.g. skills installed individually from a skills catalog), run the `tao-setup` skill first — it provides the host preflight, credential conventions, and the cross-skill discovery flow that the plugin's session hook would otherwise inject.
+
 Single-node execution platform that runs TAO jobs as named Docker containers on
 a Docker daemon. The daemon can be local to the agent host or remote through
 `DOCKER_HOST=ssh://user@host` / a Docker context. It is useful for development,
