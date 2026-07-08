@@ -18,7 +18,7 @@ tags:
 
 # Brev
 
-> **Standalone install?** If this session was not initialized by the TAO skill bank plugin (e.g. skills installed individually from a skills catalog), run the `tao-setup` skill first — it provides the host preflight, credential conventions, and the cross-skill discovery flow that the plugin's session hook would otherwise inject.
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin, run the `tao-setup` skill first (host preflight, credentials, cross-skill discovery).
 
 NVIDIA Brev provides on-demand GPU instances across multiple cloud providers. Instances come pre-loaded with NVIDIA drivers, CUDA, Docker, and NVIDIA Container Toolkit.
 

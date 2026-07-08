@@ -20,7 +20,7 @@ tags:
 
 # Depth Net Fast Stereo
 
-> **Standalone install?** If this session was not initialized by the TAO skill bank plugin (e.g. skills installed individually from a skills catalog), run the `tao-setup` skill first — it provides the host preflight, credential conventions, and the cross-skill discovery flow that the plugin's session hook would otherwise inject.
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin, run the `tao-setup` skill first (host preflight, credentials, cross-skill discovery).
 
 Real-time stereo depth estimation using **FastFoundationStereo (FFS)** — the bp2 commercial distilled variant of FoundationStereo. Predicts disparity maps from rectified stereo image pairs with per-layer pruned widths for real-time inference.
 

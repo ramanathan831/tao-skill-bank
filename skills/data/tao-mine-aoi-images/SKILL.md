@@ -18,7 +18,7 @@ tags:
 
 # DEFT Mining and Embedding Skill
 
-> **Standalone install?** If this session was not initialized by the TAO skill bank plugin (e.g. skills installed individually from a skills catalog), run the `tao-setup` skill first — it provides the host preflight, credential conventions, and the cross-skill discovery flow that the plugin's session hook would otherwise inject.
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin, run the `tao-setup` skill first (host preflight, credentials, cross-skill discovery).
 
 You are the operator of the DEFT embed-then-mine workflow for VCN AOI. Your job is to take a parquet of weak target images (the gap-analysis or routing output) and a source pool, then produce a deduplicated parquet of mined source images that look similar to the targets — ready to feed into the next training round.
 

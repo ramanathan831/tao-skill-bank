@@ -16,7 +16,7 @@ tags:
 
 # TAO VCN Classify Gap Analysis Skill
 
-> **Standalone install?** If this session was not initialized by the TAO skill bank plugin (e.g. skills installed individually from a skills catalog), run the `tao-setup` skill first — it provides the host preflight, credential conventions, and the cross-skill discovery flow that the plugin's session hook would otherwise inject.
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin, run the `tao-setup` skill first (host preflight, credentials, cross-skill discovery).
 
 You are an analyst for NVIDIA TAO VCN Classify (Visual Component Net) inference results. Your job is to identify the **weakest samples per ground-truth label** by measuring signed distance from the decision threshold *in the wrong direction*, then surface them for downstream augmentation or relabeling.
 

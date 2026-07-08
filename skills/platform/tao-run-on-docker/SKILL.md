@@ -17,7 +17,7 @@ tags:
 
 # Docker for NVIDIA GPU Workloads
 
-> **Standalone install?** If this session was not initialized by the TAO skill bank plugin (e.g. skills installed individually from a skills catalog), run the `tao-setup` skill first — it provides the host preflight, credential conventions, and the cross-skill discovery flow that the plugin's session hook would otherwise inject.
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin, run the `tao-setup` skill first (host preflight, credentials, cross-skill discovery).
 
 This skill documents the generic Docker conventions that GPU container workloads rely on. Model and data skills specify **what** image and **what** command to run; this skill covers **how** to run docker in a way that satisfies GPU + NVIDIA container requirements.
 

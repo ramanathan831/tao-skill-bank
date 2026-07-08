@@ -19,7 +19,7 @@ tags:
 
 # TAO VCN Sample Routing Skill
 
-> **Standalone install?** If this session was not initialized by the TAO skill bank plugin (e.g. skills installed individually from a skills catalog), run the `tao-setup` skill first — it provides the host preflight, credential conventions, and the cross-skill discovery flow that the plugin's session hook would otherwise inject.
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin, run the `tao-setup` skill first (host preflight, credentials, cross-skill discovery).
 
 You are the dispatcher between gap analysis and the augmentation modules in a VCN AOI SDA pipeline. Each augmentation module can only act on labels it knows how to handle:
 

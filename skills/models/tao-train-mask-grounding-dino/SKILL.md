@@ -16,7 +16,7 @@ tags:
 
 # Mask Grounding DINO
 
-> **Standalone install?** If this session was not initialized by the TAO skill bank plugin (e.g. skills installed individually from a skills catalog), run the `tao-setup` skill first — it provides the host preflight, credential conventions, and the cross-skill discovery flow that the plugin's session hook would otherwise inject.
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin, run the `tao-setup` skill first (host preflight, credentials, cross-skill discovery).
 
 Mask Grounding DINO for grounded instance segmentation. Extends Grounding DINO with mask prediction head for open-set segmentation guided by text prompts.
 

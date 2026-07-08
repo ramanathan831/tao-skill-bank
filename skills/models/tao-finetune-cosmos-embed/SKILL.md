@@ -23,7 +23,7 @@ tags:
 
 # Cosmos-Embed
 
-> **Standalone install?** If this session was not initialized by the TAO skill bank plugin (e.g. skills installed individually from a skills catalog), run the `tao-setup` skill first — it provides the host preflight, credential conventions, and the cross-skill discovery flow that the plugin's session hook would otherwise inject.
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin, run the `tao-setup` skill first (host preflight, credentials, cross-skill discovery).
 
 Cosmos-Embed1 is a joint video-text embedder for text-to-video retrieval, video-to-video search, zero-shot/kNN classification, and semantic deduplication. The packaged CLI is `cosmos-embed1` and supports `train`, `evaluate`, `inference`, and `export`.
 

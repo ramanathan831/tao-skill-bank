@@ -29,7 +29,7 @@ tags:
 
 # Video Reasoning Annotation Pipeline
 
-> **Standalone install?** If this session was not initialized by the TAO skill bank plugin (e.g. skills installed individually from a skills catalog), run the `tao-setup` skill first — it provides the host preflight, credential conventions, and the cross-skill discovery flow that the plugin's session hook would otherwise inject.
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin, run the `tao-setup` skill first (host preflight, credentials, cross-skill discovery).
 
 Generate Chain-of-Thought training datasets from videos by producing multi-level captions, structured descriptions, and QA pairs (MCQ, binary, open-ended) with step-by-step reasoning traces. Domain-agnostic by default — customize prompts for any video domain.
 

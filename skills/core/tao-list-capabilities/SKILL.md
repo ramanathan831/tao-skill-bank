@@ -19,7 +19,7 @@ tags:
 
 # TAO Skill Bank Capabilities
 
-> **Standalone install?** If this session was not initialized by the TAO skill bank plugin (e.g. skills installed individually from a skills catalog), run the `tao-setup` skill first — it provides the host preflight, credential conventions, and the cross-skill discovery flow that the plugin's session hook would otherwise inject.
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin, run the `tao-setup` skill first (host preflight, credentials, cross-skill discovery).
 
 Use this skill when the user asks what `tao-skill-bank` can do, asks for plugin
 capabilities, asks which application or data workflows are available, asks which
