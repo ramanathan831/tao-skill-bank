@@ -66,20 +66,13 @@ not apply this policy to other workflows.
 ## Launch Intake
 
 After the user confirms they want to run this workflow, ask which supported
-platform they intend to run on. Generate the platform choices with:
+platform they intend to run on. The supported platforms are the installed
+platform skills — `tao-run-on-local-docker` (default for a local GPU host),
+`tao-run-on-brev`, `tao-run-on-slurm`, and `tao-run-on-kubernetes`. Never
+default silently; if the user has not chosen, ask.
 
-```bash
-${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/list_tao_platforms.py \
-  --skill-bank ${TAO_SKILL_BANK_PATH:-~/tao-skills-external} --format text
-```
-
-After platform selection, run:
-
-```bash
-${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/list_tao_platforms.py \
-  --skill-bank ${TAO_SKILL_BANK_PATH:-~/tao-skills-external} \
-  --platform <platform> --format text
-```
+After platform selection, read the chosen platform skill's SKILL.md and run
+its Preflight section for the credential and environment requirements.
 
 Ask only for credentials relevant to that platform, plus model-specific
 credentials required by the selected workflow.

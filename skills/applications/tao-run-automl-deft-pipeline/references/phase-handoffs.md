@@ -88,6 +88,6 @@ Output goes to `${RESULTS_DIR}/final_automl/`. The winning checkpoint of this sw
 `tao-run-deft-aoi`'s `scripts/prepare_inference_spec.py` selects the lowest-`far_pct` entry from `deft_state.json["iterations"]`. To make Phase 3's checkpoint visible to the handoff:
 
 1. Append an entry to `${RESULTS_DIR}/deft_state.json` under `iterations.final_automl` with the same shape as iteration entries (`best_ckpt_path`, `threshold`, `far_pct`) — populate from Phase 3's eval output.
-2. Re-run `python ${TAO_SKILL_BANK_PATH}/applications/tao-run-deft-aoi/scripts/prepare_inference_spec.py --results-dir ${RESULTS_DIR}`. The script's `_pick_best` will now see the Phase 3 entry and select it on `far_pct` (or fall back to the loop's best if Phase 3 regressed — see safety note below).
+2. Re-run `python <path-to-tao-run-deft-aoi-skill>/scripts/prepare_inference_spec.py --results-dir ${RESULTS_DIR}` (the script ships inside the installed `tao-run-deft-aoi` skill). The script's `_pick_best` will now see the Phase 3 entry and select it on `far_pct` (or fall back to the loop's best if Phase 3 regressed — see safety note below).
 
 **Safety note.** Phase 3 is not guaranteed to beat the loop's best iteration — AutoML can over-fit a small augmented dataset. The `_pick_best` lowest-`far_pct` tie-break protects against this: if Phase 3's checkpoint is worse, the iteration winner is still selected. Surface both numbers to the user in the final summary so the regression is visible.
