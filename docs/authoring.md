@@ -224,10 +224,19 @@ Pure agent-only skills (e.g., HF model wrappers driven by a single `docker run`)
 
 Skills reference container images and SDK wheel versions through a single canonical file: `versions.yaml` at the bank's repo root. This is the **only** place to bump TAO container tags, IVA images, or SDK wheel versions when an RC ships.
 
-`references/skill_info.yaml` accepts two forms for `container_image`:
+`references/skill_info.yaml` carries a stamped literal for `container_image`,
+annotated with the versions.yaml key it is stamped from — skills stay standalone
+(no runtime versions.yaml lookup) while release bumps stay one-file edits:
 
 ```yaml
-# Preferred: dotted key — resolved against versions.yaml at runtime
+container_image: nvcr.io/nvidia/tao/tao-toolkit:7.0.1-pyt  # versions-key: images.tao_toolkit.pyt
+```
+
+`scripts/stamp_versions.py` rewrites every annotated line from `versions.yaml`
+(CI runs `--check` to reject drift). Two legacy forms also parse:
+
+```yaml
+# Legacy: dotted key — resolved against versions.yaml at runtime (pre-standalone skills)
 container_image: tao_toolkit.pyt
 
 # Also valid: absolute registry URI (for experimental / third-party / one-off images)
@@ -263,7 +272,7 @@ Most skills run with just docker (no Python SDK). A few skills are SDK-orchestra
 This skill needs the TAO SDK. `nvidia-tao-sdk` is on public PyPI and pinned in `versions.yaml`; Preflight blocks resolve the pin via `scripts/resolve_versions_key.py` (swap `wheels.tao_sdk_brev` for the extra you need — `_docker`, `_slurm`, `_kubernetes`, `_all`):
 
 ```bash
-PIN=$("${TAO_SKILL_BANK_PATH:?}/scripts/resolve_versions_key.py" wheels.tao_sdk_brev)
+PIN="nvidia-tao-sdk[brev]==7.0.1"  # versions-key: wheels.tao_sdk_brev
 python -c "import tao_sdk" 2>/dev/null || {
   echo "MISSING: nvidia-tao-sdk not installed. Run:"
   echo "  pip install \"$PIN\""
@@ -283,8 +292,8 @@ name: tao-train-my-network                      # follow the kebab + verb-object
 type: model | data | application | platform     # optional, useful for tooling
 required_credentials: [HF_TOKEN, NGC_KEY]
 
-# Models and data skills (containerized) — prefer the dotted key form (resolved against versions.yaml)
-container_image: tao_toolkit.pyt
+# Models and data skills (containerized) — stamped literal + versions-key marker
+container_image: nvcr.io/nvidia/tao/tao-toolkit:7.0.1-pyt  # versions-key: images.tao_toolkit.pyt
 actions:
   train:
     command: visual_changenet train -e {config_path}

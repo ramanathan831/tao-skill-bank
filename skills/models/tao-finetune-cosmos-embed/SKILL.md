@@ -5,7 +5,7 @@ description: >-
   fine-tuning. Use when the user asks to "fine-tune Cosmos-Embed1", "run cosmos-embed inference", "export Cosmos-Embed1",
   "embed videos", or "search videos with text".
 license: Apache-2.0
-compatibility: Requires docker + nvidia-container-toolkit, the published Cosmos-Embed TAO container from versions.yaml, and a HuggingFace token when downloading pretrained `nvidia/Cosmos-Embed1-*` weights.
+compatibility: Requires docker + nvidia-container-toolkit, the published Cosmos-Embed TAO container (pinned in this skill), and a HuggingFace token when downloading pretrained `nvidia/Cosmos-Embed1-*` weights.
 metadata:
   author: NVIDIA Corporation
   version: "0.1.0"
@@ -35,21 +35,13 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 
 ## Quick Start
 
-Use the published Cosmos-Embed container declared by `references/skill_info.yaml`
-and resolved through `versions.yaml`. Do not build from the private
+Use the published Cosmos-Embed container pinned below (also declared in
+`references/skill_info.yaml`). Do not build from the private
 Cosmos-Embed1 source tree for normal skill use; build from source only when
 developing the container itself.
 
 ```bash
-TAO_SKILL_BANK_PATH="${TAO_SKILL_BANK_PATH:-$PWD}"
-COSMOS_EMBED_IMAGE="${COSMOS_EMBED_IMAGE:-$(
-  python "$TAO_SKILL_BANK_PATH/scripts/resolve_tao_image.py" \
-    --skill-bank "$TAO_SKILL_BANK_PATH" \
-    --model tao-finetune-cosmos-embed \
-    --action train \
-    --format json |
-  python -c 'import json,sys; print(json.load(sys.stdin)["image"])'
-)}"
+COSMOS_EMBED_IMAGE="${COSMOS_EMBED_IMAGE:-nvcr.io/nvidia/tao/tao-toolkit:7.0.1-cosmos-embed}"  # versions-key: images.tao_toolkit.cosmos_embed
 docker pull "$COSMOS_EMBED_IMAGE"
 ```
 
@@ -76,15 +68,7 @@ workspace/
 Use these Docker options for all actions unless the local Docker/platform skill gives a stricter environment-specific command:
 
 ```bash
-TAO_SKILL_BANK_PATH="${TAO_SKILL_BANK_PATH:-$PWD}"
-COSMOS_EMBED_IMAGE="${COSMOS_EMBED_IMAGE:-$(
-  python "$TAO_SKILL_BANK_PATH/scripts/resolve_tao_image.py" \
-    --skill-bank "$TAO_SKILL_BANK_PATH" \
-    --model tao-finetune-cosmos-embed \
-    --action train \
-    --format json |
-  python -c 'import json,sys; print(json.load(sys.stdin)["image"])'
-)}"
+COSMOS_EMBED_IMAGE="${COSMOS_EMBED_IMAGE:-nvcr.io/nvidia/tao/tao-toolkit:7.0.1-cosmos-embed}"  # versions-key: images.tao_toolkit.cosmos_embed
 RUN_ROOT="${RUN_ROOT:-$PWD}"
 DOCKER_COMMON=(
   --rm --gpus all --ipc=host --network=host

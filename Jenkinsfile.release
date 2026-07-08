@@ -269,11 +269,21 @@ PY
                                         patch_line "tao_automl_brev"       "nvidia-tao-automl[brev]==${AUTOML_VERSION}"
                                         patch_line "tao_automl_all"        "nvidia-tao-automl[all]==${AUTOML_VERSION}"
 
+                                        # Propagate the bumped versions.yaml into every embedded
+                                        # skill pin (container_image literals, wheel pins) and
+                                        # verify nothing is left stale. Skills are standalone and
+                                        # carry literal URIs; versions.yaml is the build-time
+                                        # source of truth that this stamper fans out.
+                                        python3 scripts/stamp_versions.py
+                                        python3 scripts/stamp_versions.py --check
+
                                         echo "----- BEGIN versions.yaml -----"
                                         cat "${VERSIONS_FILE}"
                                         echo "------ END versions.yaml ------"
                                         echo "----- DIFF vs. HEAD -----"
                                         git --no-pager diff -- "${VERSIONS_FILE}" || true
+                                        echo "----- STAMPED SKILL FILES -----"
+                                        git --no-pager diff --stat -- skills/ || true
                                     '''
                                 }
                             }
@@ -289,11 +299,11 @@ PY
                                     withCredentials([string(credentialsId: TaoConfig.credentials.GITLAB_TOKEN, variable: 'GITLAB_TOKEN')]) {
                                         script {
                                             def commitResult = gitCommit(
-                                                files: ['versions.yaml'],
-                                                message: "[TAO-0000][Feature] Bump versions.yaml for ${TAO_VERSION_RESOLVED} (build ${env.BUILD_NUMBER})"
+                                                files: ['versions.yaml', 'skills'],
+                                                message: "[TAO-0000][Feature] Bump versions.yaml + stamped skill pins for ${TAO_VERSION_RESOLVED} (build ${env.BUILD_NUMBER})"
                                             )
                                             if (!commitResult.committed) {
-                                                echo "⏭ versions.yaml unchanged — skipping push."
+                                                echo "⏭ versions.yaml and skill pins unchanged — skipping push."
                                                 return
                                             }
                                             gitPush(

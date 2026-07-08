@@ -177,6 +177,6 @@ Each step 4 file looks like:
 
 ## Prerequisites
 
-- **Container**: `tao_toolkit.pyt` (resolves to `nvcr.io/nvidia/tao/tao-toolkit:6.26.3-pyt` via `versions.yaml`).
+- **Container**: `nvcr.io/nvidia/tao/tao-toolkit:7.0.1-pyt`. <!-- versions-key: images.tao_toolkit.pyt -->
 - **ffmpeg / ffprobe**: required for chunk captioning (Step 1b) and highlight extraction (Step 1c).
 - **VLM endpoint**: at least one — Gemini API key or OpenAI-compatible endpoint.

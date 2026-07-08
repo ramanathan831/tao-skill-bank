@@ -55,7 +55,7 @@ Deploy action metadata is in `tao-deploy-centerpose.skill_info.yaml`. Deploy spe
 Direct TAO Launcher spelling is `tao deploy centerpose gen_trt_engine`, `tao deploy centerpose evaluate`, `tao deploy centerpose inference`.
 
 Treat engine generation as only the first deploy action. Use the deploy image
-resolved from `versions.yaml` or the selected platform. A successful
+from the skill's pinned deploy image or the selected platform. A successful
 `gen_trt_engine` run does not prove deploy `evaluate` or `inference` works;
 inspect those action exit codes and logs separately, especially for CenterPose
 postprocessor errors such as `TypeError: only 0-dimensional arrays can be

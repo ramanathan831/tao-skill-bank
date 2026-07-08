@@ -1,16 +1,21 @@
-# versions.yaml — single source of truth for TAO container images and SDK wheels.
+# versions.yaml — build-time source of truth for TAO container images and SDK wheels.
 #
-# Skills reference these by dotted key in their `references/skill_info.yaml`
-# `container_image` field. CI bumps RC versions by editing this file; downstream
-# skills resolve their image at runtime via `tao_sdk.versions.resolve_image()`.
+# Skills are standalone: they carry literal image URIs and wheel pins, each
+# annotated with the key it came from ("# versions-key: images.tao_toolkit.pyt").
+# scripts/stamp_versions.py fans this file out to every annotated line on a
+# release bump, and `stamp_versions.py --check` (run in CI) fails if any
+# annotated line drifts from this file. Do not hand-edit stamped values in
+# skills — edit here and run the stamper.
 #
-# Both forms are valid in skill_info.yaml:
-#   container_image: tao_toolkit.pyt                                 # key reference (preferred)
-#   container_image: nvcr.io/nvidia/tao/tao-toolkit:6.26.3-pyt       # absolute path (also valid)
+# Legacy key references (container_image: tao_toolkit.pyt) are still resolved
+# by the validator and the SDK, but new skills should carry the stamped
+# literal + marker form:
+#   container_image: nvcr.io/nvidia/tao/tao-toolkit:7.0.1-pyt  # versions-key: images.tao_toolkit.pyt
 #
-# Use absolute paths for experimental images, third-party registries, or one-off
-# skills not worth adding here. Add to this file when the image will be used by
-# more than one skill OR will be bumped on a release cadence.
+# Use unannotated absolute paths only for experimental images, third-party
+# registries, or one-offs (annotate those "# unpinned: <reason>"). Add a key
+# here when the image is used by more than one skill OR is bumped on a
+# release cadence.
 
 images:
   tao_toolkit:

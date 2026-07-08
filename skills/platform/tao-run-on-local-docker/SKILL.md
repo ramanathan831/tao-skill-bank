@@ -63,8 +63,8 @@ docker run --rm --runtime=nvidia --gpus all ubuntu nvidia-smi >/dev/null 2>&1 ||
 # Skip this block if Mode 1 is sufficient for the user's request.
 # When Mode 2 is in scope, read `tao-skill-bank:tao-run-platform` for the DockerSDK
 # kwarg contract, build_entrypoint, and monitoring patterns.
-# nvidia-tao-sdk is on public PyPI; pin lives in versions.yaml (wheels.tao_sdk_docker).
-PIN=$("${TAO_SKILL_BANK_PATH:?}/scripts/resolve_versions_key.py" wheels.tao_sdk_docker)
+# nvidia-tao-sdk is on public PyPI; the pin below is stamped from the release manifest.
+PIN="nvidia-tao-sdk[docker]==7.0.1"  # versions-key: wheels.tao_sdk_docker
 python -c "import tao_sdk" 2>/dev/null || python -m pip install "$PIN"
 python -c "import docker" 2>/dev/null || python -m pip install "$PIN"
 python -c "import tao_sdk, docker"
