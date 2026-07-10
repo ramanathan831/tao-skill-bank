@@ -5,7 +5,9 @@ The NemoClaw sandbox agent calls this over MCP (Streamable HTTP); the host runs
 the container. The agent never touches Docker, the GPU, or NGC credentials.
 
 Security boundary (this server IS the boundary):
-  - Only images under nvcr.io/nvidia/tao/ may run.
+  - Only images under nvcr.io/ (the NVIDIA NGC registry) may run. This admits
+    TAO images plus QA/staging and data-generation images from other NGC orgs;
+    it still refuses arbitrary registries (Docker Hub, private, etc.).
   - Data and results are confined to subpaths of a fixed --workspace-root that
     the agent cannot change or escape (no absolute paths, no `..`).
   - Reachability is gated by the OpenShell egress policy: the sandbox reaches
@@ -30,7 +32,7 @@ from mcp.server.streamable_http import TransportSecuritySettings
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
-TAO_IMAGE_PREFIX = "nvcr.io/nvidia/tao/"
+NGC_IMAGE_PREFIX = "nvcr.io/"
 
 # The sandbox reaches this server as host.openshell.internal (the OpenShell
 # bridge). The MCP SDK's DNS-rebinding guard validates the Host header, so that
@@ -139,7 +141,8 @@ def tao_run(
 ) -> dict:
     """Launch a TAO training container on the host GPU. Returns a job_id.
 
-    image: full nvcr.io/nvidia/tao/... image reference.
+    image: full nvcr.io/... image reference (any NVIDIA NGC image — TAO,
+      QA/staging, or data-generation).
     command: container command as an argument list (no shell).
     data_subdir/results_subdir: paths relative to the host workspace root,
       mounted at /data and /results in the container. /data is read-write so
@@ -150,8 +153,8 @@ def tao_run(
       large shared-memory segment; the docker default (64m) causes "Bus error"
       / "DataLoader worker exited". Raise for many workers or multi-GPU.
     """
-    if not image.startswith(TAO_IMAGE_PREFIX):
-        raise ValueError(f"image must start with {TAO_IMAGE_PREFIX}")
+    if not image.startswith(NGC_IMAGE_PREFIX):
+        raise ValueError(f"image must start with {NGC_IMAGE_PREFIX}")
     if not isinstance(command, list) or not all(isinstance(a, str) for a in command):
         raise ValueError("command must be a list of strings")
     if not (1 <= gpus <= 8):
@@ -196,20 +199,20 @@ def tao_logs(job_id: str, tail: int = 100) -> dict:
     return {"text": proc.stdout + proc.stderr}
 
 
-def _assert_tao_container(job_id: str) -> None:
-    """Confirm job_id is a TAO container this server would have launched, so the
-    agent cannot stop/remove arbitrary host containers."""
+def _assert_ngc_container(job_id: str) -> None:
+    """Confirm job_id is an NGC (nvcr.io) container this server would have
+    launched, so the agent cannot stop/remove arbitrary host containers."""
     proc = _docker("inspect", "-f", "{{.Config.Image}}", job_id)
     if proc.returncode != 0:
         raise RuntimeError(f"unknown job_id: {job_id}")
-    if not proc.stdout.strip().startswith(TAO_IMAGE_PREFIX):
-        raise ValueError(f"refusing: {job_id} is not a TAO container")
+    if not proc.stdout.strip().startswith(NGC_IMAGE_PREFIX):
+        raise ValueError(f"refusing: {job_id} is not an nvcr.io container")
 
 
 @mcp.tool()
 def tao_stop(job_id: str) -> dict:
-    """Stop a running TAO job. Only TAO containers may be stopped."""
-    _assert_tao_container(job_id)
+    """Stop a running TAO job. Only nvcr.io containers may be stopped."""
+    _assert_ngc_container(job_id)
     proc = _docker("stop", job_id)
     if proc.returncode != 0:
         raise RuntimeError(f"docker stop failed: {proc.stderr.strip()}")
@@ -218,9 +221,9 @@ def tao_stop(job_id: str) -> dict:
 
 @mcp.tool()
 def tao_rm(job_id: str, force: bool = False) -> dict:
-    """Remove a TAO job's container (frees disk). Only TAO containers may be
+    """Remove a TAO job's container (frees disk). Only nvcr.io containers may be
     removed. Set force=True to remove one that is still running."""
-    _assert_tao_container(job_id)
+    _assert_ngc_container(job_id)
     args = ["rm", job_id] if not force else ["rm", "-f", job_id]
     proc = _docker(*args)
     if proc.returncode != 0:

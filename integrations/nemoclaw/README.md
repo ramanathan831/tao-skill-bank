@@ -47,16 +47,18 @@ Put datasets under `<workspace>/<name>/`; the agent discovers them with `tao_ls`
 | Tool | Purpose |
 |------|---------|
 | `tao_ls` / `tao_read` / `tao_write` | Inspect and author files in the host workspace |
-| `tao_run` | Launch a TAO container (constrained: `nvcr.io/nvidia/tao/*` only, workspace-confined mounts, `shm_size` for DataLoaders) |
+| `tao_run` | Launch a container on the host GPU (constrained: `nvcr.io/*` NGC images only, workspace-confined mounts, `shm_size` for DataLoaders) |
 | `tao_status` / `tao_logs` | Monitor a job |
 | `tao_stop` / `tao_rm` | Stop/remove a job's container (TAO containers only) |
 
 ## Security
 
 **This server is the security boundary — keep it.** `tao_run` refuses any image
-outside `nvcr.io/nvidia/tao/*` and confines all mounts to a fixed
-`--workspace-root` the agent cannot escape. The agent gets TAO execution, not
-arbitrary host control.
+outside `nvcr.io/*` (the NVIDIA NGC registry) and confines all mounts to a fixed
+`--workspace-root` the agent cannot escape. This admits TAO images plus
+QA/staging and data-generation images from other NGC orgs, but still refuses
+arbitrary registries (Docker Hub, private, etc.). The agent gets NGC-image
+execution, not arbitrary host control.
 
 > **Do not** substitute a generic public Docker MCP server (e.g.
 > `ckreiling/mcp-server-docker`). Those expose unconstrained `run_container`
