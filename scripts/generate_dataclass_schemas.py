@@ -332,7 +332,7 @@ def build_support_summary(manifests: list[dict[str, Any]]) -> dict[str, Any]:
 
     return {
         "schema_version": 1,
-        "support_rule": "AutoML is enabled at model level; runnable AutoML for an action also requires models/<network>/schemas/<action>.schema.json to be packaged and valid.",
+        "support_rule": "AutoML is enabled at model level; runnable AutoML for an action also requires skills/models/<network>/schemas/<action>.schema.json to be packaged and valid.",
         "supported": sorted(supported, key=lambda item: item["model"]),
         "unsupported": sorted(unsupported, key=lambda item: item["model"]),
     }
@@ -345,7 +345,7 @@ def main() -> int:
     skill_bank = args.skill_bank.expanduser().resolve()
     sys.path.insert(0, str(tao_core))
 
-    models_root = skill_bank / "models"
+    models_root = skill_bank / "skills" / "models"
     selected = set(args.model)
     manifests = []
 
@@ -369,8 +369,8 @@ def main() -> int:
             for manifest in manifests
         },
     }
-    dump_json(skill_bank / "models" / "schemas.manifest.json", summary)
-    dump_json(skill_bank / "models" / "automl_support.json", build_support_summary(manifests))
+    dump_json(skill_bank / "skills" / "models" / "schemas.manifest.json", summary)
+    dump_json(skill_bank / "skills" / "models" / "automl_support.json", build_support_summary(manifests))
 
     generated_actions = sum(len(manifest["actions"]) for manifest in manifests)
     failed_actions = sum(len(manifest["failures"]) for manifest in manifests)
@@ -379,7 +379,7 @@ def main() -> int:
         f"{failed_actions} action(s) failed."
     )
     if failed_actions:
-        print(f"See {(skill_bank / 'models' / 'schemas.manifest.json')}")
+        print(f"See {(skill_bank / 'skills' / 'models' / 'schemas.manifest.json')}")
     return 0 if generated_actions else 1
 
 

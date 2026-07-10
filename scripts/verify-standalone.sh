@@ -25,7 +25,7 @@ fi
 
 echo
 echo "=== 2. NVIDIA GPU runtime + Docker + NGC login"
-bash platform/tao-setup-nvidia-gpu-host/scripts/setup-nvidia-gpu-host.sh --backend docker --check-only
+bash skills/platform/tao-setup-nvidia-gpu-host/scripts/setup-nvidia-gpu-host.sh --backend docker --check-only
 docker --version
 docker run --rm --runtime=nvidia --gpus all ubuntu nvidia-smi >/dev/null && echo "  OK: GPU + toolkit"
 grep -q 'nvcr.io' ~/.docker/config.json 2>/dev/null && echo "  OK: NGC login present" || {
@@ -36,8 +36,8 @@ grep -q 'nvcr.io' ~/.docker/config.json 2>/dev/null && echo "  OK: NGC login pre
 echo
 echo "=== 3. Read tao-train-visual-changenet metadata from the skill bank"
 INFO_FILE=""
-for f in models/tao-train-visual-changenet/references/skill_info.yaml \
-         models/tao-train-visual-changenet/references/model_info.yaml; do
+for f in skills/models/tao-train-visual-changenet/references/skill_info.yaml \
+         skills/models/tao-train-visual-changenet/references/model_info.yaml; do
   [ -f "$f" ] && INFO_FILE="$f" && break
 done
 
@@ -45,8 +45,8 @@ if [ -z "$INFO_FILE" ]; then
   echo "  tao-train-visual-changenet has no references/skill_info.yaml or references/model_info.yaml"
   echo "  Skipping metadata read — agent must construct from SKILL.md prose alone."
 else
-  IMAGE=$(python3 -c "import yaml; print(yaml.safe_load(open('$INFO_FILE'))['container_image'])")
-  echo "  container_image: $IMAGE"
+  IMAGE=$(sed -n 's/^[[:space:]]*container_image:[[:space:]]*//p' "$INFO_FILE" | head -n 1)
+  echo "  container_image: ${IMAGE:-<not declared>}"
 fi
 
 echo

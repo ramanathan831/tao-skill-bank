@@ -1,18 +1,13 @@
 # Stages declared up front so includes that bring in extra ones (the
 # container-mode template adds `detect` + `eval`) don't clobber `test`
-# used by `validate-skills` / `nv_aces_placeholder`.
+# used by `validate-skills`. `test` runs first so cheap content/frontmatter
+# checks fail fast before the GPU-runner `eval` stage spends budget.
 stages:
+  - test
   - detect
   - eval
-  - test
-  - .post
 
 include:
-  # NV-ACES Tier 1/2 skill quality evaluation
-  - project: 'astra/skill-eval-ci'
-    file: '/templates/skill-eval.yml'
-    ref: 'main'
-
   # End-to-end skill execution eval — CONTAINER MODE.
   # The runtime is the pre-built `nvcr.io/nvstaging/tao/skill-eval:latest`
   # image; the eval runner only needs docker + auth/env files. Pipeline
@@ -48,14 +43,6 @@ include:
 #   parallel:
 #     matrix:
 #       - SKILL_EVAL_BACKENDS: [claude, codex]
-
-# Placeholder job so .post stage (used by NV-ACES) can run.
-# Replace with your own CI jobs as needed.
-nv_aces_placeholder:
-  stage: test
-  image: alpine:3.20
-  script:
-    - echo "NV-ACES skill evaluation enabled"
 
 # Custom validator: marketplace paths, frontmatter, body has runnable info,
 # SDK leaks, hook references, optional skill_info.yaml structure.

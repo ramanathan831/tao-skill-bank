@@ -37,13 +37,13 @@ Base: `origin/release/7.0.1`
 ## Scope
 
 Reviewed 84 non-template `SKILL.md` files, 5 skill templates, and all packaged `skill_info.yaml`
-metadata under `models/`, `data`, `platform`, `applications`, and helper
-`skills/`.
+metadata under `skills/models/`, `skills/data`, `skills/platform`, `skills/applications`, and helper
+`skills/core/`.
 
-Latest scope update: `applications/tao-run-deft-aoi/SKILL.md` and
-`data/tao-mine-aoi-images/SKILL.md` are intentionally left untouched. The AOI
+Latest scope update: `skills/applications/tao-run-deft-aoi/SKILL.md` and
+`skills/data/tao-mine-aoi-images/SKILL.md` are intentionally left untouched. The AOI
 mining skill was reverted back to the `release/7.0.1` content. Per follow-up
-request, `applications/tao-analyze-changenet-rca/SKILL.md` was also reverted
+request, `skills/applications/tao-analyze-changenet-rca/SKILL.md` was also reverted
 back to `release/7.0.1`. Remaining workflow, model, data, and platform skills
 were refined against the skill-creator guidance.
 
@@ -124,10 +124,10 @@ Impact:
 The audit found four deploy metadata files that failed YAML parsing because
 plain scalar note strings contained unquoted colon patterns:
 
-- `models/tao-train-fast-foundation-stereo/deploy/skill_info.yaml`
-- `models/tao-train-mask2former/deploy/skill_info.yaml`
-- `models/tao-train-ocrnet/deploy/skill_info.yaml`
-- `models/tao-train-oneformer/deploy/skill_info.yaml`
+- `skills/models/tao-train-fast-foundation-stereo/deploy/skill_info.yaml`
+- `skills/models/tao-train-mask2former/deploy/skill_info.yaml`
+- `skills/models/tao-train-ocrnet/deploy/skill_info.yaml`
+- `skills/models/tao-train-oneformer/deploy/skill_info.yaml`
 
 Fixed:
 
@@ -151,7 +151,7 @@ Fixed:
 - Added explicit `mode: config` to config-file model/deploy actions.
 - Added explicit `mode: passthrough` to GPU-host setup actions.
 - Kept existing `mode: args` data actions intact.
-- Updated `platform/tao-run-platform/SKILL.md` to treat missing mode as invalid
+- Updated `skills/platform/tao-run-platform/SKILL.md` to treat missing mode as invalid
   metadata instead of defaulting to config.
 
 Impact:
@@ -170,10 +170,10 @@ Before:
 Fixed:
 
 - Added `upload_excludes: [inputs/]` to:
-  - `data/tao-analyze-gaps-vlm-bcq/references/skill_info.yaml`
-  - `data/tao-generate-image-grounding/references/skill_info.yaml`
-  - `data/tao-generate-referring-expressions/references/skill_info.yaml`
-  - `data/tao-generate-video-reasoning-annotations/references/skill_info.yaml`
+  - `skills/data/tao-analyze-gaps-vlm-bcq/references/skill_info.yaml`
+  - `skills/data/tao-generate-image-grounding/references/skill_info.yaml`
+  - `skills/data/tao-generate-referring-expressions/references/skill_info.yaml`
+  - `skills/data/tao-generate-video-reasoning-annotations/references/skill_info.yaml`
 
 Impact:
 
@@ -197,7 +197,7 @@ Fixed:
 
 Remaining:
 
-- `models/tao-train-bevfusion/references/skill_info.yaml` still uses
+- `skills/models/tao-train-bevfusion/references/skill_info.yaml` still uses
   `nvcr.io/nvidia/tao/tao-toolkit:5.5.0-pyt`. The migration tool reports it as
   intentionally kept because there is no matching `versions.yaml` key. Decide
   whether BevFusion must stay pinned or should get a manifest key.
@@ -206,7 +206,7 @@ Remaining:
 
 Before:
 
-- `platform/tao-run-platform/SKILL.md` still listed `LeptonSDK` as a selectable
+- `skills/platform/tao-run-platform/SKILL.md` still listed `LeptonSDK` as a selectable
   backend even though this release branch has removed Lepton support.
 
 Fixed:
@@ -237,12 +237,12 @@ Impact:
 Fixed several non-application descriptions to use the recommended literal
 "Use when..." trigger form:
 
-- `data/tao-analyze-gaps-vlm-bcq/SKILL.md`
-- `data/paidf-anomalygen/SKILL.md`
-- `data/tao-route-visual-changenet-samples/SKILL.md`
-- `platform/tao-run-on-docker/SKILL.md`
-- `platform/tao-setup-nvidia-gpu-host/SKILL.md`
-- `skills/tao-list-capabilities/SKILL.md`
+- `skills/data/tao-analyze-gaps-vlm-bcq/SKILL.md`
+- `skills/data/paidf-anomalygen/SKILL.md`
+- `skills/data/tao-route-visual-changenet-samples/SKILL.md`
+- `skills/platform/tao-run-on-docker/SKILL.md`
+- `skills/platform/tao-setup-nvidia-gpu-host/SKILL.md`
+- `skills/core/tao-list-capabilities/SKILL.md`
 
 Impact:
 
@@ -259,9 +259,9 @@ Before:
   harness-specific session hook.
 - Data output trees named a harness-specific session capture file as if every
   runtime produced the same artifact.
-- `platform/tao-run-on-brev/SKILL.md` hard-checked a harness-local skill path
+- `skills/platform/tao-run-on-brev/SKILL.md` hard-checked a harness-local skill path
   before using the Brev CLI.
-- `platform/tao-run-platform/SKILL.md` still described "mode inference" even
+- `skills/platform/tao-run-platform/SKILL.md` still described "mode inference" even
   though action `mode` is now required metadata.
 
 Fixed:
@@ -286,7 +286,7 @@ Impact:
 
 Before:
 
-- `models/tao-train-dino/SKILL.md` contained a runtime placeholder about extending
+- `skills/models/tao-train-dino/SKILL.md` contained a runtime placeholder about extending
   launcher data-source mapping support.
 
 Fixed:
@@ -305,7 +305,7 @@ Before:
 
 - `Jenkinsfile.release` still referenced `tao_sdk_lepton` and a stale
   `cosmos_predict_2_5` key that does not match `versions.yaml`.
-- `models/tao-train-visual-changenet/eval.slow-manual.config` described a
+- `skills/models/tao-train-visual-changenet/eval.slow-manual.config` described a
   Lepton/DGX Cloud manual eval even though this release branch removed Lepton
   support.
 
@@ -337,9 +337,9 @@ rubric:
 
 Explicit exclusions:
 
-- `applications/tao-run-deft-aoi/SKILL.md`
-- `data/tao-mine-aoi-images/SKILL.md`
-- `applications/tao-analyze-changenet-rca/SKILL.md` (reverted by request)
+- `skills/applications/tao-run-deft-aoi/SKILL.md`
+- `skills/data/tao-mine-aoi-images/SKILL.md`
+- `skills/applications/tao-analyze-changenet-rca/SKILL.md` (reverted by request)
 
 Local schema exception:
 
@@ -355,11 +355,11 @@ Fixed workflow/example and long model/platform skill-body issues that were
 previously report-only:
 
 - Added literal `Use when` frontmatter triggers to the four HuggingFace rerun
-  example skills and `applications/tao-run-automl-deft-pipeline/SKILL.md`.
+  example skills and `skills/applications/tao-run-automl-deft-pipeline/SKILL.md`.
 - Removed hard-coded web-fetch tool, harness prompt, delegation, and
   harness-cache wording from in-scope workflow skills.
 - Renamed body-level trigger guidance so trigger routing lives in frontmatter.
-- Rewrote `applications/tao-run-automl/SKILL.md` from a 1182-line reference dump
+- Rewrote `skills/applications/tao-run-automl/SKILL.md` from a 1182-line reference dump
   into a compact workflow coordinator with explicit preflight, model support
   gates, algorithm policy, nested-spec guidance, metrics, monitoring, and
   result handoff.
@@ -372,12 +372,12 @@ previously report-only:
   that current `SKILL.md`, `skill_info.yaml`, schemas, and model/platform
   skills win on conflicts.
 - Compressed duplicated reference-level detail in
-  `applications/tao-finetune-huggingface-model/SKILL.md` to 496 lines while
+  `skills/applications/tao-finetune-huggingface-model/SKILL.md` to 496 lines while
   preserving gates and reference routing.
 - Reduced long in-scope model/platform skills under the target:
-  `models/tao-train-dino/SKILL.md` 488 lines,
-  `models/tao-finetune-cosmos-reason/SKILL.md` 498 lines, and
-  `platform/tao-run-on-slurm/SKILL.md` 497 lines.
+  `skills/models/tao-train-dino/SKILL.md` 488 lines,
+  `skills/models/tao-finetune-cosmos-reason/SKILL.md` 498 lines, and
+  `skills/platform/tao-run-on-slurm/SKILL.md` 497 lines.
 
 ### 14. Add reference navigation across the bank
 
@@ -400,11 +400,11 @@ surfaces. Fixed:
 
 These files still contain guideline findings, but are intentionally unchanged:
 
-- `applications/tao-run-deft-aoi/SKILL.md`: missing literal `Use when`, has
+- `skills/applications/tao-run-deft-aoi/SKILL.md`: missing literal `Use when`, has
   body trigger guidance, harness-specific wording, and is over 500 lines.
-- `data/tao-mine-aoi-images/SKILL.md`: missing literal `Use when` and contains
+- `skills/data/tao-mine-aoi-images/SKILL.md`: missing literal `Use when` and contains
   harness-specific wording.
-- `applications/tao-analyze-changenet-rca/SKILL.md`: reverted by request; it
+- `skills/applications/tao-analyze-changenet-rca/SKILL.md`: reverted by request; it
   has harness-specific wording and is over 500 lines in the base version.
 
 ### Near-limit skills to watch
@@ -412,16 +412,16 @@ These files still contain guideline findings, but are intentionally unchanged:
 No in-scope production `SKILL.md` is over 500 lines after this pass. Near-limit
 skills that should be split before adding more detail:
 
-- `models/tao-finetune-cosmos-reason/SKILL.md`: 498 lines.
-- `platform/tao-run-on-slurm/SKILL.md`: 497 lines.
-- `applications/tao-finetune-huggingface-model/SKILL.md`: 496 lines.
-- `models/tao-train-depth-anything-v2/SKILL.md`: 492 lines.
-- `models/tao-train-visual-changenet/SKILL.md`: 490 lines.
-- `data/paidf-anomalygen/SKILL.md`: 490 lines.
-- `models/tao-train-dino/SKILL.md`: 488 lines.
-- `models/tao-train-fast-foundation-stereo/SKILL.md`: 476 lines.
-- `platform/tao-run-platform/SKILL.md`: 473 lines.
-- `applications/tao-port-huggingface-model/SKILL.md`: 470 lines.
+- `skills/models/tao-finetune-cosmos-reason/SKILL.md`: 498 lines.
+- `skills/platform/tao-run-on-slurm/SKILL.md`: 497 lines.
+- `skills/applications/tao-finetune-huggingface-model/SKILL.md`: 496 lines.
+- `skills/models/tao-train-depth-anything-v2/SKILL.md`: 492 lines.
+- `skills/models/tao-train-visual-changenet/SKILL.md`: 490 lines.
+- `skills/data/paidf-anomalygen/SKILL.md`: 490 lines.
+- `skills/models/tao-train-dino/SKILL.md`: 488 lines.
+- `skills/models/tao-train-fast-foundation-stereo/SKILL.md`: 476 lines.
+- `skills/platform/tao-run-platform/SKILL.md`: 473 lines.
+- `skills/applications/tao-port-huggingface-model/SKILL.md`: 470 lines.
 
 Recommended split pattern:
 
@@ -481,9 +481,9 @@ Results:
   excluded/reverted areas, and no hard-coded harness/tool names or runtime
   placeholder markers in non-excluded Markdown.
 - The remaining findings are the explicitly excluded/reverted
-  `applications/tao-run-deft-aoi/SKILL.md` and
-  `data/tao-mine-aoi-images/SKILL.md`, plus reverted
-  `applications/tao-analyze-changenet-rca/SKILL.md`.
+  `skills/applications/tao-run-deft-aoi/SKILL.md` and
+  `skills/data/tao-mine-aoi-images/SKILL.md`, plus reverted
+  `skills/applications/tao-analyze-changenet-rca/SKILL.md`.
 - Model/data/platform command actions now have `mode` coverage of 225/225.
 - Model/data command actions now have `upload_excludes` coverage of 221/221.
 - The migration dry-run reported zero applicable migrations and one intentionally
