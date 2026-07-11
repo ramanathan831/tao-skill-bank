@@ -22,6 +22,8 @@ tags:
 
 # Visual ChangeNet
 
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin, run the `tao-setup` skill first (host preflight, credentials, cross-skill discovery).
+
 Visual ChangeNet is a TAO Toolkit model for visual inspection and defect detection. It supports two tasks:
 
 - **Classify** — Binary image classification using a siamese-style architecture with a shared backbone (C-RADIO ViT) and a learnable difference module. Compares image pairs to classify defects as PASS/NO_PASS.
@@ -243,7 +245,7 @@ S3_EVAL = "s3://bucket/data/eval"
 ```
 ## Optional: running via the TAO SDK
 
-When running without the TAO SDK (local docker), resolve the TAO pyt image from `versions.yaml` and invoke `visual_changenet <train|evaluate|inference|export|quantize>` directly. `--shm-size=8g` is required, the C-RADIO `.safetensors` must be mounted to `/data/pretrained_models/C-RADIOv2_B.safetensors`, and checkpoint/results_dir can be overridden on the command line. See `references/local-docker.md` for the full `docker run` command, mounts, and overrides.
+When running without the TAO SDK (local docker), use the pinned TAO pyt image and invoke `visual_changenet <train|evaluate|inference|export|quantize>` directly. `--shm-size=8g` is required, the C-RADIO `.safetensors` must be mounted to `/data/pretrained_models/C-RADIOv2_B.safetensors`, and checkpoint/results_dir can be overridden on the command line. See `references/local-docker.md` for the full `docker run` command, mounts, and overrides.
 
 ## Tasks
 
@@ -284,3 +286,5 @@ Model-specific parent-model mappings are declared in `references/skill_info.yaml
 ## Deployment
 
 - [tao-deploy-visual-changenet](references/tao-deploy-visual-changenet.md)
+
+

@@ -17,6 +17,8 @@ tags:
 
 # OCRNet
 
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin, run the `tao-setup` skill first (host preflight, credentials, cross-skill discovery).
+
 OCRNet for scene text recognition. Recognizes text content from cropped text region images. Supports CTC and attention-based decoders.
 
 Set train.pretrained_model_path for pretrained OCR weights.

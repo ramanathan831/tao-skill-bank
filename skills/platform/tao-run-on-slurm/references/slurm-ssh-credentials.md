@@ -17,8 +17,8 @@ ssh -o BatchMode=yes -o ConnectTimeout=10 "${SLURM_USER}@${SLURM_HOST}" "true" 2
 }
 
 # 2. Optional: TAO SDK wrapper for Job handles + S3 wrapping.
-# nvidia-tao-sdk is on public PyPI; pin lives in versions.yaml (wheels.tao_sdk_slurm).
-PIN=$("${TAO_SKILL_BANK_PATH:?}/scripts/resolve_versions_key.py" wheels.tao_sdk_slurm)
+# nvidia-tao-sdk is on public PyPI; the pin below is stamped from the release manifest.
+PIN="nvidia-tao-sdk[slurm]==7.0.1"  # versions-key: wheels.tao_sdk_slurm
 python -c "import tao_sdk" 2>/dev/null || {
   echo "Installing missing Python requirement: $PIN"
   python -m pip install "$PIN"

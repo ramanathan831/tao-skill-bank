@@ -17,6 +17,8 @@ tags:
 
 # Optical Inspection
 
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin, run the `tao-setup` skill first (host preflight, credentials, cross-skill discovery).
+
 Optical inspection for defect detection using Siamese networks. Compares image pairs to detect manufacturing defects, anomalies, or quality issues.
 
 Set train.pretrained_model_path for pretrained Siamese weights.

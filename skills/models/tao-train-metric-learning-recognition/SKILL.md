@@ -18,6 +18,8 @@ tags:
 
 # ML Recog
 
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin, run the `tao-setup` skill first (host preflight, credentials, cross-skill discovery).
+
 Metric learning recognition for fine-grained visual recognition. Learns embeddings for retrieval-based matching (e.g., retail product recognition). Uses triplet/contrastive losses.
 
 Set model.pretrained_model_path for pretrained backbone.

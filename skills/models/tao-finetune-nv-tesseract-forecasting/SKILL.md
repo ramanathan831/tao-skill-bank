@@ -25,6 +25,8 @@ tags:
 
 # NV-Tesseract Forecasting
 
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin, run the `tao-setup` skill first (host preflight, credentials, cross-skill discovery).
+
 Transformer-based multivariate time series forecasting using self-supervised pretraining on diverse temporal data.
 Three inference modes: **standard** (direct forecast), **DARR** (context-enhanced kNN retrieval blending),
 and **interpretability** (latent trajectory extraction, semantic flow, lag×horizon attribution,

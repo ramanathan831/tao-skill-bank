@@ -23,6 +23,8 @@ tags:
 
 # TAO AutoML
 
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin, run the `tao-setup` skill first (host preflight, credentials, cross-skill discovery).
+
 Run automated hyperparameter optimization for a TAO model by combining:
 
 1. The selected model skill under `skills/models/<network>/`.

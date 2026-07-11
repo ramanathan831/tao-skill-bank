@@ -50,8 +50,9 @@ by this workflow. Invoke its `--check-only` mode; on failure, ask the user to
 authorize the install, then re-run.
 
 ```bash
-TAO_SKILL_BANK_ROOT="${TAO_SKILL_BANK_PATH:-${TAO_SKILL_BANK_ROOT:-$PWD}}"
-SETUP_SCRIPT="${TAO_SKILL_BANK_ROOT}/platform/tao-setup-nvidia-gpu-host/scripts/setup-nvidia-gpu-host.sh"
+# Locate the installed tao-setup-nvidia-gpu-host skill (a sibling skill of
+# this one) and use its bundled installer script.
+SETUP_SCRIPT="<path-to-tao-setup-nvidia-gpu-host-skill>/scripts/setup-nvidia-gpu-host.sh"
 
 bash "$SETUP_SCRIPT" --backend docker --check-only || {
   echo "MISSING: TAO GPU host runtime not ready."

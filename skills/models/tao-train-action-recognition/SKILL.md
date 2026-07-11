@@ -17,6 +17,8 @@ tags:
 
 # Action Recognition
 
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin, run the `tao-setup` skill first (host preflight, credentials, cross-skill discovery).
+
 Action recognition from video sequences. Supports RGB, optical flow, and joint (multi-stream) input types for classifying temporal actions in video clips.
 
 Set model.pretrained_model_path for pretrained backbone weights.

@@ -18,6 +18,8 @@ tags:
 
 # NVDINOv2
 
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin, run the `tao-setup` skill first (host preflight, credentials, cross-skill discovery).
+
 NVDINOv2 for self-supervised visual representation learning. Trains vision transformers via self-distillation (teacher-student) without labels. Produces general-purpose visual features.
 
 Set train.pretrained_model_path for pretrained ViT weights.

@@ -16,6 +16,8 @@ tags:
 
 # OneFormer
 
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin, run the `tao-setup` skill first (host preflight, credentials, cross-skill discovery).
+
 OneFormer for universal image segmentation. Unifies panoptic, instance, and semantic segmentation with a single architecture using task-conditioned queries.
 
 Set train.pretrained_backbone and/or train.pretrained_model.

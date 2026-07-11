@@ -17,6 +17,8 @@ tags:
 
 # Pose Classification
 
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin, run the `tao-setup` skill first (host preflight, credentials, cross-skill discovery).
+
 Pose classification using ST-GCN (Spatial Temporal Graph Convolutional Network). Classifies skeleton sequences into action categories from pose keypoint data.
 
 Typically trained from scratch on skeleton data.

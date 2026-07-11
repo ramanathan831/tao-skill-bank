@@ -18,6 +18,8 @@ tags:
 
 # Brev
 
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin, run the `tao-setup` skill first (host preflight, credentials, cross-skill discovery).
+
 NVIDIA Brev provides on-demand GPU instances across multiple cloud providers. Instances come pre-loaded with NVIDIA drivers, CUDA, Docker, and NVIDIA Container Toolkit.
 
 Brev is instance-based (not job-based). You create an instance, run commands on it via `brev exec`, and delete it when done. The TAO SDK's BrevHandler wraps this into the standard job interface.
@@ -62,7 +64,7 @@ brev ls >/dev/null 2>&1 || {
 }
 ```
 
-If any non-pip step fails, the agent prompts the user to authorize the fix via Bash, then re-runs the preflight before continuing. The TAO SDK is **not** required for Brev — `brev exec docker run …` is sufficient. Reach for the SDK only if you want Job handles, S3 I/O wrapping via `script_runner`, or state persistence; `nvidia-tao-sdk` is on public PyPI, install missing SDK requirements automatically from the pinned Brev extra in `versions.yaml`: `python -m pip install "$("${TAO_SKILL_BANK_PATH:?}/scripts/resolve_versions_key.py" wheels.tao_sdk_brev)"`. **When going the SDK route, read `tao-skill-bank:tao-run-platform` for the `BrevSDK` kwarg reference, `build_entrypoint`, and `ActionWorkflow` patterns.**
+If any non-pip step fails, the agent prompts the user to authorize the fix via Bash, then re-runs the preflight before continuing. The TAO SDK is **not** required for Brev — `brev exec docker run …` is sufficient. Reach for the SDK only if you want Job handles, S3 I/O wrapping via `script_runner`, or state persistence; `nvidia-tao-sdk` is on public PyPI; install missing SDK requirements automatically from the pinned Brev extra: `python -m pip install "nvidia-tao-sdk[brev]==7.0.1"` <!-- versions-key: wheels.tao_sdk_brev -->. **When going the SDK route, read `tao-skill-bank:tao-run-platform` for the `BrevSDK` kwarg reference, `build_entrypoint`, and `ActionWorkflow` patterns.**
 
 ## Authentication
 

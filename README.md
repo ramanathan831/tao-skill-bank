@@ -171,14 +171,14 @@ The `skills/core/` directory is not a second copy of the skill bank. It is the C
 For users who want job handles, S3 I/O wrapping via `script_runner`, state persistence, multi-node distributed training, or failure analysis, the [TAO Execution SDK](https://pypi.org/project/nvidia-tao-sdk/) provides a single wheel with optional extras, published on public PyPI. The pinned version is centralized in [`versions.yaml`](versions.yaml) (`wheels.tao_sdk*`); resolve it rather than hardcoding a tag:
 
 ```shell
-# Resolve the pinned spec from versions.yaml (single source of truth):
+# Pinned specs (stamped from versions.yaml, the build-time source of truth):
 SB="${TAO_SKILL_BANK_PATH:-~/tao-skills-external}"
-pip install "$($SB/scripts/resolve_versions_key.py wheels.tao_sdk)"             # core
-pip install "$($SB/scripts/resolve_versions_key.py wheels.tao_sdk_brev)"        # + Brev (wraps brev CLI with Job handles)
-pip install "$($SB/scripts/resolve_versions_key.py wheels.tao_sdk_slurm)"       # + SLURM
-pip install "$($SB/scripts/resolve_versions_key.py wheels.tao_sdk_kubernetes)"  # + Kubernetes
-pip install "$($SB/scripts/resolve_versions_key.py wheels.tao_sdk_docker)"      # + local Docker
-pip install "$($SB/scripts/resolve_versions_key.py wheels.tao_sdk_all)"         # all platforms
+pip install "nvidia-tao-sdk==7.0.1"             # versions-key: wheels.tao_sdk — core
+pip install "nvidia-tao-sdk[brev]==7.0.1"       # versions-key: wheels.tao_sdk_brev — + Brev (wraps brev CLI with Job handles)
+pip install "nvidia-tao-sdk[slurm]==7.0.1"      # versions-key: wheels.tao_sdk_slurm — + SLURM
+pip install "nvidia-tao-sdk[kubernetes]==7.0.1" # versions-key: wheels.tao_sdk_kubernetes — + Kubernetes
+pip install "nvidia-tao-sdk[docker]==7.0.1"     # versions-key: wheels.tao_sdk_docker — + local Docker
+pip install "nvidia-tao-sdk[all]==7.0.1"        # versions-key: wheels.tao_sdk_all — all platforms
 
 # Or pin directly, e.g.: pip install "nvidia-tao-sdk[brev]==7.0.0"
 ```

@@ -17,6 +17,8 @@ tags:
 
 # Classification PyT
 
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin, run the `tao-setup` skill first (host preflight, credentials, cross-skill discovery).
+
 PyTorch image classification. Supports a wide range of backbones (FAN, EfficientNet, ResNet, etc.) with distillation and quantization for deployment.
 
 Set model.backbone.pretrained_backbone_path for backbone weights or train.pretrained_model_path for full model.

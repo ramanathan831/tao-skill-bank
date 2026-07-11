@@ -18,6 +18,8 @@ tags:
 
 # SLURM
 
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin, run the `tao-setup` skill first (host preflight, credentials, cross-skill discovery).
+
 Remote GPU compute platform for clusters managed by SLURM. Jobs are submitted
 from the TAO service or SDK host to a login node over SSH, staged on a shared
 filesystem, submitted with `sbatch`, and executed with `srun` container support.

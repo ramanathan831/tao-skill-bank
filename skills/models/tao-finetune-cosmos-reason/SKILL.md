@@ -21,6 +21,8 @@ tags:
 
 # Cosmos-RL
 
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin, run the `tao-setup` skill first (host preflight, credentials, cross-skill discovery).
+
 Supervised fine-tuning (SFT) of Cosmos Reason video QA models. The packaged
 default base model is **hf_model://nvidia/Cosmos3-Nano**. Pretrained weights
 are sourced from HuggingFace, not NGC. Gated HuggingFace models require

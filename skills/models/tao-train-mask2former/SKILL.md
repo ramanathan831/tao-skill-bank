@@ -16,6 +16,8 @@ tags:
 
 # Mask2Former
 
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin, run the `tao-setup` skill first (host preflight, credentials, cross-skill discovery).
+
 Mask2Former for universal image segmentation (panoptic, instance, and semantic). Transformer-based with masked attention for high-quality segmentation results.
 
 Set model.backbone.pretrained_weights for Swin backbone weights.

@@ -29,6 +29,8 @@ allowed-tools: Read Bash Write
 
 # tao-finetune-huggingface-model
 
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin, run the `tao-setup` skill first (host preflight, credentials, cross-skill discovery).
+
 Local NVIDIA GPU fine-tuning for HuggingFace models, grounded in live-fetched
 documentation with curated references as a fallback safety net. One NGC container,
 a few focused scripts, one push to HF Hub. Follow the rules in this file; don't
@@ -370,3 +372,5 @@ fires twice across runs, lift it into `compat-workarounds.md` with a `detect` ru
 - [tao-rerun-detr-cppe5](references/tao-rerun-detr-cppe5.md)
 - [tao-rerun-segformer-foodseg103](references/tao-rerun-segformer-foodseg103.md)
 - [tao-rerun-smolvlm-vqav2](references/tao-rerun-smolvlm-vqav2.md)
+
+

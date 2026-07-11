@@ -19,6 +19,8 @@ tags:
 
 # Kubernetes
 
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin, run the `tao-setup` skill first (host preflight, credentials, cross-skill discovery).
+
 Submits TAO container jobs as Kubernetes Jobs. Works on any cluster reachable via kubeconfig (EKS / GKE / AKS / on-prem) or in-cluster service account (when the SDK runs inside a pod).
 
 Single-pod by default; opt into multi-node distributed training via `num_nodes > 1` (uses Indexed Job + headless Service, see [Multi-node training](#multi-node-training-distributed) below).
@@ -47,8 +49,8 @@ if [ "${TAO_K8S_SKIP_NODE_RUNTIME_CHECK:-0}" != "1" ]; then
 fi
 
 # 1. SDK + kubernetes extra installed.
-# nvidia-tao-sdk is on public PyPI; pin lives in versions.yaml (wheels.tao_sdk_kubernetes).
-PIN=$("${TAO_SKILL_BANK_PATH:?}/scripts/resolve_versions_key.py" wheels.tao_sdk_kubernetes)
+# nvidia-tao-sdk is on public PyPI; the pin below is stamped from the release manifest.
+PIN="nvidia-tao-sdk[kubernetes]==7.0.1"  # versions-key: wheels.tao_sdk_kubernetes
 python -c "import tao_sdk" 2>/dev/null || {
   echo "Installing missing Python requirement: $PIN"
   python -m pip install "$PIN"

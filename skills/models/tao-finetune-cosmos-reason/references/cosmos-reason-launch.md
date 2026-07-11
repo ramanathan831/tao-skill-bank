@@ -17,11 +17,10 @@ For root mode, explain the automatic mapping: `train_root` maps to
 `custom.train_dataset.media_path=train_root`; `eval_root` maps the same way for
 `custom.val_dataset`.
 
-Before train or AutoML runner generation, resolve the action=train container
-image from `references/skill_info.yaml` and `versions.yaml` (or the packaged
-`scripts/resolve_tao_image.py` helper), show the exact image to the user, and
-ask whether to use it or override with `image=<override>`. Do not silently
-launch on the default image. This skill does not package a
+Before train or AutoML runner generation, read the pinned action=train
+container image from `references/skill_info.yaml` (`container_image`), show the
+exact image to the user, and ask whether to use it or override with
+`image=<override>`. Do not silently launch on the default image. This skill does not package a
 `skills/models/tao-finetune-cosmos-reason/config.json` file.
 
 For launch preflight, pass the concrete annotation and media paths to the

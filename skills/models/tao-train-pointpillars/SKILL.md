@@ -19,6 +19,8 @@ tags:
 
 # PointPillars
 
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin, run the `tao-setup` skill first (host preflight, credentials, cross-skill discovery).
+
 PointPillars for 3D object detection from LiDAR point clouds. Encodes point clouds into a pseudo-image via pillar-based representation, then applies 2D detection. Used in autonomous driving / robotics.
 
 Typically trained from scratch. Provide train.resume_training_checkpoint_path to resume.

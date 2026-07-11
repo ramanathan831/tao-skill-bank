@@ -5,7 +5,7 @@ aliases:
 - Cosmos3-Nano
 - nvidia/Cosmos3-Nano
 automl_enabled: true
-container_image: tao_toolkit.cosmos_rl
+container_image: nvcr.io/nvidia/tao/tao-toolkit:7.0.1-cosmos-rl  # versions-key: images.tao_toolkit.cosmos_rl
 required_credentials:
 - HF_TOKEN
 data_format: llava

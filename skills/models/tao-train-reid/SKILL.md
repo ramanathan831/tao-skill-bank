@@ -17,6 +17,8 @@ tags:
 
 # Re-Identification
 
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin, run the `tao-setup` skill first (host preflight, credentials, cross-skill discovery).
+
 Person re-identification. Learns discriminative embeddings to match the same person across different camera views. Metric learning based.
 
 Set model.pretrained_model_path for pretrained weights.

@@ -16,6 +16,8 @@ tags:
 
 # CenterPose
 
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin, run the `tao-setup` skill first (host preflight, credentials, cross-skill discovery).
+
 CenterPose for keypoint / pose estimation. Detects object centers and regresses keypoint locations. Used for 6-DoF object pose estimation.
 
 Set model.backbone.pretrained_backbone_path.
@@ -152,7 +154,7 @@ evaluate, inference, export, and resume. Use the symlink only when the user
 explicitly asks for latest.
 
 **TAO Deploy postprocessor compatibility**: Use the deploy image resolved from
-`versions.yaml` or the selected platform. A successful `gen_trt_engine` run does
+the skill's pinned deploy image or the selected platform. A successful `gen_trt_engine` run does
 not prove deploy `evaluate` or `inference` works; inspect those action exit codes
 and logs separately, especially for CenterPose postprocessor errors such as
 `TypeError: only 0-dimensional arrays can be converted to Python scalars`.

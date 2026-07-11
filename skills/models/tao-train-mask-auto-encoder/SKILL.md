@@ -18,6 +18,8 @@ tags:
 
 # MAE
 
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin, run the `tao-setup` skill first (host preflight, credentials, cross-skill discovery).
+
 MAE (Masked Autoencoder) for self-supervised pretraining and fine-tuning. Masks random patches and reconstructs them to learn visual representations. Supports pretrain and finetune stages.
 
 Set train.pretrained_model_path for pretrained MAE weights when fine-tuning.
