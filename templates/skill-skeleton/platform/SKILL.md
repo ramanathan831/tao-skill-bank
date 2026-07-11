@@ -15,6 +15,8 @@ allowed-tools: Read Bash
 
 # Platform Name
 
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin, run the `tao-setup` skill first (host preflight, credentials, cross-skill discovery).
+
 Short summary of the platform's execution model. Instance-based or job-based? API-first or docker-first? Single-node or multi-node? Managed or self-hosted?
 
 For generic docker conventions, defer to `tao-skill-bank:tao-run-on-docker`. This skill covers the platform-specific layering on top.

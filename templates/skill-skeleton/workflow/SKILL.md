@@ -15,6 +15,8 @@ allowed-tools: Read Bash
 
 # Skill Name
 
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin, run the `tao-setup` skill first (host preflight, credentials, cross-skill discovery).
+
 High-level description of what this workflow accomplishes end-to-end.
 
 ## External dependencies

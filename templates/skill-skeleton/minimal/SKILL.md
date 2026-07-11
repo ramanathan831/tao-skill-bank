@@ -16,6 +16,8 @@ license: Apache-2.0
 
 # Skill Name
 
+> **Standalone install?** If this session was not initialized by the TAO skill bank plugin, run the `tao-setup` skill first (host preflight, credentials, cross-skill discovery).
+
 ## Quick start
 
 ```bash

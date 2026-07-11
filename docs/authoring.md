@@ -245,6 +245,44 @@ container_image: nvcr.io/nvidia/tao/tao-toolkit:6.26.3-pyt
 
 Use a key when the image is shared across more than one skill or expected to be bumped on a release cadence. Use an absolute URI for experiments or external images not worth promoting to the manifest.
 
+### Version pinning rules
+
+Every image or wheel pin in a skill must be one of three things — the versions
+check in CI (`scripts/stamp_versions.py --check`) reports anything else as a
+stray:
+
+1. **Release-managed pin** — stamped literal + marker on the same line. Use for
+   any `nvcr.io/nvidia/tao/*` image or `nvidia-tao-*` wheel:
+
+   ```bash
+   container_image: nvcr.io/nvidia/tao/tao-toolkit:7.0.1-pyt  # versions-key: images.tao_toolkit.pyt
+   pip install "nvidia-tao-sdk[slurm]==7.0.1"  # versions-key: wheels.tao_sdk_slurm
+   ```
+
+2. **Deliberate one-off** — third-party registry, experimental image, or
+   anything not bumped on the TAO release cadence. Annotate it so the stray
+   scan skips it, with a reason:
+
+   ```bash
+   docker run --rm alpine:3.20 chown -R "$(id -u)" /w  # unpinned: generic helper image, not release-managed
+   ```
+
+3. **Variable indirection for multi-line commands** — a `# versions-key:`
+   comment cannot sit on a `docker run` continuation line (the `#` would
+   swallow the trailing `\`). Define a stamped variable once, then reference
+   it:
+
+   ```bash
+   TAO_DEPLOY_IMAGE=nvcr.io/nvidia/tao/tao-toolkit:7.0.1-deploy  # versions-key: images.tao_toolkit.deploy
+
+   docker run --gpus all --rm \
+     "$TAO_DEPLOY_IMAGE" \
+     dino gen_trt_engine -e /specs/spec.yaml
+   ```
+
+On a release bump, edit `versions.yaml` and run `scripts/stamp_versions.py` —
+never hand-edit a stamped value (CI rejects the drift either way).
+
 The validator enforces:
 
 - A **key reference** must resolve in `versions.yaml`'s `images` tree (else error).
@@ -466,6 +504,9 @@ Start a session, ask the agent to exercise the skill. Verify the agent reads it,
 - [ ] Body has Quick Start (or scripts/, hooks/, references/skill_info.yaml) — agent-runnable.
 - [ ] If the skill is non-trivial: External Dependencies, CLI Reference, Output Structure, Known Pitfalls sections present.
 - [ ] If using `skill_info.yaml`: `container_image` set, each model/data action has `command`, `mode`, `inputs`, `outputs`, and `upload_excludes`.
+- [ ] Every release-managed image/wheel pin carries a `# versions-key:` marker (or a stamped variable for multi-line commands); one-off images are annotated `# unpinned: <reason>`.
+- [ ] SKILL.md carries the standalone breadcrumb under its title (run `tao-setup` first when the session was not plugin-initialized) — copy it from any existing skill or the skeleton.
+- [ ] `scripts/stamp_versions.py --check` reports no errors and no new stray-pin warnings from your skill.
 - [ ] No SDK symbols (`tao_sdk`, `sdk.create_job`, etc.) in model/data/application skills (allowed in `skills/platform/*`).
 - [ ] Added to the marketplace manifest under the right plugin(s), when the packaging surface requires it.
 - [ ] No mirrored copy or symlink added under `skills/core/`.
