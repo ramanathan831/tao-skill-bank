@@ -1,0 +1,28 @@
+[
+  {
+    "id": "tao-train-dinov3-basic",
+    "question": "A user request: \"I have a folder of unlabeled factory inspection images and want to domain-adapt a DINOv3 backbone with self-supervised training, then use it for downstream tasks.\" Identify which TAO skill applies and, reading only that skill's documentation, outline the steps it prescribes. Do NOT run any commands, scripts, web searches, or other tools — describe the plan only.",
+    "expected_skill": "tao-train-dinov3",
+    "expected_script": null,
+    "ground_truth": "Identify tao-train-dinov3 as the applicable skill and summarize its documented workflow: download gated timm-format DINOv3 weights, run Phase-0 continual SSL training with step-unit milestone checkpoints, evaluate milestone teacher checkpoints on held-out downstream probes instead of trusting train loss, and convert the selected EMA-teacher checkpoint to a timm-format backbone via the convert action for downstream use.",
+    "expected_behavior": [
+      "Identifies tao-train-dinov3 as the relevant skill",
+      "Outlines the documented workflow steps from SKILL.md including pretrained weight download, Phase-0 training, milestone checkpoint selection, and convert handoff",
+      "Mentions selecting the EMA teacher checkpoint by downstream evaluation rather than the last checkpoint or train loss",
+      "Does not run commands, scripts, or web searches"
+    ]
+  },
+  {
+    "id": "tao-train-dinov3-checkpoint-selection",
+    "question": "A user request: \"My DINOv3 SSL train loss is still going down, so I plan to train longer and ship the final checkpoint.\" Identify which TAO skill applies and, reading only that skill's documentation, explain what it recommends. Do NOT run any commands, scripts, web searches, or other tools — describe the plan only.",
+    "expected_skill": "tao-train-dinov3",
+    "expected_script": null,
+    "ground_truth": "Identify tao-train-dinov3 and advise against shipping the final checkpoint: SSL train loss is a stability signal, not a quality proxy; save step-unit milestone checkpoints, probe frozen teacher features on disjoint downstream eval splits, require every probe to pass its own directional threshold vs baseline, and select the best milestone (often mid-training).",
+    "expected_behavior": [
+      "Identifies tao-train-dinov3 as the relevant skill",
+      "States that decreasing train loss does not guarantee better downstream transfer",
+      "Recommends milestone checkpointing and downstream evaluation on disjoint eval splits to select the shipped teacher checkpoint",
+      "Does not run commands, scripts, or web searches"
+    ]
+  }
+]
