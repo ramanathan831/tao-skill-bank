@@ -1,0 +1,130 @@
+# DINOv3 continual pre-training — Phase 0 (base resolution, Gram OFF).
+# Mirrors tao-pytorch nvidia_tao_pytorch/ssl/dinov3/experiment_specs/train_dinov3_vitb.yaml.
+# Schema source of truth: schemas/train.schema.json, generated from the tao-pytorch
+# dinov3 dataclasses (nvidia_tao_pytorch/config/dinov3/default_config.py).
+encryption_key: ''
+results_dir: ''
+wandb:
+  enable: true
+  project: TAO Toolkit
+  entity: ''
+  group: ''
+  tags:
+  - tao-toolkit
+  - dinov3
+  - ssl
+  reinit: false
+  sync_tensorboard: true
+  save_code: false
+  name: TAO DINOv3 SSL
+  run_id: ''
+model:
+  distill:
+    enable: false
+    disable_masking: false
+    pretrained_non_distill_pl_model_path: ''
+  # DINOv3 uses Sinkhorn-Knopp (SwAV) centering for teacher outputs; 'softmax' is the
+  # collapse/instability fallback (see dinov3-method.md).
+  centering_method: sinkhorn
+  backbone:
+    teacher_type: vit_b
+    student_type: vit_b
+    num_register_tokens: 4
+    drop_path_rate: 0.4
+    patch_size: 16
+    img_size: 256
+    # Parity-critical with the timm reference weights. Never tune.
+    rope_theta: 100.0
+  head:
+    num_layers: 3
+    hidden_dim: 2048
+    bottleneck_dim: 384
+  gram:
+    # OFF for Phase 0: the paper uses Gram for long-schedule / high-res regimes, not
+    # small-backbone base-resolution adaptation. See spec_template_train_highres.yaml.
+    enable: false
+    w_gram: 0.0
+    start_step: 0
+    teacher_source: pretrained
+    refresh_interval: 0
+    teacher_scale: 1.0
+  lora:
+    enable: false
+dataset:
+  train_dataset:
+    images_dir: ''
+  batch_size: 16
+  pin_memory: true
+  workers: 10
+  transform:
+    n_global_crops: 2
+    global_crops_scale:
+    - 0.32
+    - 1.0
+    global_crops_size: 256
+    n_local_crops: 8
+    local_crops_scale:
+    - 0.05
+    - 0.32
+    # Crop sizes must be multiples of patch_size 16.
+    local_crops_size: 112
+train:
+  num_gpus: 1
+  gpu_ids:
+  - 0
+  num_nodes: 1
+  seed: 1234
+  # xformers memory_efficient_attention has no deterministic backward kernel;
+  # deterministic MUST stay false or training fails.
+  cudnn:
+    benchmark: true
+    deterministic: false
+  # REFERENCE-SCALE VALUE — num_epochs and every step-denominated field below
+  # (checkpoint_interval, warm_up_steps, freeze_steps) must be recomputed from your
+  # corpus size and global batch before launch; see the schedule derivation in SKILL.md.
+  num_epochs: 10
+  # Step-unit milestone checkpoints enable checkpoint selection (see dinov3-recipes.md).
+  # REFERENCE-SCALE VALUE — set to ~total_steps/6 so the run yields >= 4-8 milestones.
+  checkpoint_interval: 1000
+  checkpoint_interval_unit: step
+  validation_interval: 1
+  resume_training_checkpoint_path: ''
+  results_dir: ''
+  # timm-format public DINOv3 weights (dir with model.safetensors, or a direct file).
+  # Gated on HF: accept the facebook/dinov3-* license first.
+  pretrained_model_path: ''
+  layerwise_decay: 1.0
+  clip_grad_norm: 3.0
+  num_prototypes: 131072
+  precision: 16-mixed
+  use_custom_attention: true
+  distributed_strategy: auto
+  schedulers:
+    # LR auto-scales with global batch: 5e-5 * sqrt(global_batch / 1024).
+    # REFERENCE-SCALE VALUES — all warm_up_steps/freeze_steps below assume a long
+    # single-process run; recompute from total_steps (LR warmup ~5-10%, freeze ~1%,
+    # teacher-temperature warmup ~25%) before launch. See SKILL.md.
+    learning_rate:
+      val_base: "${eval: '5e-5 * (${dataset.batch_size} * ${train.num_gpus} * ${train.num_nodes} / 1024) ** (1/2)'}"
+      val_final: 1.0e-06
+      warm_up_steps: 10000
+    last_layer_learning_rate:
+      val_base: "${eval: '5e-5 * (${dataset.batch_size} * ${train.num_gpus} * ${train.num_nodes} / 1024) ** (1/2)'}"
+      val_final: 1.0e-06
+      warm_up_steps: 10000
+      freeze_steps: 1250
+    weight_decay:
+      val_base: 0.04
+      val_final: 0.2
+    # High EMA momentum anchors the teacher during continual pre-training
+    # (vs 0.994 for from-scratch nvdinov2). Lowering it accelerates forgetting.
+    momentum:
+      val_base: 0.9999
+      val_final: 1.0
+    teacher_temperature:
+      val_base: 0.07
+      val_final: 0.07
+      val_start: 0.04
+      warm_up_steps: 37500
+  optim:
+    optim: adamw
