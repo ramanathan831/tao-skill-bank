@@ -7,9 +7,9 @@
 //
 // Build parameters (TAO_VERSION, *_TAG, SDK_VERSION) are configured via the
 // Jenkins job UI (Pipeline → This project is parameterized → Add String
-// Parameter), NOT declaratively in this file. Required UI parameters:
+// Parameter), NOT declaratively in this file. UI parameters:
 //
-//   TAO_VERSION             e.g. "6.26.6"   (target branch release/${TAO_VERSION})
+//   TAO_VERSION             REQUIRED. e.g. "6.26.6"   (target branch release/${TAO_VERSION})
 //   PYTORCH_TAG             full image URI for images.tao_toolkit.pyt
 //   DEPLOY_TAG              full image URI for images.tao_toolkit.deploy
 //   DATA_SERVICES_TAG       full image URI for images.tao_toolkit.data_services
@@ -25,6 +25,12 @@
 //                           all nvidia-tao-automl wheel entries (tao_automl_slurm,
 //                           tao_automl_kubernetes, tao_automl_docker,
 //                           tao_automl_brev, tao_automl_all)
+//
+// Only TAO_VERSION is required. Every other parameter is OPTIONAL: a blank
+// (or literal "N/A") value means "leave that versions.yaml entry untouched".
+// The full-release pipeline passes '' for components whose build toggle is
+// unchecked, so a partial release only bumps what was actually rebuilt —
+// a blank value is never written into versions.yaml.
 //
 // Notes:
 // - Each agent relies on Jenkins's automatic `checkout scm` (job SCM is
@@ -128,49 +134,55 @@ pipeline {
                                 TAO_VERSION_RESOLVED = normalizeVersion(params.TAO_VERSION)
                                 TARGET_BRANCH = "release/${TAO_VERSION_RESOLVED}"
 
-                                // Fail fast on missing UI parameters.
-                                def required = [
-                                    'TAO_VERSION'           : TAO_VERSION_RESOLVED,
-                                    'PYTORCH_TAG'           : params.PYTORCH_TAG,
-                                    'DEPLOY_TAG'            : params.DEPLOY_TAG,
-                                    'DATA_SERVICES_TAG'     : params.DATA_SERVICES_TAG,
-                                    'COSMOS_RL_TAG'         : params.COSMOS_RL_TAG,
-                                    'COSMOS_PREDICT_2_5_TAG'    : params.COSMOS_PREDICT_2_5_TAG,
-                                    'COSMOS_EMBED_TAG'      : params.COSMOS_EMBED_TAG,
-                                    'VILA_TAG'              : params.VILA_TAG,
-                                    'SDK_VERSION'           : params.SDK_VERSION,
-                                    'AUTOML_VERSION'        : params.AUTOML_VERSION,
-                                ]
-                                def missing = required.findAll { k, v -> !(v?.toString()?.trim()) }
-                                if (missing) {
-                                    error "Missing required parameter(s): ${missing.keySet().join(', ')}"
+                                // Only TAO_VERSION is required. Every patch input is OPTIONAL:
+                                // blank (or literal 'N/A') means "leave that versions.yaml
+                                // entry untouched". The full-release pipeline passes '' for
+                                // components whose build toggle is unchecked — never error on
+                                // those, and never patch a value to an empty string.
+                                if (!(TAO_VERSION_RESOLVED?.trim())) {
+                                    error "Missing required parameter(s): TAO_VERSION"
+                                }
+                                def val = { v ->
+                                    def t = v?.toString()?.trim()
+                                    (t && t != 'N/A') ? t : ''
                                 }
 
-                                // Export to env so downstream `sh` blocks see them.
+                                // Export to env so downstream `sh` blocks see them. Always
+                                // defined (possibly ''), so `set -u` never trips and the patch
+                                // stage can test each with [ -n ].
                                 env.TAO_VERSION             = TAO_VERSION_RESOLVED
                                 env.TARGET_BRANCH           = TARGET_BRANCH
-                                env.PYTORCH_TAG             = params.PYTORCH_TAG
-                                env.DEPLOY_TAG              = params.DEPLOY_TAG
-                                env.DATA_SERVICES_TAG       = params.DATA_SERVICES_TAG
-                                env.COSMOS_RL_TAG           = params.COSMOS_RL_TAG
-                                env.COSMOS_PREDICT_2_5_TAG      = params.COSMOS_PREDICT_2_5_TAG
-                                env.COSMOS_EMBED_TAG        = params.COSMOS_EMBED_TAG
-                                env.VILA_TAG                = params.VILA_TAG
-                                env.SDK_VERSION             = params.SDK_VERSION
-                                env.AUTOML_VERSION          = params.AUTOML_VERSION
+                                env.PYTORCH_TAG             = val(params.PYTORCH_TAG)
+                                env.DEPLOY_TAG              = val(params.DEPLOY_TAG)
+                                env.DATA_SERVICES_TAG       = val(params.DATA_SERVICES_TAG)
+                                env.COSMOS_RL_TAG           = val(params.COSMOS_RL_TAG)
+                                env.COSMOS_PREDICT_2_5_TAG  = val(params.COSMOS_PREDICT_2_5_TAG)
+                                env.COSMOS_EMBED_TAG        = val(params.COSMOS_EMBED_TAG)
+                                env.VILA_TAG                = val(params.VILA_TAG)
+                                env.SDK_VERSION             = val(params.SDK_VERSION)
+                                env.AUTOML_VERSION          = val(params.AUTOML_VERSION)
 
+                                def show = { v -> v ?: '(skip — not provided)' }
                                 echo "=== Bump plan ==="
                                 echo "TAO_VERSION            = ${TAO_VERSION_RESOLVED}"
                                 echo "TARGET_BRANCH          = ${TARGET_BRANCH}"
-                                echo "PYTORCH_TAG            = ${params.PYTORCH_TAG}"
-                                echo "DEPLOY_TAG             = ${params.DEPLOY_TAG}"
-                                echo "DATA_SERVICES_TAG      = ${params.DATA_SERVICES_TAG}"
-                                echo "COSMOS_RL_TAG          = ${params.COSMOS_RL_TAG}"
-                                echo "COSMOS_PREDICT_2_5_TAG     = ${params.COSMOS_PREDICT_2_5_TAG}"
-                                echo "COSMOS_EMBED_TAG       = ${params.COSMOS_EMBED_TAG}"
-                                echo "VILA_TAG               = ${params.VILA_TAG}"
-                                echo "SDK_VERSION            = ${params.SDK_VERSION}"
-                                echo "AUTOML_VERSION         = ${params.AUTOML_VERSION}"
+                                echo "PYTORCH_TAG            = ${show(env.PYTORCH_TAG)}"
+                                echo "DEPLOY_TAG             = ${show(env.DEPLOY_TAG)}"
+                                echo "DATA_SERVICES_TAG      = ${show(env.DATA_SERVICES_TAG)}"
+                                echo "COSMOS_RL_TAG          = ${show(env.COSMOS_RL_TAG)}"
+                                echo "COSMOS_PREDICT_2_5_TAG = ${show(env.COSMOS_PREDICT_2_5_TAG)}"
+                                echo "COSMOS_EMBED_TAG       = ${show(env.COSMOS_EMBED_TAG)}"
+                                echo "VILA_TAG               = ${show(env.VILA_TAG)}"
+                                echo "SDK_VERSION            = ${show(env.SDK_VERSION)}"
+                                echo "AUTOML_VERSION         = ${show(env.AUTOML_VERSION)}"
+
+                                def anyInput = [env.PYTORCH_TAG, env.DEPLOY_TAG, env.DATA_SERVICES_TAG,
+                                                env.COSMOS_RL_TAG, env.COSMOS_PREDICT_2_5_TAG,
+                                                env.COSMOS_EMBED_TAG, env.VILA_TAG,
+                                                env.SDK_VERSION, env.AUTOML_VERSION].any { it }
+                                if (!anyInput) {
+                                    echo "WARNING: no patch inputs provided — versions.yaml will be unchanged and nothing will be pushed."
+                                }
                             }
                         }
                     }
@@ -248,26 +260,45 @@ with open(path, "w", encoding="utf-8") as fh:
 PY
                                         }
 
-                                        patch_line "pyt"                "${PYTORCH_TAG}"
-                                        patch_line "deploy"             "${DEPLOY_TAG}"
-                                        patch_line "data_services"      "${DATA_SERVICES_TAG}"
-                                        patch_line "cosmos_rl"          "${COSMOS_RL_TAG}"
-                                        patch_line "cosmos_predict"     "${COSMOS_PREDICT_2_5_TAG}"
-                                        patch_line "cosmos_embed"       "${COSMOS_EMBED_TAG}"
-                                        patch_line "vila"               "${VILA_TAG}"
+                                        # A blank value means "not provided" — the component's
+                                        # build was toggled off upstream. Leave that entry
+                                        # untouched; never write an empty value.
+                                        patch_if_set() {
+                                            if [ -n "$2" ]; then
+                                                patch_line "$1" "$2"
+                                            else
+                                                echo "SKIP: $1 (no value provided)"
+                                            fi
+                                        }
 
-                                        patch_line "tao_sdk"            "nvidia-tao-sdk==${SDK_VERSION}"
-                                        patch_line "tao_sdk_brev"       "nvidia-tao-sdk[brev]==${SDK_VERSION}"
-                                        patch_line "tao_sdk_slurm"      "nvidia-tao-sdk[slurm]==${SDK_VERSION}"
-                                        patch_line "tao_sdk_kubernetes" "nvidia-tao-sdk[kubernetes]==${SDK_VERSION}"
-                                        patch_line "tao_sdk_docker"     "nvidia-tao-sdk[docker]==${SDK_VERSION}"
-                                        patch_line "tao_sdk_all"        "nvidia-tao-sdk[all]==${SDK_VERSION}"
+                                        patch_if_set "pyt"                "${PYTORCH_TAG:-}"
+                                        patch_if_set "deploy"             "${DEPLOY_TAG:-}"
+                                        patch_if_set "data_services"      "${DATA_SERVICES_TAG:-}"
+                                        patch_if_set "cosmos_rl"          "${COSMOS_RL_TAG:-}"
+                                        patch_if_set "cosmos_predict"     "${COSMOS_PREDICT_2_5_TAG:-}"
+                                        patch_if_set "cosmos_embed"       "${COSMOS_EMBED_TAG:-}"
+                                        patch_if_set "vila"               "${VILA_TAG:-}"
 
-                                        patch_line "tao_automl_slurm"      "nvidia-tao-automl[slurm]==${AUTOML_VERSION}"
-                                        patch_line "tao_automl_kubernetes" "nvidia-tao-automl[kubernetes]==${AUTOML_VERSION}"
-                                        patch_line "tao_automl_docker"     "nvidia-tao-automl[docker]==${AUTOML_VERSION}"
-                                        patch_line "tao_automl_brev"       "nvidia-tao-automl[brev]==${AUTOML_VERSION}"
-                                        patch_line "tao_automl_all"        "nvidia-tao-automl[all]==${AUTOML_VERSION}"
+                                        if [ -n "${SDK_VERSION:-}" ]; then
+                                            patch_line "tao_sdk"            "nvidia-tao-sdk==${SDK_VERSION}"
+                                            patch_line "tao_sdk_brev"       "nvidia-tao-sdk[brev]==${SDK_VERSION}"
+                                            patch_line "tao_sdk_slurm"      "nvidia-tao-sdk[slurm]==${SDK_VERSION}"
+                                            patch_line "tao_sdk_kubernetes" "nvidia-tao-sdk[kubernetes]==${SDK_VERSION}"
+                                            patch_line "tao_sdk_docker"     "nvidia-tao-sdk[docker]==${SDK_VERSION}"
+                                            patch_line "tao_sdk_all"        "nvidia-tao-sdk[all]==${SDK_VERSION}"
+                                        else
+                                            echo "SKIP: tao_sdk* wheel pins (SDK_VERSION not provided)"
+                                        fi
+
+                                        if [ -n "${AUTOML_VERSION:-}" ]; then
+                                            patch_line "tao_automl_slurm"      "nvidia-tao-automl[slurm]==${AUTOML_VERSION}"
+                                            patch_line "tao_automl_kubernetes" "nvidia-tao-automl[kubernetes]==${AUTOML_VERSION}"
+                                            patch_line "tao_automl_docker"     "nvidia-tao-automl[docker]==${AUTOML_VERSION}"
+                                            patch_line "tao_automl_brev"       "nvidia-tao-automl[brev]==${AUTOML_VERSION}"
+                                            patch_line "tao_automl_all"        "nvidia-tao-automl[all]==${AUTOML_VERSION}"
+                                        else
+                                            echo "SKIP: tao_automl* wheel pins (AUTOML_VERSION not provided)"
+                                        fi
 
                                         # Propagate the bumped versions.yaml into every embedded
                                         # skill pin (container_image literals, wheel pins) and
