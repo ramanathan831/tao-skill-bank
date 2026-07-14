@@ -8,7 +8,7 @@ type: model
 # Examples:
 #   container_image: tao_toolkit.pyt
 #   container_image: nvcr.io/nvidia/tao/tao-toolkit:6.26.3-pyt
-container_image: nvcr.io/nvidia/tao/tao-toolkit:7.0.1-pyt  # versions-key: images.tao_toolkit.pyt
+container_image: nvcr.io/nvstaging/tao/tao-toolkit-pyt:7.1.0-rc-242-multiarch  # versions-key: images.tao_toolkit.pyt
 required_credentials:
   - HF_TOKEN
 

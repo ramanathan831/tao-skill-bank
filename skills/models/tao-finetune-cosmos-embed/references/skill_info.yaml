@@ -1,6 +1,6 @@
 network_arch: cosmos-embed
 automl_enabled: false
-container_image: nvcr.io/nvidia/tao/tao-toolkit:7.0.1-cosmos-embed  # versions-key: images.tao_toolkit.cosmos_embed
+container_image: nvcr.io/nvstaging/tao/cosmos-embed:7.1.0-rc-51  # versions-key: images.tao_toolkit.cosmos_embed
 required_credentials:
 - HF_TOKEN
 data_format: msrvtt

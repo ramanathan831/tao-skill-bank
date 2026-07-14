@@ -25,8 +25,8 @@ Resolve everything possible before asking the user. In order:
 5. **Export the pinned container image env vars.** The rest of this skill — including the Pre-Flight Summary's `docker image inspect` line, every stage launch, and the `references/*.md` files — references three env vars. They are **not** defined elsewhere; the pinned URIs below are stamped from the release manifest. `export` them so all downstream commands see them:
 
    ```bash
-   export TAO_PYT_IMAGE=nvcr.io/nvidia/tao/tao-toolkit:7.0.1-pyt  # versions-key: images.tao_toolkit.pyt
-   export TAO_DS_IMAGE=nvcr.io/nvidia/tao/tao-toolkit:7.0.1-data-services  # versions-key: images.tao_toolkit.data_services
+   export TAO_PYT_IMAGE=nvcr.io/nvstaging/tao/tao-toolkit-pyt:7.1.0-rc-242-multiarch  # versions-key: images.tao_toolkit.pyt
+   export TAO_DS_IMAGE=nvcr.io/nvstaging/tao/tao-toolkit-ds:7.1.0-rc-196-multiarch  # versions-key: images.tao_toolkit.data_services
    export AG_IMAGE=nvcr.io/nvidia/paidf-anomalygen:1.0.0  # versions-key: images.metropolis_sdg.paidf_anomalygen
    ```
 

@@ -43,7 +43,7 @@ Cosmos-Embed1 source tree for normal skill use; build from source only when
 developing the container itself.
 
 ```bash
-COSMOS_EMBED_IMAGE="${COSMOS_EMBED_IMAGE:-nvcr.io/nvidia/tao/tao-toolkit:7.0.1-cosmos-embed}"  # versions-key: images.tao_toolkit.cosmos_embed
+COSMOS_EMBED_IMAGE="${COSMOS_EMBED_IMAGE:nvcr.io/nvstaging/tao/cosmos-embed:7.1.0-rc-51}"  # versions-key: images.tao_toolkit.cosmos_embed
 docker pull "$COSMOS_EMBED_IMAGE"
 ```
 
@@ -70,7 +70,7 @@ workspace/
 Use these Docker options for all actions unless the local Docker/platform skill gives a stricter environment-specific command:
 
 ```bash
-COSMOS_EMBED_IMAGE="${COSMOS_EMBED_IMAGE:-nvcr.io/nvidia/tao/tao-toolkit:7.0.1-cosmos-embed}"  # versions-key: images.tao_toolkit.cosmos_embed
+COSMOS_EMBED_IMAGE="${COSMOS_EMBED_IMAGE:nvcr.io/nvstaging/tao/cosmos-embed:7.1.0-rc-51}"  # versions-key: images.tao_toolkit.cosmos_embed
 RUN_ROOT="${RUN_ROOT:-$PWD}"
 DOCKER_COMMON=(
   --rm --gpus all --ipc=host --network=host

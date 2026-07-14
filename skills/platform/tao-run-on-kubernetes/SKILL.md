@@ -50,7 +50,7 @@ fi
 
 # 1. SDK + kubernetes extra installed.
 # nvidia-tao-sdk is on public PyPI; the pin below is stamped from the release manifest.
-PIN="nvidia-tao-sdk[kubernetes]==7.0.1"  # versions-key: wheels.tao_sdk_kubernetes
+PIN="nvidia-tao-sdk[kubernetes]==7.1.0rc38"  # versions-key: wheels.tao_sdk_kubernetes
 python -c "import tao_sdk" 2>/dev/null || {
   echo "Installing missing Python requirement: $PIN"
   python -m pip install "$PIN"
