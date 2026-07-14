@@ -299,7 +299,7 @@ PY
                                     withCredentials([string(credentialsId: TaoConfig.credentials.GITLAB_TOKEN, variable: 'GITLAB_TOKEN')]) {
                                         script {
                                             def commitResult = gitCommit(
-                                                files: ['versions.yaml', 'skills'],
+                                                files: ['versions.yaml', 'skills', 'templates'],
                                                 message: "[TAO-0000][Feature] Bump versions.yaml + stamped skill pins for ${TAO_VERSION_RESOLVED} (build ${env.BUILD_NUMBER})"
                                             )
                                             if (!commitResult.committed) {
