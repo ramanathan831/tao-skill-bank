@@ -5,8 +5,7 @@ description: Remote SLURM GPU cluster execution over SSH with sbatch/srun, Pyxis
   "run on SLURM", "submit sbatch", "DGX SLURM cluster", "Pyxis/Enroot container", "Lustre dataset".
 license: Apache-2.0
 compatibility: Requires SSH access to a SLURM login node (passwordless via key auth) and SLURM_USER + SLURM_HOSTNAME env vars.
-  The TAO SDK with the slurm extra (pip install 'nvidia-tao-sdk[slurm]') is needed only if you want Job handles, S3 I/O wrapping,
-  or run-folder durability via ActionWorkflow.
+  No nvidia-tao-sdk install is required; jobs are driven directly over ssh + sbatch/squeue/sacct/scancel.
 metadata:
   author: NVIDIA Corporation
   version: "0.1.0"
@@ -21,7 +20,7 @@ tags:
 > **Standalone install?** If this session was not initialized by the TAO skill bank plugin, run the `tao-setup` skill first (host preflight, credentials, cross-skill discovery).
 
 Remote GPU compute platform for clusters managed by SLURM. Jobs are submitted
-from the TAO service or SDK host to a login node over SSH, staged on a shared
+from the launch host to a login node over SSH, staged on a shared
 filesystem, submitted with `sbatch`, and executed with `srun` container support.
 
 ## When to use
@@ -34,8 +33,7 @@ the cluster.
 ## Preflight + SSH
 
 Confirm `SLURM_USER` and `SLURM_HOSTNAME` are exported and passwordless SSH to a
-login host works (`ssh -o BatchMode=yes`). Optionally install the TAO SDK
-wrapper for Job handles + S3 wrapping (`nvidia-tao-sdk[slurm]`, on public PyPI).
+login host works (`ssh -o BatchMode=yes`).
 For private `nvcr.io` images, install `~/.config/enroot/.credentials` on the
 cluster once per (cluster, user): Pyxis/Enroot does not read `NGC_KEY` from the
 job env, and without persistent credentials, auth-gated pulls fail with "Could
@@ -51,6 +49,106 @@ See `references/slurm-ssh-credentials.md` for the full preflight script, the
 enroot-credentials heredoc, prerequisite key setup (keypair, `ssh-copy-id`,
 `known_hosts`, container key mounts, 2FA handling), and the SSH failure
 remediation prompt.
+
+## Execution — the four verbs
+
+`tao-run-on-slurm` is a platform **consumer**: it runs a spec-bundle over
+`ssh + sbatch/squeue/sacct/scancel`, mutating only the job-record. Storage is
+**tier A** (Lustre) — the dataset is staged to a shared path *before* submit and
+read through Pyxis; never fetch S3 inside the allocation (the scheduler-idle
+timeout kills GPU-idle jobs and bills the wasted time). `$BANK` =
+`${TAO_SKILL_BANK_PATH}`; `$LOGIN` = a resolved `SLURM_HOSTNAME`.
+
+### submit
+
+1. **Reuse what's already staged — never redo (tier A):**
+   - *Image:* `@@IMAGE@@` is a Lustre `.sqsh` — **reuse an existing one if present**
+     (`ssh $LOGIN ls <sqsh>`); only if missing, convert once with `enroot import`
+     (cached by name — see `references/slurm-container-execution.md`).
+   - *Dataset:* **confirm it is already on Lustre** (`ssh $LOGIN test -e …`) and
+     reference those paths; `tao-data-io` stages *only* a small auxiliary input
+     that is not there yet — never re-stage existing data, and never the training
+     set inside the allocation.
+   Then author the spec at `<job_dir>/specs/spec.yaml` on Lustre with those paths.
+2. **Credentials → sidecar (never inline):** if the run needs session creds
+   (e.g. `HF_TOKEN`), write them to a mode-600 sidecar on Lustre and let the
+   template shred it on exit; NGC image pulls use the one-time
+   `~/.config/enroot/.credentials` (see `references/slurm-ssh-credentials.md`),
+   not the job env:
+   ```bash
+   ssh $LOGIN "umask 077; printf 'export HF_TOKEN=%s\n' \"\$HF_TOKEN\" > <job_dir>/job_$JOB_ID.env"
+   ```
+3. **Open the record — mints the id, binds `results_dir` on Lustre, before launch:**
+   ```bash
+   JOB_ID=$("$BANK/scripts/tao_job_record.py" open --platform slurm --image "$IMAGE" \
+     --network-arch "$ARCH" --action "$ACTION" --storage-tier A --results-root "$SLURM_BASE_RESULTS_DIR")
+   ```
+4. **Render** `templates/slurm/singlenode.sbatch.tmpl` — substitute every
+   `@@<NAME>@@` (`JOB_NAME=$JOB_ID`, `NUM_GPUS`, `CPUS_PER_TASK`, `TIME`, `LOG_DIR`,
+   `IMAGE`, `CONTAINER_MOUNTS=/lustre`, `COMMAND=<bundle command reading the Lustre
+   spec>`, `SBATCH_EXTRA=` account/partition lines, `ENV_FILE=` the sidecar path or
+   empty, `EXTRA_ENV=` any cluster NCCL knobs) → `<job_dir>/sbatch/job_$JOB_ID.sbatch`.
+   **Lint + syntax-check before submit:** `redact_secrets.py lint <sbatch>` must
+   pass and `bash -n <sbatch>` must succeed.
+5. **Submit + record RUNNING:**
+   ```bash
+   SLURM_ID=$(ssh $LOGIN "sbatch --parsable <job_dir>/sbatch/job_$JOB_ID.sbatch")
+   "$BANK/scripts/tao_job_record.py" mark "$JOB_ID" --state RUNNING --backend-ref "$SLURM_ID"
+   ```
+
+A submit that skipped the gate or the open has no id — so it cannot launch.
+
+### status
+
+```bash
+st=$(ssh $LOGIN "sacct -j $SLURM_ID -X -n -o State" | tr -d ' ')   # squeue while pending
+```
+
+| SLURM state | vocab |
+|---|---|
+| `PENDING` | `PENDING` |
+| `RUNNING` / `COMPLETING` | `RUNNING` |
+| `COMPLETED` | `COMPLETE` (confirm `status.json` in `results_dir`) |
+| `FAILED` / `TIMEOUT` / `OUT_OF_MEMORY` | `ERROR` (infra-vs-program classify → retry, M6) |
+| `NODE_FAIL` / `BOOT_FAIL` | `ERROR`, `err_class=ERR_INFRA` (`--requeue` re-queues these) |
+| `CANCELLED` / `PREEMPTED` / `REVOKED` | `CANCELED` |
+| (not found) | `UNKNOWN` |
+
+Native sub-state rides in the transition `message`. Poll at the chosen interval;
+long queue waits are normal — do not stop on elapsed time.
+
+### logs
+
+```bash
+ssh $LOGIN "tail -n ${N:-200} <log_dir>/$JOB_ID-$SLURM_ID/main.out"   # SLURM auto-creates the %x-%j subdir
+```
+
+### cancel
+
+```bash
+ssh $LOGIN "scancel $SLURM_ID"
+"$BANK/scripts/tao_job_record.py" mark "$JOB_ID" --state CANCELED --source agent
+```
+
+Treat an already-terminated SLURM job as a successful cancel.
+
+### Multi-node (nodes > 1)
+
+Same four verbs, with three additions at submit:
+
+1. **Render `templates/slurm/multinode.sbatch.tmpl`** instead of the single-node
+   one — it's a strict superset (adds `--nodes` / `--wait-all-nodes` + the
+   rendezvous block). `WORLD_SIZE` is the **node count** (TAO's misnomer); never
+   change it to a global-rank count.
+2. **NCCL probe first** — before the real job, run a cheap 2-node all-reduce
+   (`scripts/nccl_allreduce_probe.py` under the container's torchrun) with a
+   ~120s timeout. `NCCL_PROBE_OK` → proceed. **Timed out** (the collective hung)
+   → set the cluster's NCCL knob in `EXTRA_ENV` and re-probe — on CS-OCI-ORD that
+   is `export NCCL_P2P_DISABLE=1` (the intra-node P2P hang), often with
+   `NCCL_SOCKET_IFNAME=eth0` / `NCCL_IB_DISABLE=1`. **Cache the working env per
+   cluster** so later jobs skip the probe. Gate on **`gpus_per_node > 1` too** —
+   the P2P hang triggers on a single node with 2+ GPUs.
+3. Tier-A Lustre, sidecar creds, record, and lint are unchanged.
 
 ## Storage
 
@@ -166,14 +264,16 @@ When `num_gpus` is greater than or equal to `max_num_gpus_per_node`, the
 handler treats the request as exclusive per node and computes additional nodes
 from total GPU count when necessary.
 
-## Multi-node, SDK, and retries
+## Multi-node and retries
 
-For multi-node jobs (`num_nodes > 1`), the SDK builds the sbatch directives and
-exports the PyTorch-distributed rendezvous env vars automatically: `WORLD_SIZE`,
-`NUM_GPU_PER_NODE`, `NODE_RANK`, `MASTER_ADDR`, and `MASTER_PORT` (29500).
-TAO entrypoints read `WORLD_SIZE` + `NUM_GPU_PER_NODE` and build torchrun
-internally. Cosmos-RL has special multi-node role handling for controller,
-policy, and rollout workers.
+For multi-node jobs (`num_nodes > 1`), the rendered
+`templates/slurm/multinode.sbatch.tmpl` sets the sbatch directives and exports
+the PyTorch-distributed rendezvous env vars: `WORLD_SIZE`, `NUM_GPU_PER_NODE`,
+`NODE_RANK`, `MASTER_ADDR`, and `MASTER_PORT` (29500). TAO entrypoints read
+`WORLD_SIZE` + `NUM_GPU_PER_NODE` and build torchrun internally. Cosmos-RL has
+special multi-node role handling for controller, policy, and rollout workers.
+See the `### Multi-node (nodes > 1)` submit subsection above for the NCCL-probe
+gate and per-cluster env caching.
 
 **Use Lustre, not S3, for SLURM job inputs.** The GPU allocation starts the
 moment the job is dispatched, so a long `s3://` download at the top of the
@@ -183,20 +283,17 @@ as `lustre:///...`. S3/HF/NGC pre-fetch is fine for small auxiliary inputs
 (checkpoints, configs), not training datasets. K8s/Brev do not share this
 scheduler-idle constraint.
 
-Auto-retry of infrastructure failures (`NODE_FAIL`, `BOOT_FAIL`, NCCL transport
-timeouts, CUDA driver init failures, GPU/IB link-down, OOM-killer node reaping,
-Xid errors) is automatic in the SDK, with a stable user-facing `Job.id` across
-retries. Plain training failures surface immediately so a broken spec does not
-consume the retry budget. `#SBATCH --requeue` is enabled by default via
-`SLURM_USE_REQUEUE=true`.
+On an infrastructure failure (`NODE_FAIL`, `BOOT_FAIL`, NCCL transport timeouts,
+CUDA driver init failures, GPU/IB link-down, OOM-killer node reaping, Xid
+errors), classify infra-vs-program from the logs and re-submit the staged sbatch
+script (M6). Plain training failures surface immediately so a broken spec does
+not consume the retry budget. `#SBATCH --requeue` is enabled by default via
+`SLURM_USE_REQUEUE=true`, so SLURM itself re-queues the job on `NODE_FAIL` or
+pre-emption before any agent-level resubmit.
 
 See `references/slurm-container-execution.md` for the full multi-node
-env-var/sbatch directive detail and table, cluster requirements, the optional
-TAO SDK path (`SlurmSDK`, `build_entrypoint`, `ActionWorkflow`) with code, the
-Lustre-not-S3 rule in full, and the failure-mode checklist;
-`references/slurm-execution-sdk.md` covers the `MAX_JOB_RETRIES` retry budget.
-When the SDK is in scope, read `tao-skill-bank:tao-run-platform` for the
-`SlurmSDK` kwarg reference.
+env-var/sbatch directive detail and table, cluster requirements, the
+Lustre-not-S3 rule in full, and the failure-mode checklist.
 
 ## References
 
@@ -204,8 +301,7 @@ When the SDK is in scope, read `tao-skill-bank:tao-run-platform` for the
   enroot credentials, full credential list, backend details, storage rules,
   SSH remediation prompt.
 - `references/slurm-container-execution.md` — container execution steps,
-  monitoring, status mapping, cancellation, multi-node detail, SDK use,
-  Lustre-not-S3, auto-retry, failure modes.
+  monitoring, status mapping, cancellation, multi-node detail,
+  Lustre-not-S3, retries, failure modes.
 - `references/slurm-preflight-storage.md` — extended preflight/storage notes.
-- `references/slurm-execution-sdk.md` — extended execution/SDK notes.
 - `references/detailed-guide.md` — navigation map for the split references.

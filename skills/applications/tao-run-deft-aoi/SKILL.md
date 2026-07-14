@@ -68,13 +68,14 @@ not apply this policy to other workflows.
 ## Launch Intake
 
 After the user confirms they want to run this workflow, ask which supported
-platform they intend to run on. The supported platforms are the installed
-platform skills — `tao-run-on-local-docker` (default for a local GPU host),
-`tao-run-on-brev`, `tao-run-on-slurm`, and `tao-run-on-kubernetes`. Never
-default silently; if the user has not chosen, ask.
+platform they intend to run on. Discover the execution platforms from the
+installed platform skills (tao-run-on-docker / -slurm / -kubernetes / -brev,
+plus any external one); on a runtime that surfaces only the core router skills,
+read `skills/platform/tao-run-on-*/SKILL.md` frontmatter.
 
-After platform selection, read the chosen platform skill's SKILL.md and run
-its Preflight section for the credential and environment requirements.
+After platform selection, read the chosen platform skill's `## Credentials`
+section and `references/skill_info.yaml` (required_credentials /
+credential_groups).
 
 Ask only for credentials relevant to that platform, plus model-specific
 credentials required by the selected workflow.

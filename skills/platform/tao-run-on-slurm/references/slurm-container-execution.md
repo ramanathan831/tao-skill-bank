@@ -1,6 +1,6 @@
-# SLURM Container Execution, Monitoring, Multi-node, SDK, And Failures
+# SLURM Container Execution, Monitoring, Multi-node, And Failures
 
-Container execution steps, monitoring, status mapping, cancellation, multi-node env-var/sbatch detail, the TAO SDK path, the Lustre-not-S3 rule, auto-retry, and failure modes. If this reference conflicts with `SKILL.md`, `skill_info.yaml`, schemas, or platform/model skills, the compact/current source wins.
+Container execution steps, monitoring, status mapping, cancellation, multi-node env-var/sbatch detail, the Lustre-not-S3 rule, retries, and failure modes. If this reference conflicts with `SKILL.md`, `skill_info.yaml`, schemas, or platform/model skills, the compact/current source wins.
 
 ## Container Execution
 
@@ -61,24 +61,25 @@ jobs as successful cancellation.
 
 ## Multi-node training (distributed)
 
-SLURM is the platform of choice for large multi-node runs — pass `num_nodes > 1` and the SDK handles the sbatch directives + PyTorch-distributed env vars automatically.
+SLURM is the platform of choice for large multi-node runs — set `num_nodes > 1`
+and render `templates/slurm/multinode.sbatch.tmpl`, which is a strict superset of
+the single-node template: it adds the sbatch directives and PyTorch-distributed
+rendezvous env vars below. For example, `NUM_GPUS=8` (GPUs per node) with
+`WORLD_SIZE=4` node count gives 4 × 8 = 32 GPUs total; the training command is a
+`torchrun` reading the exported env vars, e.g.:
 
-```python
-job = sdk.create_job(
-    image='nvcr.io/nvidia/tao/tao-toolkit:6.26.3-pyt',
-    command='torchrun --nnodes=$WORLD_SIZE --nproc-per-node=$NUM_GPU_PER_NODE '
-            '--node-rank=$NODE_RANK --master-addr=$MASTER_ADDR --master-port=$MASTER_PORT '
-            'train.py',
-    gpu_count=8,           # GPUs per node
-    num_nodes=4,           # 4 × 8 = 32 GPUs total
-    inputs={'/data/train.json': 'lustre:///lustre/.../coco/train.json'},
-    outputs=['/results/'],
-)
+```bash
+torchrun --nnodes=$WORLD_SIZE --nproc-per-node=$NUM_GPU_PER_NODE \
+  --node-rank=$NODE_RANK --master-addr=$MASTER_ADDR --master-port=$MASTER_PORT \
+  train.py
 ```
 
-### What the SDK generates
+(TAO entrypoints such as `dino train -e spec.yaml` build the torchrun invocation
+internally from `WORLD_SIZE` + `NUM_GPU_PER_NODE`.)
 
-The handler builds an `sbatch` script with:
+### What the rendered template generates
+
+The rendered multi-node `sbatch` script has:
 
 ```
 #SBATCH --nodes=N                    # node count
@@ -125,20 +126,7 @@ For TAO entrypoints (`dino train -e spec.yaml`, etc.) the container's entrypoint
 - PyTorch distributed (env-var rendezvous): <https://pytorch.org/docs/stable/elastic/run.html>
 - NCCL networking tuning (NCCL_SOCKET_IFNAME, NCCL_IB_HCA): <https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html>
 
-## Optional: via the TAO SDK
-
-The SDK install is covered in [Preflight](#preflight) — `pip install
-'nvidia-tao-sdk[slurm]'`. Use it when you want Job handles, the
-sbatch/`squeue`/`sacct` plumbing handled for you, run-folder durability via
-`ActionWorkflow`, **or convenient cloud-storage I/O** (the SDK's
-`build_entrypoint` inlines `script_runner` and dispatches `s3://`,
-`hf_model://`, and `ngc://` URIs to the right downloader; without the SDK you
-either pre-stage the data on Lustre or call `fsspec` / `huggingface-cli`
-yourself).
-
-When the SDK is in scope, read `tao-skill-bank:tao-run-platform` for the `SlurmSDK`
-kwarg reference (`num_nodes`, `partition`, `account`), `build_entrypoint`,
-and `ActionWorkflow`.
+## Lustre, not S3, for job inputs
 
 > **Use Lustre, not S3, for SLURM job inputs.** SLURM's scheduler enforces a
 > GPU-idle timeout: the GPU allocation starts the moment your job is
@@ -152,46 +140,24 @@ and `ActionWorkflow`.
 > datasets. K8s/Brev don't have this constraint because they don't
 > share SLURM's scheduler-idle policy.
 
-```python
-from tao_sdk.platforms.slurm import SlurmSDK
-from tao_sdk.script_runner import build_entrypoint
+Stage the entrypoint/spec files to Lustre, render the `sbatch` script with Pyxis
+`srun --container-image`, submit with `sbatch --parsable`, and parse
+`squeue`/`sacct` for status — driving `sbatch`/`srun` directly over SSH.
 
-ep = build_entrypoint(
-    command='dino train -e {config_path}',
-    specs=specs,                                           # config-mode (spec rewriting)
-    job_id='dino-train-1',
-)
+### Retry for infrastructure failures
 
-sdk = SlurmSDK()  # reads SLURM_USER, SLURM_HOSTNAME, SLURM_BASE_RESULTS_DIR from env
-job = sdk.create_job(
-    image='nvcr.io/nvidia/tao/tao-toolkit:6.26.3-pyt',
-    command=ep['command'],
-    gpu_count=8,
-    num_nodes=2,                                           # multi-node supported
-    partition='batch',                                     # optional override
-    account='myproject',                                   # optional override
-)
+On an infrastructure-looking failure — `NODE_FAIL`, `BOOT_FAIL`, NCCL transport
+timeouts, CUDA driver init failures, GPU/IB link-down, OOM-killer node reaping,
+Xid errors, and similar retriable patterns — classify infra-vs-program from the
+job logs (M6) and re-submit the already-staged `sbatch` script; the user-facing
+`tao_job_record` id stays stable across resubmits while the underlying SLURM job
+id rotates.
 
-status = sdk.get_job_status(job.id)
-logs = sdk.get_job_logs(job.id, tail=200)
-```
-
-The SDK takes care of staging the entrypoint script to Lustre, generating the
-`sbatch` script with Pyxis `srun --container-image`, and parsing
-`squeue`/`sacct` for status. Without the SDK, drive `sbatch` and `srun`
-yourself.
-
-### Auto-retry for infrastructure failures
-
-Auto-retry is automatic in the SDK. `SlurmSDK` starts a monitor that polls
-`squeue`/`sacct`, keeps the user-facing `Job.id` stable, and resubmits the
-staged script for infrastructure-looking failures such as `NODE_FAIL`,
-`BOOT_FAIL`, NCCL transport timeouts, CUDA driver init failures, GPU/IB
-link-down, OOM-killer node reaping, Xid errors, and similar retriable patterns.
-
-Plain training failures surface immediately so a broken spec does not consume
-the retry budget. State persists in `tao_session_state.db`, and
-`#SBATCH --requeue` is enabled by default via `SLURM_USE_REQUEUE=true`.
+Plain training failures (`FAILED` with no matching pattern) surface immediately
+so a broken spec does not consume the retry budget. `#SBATCH --requeue` is
+enabled by default via `SLURM_USE_REQUEUE=true`, so SLURM itself re-queues the
+job on `NODE_FAIL` or pre-emption before any agent-level resubmit; set
+`SLURM_USE_REQUEUE=false` to opt out.
 
 ## Failure Modes
 

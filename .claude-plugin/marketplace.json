@@ -61,10 +61,8 @@
         "./skills/platform/tao-run-on-brev",
         "./skills/platform/tao-run-on-docker",
         "./skills/platform/tao-run-on-kubernetes",
-        "./skills/platform/tao-run-on-local-docker",
         "./skills/platform/tao-setup-nvidia-gpu-host",
         "./skills/platform/tao-run-on-slurm",
-        "./skills/platform/tao-run-platform",
         "./skills/data/tao-convert-dataset-format",
         "./skills/data/tao-validate-dataset-format"
       ]
