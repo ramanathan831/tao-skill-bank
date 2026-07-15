@@ -156,10 +156,10 @@ For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and Tens
 
 - **Training monitoring metric:** `val/loss` (use this only for live training-loss
   monitoring).
-- **AutoML/evaluation metric:** `val/epe`, minimized. The packaged `evaluate`
+- **AutoML/evaluation metric:** `test/epe`, minimized. The packaged `evaluate`
   action emits stereo error metrics rather than `val/loss`; using `val/loss` as
   the AutoML objective makes trial metric extraction fail. Compare AutoML's
-  recorded `val/epe` directly with the evaluator KPI/log output.
+  recorded `test/epe` directly with the evaluator KPI/log output.
 - **Recommended AutoML train parameters:** `train.optim.lr` and
   `train.optim.weight_decay`. Do not search validation/test/inference
   augmentation fields, and do not search `model.volume_dim` because the current
