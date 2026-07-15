@@ -37,9 +37,11 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 - **Dataset type:** segmentation
 - **Formats:** odvg, coco, coco_raw
 - **Monitoring metric:** val_loss
-- **Evaluation checkpoint metric:** `[segm] test_mAP50` (with
-  `[bbox] test_mAP50` also emitted). This is a checkpoint-usability metric;
-  train-stage AutoML selection remains based on `val_loss`.
+- **Evaluation checkpoint metrics:** `[segm] test_mAP50` and
+  `[bbox] test_mAP50` when the checkpoint produces class predictions. A very
+  short smoke-trained checkpoint can complete evaluation successfully with an
+  empty KPI dictionary; verify the evaluation action and result artifact in
+  that case. Train-stage AutoML selection remains based on `val_loss`.
 
 ### Per-Action Dataset Requirements
 
@@ -122,9 +124,10 @@ Optional. Validation uses COCO-format annotations even when training uses ODVG.
 - **AutoML metric note**: Use `metric="val_loss"` with
   `direction="minimize"` for train-stage AutoML. The packaged train loop logs
   validation loss scalars; it does not emit `[bbox] val_mAP@50` during the
-  train job. Standalone evaluation instead emits `[segm] test_mAP50` and
-  `[bbox] test_mAP50`; do not substitute either test metric for the training
-  loss used to rank AutoML recommendations.
+  train job. Standalone evaluation emits `[segm] test_mAP50` and
+  `[bbox] test_mAP50` only when predictions survive its thresholds; do not
+  substitute either conditional test metric for the training loss used to
+  rank AutoML recommendations.
 - **model.has_mask**: Enables mask prediction head. Default True. Adds mask/dice/rela loss coefficients.
 - **model.num_region_queries**: Number of region queries for mask prediction. Default 100.
 - **model.loss_types**: Loss components. Default [labels, boxes, masks]. Includes mask_loss_coef, dice_loss_coef, rela_loss_coef.
