@@ -56,13 +56,32 @@ Persists in `~/.docker/config.json` across reboots. Re-run on `unauthorized` err
 ## `docker run` — canonical flags
 
 ```bash
+HOST_RESULTS=/host/results
+HOST_UID="$(id -u)"
+HOST_GID="$(id -g)"
+HOST_USER_NAME="$(id -un)"
+HOST_IDENTITY_ARGS=(--user "$HOST_UID:$HOST_GID")
+for group_id in $(id -G); do
+  [ "$group_id" = "$HOST_GID" ] || HOST_IDENTITY_ARGS+=(--group-add "$group_id")
+done
+mkdir -p "$HOST_RESULTS/.tao-runtime/home/.cache"/{huggingface,torch,triton,torchinductor,matplotlib}
+
 docker run \
-  --gpus all \                        # all GPUs (requires nvidia-container-toolkit)
-  --rm \                              # delete container after exit (image is preserved)
-  --ipc=host \                        # shared mem for torchrun / DataLoader
-  -v /host/data:/data \               # bind-mount input
-  -v /host/results:/results \         # bind-mount output
-  -e HF_TOKEN -e NGC_KEY \            # env-var passthrough (values from parent shell)
+  --gpus all \
+  --rm \
+  --ipc=host \
+  "${HOST_IDENTITY_ARGS[@]}" \
+  -v /host/data:/data \
+  -v "$HOST_RESULTS:/results" \
+  -e HOME=/results/.tao-runtime/home \
+  -e USER="$HOST_USER_NAME" -e LOGNAME="$HOST_USER_NAME" \
+  -e XDG_CACHE_HOME=/results/.tao-runtime/home/.cache \
+  -e HF_HOME=/results/.tao-runtime/home/.cache/huggingface \
+  -e TORCH_HOME=/results/.tao-runtime/home/.cache/torch \
+  -e TRITON_CACHE_DIR=/results/.tao-runtime/home/.cache/triton \
+  -e TORCHINDUCTOR_CACHE_DIR=/results/.tao-runtime/home/.cache/torchinductor \
+  -e MPLCONFIGDIR=/results/.tao-runtime/home/.cache/matplotlib \
+  -e HF_TOKEN -e NGC_KEY \
   <image> \
   <command>
 ```
@@ -72,6 +91,9 @@ Notes:
 - `--gpus '"device=0,1"'` — specific GPUs (double-quote-escaped). Without nvidia-container-toolkit: `could not select device driver "" with capabilities: [[gpu]]`.
 - `--rm` — clean up the container at exit; omit when you want `docker logs` after exit.
 - `--ipc=host` — torchrun + PyTorch DataLoaders hit shared-memory limits otherwise. Required for multi-GPU training. Alternative: `--shm-size=8g`.
+- `--user "$(id -u):$(id -g)"` — required by default whenever a bind mount is writable. It prevents root-owned checkpoint trees that the submitting host user cannot clean up.
+- `--group-add <gid>` — preserve supplementary host-group access to shared datasets and workspaces. The canonical array adds every host group except the primary GID.
+- `HOME`, `USER`, `LOGNAME`, and cache redirects — keep frameworks from writing to image-owned locations such as `/root` after the user override. Prepare these directories on the writable mount before launch.
 - `-v host:container` — bind mount; the command references container paths only.
 - `-e VAR` — passthrough from parent shell (no value needed if already set). Use this form for secrets.
 
@@ -89,9 +111,28 @@ docker run --name my-worker ...
 For multi-step workflows on the same container (download → run → post-process), avoid restart cost:
 
 ```bash
+HOST_RESULTS=/host/results
+HOST_UID="$(id -u)"
+HOST_GID="$(id -g)"
+HOST_IDENTITY_ARGS=(--user "$HOST_UID:$HOST_GID")
+for group_id in $(id -G); do
+  [ "$group_id" = "$HOST_GID" ] || HOST_IDENTITY_ARGS+=(--group-add "$group_id")
+done
+mkdir -p "$HOST_RESULTS/.tao-runtime/home/.cache"/{huggingface,torch,triton,torchinductor,matplotlib}
+
 docker run -d --name <worker> \
   --gpus all --ipc=host \
-  -v <mounts...> -e <envs...> \
+  "${HOST_IDENTITY_ARGS[@]}" \
+  -v <host-data>:/data \
+  -v "$HOST_RESULTS:/results" \
+  -e HOME=/results/.tao-runtime/home \
+  -e USER="$(id -un)" -e LOGNAME="$(id -un)" \
+  -e XDG_CACHE_HOME=/results/.tao-runtime/home/.cache \
+  -e HF_HOME=/results/.tao-runtime/home/.cache/huggingface \
+  -e TORCH_HOME=/results/.tao-runtime/home/.cache/torch \
+  -e TRITON_CACHE_DIR=/results/.tao-runtime/home/.cache/triton \
+  -e TORCHINDUCTOR_CACHE_DIR=/results/.tao-runtime/home/.cache/torchinductor \
+  -e MPLCONFIGDIR=/results/.tao-runtime/home/.cache/matplotlib \
   --entrypoint sh \
   <image> -c "tail -f /dev/null"
 
@@ -119,6 +160,34 @@ docker ps --filter 'label=tao-toolkit'
 ## Mount patterns
 
 The container expects its data at conventional paths defined by the image (often `/data`, `/results`, `/workspace/checkpoints`). The host side is arbitrary. The command inside docker run references container paths only.
+
+### Writable-mount ownership invariant
+
+For every writable bind mount, run as the submitting host UID:GID by default.
+Pre-creating the mount root is not sufficient when a root container can create
+deeper `0755` directories: deletion is controlled by the parent-directory
+permissions, so those subtrees still become inaccessible to the host user.
+Container `--rm` and `docker rm` remove container state only; neither deletes or
+repairs bind-mounted checkpoints.
+
+An image may run as root only when its documentation or a preflight proves that
+host-user execution is incompatible. Treat this as an explicit launch
+exception. Isolate its writable outputs and, after every terminal exit or
+cancellation, normalize ownership before another experiment starts. For an
+image with `/bin/sh` and `chown`, the post-run repair is:
+
+```bash
+HOST_UID="$(id -u)"
+HOST_GID="$(id -g)"
+docker run --rm --user 0:0 --entrypoint /bin/sh \
+  -v /host/results:/owned-output \
+  <same-approved-image> \
+  -c 'chown -R "$1:$2" /owned-output' sh "$HOST_UID" "$HOST_GID"
+```
+
+Apply the repair to every writable output/cache mount. If the agent cannot run
+or verify the ownership normalization, it must not use the root-required
+exception. Never substitute `chmod 777` as the normal fix.
 
 ## Env-var conventions
 
@@ -209,7 +278,7 @@ Most TAO training workloads don't need this — single container per job.
 
 **`Bus error` / `DataLoader worker exited unexpectedly`** — `/dev/shm` too small. Add `--ipc=host` or `--shm-size=8g`.
 
-**`permission denied` on bind-mounted paths** — container UID ≠ host UID. Either `-u $(id -u):$(id -g)`, or pre-create host files owned by the host user, or `chmod 777` (dev only).
+**`permission denied` on bind-mounted paths** — container UID ≠ host UID, or `HOME`/a framework cache still points to an image-owned directory. Use the canonical host UID:GID mapping and writable HOME/cache redirects above. For a documented root-required image, complete the mandatory post-run ownership normalization before retrying.
 
 **`Error: No such container: <name>` after `docker run -d`** — container crashed on startup. `docker ps -a` shows exited; `docker logs <name>` for cause. Drop `--rm` while debugging.
 

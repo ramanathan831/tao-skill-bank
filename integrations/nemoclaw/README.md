@@ -47,9 +47,26 @@ Put datasets under `<workspace>/<name>/`; the agent discovers them with `tao_ls`
 | Tool | Purpose |
 |------|---------|
 | `tao_ls` / `tao_read` / `tao_write` | Inspect and author files in the host workspace |
-| `tao_run` | Launch a container on the host GPU (constrained: `nvcr.io/*` NGC images only, workspace-confined mounts, `shm_size` for DataLoaders) |
+| `tao_run` | Launch a container on the host GPU (constrained: `nvcr.io/*` NGC images only, workspace-confined mounts, host UID:GID ownership, `shm_size` for DataLoaders) |
 | `tao_status` / `tao_logs` | Monitor a job |
-| `tao_stop` / `tao_rm` | Stop/remove a job's container (TAO containers only) |
+| `tao_stop` / `tao_rm` | Stop/remove a job's container layer (TAO containers only; bind-mounted outputs remain) |
+
+## Output ownership and cleanup
+
+`tao_run` runs the container process as the UID:GID of the host user running
+the MCP server and preserves that user's supplementary groups for shared-data
+access. Checkpoints, result directories, and other files created on the
+writable workspace mounts therefore remain removable by that host user without
+`sudo`. Because overriding an image's baked-in root user also makes `/root`
+unwritable, the bridge prepares a private home and common framework cache
+directories at `<results_subdir>/.tao-runtime/home` and sets `HOME`, `USER`,
+`LOGNAME`, and cache environment variables for the job.
+
+`tao_stop` and `tao_rm` manage only the Docker process, container metadata, and
+writable container layer. They deliberately do not delete bind-mounted data,
+checkpoints, results, or `.tao-runtime` caches. Inspect and retain or delete
+those host files separately. Results from older bridge versions may already be
+root-owned and need a one-time ownership repair by the host administrator.
 
 ## Security
 

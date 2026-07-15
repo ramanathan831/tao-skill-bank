@@ -54,6 +54,8 @@ validate-skills:
     - pip install --quiet pyyaml
   script:
     - bash scripts/validate-skills.sh
+    # Stdlib-only: validates NemoClaw Docker ownership/path confinement without MCP.
+    - PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s integrations/nemoclaw/tests -v
     # Embedded version pins must match versions.yaml (see scripts/stamp_versions.py).
     - python3 scripts/stamp_versions.py --check
   rules:

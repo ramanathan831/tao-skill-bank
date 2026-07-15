@@ -32,6 +32,19 @@ from mcp.server.streamable_http import TransportSecuritySettings
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
+if __package__:
+    from .docker_runtime import (
+        build_docker_run_args,
+        current_host_identity,
+        prepare_runtime_home,
+    )
+else:  # ``python server.py`` execution path
+    from docker_runtime import (
+        build_docker_run_args,
+        current_host_identity,
+        prepare_runtime_home,
+    )
+
 NGC_IMAGE_PREFIX = "nvcr.io/"
 
 # The sandbox reaches this server as host.openshell.internal (the OpenShell
@@ -152,6 +165,10 @@ def tao_run(
     shm_size: /dev/shm size (e.g. "8g", "16g"). TAO PyTorch DataLoaders need a
       large shared-memory segment; the docker default (64m) causes "Bus error"
       / "DataLoader worker exited". Raise for many workers or multi-GPU.
+
+    The container runs as the MCP server's host UID:GID. HOME and common cache
+    directories are prepared below /results/.tao-runtime so bind-mounted output
+    remains writable and removable by the same host user.
     """
     if not image.startswith(NGC_IMAGE_PREFIX):
         raise ValueError(f"image must start with {NGC_IMAGE_PREFIX}")
@@ -164,14 +181,23 @@ def tao_run(
 
     data = _resolve_under_root(data_subdir)
     results = _resolve_under_root(results_subdir)
+    # Create both writable bind roots as the MCP host user. Otherwise Docker
+    # creates a missing host source as root before the mapped process starts.
+    Path(data).mkdir(parents=True, exist_ok=True)
     Path(results).mkdir(parents=True, exist_ok=True)
+    identity = current_host_identity()
+    prepare_runtime_home(results, WORKSPACE_ROOT, identity)
 
     proc = _docker(
-        "run", "-d", "--gpus", str(gpus),
-        "--shm-size", shm_size,
-        "-v", f"{data}:/data",
-        "-v", f"{results}:/results",
-        image, *command,
+        *build_docker_run_args(
+            image=image,
+            command=command,
+            data_dir=data,
+            results_dir=results,
+            gpus=gpus,
+            shm_size=shm_size,
+            identity=identity,
+        )
     )
     if proc.returncode != 0:
         raise RuntimeError(f"docker run failed: {proc.stderr.strip()}")
@@ -221,8 +247,9 @@ def tao_stop(job_id: str) -> dict:
 
 @mcp.tool()
 def tao_rm(job_id: str, force: bool = False) -> dict:
-    """Remove a TAO job's container (frees disk). Only nvcr.io containers may be
-    removed. Set force=True to remove one that is still running."""
+    """Remove a TAO job's container and writable layer. Bind-mounted data,
+    results, caches, and checkpoints are never deleted. Only nvcr.io containers
+    may be removed. Set force=True to remove one that is still running."""
     _assert_ngc_container(job_id)
     args = ["rm", job_id] if not force else ["rm", "-f", job_id]
     proc = _docker(*args)

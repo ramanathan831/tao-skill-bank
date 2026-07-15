@@ -110,15 +110,22 @@ Before generating scripts or starting containers:
    `nvidia-smi` from the agent machine.
 2. Verify every local/file dataset annotation and media path exists on the
    Docker host.
-3. For `s3://` datasets/results, verify `ACCESS_KEY` and `SECRET_KEY` are set
+3. Classify every bind mount as read-only or writable. Writable mounts must use
+   the Docker host user's numeric UID:GID by default, and HOME/framework-cache
+   paths must be writable by that identity. Direct Docker should prepare them
+   on an output mount; the SDK prepares them under a writable `/results` bind
+   (with an isolated `/tmp` fallback only for forced non-root jobs without one).
+   For remote Docker, resolve the identity on the remote host rather than
+   copying the agent laptop's numeric ids.
+4. For `s3://` datasets/results, verify `ACCESS_KEY` and `SECRET_KEY` are set
    and the exact paths are readable with `aws s3 ls`. If `aws` is missing,
    report the missing dependency and ask before installing it; rerun preflight
    after installation.
-4. Verify model-specific credentials such as `HF_TOKEN` before launch.
-5. Check current GPU occupancy with `nvidia-smi` and avoid GPUs already used by
+5. Verify model-specific credentials such as `HF_TOKEN` before launch.
+6. Check current GPU occupancy with `nvidia-smi` and avoid GPUs already used by
    other running jobs when the user requested that constraint. Show the selected
    GPU ids in the launch review.
-6. For model/container combinations with known architecture limits, compare
+7. For model/container combinations with known architecture limits, compare
    host GPU compute capability with the container stack before launch. If the
    selected image cannot JIT or run kernels for the host architecture, block
    early and ask for a compatible image or platform.
@@ -149,6 +156,23 @@ ${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/check_tao_launch_preflight
 
 The `--path` values above must exist on the remote Docker host. Do not pass
 paths that exist only on the local laptop or Codex host.
+
+Resolve the owner of the remote output root through the remote daemon, then
+pass it to the SDK explicitly. Do not reuse the client laptop's UID:GID:
+
+```bash
+REMOTE_RESULTS=/remote/results
+TAO_DOCKER_CONTAINER_USER="$(
+  docker --host "$DOCKER_HOST" run --rm \
+    -v "$REMOTE_RESULTS:/ownership-probe:ro" ubuntu:22.04 \
+    stat -c '%u:%g' /ownership-probe
+)"
+[ "$TAO_DOCKER_CONTAINER_USER" != "0:0" ] || {
+  echo "Remote results root is owned by root; repair it before launch."
+  exit 1
+}
+export TAO_DOCKER_CONTAINER_USER
+```
 
 ## Multi-GPU and multi-node
 
@@ -182,6 +206,13 @@ client:
 - Command is usually `["/bin/bash", "-c", "<job command>"]`.
 - Containers run detached. The SDK keeps containers by default so status and
   logs remain inspectable, unless `DOCKER_AUTO_REMOVE=true`.
+- With `run_as_user=None` (the default), the SDK maps a local job to the invoking
+  UID:GID when it has an absolute writable `/results` bind, preserves local
+  supplementary groups, and prepares HOME/framework caches under
+  `/results/.tao-runtime/home`. `run_as_user=True` opts other local mount layouts
+  into user mapping. `container_user` is the explicit Docker user override for
+  remote hosts. `run_as_user=False` is the deliberate opt-out for an image
+  proven to require root.
 - `/dev/shm` is mounted as tmpfs.
 - The configured Docker network is applied by the Docker daemon for the job
   container; it is not passed through as a process environment variable.
@@ -208,6 +239,21 @@ same Docker host. Make sure every path in the spec is either:
 - reachable from inside the container already, or
 - a cloud URI with matching credentials.
 
+For bind-mounted outputs, host-user ownership is a launch invariant, not a
+permission-error workaround. Root containers commonly create checkpoint
+subdirectories as `root:root` mode `0755`; the host user then cannot delete
+files inside them even if the top-level output directory was pre-created.
+Container auto-removal also leaves bind-mounted outputs untouched.
+
+Only opt out of host-user mapping (`run_as_user=False`) when the selected image
+demonstrably requires root. Record that exception in the launch review, isolate
+its writable mounts, and normalize every output/cache mount back to the Docker
+host UID:GID after all terminal exits and cancellations. For remote Docker,
+pass the remote host identity through `container_user`; never infer it from the
+client machine. Do not begin another experiment until ownership normalization
+succeeds. If the agent lacks permission to perform or verify that repair, the
+root-required image cannot be launched on local Docker.
+
 For remote/shared filesystems, prefer the platform that owns that filesystem.
 For example, use SLURM plus `lustre:///...` for Lustre paths on a cluster.
 
@@ -233,25 +279,36 @@ If you want Job handles, S3 I/O wrapping via the SDK's `script_runner`, or
 durability across sessions:
 
 ```python
+import os
+
 from tao_sdk.platforms.docker import DockerSDK
+
+docker_host = os.environ.get('DOCKER_HOST', '')
+is_remote = bool(docker_host) and not docker_host.startswith(('unix://', 'npipe://', '/'))
+container_user = os.environ.get('TAO_DOCKER_CONTAINER_USER')
+if is_remote and not container_user:
+    raise RuntimeError('Set TAO_DOCKER_CONTAINER_USER to the remote output owner UID:GID')
 
 sdk = DockerSDK()  # reads DOCKER_HOST, NGC_KEY, S3 creds from env
 job = sdk.create_job(
     image='nvcr.io/nvidia/tao/tao-toolkit:6.26.3-pyt',
-    command='dino train -e /tmp/spec.yaml',
+    command='dino train -e /data/spec.yaml',
     gpu_count=1,
-    inputs={'/data/train.json': 's3://bucket/coco/train.json'},
-    outputs=['/results/'],
+    mounts=[
+        {'host_path': '/host/data', 'container_path': '/data', 'read_only': True},
+        {'host_path': '/host/results', 'container_path': '/results'},
+    ],
+    container_user=container_user,
 )
 
 status = sdk.get_job_status(job.id)
 logs = sdk.get_job_logs(job.id, tail=200)
 ```
 
-This wraps the same `docker run` invocation under a `Job` handle and routes
-the entrypoint through `script_runner` so `inputs`/`outputs` get downloaded
-from / uploaded to S3 automatically. If you don't need those, just use
-`docker run` directly — no SDK install required.
+This wraps the same `docker run` invocation under a `Job` handle. For S3 I/O,
+call `build_entrypoint(...)` first and pass its command so `script_runner` can
+perform the declared downloads/uploads. If you do not need job tracking or
+that wrapper, use `docker run` directly — no SDK install required.
 
 ## Failure Modes
 
@@ -273,3 +330,9 @@ configured `DOCKER_NETWORK`, and the command produced by the SDK action runner.
 **Path missing inside container**: A local path on the host is not necessarily
 mounted into the job container. Use a path convention supported by the action
 runner or configure an explicit volume through the surrounding service.
+
+**Root-owned bind-mounted results**: Stop launching new experiments, identify
+every writable mount from `docker inspect`, and have the host administrator
+repair existing ownership once. Future launches must use host UID:GID mapping
+and writable HOME/cache redirects. `docker rm` and `DOCKER_AUTO_REMOVE` do not
+repair or delete bind-mounted files.

@@ -27,6 +27,14 @@ spec paths as `/data/...` and `/results/...`, and persist outputs and state unde
 `/results`. Use `tao_ls` to discover data, `tao_read` to inspect it (for example
 an annotations file, to set `num_classes`), and `tao_write` to author the spec.
 
+The host bridge runs TAO containers as its own host UID:GID, preserves its
+supplementary groups, and redirects `HOME` and framework caches to
+`/results/.tao-runtime/home`. This keeps every
+new bind-mounted checkpoint and output removable by the host user. Never
+override that user mapping from a workflow. `tao_stop` and `tao_rm` stop or
+remove only the container; they do **not** delete bind-mounted results,
+checkpoints, or caches. Do not report container removal as output cleanup.
+
 The TAO skill bank is also in the workspace at `tao-skills-external/`, so every
 skill's helper scripts, references, and `versions.yaml` are visible to containers
 at `/data/tao-skills-external/...`.
