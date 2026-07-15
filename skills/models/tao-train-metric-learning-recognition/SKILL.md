@@ -39,6 +39,10 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 - **Dataset type:** ml_recog
 - **Formats:** default
 - **Monitoring metric:** val Precision at Rank 1
+- **Standalone evaluation metric:** `test Precision at Rank 1`. Use the
+  training `val Precision at Rank 1` KPI for AutoML recommendation ranking and
+  the `test` KPI only to verify the selected checkpoint on the evaluation
+  reference/query split.
 
 ### Per-Action Dataset Requirements
 
