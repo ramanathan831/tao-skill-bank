@@ -154,7 +154,16 @@ For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and Tens
 
 ## Training Requirements
 
-- **Monitoring metric:** val/loss
+- **Training monitoring metric:** `val/loss` (use this only for live training-loss
+  monitoring).
+- **AutoML/evaluation metric:** `val/epe`, minimized. The packaged `evaluate`
+  action emits stereo error metrics rather than `val/loss`; using `val/loss` as
+  the AutoML objective makes trial metric extraction fail. Compare AutoML's
+  recorded `val/epe` directly with the evaluator KPI/log output.
+- **Recommended AutoML train parameters:** `train.optim.lr` and
+  `train.optim.weight_decay`. Do not search validation/test/inference
+  augmentation fields, and do not search `model.volume_dim` because the current
+  implementation does not consume it.
 - **Eval dataset:** optional. Val dataset configured via `dataset.val_dataset.data_sources` (each entry needs `data_file` and `dataset_name`).
 
 See `references/spec-overrides-foundation-stereo.md` for the per-action dataset-requirements table and every action's mandatory data-source override block.
