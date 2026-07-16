@@ -165,9 +165,19 @@ analysis = sdk.get_failure_analysis(job.id)
 
 ```python
 sdk.cancel_job(job.id)  # delete_namespaced_job with propagation_policy="Foreground"
+
+# For a confirmed-terminal S3-backed job, remove the exact UID-bound Job/pods
+# and then its job-scoped result prefix.
+sdk.delete_job_artifacts(job.id)
 ```
 
-`ttl_seconds_after_finished=3600` means completed Jobs auto-delete after 1h. To cancel an in-flight Job, `cancel_job` deletes it and its pods immediately.
+Completed Jobs are not TTL-deleted: their UID and terminal evidence remain
+available for safe recovery after an SDK restart. To cancel an in-flight Job,
+`cancel_job` deletes it and its pods with foreground propagation and reports
+success only after the writers are absent. For cleanup-supported S3 jobs,
+`delete_job_artifacts` first verifies and removes that exact terminal Job and
+its pods, then verifies deletion of the job-scoped S3 prefix. A same-name Job
+with a different UID is never deleted.
 
 ## GPU Operator dependency
 
