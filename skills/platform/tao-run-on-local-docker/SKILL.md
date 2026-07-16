@@ -277,6 +277,12 @@ another experiment until ownership normalization
 succeeds. If the agent lacks permission to perform or verify that repair, the
 root-required image cannot be launched on local Docker.
 
+AutoML's default checkpoint retention is stricter: its preflight rejects
+`run_as_user=False`, named volumes, remote bind mounts, or an incompatible
+explicit `container_user` before launching a trial, because the SDK cannot
+guarantee host-side deletion. Use those routes for AutoML only when retention
+is explicitly disabled and an external operator owns artifact cleanup.
+
 For remote/shared filesystems, prefer the platform that owns that filesystem.
 For example, use SLURM plus `lustre:///...` for Lustre paths on a cluster.
 

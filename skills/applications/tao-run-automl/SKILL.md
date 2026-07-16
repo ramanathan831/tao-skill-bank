@@ -349,8 +349,10 @@ At completion:
    overrides and checkpoint through the workflow's declared handoff fields.
 7. With the default retention policy, verify that cleanup-supported, safely
    prunable terminal trial artifacts were deleted and that the winning
-   training artifacts remain. Report retained remote binds/named volumes,
-   promotion/resume parents, or conservative Hybrid results explicitly.
+   training artifacts remain. Report protected promotion/resume parents or
+   conservative Hybrid results explicitly. A remote bind, named volume, or
+   other output route the SDK cannot reclaim must fail retention preflight
+   before the first trial rather than be silently retained.
 
 ## Common Pitfalls
 
@@ -366,3 +368,6 @@ At completion:
   of launching more trials.
 - Do not disable `automl_delete_intermediate_ckpt` by default. Keeping every
   trial can consume one full distributed checkpoint set per recommendation.
+- Do not bypass a retention-preflight failure by disabling cleanup unless the
+  user has explicitly accepted external ownership and manual lifecycle
+  management for every trial artifact.

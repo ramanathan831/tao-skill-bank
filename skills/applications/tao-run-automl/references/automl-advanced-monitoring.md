@@ -254,13 +254,16 @@ completed-run pruning.
 Automatic cleanup covers SDK-routed job results: S3 prefixes, local absolute
 Docker `/results` binds, Lustre job directories, and VirtualEnv job results.
 Keep checkpoints under the SDK-routed job results directory. Explicit output
-paths outside it are not owned by the cleanup policy. Writable named Docker
-volumes and binds on remote Docker hosts remain supported for training, but are
-recorded and retained with a warning because the SDK client cannot safely
-remove their host-side storage.
+paths outside it are not owned by the cleanup policy. Before the first trial,
+cleanup-aware SDKs validate that the selected output route and identity can be
+reclaimed. With retention enabled, writable named Docker volumes, remote binds,
+root-output opt-outs, and unbound S3 identities are rejected rather than
+launched and silently accumulated. They may be used only with retention
+explicitly disabled and an externally owned cleanup lifecycle.
 
 Set the option to `False` only for an intentional all-trials debugging run and
-include the resulting storage cost in the launch review.
+include the resulting storage cost and external cleanup owner in the launch
+review.
 
 ### Resume after interruption
 
