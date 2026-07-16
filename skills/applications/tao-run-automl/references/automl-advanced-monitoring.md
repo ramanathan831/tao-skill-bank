@@ -234,9 +234,43 @@ results from logs.
 
 Each rec takes 10–90 minutes depending on model size, dataset, epochs, and checkpoint save cost. Don't assume failure during long uploads.
 
+### Checkpoint retention
+
+`automl_delete_intermediate_ckpt` defaults to `True`. Sequential searches
+delete terminal failed and non-best trial artifacts as soon as they are no
+longer needed. Multi-fidelity searches retain parent/rung checkpoints while
+they are eligible for promotion or resume and prune them only after that
+dependency ends. Hybrid searches conservatively retain successful trial
+artifacts when full-fidelity provenance is ambiguous. For cleanup-supported
+sequential or provenance-verified scalar runs, completion retains the winning
+training artifacts and any separate final-evaluation result rather than one
+full checkpoint set per recommendation. Multi-objective runs retain every
+non-dominated Pareto-front checkpoint because there is no single winner across
+all objectives; conservative Hybrid runs can retain multiple successful
+trials. A run
+stopped by a recommendation budget is resumable and therefore does not receive
+completed-run pruning.
+
+Automatic cleanup covers SDK-routed job results: S3 prefixes, local absolute
+Docker `/results` binds, Lustre job directories, and VirtualEnv job results.
+Keep checkpoints under the SDK-routed job results directory. Explicit output
+paths outside it are not owned by the cleanup policy. Writable named Docker
+volumes and binds on remote Docker hosts remain supported for training, but are
+recorded and retained with a warning because the SDK client cannot safely
+remove their host-side storage.
+
+Set the option to `False` only for an intentional all-trials debugging run and
+include the resulting storage cost in the launch review.
+
 ### Resume after interruption
 
-If the orchestrator dies mid-run (network timeout, machine sleep, Ctrl-C), re-run with `resume=True` and the **full suffixed path** (including the `run_<timestamp>` directory):
+On handled `SIGINT` or `SIGTERM`, the runner requests cancellation of active
+child jobs and waits for the platform to confirm that their writers are
+terminal before deleting anything. If termination cannot be confirmed within
+the bounded wait, the active-job record and artifacts remain for a later
+resume. An uncatchable process termination or host loss can also leave an
+in-flight backend job; recover that run with `resume=True` and the **full
+suffixed path** (including the `run_<timestamp>` directory):
 
 ```python
 result = runner.run(
@@ -250,7 +284,7 @@ When `resume=True`, the runner does NOT append a new timestamp suffix — it reu
 
 Behaviour on resume:
 1. **Brain state** is reloaded from `<workspace>/.automl/*` — all completed rec results are already registered.
-2. **Any in-flight jobs** recorded in `<workspace>/active_jobs.json` (persisted after each submission) are polled to terminal, their metrics extracted, and reported to the brain — *before* the main propose-new-rec loop starts. No duplicate submissions; no leaked GPU work from the previous orchestrator.
+2. **Any in-flight jobs** recorded in `<workspace>/active_jobs.json` (persisted after each submission) are polled to terminal, their recovered backend job IDs are restored on the recommendation, their metrics extracted, and reported to the brain — *before* the main propose-new-rec loop starts. No duplicate submissions or orphaned trial artifacts.
 3. After recovery, the loop continues normally until `automl.is_complete()`.
 
 ---

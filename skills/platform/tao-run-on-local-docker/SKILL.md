@@ -157,21 +157,41 @@ ${TAO_SKILL_BANK_PATH:-~/tao-skills-external}/scripts/check_tao_launch_preflight
 The `--path` values above must exist on the remote Docker host. Do not pass
 paths that exist only on the local laptop or Codex host.
 
-Resolve the owner of the remote output root through the remote daemon, then
-pass it to the SDK explicitly. Do not reuse the client laptop's UID:GID:
+Resolve the UID:GID of the actual submitting user on the remote Docker host,
+then pass that identity to the SDK explicitly. Do not reuse the client
+laptop's UID:GID, and do not infer a container user from `stat` ownership of a
+shared output directory: that directory may be `root:<shared-group>` or owned
+by another group member.
 
 ```bash
 REMOTE_RESULTS=/remote/results
-TAO_DOCKER_CONTAINER_USER="$(
-  docker --host "$DOCKER_HOST" run --rm \
-    -v "$REMOTE_RESULTS:/ownership-probe:ro" ubuntu:22.04 \
-    stat -c '%u:%g' /ownership-probe
-)"
-[ "$TAO_DOCKER_CONTAINER_USER" != "0:0" ] || {
-  echo "Remote results root is owned by root; repair it before launch."
+# Use the same SSH account represented by DOCKER_HOST=ssh://user@gpu-host,
+# or obtain these two values from the remote administrator.
+REMOTE_UID="$(ssh user@gpu-host id -u)"
+REMOTE_GID="$(ssh user@gpu-host id -g)"
+case "$REMOTE_UID" in
+  ''|*[!0-9]*|0)
+    echo "A verified non-root remote submitting UID is required."
+    exit 1
+    ;;
+esac
+case "$REMOTE_GID" in
+  ''|*[!0-9]*)
+    echo "A verified numeric remote submitting GID is required."
+    exit 1
+    ;;
+esac
+TAO_DOCKER_CONTAINER_USER="$REMOTE_UID:$REMOTE_GID"
+export TAO_DOCKER_CONTAINER_USER
+
+# Prove that this exact identity can create and remove a child in the bind.
+docker --host "$DOCKER_HOST" run --rm \
+  --user "$TAO_DOCKER_CONTAINER_USER" \
+  -v "$REMOTE_RESULTS:/ownership-probe" ubuntu:22.04 \
+  sh -c 'p=/ownership-probe/.tao-write-delete-probe-$$; touch "$p" && rm "$p"' || {
+  echo "Remote submitting identity cannot write/delete under $REMOTE_RESULTS."
   exit 1
 }
-export TAO_DOCKER_CONTAINER_USER
 ```
 
 ## Multi-GPU and multi-node
@@ -210,9 +230,11 @@ client:
   UID:GID when it has an absolute writable `/results` bind, preserves local
   supplementary groups, and prepares HOME/framework caches under
   `/results/.tao-runtime/home`. `run_as_user=True` opts other local mount layouts
-  into user mapping. `container_user` is the explicit Docker user override for
-  remote hosts. `run_as_user=False` is the deliberate opt-out for an image
-  proven to require root.
+  into user mapping. If the SDK process itself is root, automatic mapping fails
+  closed instead of mapping `0:0`; provide the verified submitting non-root
+  UID:GID through `container_user`. `container_user` is also the explicit
+  non-root Docker user override for remote hosts. `run_as_user=False` is the
+  deliberate opt-out for an image proven to require root.
 - `/dev/shm` is mounted as tmpfs.
 - The configured Docker network is applied by the Docker daemon for the job
   container; it is not passed through as a process environment variable.
@@ -249,8 +271,9 @@ Only opt out of host-user mapping (`run_as_user=False`) when the selected image
 demonstrably requires root. Record that exception in the launch review, isolate
 its writable mounts, and normalize every output/cache mount back to the Docker
 host UID:GID after all terminal exits and cancellations. For remote Docker,
-pass the remote host identity through `container_user`; never infer it from the
-client machine. Do not begin another experiment until ownership normalization
+pass the remote host's verified non-root identity through `container_user`;
+never infer it from the client machine or output-directory owner. Do not begin
+another experiment until ownership normalization
 succeeds. If the agent lacks permission to perform or verify that repair, the
 root-required image cannot be launched on local Docker.
 

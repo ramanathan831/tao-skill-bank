@@ -60,6 +60,7 @@ HOST_RESULTS=/host/results
 HOST_UID="$(id -u)"
 HOST_GID="$(id -g)"
 HOST_USER_NAME="$(id -un)"
+[ "$HOST_UID" -ne 0 ] || { echo "Refusing writable Docker launch as UID 0" >&2; exit 1; }
 HOST_IDENTITY_ARGS=(--user "$HOST_UID:$HOST_GID")
 for group_id in $(id -G); do
   [ "$group_id" = "$HOST_GID" ] || HOST_IDENTITY_ARGS+=(--group-add "$group_id")
@@ -92,6 +93,7 @@ Notes:
 - `--rm` — clean up the container at exit; omit when you want `docker logs` after exit.
 - `--ipc=host` — torchrun + PyTorch DataLoaders hit shared-memory limits otherwise. Required for multi-GPU training. Alternative: `--shm-size=8g`.
 - `--user "$(id -u):$(id -g)"` — required by default whenever a bind mount is writable. It prevents root-owned checkpoint trees that the submitting host user cannot clean up.
+- Refuse UID `0` for the canonical writable-bind path. If the launcher itself is root, obtain the verified non-root submitting UID:GID explicitly; never infer it from the output-directory owner.
 - `--group-add <gid>` — preserve supplementary host-group access to shared datasets and workspaces. The canonical array adds every host group except the primary GID.
 - `HOME`, `USER`, `LOGNAME`, and cache redirects — keep frameworks from writing to image-owned locations such as `/root` after the user override. Prepare these directories on the writable mount before launch.
 - `-v host:container` — bind mount; the command references container paths only.
@@ -114,6 +116,7 @@ For multi-step workflows on the same container (download → run → post-proces
 HOST_RESULTS=/host/results
 HOST_UID="$(id -u)"
 HOST_GID="$(id -g)"
+[ "$HOST_UID" -ne 0 ] || { echo "Refusing writable Docker launch as UID 0" >&2; exit 1; }
 HOST_IDENTITY_ARGS=(--user "$HOST_UID:$HOST_GID")
 for group_id in $(id -G); do
   [ "$group_id" = "$HOST_GID" ] || HOST_IDENTITY_ARGS+=(--group-add "$group_id")
@@ -224,8 +227,7 @@ docker stats --no-stream                 # one snapshot, non-interactive
 ```bash
 docker pull <image>
 docker image ls
-docker system df                # disk usage
-docker system prune -a --volumes # reclaim space — destructive, removes unused images + volumes
+docker system df                # Docker-managed image/layer/volume usage
 ```
 
 Pull once per host; `docker run` reuses cached image. NVIDIA images are typically 5-40GB.
@@ -274,7 +276,24 @@ Most TAO training workloads don't need this — single container per job.
 
 **`unauthorized: authentication required`** on `docker pull` — NGC key invalid/missing. Re-run `docker login nvcr.io`.
 
-**`no space left on device`** — root volume full. `docker system df` to inspect; relocate `data-root` (above) or `docker system prune -a --volumes`.
+**`no space left on device`** — first identify which filesystem and storage
+class is full; bind-mounted training outputs are not counted by `docker system
+df` and are not fixed by pruning Docker images:
+
+```bash
+df -h / /var/lib/docker <results_root>
+docker system df
+docker inspect <tao-container> --format '{{json .Mounts}}'
+du -xhd1 <results_root> 2>/dev/null | sort -h
+find <results_root> -maxdepth 3 -printf '%u:%g %m %s %p\n' 2>/dev/null | head
+```
+
+For a bind mount, clean only confirmed terminal job directories using the SDK
+retention path or a reviewed ownership repair; never assume `docker system
+prune` touches them. For Docker's own root, relocate `data-root` as described
+above. `docker system prune -a --volumes` is destructive and may remove unused
+images and volumes belonging to other workflows, so run it only after explicit
+user approval and a reviewed `docker system df` inventory.
 
 **`Bus error` / `DataLoader worker exited unexpectedly`** — `/dev/shm` too small. Add `--ipc=host` or `--shm-size=8g`.
 

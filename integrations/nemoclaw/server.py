@@ -21,10 +21,14 @@ Run (plain HTTP; the sandbox reaches it via host.openshell.internal):
 """
 
 import argparse
+import errno
+import json
 import os
 import re
+import stat
 import subprocess
-from pathlib import Path
+import uuid
+from pathlib import Path, PurePosixPath
 
 import uvicorn
 from mcp.server.fastmcp import FastMCP
@@ -36,16 +40,41 @@ if __package__:
     from .docker_runtime import (
         build_docker_run_args,
         current_host_identity,
-        prepare_runtime_home,
+        ensure_workspace_directory,
+        JOB_NAME_PREFIX,
+        MANAGED_LABEL,
+        prepare_isolated_results,
+        remove_managed_results_tree,
+        RESULTS_DEVICE_LABEL,
+        RESULTS_INODE_LABEL,
+        RESULTS_PATH_LABEL,
+        RESULTS_TOKEN_LABEL,
+        validate_managed_results_source,
+        validate_volume_subpath,
+        WORKSPACE_VOLUME_LABEL,
+        workspace_volume_name,
     )
 else:  # ``python server.py`` execution path
     from docker_runtime import (
         build_docker_run_args,
         current_host_identity,
-        prepare_runtime_home,
+        ensure_workspace_directory,
+        JOB_NAME_PREFIX,
+        MANAGED_LABEL,
+        prepare_isolated_results,
+        remove_managed_results_tree,
+        RESULTS_DEVICE_LABEL,
+        RESULTS_INODE_LABEL,
+        RESULTS_PATH_LABEL,
+        RESULTS_TOKEN_LABEL,
+        validate_managed_results_source,
+        validate_volume_subpath,
+        WORKSPACE_VOLUME_LABEL,
+        workspace_volume_name,
     )
 
 NGC_IMAGE_PREFIX = "nvcr.io/"
+_JOB_REFERENCE_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}")
 
 # The sandbox reaches this server as host.openshell.internal (the OpenShell
 # bridge). The MCP SDK's DNS-rebinding guard validates the Host header, so that
@@ -58,6 +87,88 @@ mcp = FastMCP(
     ),
 )
 WORKSPACE_ROOT: Path  # set from the required --workspace-root flag at startup
+
+_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
+_DIRECTORY = getattr(os, "O_DIRECTORY", 0)
+_CLOEXEC = getattr(os, "O_CLOEXEC", 0)
+
+
+def _workspace_parts(subpath: str) -> tuple[str, ...]:
+    if subpath in {"", "."}:
+        return ()
+    path = PurePosixPath(subpath)
+    if path.is_absolute() or ".." in path.parts or "\x00" in subpath:
+        raise ValueError(f"path escapes the workspace root: {subpath}")
+    return path.parts
+
+
+def _open_child_dir(parent_fd: int, name: str, *, create: bool) -> int:
+    if create:
+        try:
+            os.mkdir(name, mode=0o700, dir_fd=parent_fd)
+        except FileExistsError:
+            pass
+    try:
+        return os.open(
+            name,
+            os.O_RDONLY | _DIRECTORY | _NOFOLLOW | _CLOEXEC,
+            dir_fd=parent_fd,
+        )
+    except OSError as exc:
+        if exc.errno in {errno.ELOOP, errno.ENOTDIR}:
+            raise ValueError(
+                f"workspace paths cannot traverse symlinks: {name}"
+            ) from exc
+        raise
+
+
+def _open_workspace_object(subpath: str) -> int:
+    """Open an existing object beneath WORKSPACE_ROOT without link races."""
+    parts = _workspace_parts(subpath)
+    current_fd = os.open(
+        WORKSPACE_ROOT.resolve(), os.O_RDONLY | _DIRECTORY | _NOFOLLOW | _CLOEXEC
+    )
+    try:
+        for part in parts[:-1]:
+            child_fd = _open_child_dir(current_fd, part, create=False)
+            os.close(current_fd)
+            current_fd = child_fd
+        if not parts:
+            return current_fd
+        object_fd = os.open(
+            parts[-1], os.O_RDONLY | _NOFOLLOW | _CLOEXEC, dir_fd=current_fd
+        )
+        os.close(current_fd)
+        return object_fd
+    except OSError as exc:
+        os.close(current_fd)
+        if exc.errno == errno.ELOOP:
+            raise ValueError(
+                f"workspace paths cannot traverse symlinks: {subpath}"
+            ) from exc
+        raise
+    except BaseException:
+        os.close(current_fd)
+        raise
+
+
+def _open_workspace_parent(subpath: str) -> tuple[int, str]:
+    """Open/create a writable object's parent with no-follow directory walks."""
+    parts = _workspace_parts(subpath)
+    if not parts:
+        raise ValueError("cannot write the workspace root")
+    current_fd = os.open(
+        WORKSPACE_ROOT.resolve(), os.O_RDONLY | _DIRECTORY | _NOFOLLOW | _CLOEXEC
+    )
+    try:
+        for part in parts[:-1]:
+            child_fd = _open_child_dir(current_fd, part, create=True)
+            os.close(current_fd)
+            current_fd = child_fd
+        return current_fd, parts[-1]
+    except BaseException:
+        os.close(current_fd)
+        raise
 
 
 def _resolve_under_root(subdir: str) -> str:
@@ -80,6 +191,86 @@ def _docker(*args: str) -> subprocess.CompletedProcess:
     )
 
 
+def _validate_job_reference(job_id: str) -> str:
+    if not _JOB_REFERENCE_RE.fullmatch(job_id):
+        raise ValueError("invalid managed TAO job reference")
+    return job_id
+
+
+def _workspace_relative(path: str | Path) -> str:
+    """Return one resolved workspace path in Docker volume-subpath form."""
+    workspace = WORKSPACE_ROOT.resolve()
+    resolved = Path(path).resolve()
+    try:
+        relative = resolved.relative_to(workspace)
+    except ValueError as exc:
+        raise ValueError(f"path escapes the workspace root: {path}") from exc
+    return validate_volume_subpath(relative.as_posix() or ".")
+
+
+def _inspect_workspace_volume(volume_name: str) -> dict:
+    """Verify the fixed-root local volume used for traversal-safe subpaths."""
+    expected_name = workspace_volume_name(WORKSPACE_ROOT)
+    if volume_name != expected_name:
+        raise ValueError("managed job references an unexpected workspace volume")
+    proc = _docker("volume", "inspect", volume_name)
+    if proc.returncode != 0:
+        raise RuntimeError(f"managed workspace volume is unavailable: {volume_name}")
+    try:
+        info = json.loads(proc.stdout)[0]
+        labels = info.get("Labels") or {}
+        options = info.get("Options") or {}
+    except (IndexError, TypeError, json.JSONDecodeError) as exc:
+        raise RuntimeError("invalid managed workspace volume metadata") from exc
+    expected_options = {
+        "device": str(WORKSPACE_ROOT.resolve()),
+        "o": "bind",
+        "type": "none",
+    }
+    if (
+        info.get("Name") != expected_name
+        or info.get("Driver") != "local"
+        or labels.get(MANAGED_LABEL) != "true"
+        or options != expected_options
+    ):
+        raise ValueError("refusing an untrusted managed workspace volume")
+    return info
+
+
+def _ensure_workspace_volume() -> str:
+    """Create or verify the one fixed-root volume used by this bridge."""
+    volume_name = workspace_volume_name(WORKSPACE_ROOT)
+    create_args = (
+        "volume",
+        "create",
+        "--driver",
+        "local",
+        "--label",
+        f"{MANAGED_LABEL}=true",
+        "--opt",
+        "type=none",
+        "--opt",
+        "o=bind",
+        "--opt",
+        f"device={WORKSPACE_ROOT.resolve()}",
+        volume_name,
+    )
+    try:
+        created = _docker(*create_args)
+    except subprocess.TimeoutExpired:
+        created = None
+    try:
+        _inspect_workspace_volume(volume_name)
+    except (RuntimeError, ValueError) as exc:
+        detail = "timed out" if created is None else created.stderr.strip()
+        raise RuntimeError(
+            f"could not create a trusted workspace volume ({detail})"
+        ) from exc
+    if created is not None and created.returncode != 0:
+        raise RuntimeError(f"docker volume create failed: {created.stderr.strip()}")
+    return volume_name
+
+
 @mcp.tool()
 def tao_ls(subdir: str = "") -> dict:
     """List the host workspace so the agent can find datasets and results.
@@ -88,19 +279,43 @@ def tao_ls(subdir: str = "") -> dict:
     entries with name, type (file/dir), and size in bytes. Read-only; confined
     to the workspace root.
     """
-    target = Path(_resolve_under_root(subdir))
-    if not target.exists():
-        raise ValueError(f"path does not exist under workspace: {subdir}")
-    if target.is_file():
-        return {"entries": [{"name": target.name, "type": "file", "size": target.stat().st_size}]}
-    entries = []
-    for p in sorted(target.iterdir()):
-        entries.append({
-            "name": p.name,
-            "type": "dir" if p.is_dir() else "file",
-            "size": p.stat().st_size if p.is_file() else None,
-        })
-    return {"path": subdir or ".", "entries": entries}
+    try:
+        target_fd = _open_workspace_object(subdir)
+    except FileNotFoundError as exc:
+        raise ValueError(f"path does not exist under workspace: {subdir}") from exc
+    try:
+        metadata = os.fstat(target_fd)
+        if stat.S_ISREG(metadata.st_mode):
+            return {
+                "entries": [
+                    {
+                        "name": PurePosixPath(subdir).name,
+                        "type": "file",
+                        "size": metadata.st_size,
+                    }
+                ]
+            }
+        if not stat.S_ISDIR(metadata.st_mode):
+            raise ValueError(f"not a file or directory under workspace: {subdir}")
+        entries = []
+        with os.scandir(target_fd) as directory:
+            for entry in sorted(directory, key=lambda item: item.name):
+                entry_metadata = entry.stat(follow_symlinks=False)
+                if stat.S_ISDIR(entry_metadata.st_mode):
+                    entry_type = "dir"
+                    size = None
+                elif stat.S_ISREG(entry_metadata.st_mode):
+                    entry_type = "file"
+                    size = entry_metadata.st_size
+                else:
+                    entry_type = "symlink" if entry.is_symlink() else "other"
+                    size = None
+                entries.append(
+                    {"name": entry.name, "type": entry_type, "size": size}
+                )
+        return {"path": subdir or ".", "entries": entries}
+    finally:
+        os.close(target_fd)
 
 
 @mcp.tool()
@@ -112,16 +327,23 @@ def tao_read(subpath: str, max_bytes: int = 65536) -> dict:
     UTF-8 text (capped at 1 MiB). Read-only; confined to the workspace root.
     """
     max_bytes = max(1, min(max_bytes, 1_048_576))
-    target = Path(_resolve_under_root(subpath))
-    if not target.is_file():
-        raise ValueError(f"not a file under workspace: {subpath}")
-    data = target.read_bytes()[:max_bytes]
-    return {
-        "subpath": subpath,
-        "size": target.stat().st_size,
-        "truncated": target.stat().st_size > max_bytes,
-        "text": data.decode("utf-8", errors="replace"),
-    }
+    try:
+        target_fd = _open_workspace_object(subpath)
+    except FileNotFoundError as exc:
+        raise ValueError(f"not a file under workspace: {subpath}") from exc
+    try:
+        metadata = os.fstat(target_fd)
+        if not stat.S_ISREG(metadata.st_mode):
+            raise ValueError(f"not a file under workspace: {subpath}")
+        data = os.read(target_fd, max_bytes)
+        return {
+            "subpath": subpath,
+            "size": metadata.st_size,
+            "truncated": metadata.st_size > max_bytes,
+            "text": data.decode("utf-8", errors="replace"),
+        }
+    finally:
+        os.close(target_fd)
 
 
 @mcp.tool()
@@ -135,12 +357,28 @@ def tao_write(subpath: str, content: str) -> dict:
     """
     if len(content.encode("utf-8")) > 4_194_304:
         raise ValueError("content exceeds 4 MiB")
-    target = Path(_resolve_under_root(subpath))
-    if target.is_dir():
-        raise ValueError(f"path is a directory: {subpath}")
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(content, encoding="utf-8")
-    return {"subpath": subpath, "bytes_written": len(content.encode("utf-8"))}
+    encoded = content.encode("utf-8")
+    parent_fd, name = _open_workspace_parent(subpath)
+    try:
+        try:
+            target_fd = os.open(
+                name,
+                os.O_WRONLY | os.O_CREAT | os.O_TRUNC | _NOFOLLOW | _CLOEXEC,
+                0o600,
+                dir_fd=parent_fd,
+            )
+        except OSError as exc:
+            if exc.errno in {errno.EISDIR, errno.ELOOP}:
+                raise ValueError(f"refusing unsafe write path: {subpath}") from exc
+            raise
+        try:
+            with os.fdopen(target_fd, "wb", closefd=False) as target:
+                target.write(encoded)
+        finally:
+            os.close(target_fd)
+    finally:
+        os.close(parent_fd)
+    return {"subpath": subpath, "bytes_written": len(encoded)}
 
 
 @mcp.tool()
@@ -157,10 +395,12 @@ def tao_run(
     image: full nvcr.io/... image reference (any NVIDIA NGC image — TAO,
       QA/staging, or data-generation).
     command: container command as an argument list (no shell).
-    data_subdir/results_subdir: paths relative to the host workspace root,
-      mounted at /data and /results in the container. /data is read-write so
-      the container can stage pretrained backbones and write state/checkpoints
-      alongside the dataset (TAO training expects this).
+    data_subdir/results_subdir: paths relative to the host workspace root.
+      data_subdir is mounted at /data. A unique child of results_subdir is
+      mounted at /results, so cleanup of one interrupted experiment cannot
+      delete another run's checkpoints. The returned results_subdir is the
+      exact host-workspace path for this job. /data remains read-write because
+      some TAO workflows stage pretrained backbones beside the dataset.
     gpus: number of GPUs to attach.
     shm_size: /dev/shm size (e.g. "8g", "16g"). TAO PyTorch DataLoaders need a
       large shared-memory segment; the docker default (64m) causes "Bus error"
@@ -179,60 +419,193 @@ def tao_run(
     if not re.fullmatch(r"\d+[bkmg]?", shm_size, re.IGNORECASE):
         raise ValueError("shm_size must look like '8g', '16g', '512m'")
 
-    data = _resolve_under_root(data_subdir)
-    results = _resolve_under_root(results_subdir)
-    # Create both writable bind roots as the MCP host user. Otherwise Docker
-    # creates a missing host source as root before the mapped process starts.
-    Path(data).mkdir(parents=True, exist_ok=True)
-    Path(results).mkdir(parents=True, exist_ok=True)
     identity = current_host_identity()
-    prepare_runtime_home(results, WORKSPACE_ROOT, identity)
-
-    proc = _docker(
-        *build_docker_run_args(
-            image=image,
-            command=command,
-            data_dir=data,
-            results_dir=results,
-            gpus=gpus,
-            shm_size=shm_size,
-            identity=identity,
+    if identity.uid == 0:
+        raise PermissionError(
+            "refusing to launch a writable TAO job as root; run the MCP "
+            "bridge as the submitting host user"
         )
+    workspace_volume = _ensure_workspace_volume()
+    data = _resolve_under_root(data_subdir)
+    results_base = _resolve_under_root(results_subdir)
+    # Create both writable roots with no-follow directory walks as the bridge
+    # user. Docker's fixed-root volume then resolves their subpaths beneath the
+    # workspace without accepting a swapped host symlink.
+    data = str(ensure_workspace_directory(data, WORKSPACE_ROOT))
+    results_base = str(ensure_workspace_directory(results_base, WORKSPACE_ROOT))
+    data_volume_subpath = _workspace_relative(data)
+    _workspace_relative(results_base)  # validate mount syntax before allocation
+    token = uuid.uuid4().hex
+    prepared_results = prepare_isolated_results(
+        results_base, WORKSPACE_ROOT, identity, token
     )
+    results = prepared_results.path
+    results_volume_subpath = _workspace_relative(results)
+
+    try:
+        proc = _docker(
+            *build_docker_run_args(
+                image=image,
+                command=command,
+                workspace_volume=workspace_volume,
+                data_subpath=data_volume_subpath,
+                results_subpath=results_volume_subpath,
+                results_device=prepared_results.device,
+                results_inode=prepared_results.inode,
+                gpus=gpus,
+                shm_size=shm_size,
+                identity=identity,
+                job_token=token,
+            )
+        )
+    except subprocess.TimeoutExpired as exc:
+        # The Docker daemon may have accepted the create even though its client
+        # timed out. The deterministic managed name lets the agent reconcile or
+        # stop that job rather than launching a duplicate writer.
+        job_name = f"{JOB_NAME_PREFIX}{token}"
+        recovered = _reconcile_managed_launch(job_name, token, results)
+        if recovered is not None:
+            return _reconciled_launch_result(recovered, results)
+        raise RuntimeError(
+            "docker run response timed out; reconcile the possibly active job "
+            f"as {job_name} before retrying; its results are at "
+            f"{results.relative_to(WORKSPACE_ROOT)}"
+        ) from exc
     if proc.returncode != 0:
-        raise RuntimeError(f"docker run failed: {proc.stderr.strip()}")
-    return {"job_id": proc.stdout.strip()}
+        job_name = f"{JOB_NAME_PREFIX}{token}"
+        recovered = _reconcile_managed_launch(job_name, token, results)
+        if recovered is not None:
+            return _reconciled_launch_result(recovered, results)
+        # A completed client error can still follow an accepted daemon request
+        # (for example, a daemon restart after create). Keep the isolated tree
+        # and deterministic name; deleting now could race a late writer.
+        raise RuntimeError(
+            "docker run response was unsuccessful and launch state is "
+            f"ambiguous ({proc.stderr.strip()}); reconcile {job_name} before "
+            f"retrying; its results are at {results.relative_to(WORKSPACE_ROOT)}"
+        )
+    return {
+        "job_id": proc.stdout.strip(),
+        "results_subdir": str(results.relative_to(WORKSPACE_ROOT)),
+    }
+
+
+def _validate_managed_container_inspect(
+    proc: subprocess.CompletedProcess, job_id: str
+) -> dict:
+    """Validate one Docker inspect response as belonging to this bridge."""
+    try:
+        payload = json.loads(proc.stdout)
+        info = payload[0]
+        image = info["Config"]["Image"]
+        labels = info["Config"].get("Labels") or {}
+    except (IndexError, KeyError, TypeError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"invalid Docker metadata for job_id: {job_id}") from exc
+    if not image.startswith(NGC_IMAGE_PREFIX):
+        raise ValueError(f"refusing: {job_id} is not an nvcr.io container")
+    if labels.get(MANAGED_LABEL) != "true":
+        raise ValueError(f"refusing: {job_id} was not launched by this TAO bridge")
+    if labels.get(WORKSPACE_VOLUME_LABEL) != workspace_volume_name(WORKSPACE_ROOT):
+        raise ValueError(f"refusing: {job_id} belongs to another TAO workspace")
+    return info
+
+
+def _inspect_managed_container(job_id: str) -> dict:
+    """Return Docker inspect data for a container created by this bridge."""
+    _validate_job_reference(job_id)
+    proc = _docker("inspect", job_id)
+    if proc.returncode != 0:
+        raise RuntimeError(f"unknown job_id: {job_id}")
+    return _validate_managed_container_inspect(proc, job_id)
+
+
+def _managed_results_path(info: dict) -> Path:
+    """Resolve and validate the isolated /results workspace-volume subpath."""
+    labels = info["Config"].get("Labels") or {}
+    token = labels.get(RESULTS_TOKEN_LABEL, "")
+    volume_name = labels.get(WORKSPACE_VOLUME_LABEL, "")
+    results_subpath = validate_volume_subpath(labels.get(RESULTS_PATH_LABEL, ""))
+    try:
+        expected_device = int(labels[RESULTS_DEVICE_LABEL])
+        expected_inode = int(labels[RESULTS_INODE_LABEL])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError("managed TAO job has invalid result identity labels") from exc
+    _inspect_workspace_volume(volume_name)
+    mounts = [
+        mount
+        for mount in info.get("Mounts", [])
+        if mount.get("Destination") == "/results"
+    ]
+    if len(mounts) != 1:
+        raise ValueError("managed TAO job must have exactly one /results mount")
+    mount = mounts[0]
+    if (
+        mount.get("Type") != "volume"
+        or mount.get("Name") != volume_name
+        or mount.get("RW") is not True
+    ):
+        raise ValueError(
+            "managed TAO /results mount must use its trusted writable volume"
+        )
+    results = WORKSPACE_ROOT.resolve() / results_subpath
+    return validate_managed_results_source(
+        results,
+        WORKSPACE_ROOT,
+        token,
+        expected_device=expected_device,
+        expected_inode=expected_inode,
+    )
+
+
+def _reconcile_managed_launch(job_name: str, token: str, results: Path) -> str | None:
+    """Return a verified late-created job ID, or None while still ambiguous."""
+    try:
+        proc = _docker("inspect", job_name)
+    except subprocess.TimeoutExpired:
+        return None
+    if proc.returncode != 0:
+        return None
+    info = _validate_managed_container_inspect(proc, job_name)
+    labels = info["Config"].get("Labels") or {}
+    if labels.get(RESULTS_TOKEN_LABEL) != token:
+        raise ValueError("recovered container token does not match this launch")
+    if _managed_results_path(info) != results:
+        raise ValueError("recovered container results do not match this launch")
+    return str(info.get("Id") or job_name)
+
+
+def _reconciled_launch_result(job_id: str, results: Path) -> dict:
+    return {
+        "job_id": job_id,
+        "results_subdir": str(results.relative_to(WORKSPACE_ROOT)),
+        "reconciled": True,
+    }
 
 
 @mcp.tool()
 def tao_status(job_id: str) -> dict:
     """Return the state and exit code of a job started by tao_run."""
-    proc = _docker(
-        "inspect", "-f", "{{.State.Status}} {{.State.ExitCode}}", job_id
-    )
-    if proc.returncode != 0:
-        raise RuntimeError(f"unknown job_id: {job_id}")
-    state, _, exit_code = proc.stdout.strip().partition(" ")
-    return {"state": state, "exit_code": int(exit_code)}
+    info = _inspect_managed_container(job_id)
+    state = info.get("State") or {}
+    return {
+        "state": state.get("Status", "unknown"),
+        "exit_code": int(state.get("ExitCode", 0)),
+    }
 
 
 @mcp.tool()
 def tao_logs(job_id: str, tail: int = 100) -> dict:
     """Return the last `tail` lines of a job's logs."""
+    _inspect_managed_container(job_id)
     proc = _docker("logs", "--tail", str(tail), job_id)
     if proc.returncode != 0:
         raise RuntimeError(f"unknown job_id: {job_id}")
     return {"text": proc.stdout + proc.stderr}
 
 
-def _assert_ngc_container(job_id: str) -> None:
-    """Confirm job_id is an NGC (nvcr.io) container this server would have
-    launched, so the agent cannot stop/remove arbitrary host containers."""
-    proc = _docker("inspect", "-f", "{{.Config.Image}}", job_id)
-    if proc.returncode != 0:
-        raise RuntimeError(f"unknown job_id: {job_id}")
-    if not proc.stdout.strip().startswith(NGC_IMAGE_PREFIX):
-        raise ValueError(f"refusing: {job_id} is not an nvcr.io container")
+def _assert_ngc_container(job_id: str) -> dict:
+    """Confirm a job is both NGC-hosted and created by this bridge."""
+    return _inspect_managed_container(job_id)
 
 
 @mcp.tool()
@@ -256,6 +629,78 @@ def tao_rm(job_id: str, force: bool = False) -> dict:
     if proc.returncode != 0:
         raise RuntimeError(f"docker rm failed: {proc.stderr.strip()}")
     return {"removed": proc.stdout.strip()}
+
+
+@mcp.tool()
+def tao_cleanup_results(job_id: str) -> dict:
+    """Remove a terminal job and delete only its isolated result tree.
+
+    Use this after an interrupted or disposable experiment once any useful
+    artifacts have been retained elsewhere. Running jobs are rejected. The
+    bridge verifies its managed labels, fixed workspace volume, and exact
+    /results directory identity before deleting checkpoints, outputs, and
+    caches as the submitting host user (no sudo), then removes the container.
+    The container remains available as cleanup authorization if deletion fails.
+    """
+    info = _assert_ngc_container(job_id)
+    state = (info.get("State") or {}).get("Status", "unknown")
+    if state not in {"created", "exited", "dead"}:
+        raise ValueError(
+            f"refusing to clean results while job is {state}; stop it first"
+        )
+    restart_policy = (
+        ((info.get("HostConfig") or {}).get("RestartPolicy") or {}).get("Name")
+    )
+    if restart_policy not in {"", "no"}:
+        raise ValueError("refusing to clean a job with an automatic restart policy")
+    results = _managed_results_path(info)
+
+    # Revalidate immediately before deletion. The persisted device/inode labels
+    # reject a different directory swapped into this pathname, while the
+    # descriptor-based remover never follows links in the tree.
+    token = (info["Config"].get("Labels") or {})[RESULTS_TOKEN_LABEL]
+    labels = info["Config"].get("Labels") or {}
+    validate_managed_results_source(
+        results,
+        WORKSPACE_ROOT,
+        token,
+        expected_device=int(labels[RESULTS_DEVICE_LABEL]),
+        expected_inode=int(labels[RESULTS_INODE_LABEL]),
+    )
+
+    try:
+        remove_managed_results_tree(
+            results,
+            WORKSPACE_ROOT,
+            token,
+            expected_device=int(labels[RESULTS_DEVICE_LABEL]),
+            expected_inode=int(labels[RESULTS_INODE_LABEL]),
+        )
+    except (OSError, RuntimeError) as exc:
+        raise RuntimeError(
+            f"result cleanup failed for {results}; the terminal container "
+            f"was retained so cleanup can be retried: {exc}"
+        ) from exc
+
+    removed = job_id
+    try:
+        proc = _docker("rm", job_id)
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(
+            f"results were deleted but container removal is ambiguous for {job_id}; "
+            "reconcile it with tao_status/tao_rm"
+        ) from exc
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"results were deleted but docker rm failed for {job_id}: "
+            f"{proc.stderr.strip()}; retry tao_rm"
+        )
+    if proc.stdout.strip():
+        removed = proc.stdout.strip()
+    return {
+        "removed": removed,
+        "deleted_results_subdir": str(results.relative_to(WORKSPACE_ROOT)),
+    }
 
 
 class BearerAuth(BaseHTTPMiddleware):
