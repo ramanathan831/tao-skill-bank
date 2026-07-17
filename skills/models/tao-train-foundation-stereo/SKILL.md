@@ -154,6 +154,7 @@ For TAO Deploy TensorRT actions (`gen_trt_engine`, TensorRT `evaluate`, and Tens
 
 ## Training Requirements
 
+- **Default AutoML metric:** `val/epe`, minimized, when recommendations are scored with the packaged `evaluate` action.
 - **Training monitoring metric:** `val/loss`
   Use this only for live training-loss monitoring.
 - **AutoML/evaluation KPI:** `val/epe`, minimized. The packaged `evaluate`
