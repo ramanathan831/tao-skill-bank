@@ -101,7 +101,8 @@ again.
 - **Dataset type:** vlm
 - **Formats:** llava, daft
 - **Accepted dataset intents:** training, evaluation, testing
-- **Training monitoring metrics:** `val/avg_loss`, `val/reward_avg`, `val/loss`
+- **Monitoring metric:** `BERTScore_F1` for the default evaluation-backed AutoML free-form text workflow; maximize it and use the same evaluator metric for the baseline, every recommendation, and final best-checkpoint evaluation.
+- **Training-only monitoring metrics:** `val/avg_loss`, `val/reward_avg`, `val/loss`; these are useful for training observability but are not emitted by the evaluate action and must not replace `BERTScore_F1` in the default AutoML workflow.
 - **Evaluate task metrics:** binary `accuracy`/balanced accuracy/precision/recall/F1, or text `BLEU`, `ROUGE*`, and `BERTScore_F1`. Monitor the exact scalar `BERTScore_F1` for free-form text; `BERTScore` is not an emitted key. The evaluate action does not emit `val/avg_loss`.
 - **AutoML metric contract:** do not use an evaluate job as a baseline for `val/avg_loss`. Either optimize an evaluate task metric consistently for baseline, every recommendation (`eval_fn`), and final evaluation, or obtain explicit approval for a training-loss proxy run without an impact baseline.
 - **Dataset URI examples:** `s3://bucket/cosmos/train`, `s3://bucket/cosmos/eval`, `/lustre/fsw/tao_datasets/cosmos_rl/train`, `/lustre/fsw/tao_datasets/cosmos_rl/eval`
