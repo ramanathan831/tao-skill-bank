@@ -47,7 +47,9 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 
 - **Dataset type:** ocdnet
 - **Formats:** default
-- **Monitoring metric:** hmean
+- **AutoML training metric:** `train_loss` (the status logger's final
+  `train_loss_epoch` value), with `direction=minimize`
+- **Standalone evaluation metric:** `hmean`, with `direction=maximize`
 
 ### Per-Action Dataset Requirements
 

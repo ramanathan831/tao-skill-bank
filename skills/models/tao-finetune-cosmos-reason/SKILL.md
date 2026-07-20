@@ -101,7 +101,9 @@ again.
 - **Dataset type:** vlm
 - **Formats:** llava, daft
 - **Accepted dataset intents:** training, evaluation, testing
-- **Monitoring metric:** val/avg_loss, val/reward_avg, val/loss
+- **Training monitoring metrics:** `val/avg_loss`, `val/reward_avg`, `val/loss`
+- **Evaluate task metrics:** binary `accuracy`/balanced accuracy/precision/recall/F1, or text BLEU/ROUGE/BERTScore. The evaluate action does not emit `val/avg_loss`.
+- **AutoML metric contract:** do not use an evaluate job as a baseline for `val/avg_loss`. Either optimize an evaluate task metric consistently for baseline, every recommendation (`eval_fn`), and final evaluation, or obtain explicit approval for a training-loss proxy run without an impact baseline.
 - **Dataset URI examples:** `s3://bucket/cosmos/train`, `s3://bucket/cosmos/eval`, `/lustre/fsw/tao_datasets/cosmos_rl/train`, `/lustre/fsw/tao_datasets/cosmos_rl/eval`
 - **Input modes:** accept either dataset roots or direct spec-key paths. Root mode maps `<root>/annotations.json` plus `<root>` as the media path. Direct spec mode is valid when annotations and media live in different locations, for example `custom.train_dataset.annotation_path=/lustre/.../train.json` and `custom.train_dataset.media_path=/lustre/.../videos.tar.gz`.
 - **Media handling:** do not ask the user to choose `videos.tar.gz` vs `images.tar.gz` unless they are using direct spec mode or the model/action requires a single media archive. In root mode, pass the dataset root as the media path.
@@ -111,7 +113,11 @@ again.
   annotations solely because optional fields are absent.
 - **Per-record video FPS:** the packaged train template uses
   `custom.vision.nframes`, so per-record `video_fps` is not required by
-  default. If the user switches to `custom.vision.fps`, selects a dataset
+  default for SFT training. The `7.0.1-cosmos-rl` evaluate action still reads
+  per-record `video_fps` during video input preparation even when
+  `vision.nframes` is set, so require `video_fps` for evaluate-backed baseline,
+  per-recommendation, and final AutoML metrics with that image. If the user
+  switches training to `custom.vision.fps`, selects a dataset
   profile that requires per-record timing, or uses an image/version that
   requires `video_fps`, make it a preflight requirement with
   `--json-required-field train_annotation=video_fps` and

@@ -18,9 +18,11 @@ For no-input local DINO AutoML smoke runs, use `DINO_AUTOML_PROFILE` from
 **Training Requirements**. Do not inspect previous AutoML runs to infer dataset
 URIs, `num_classes`, recommendation count, or interval settings.
 
-**Recommended AutoML metric:** use explicit `metric="mAP50"` with
-`direction="maximize"` and pass a custom `metric_extractor` that reads
-`Validation mAP50`. Do not rely on `metric="kpi"` for generated DINO runners
+**Recommended AutoML metric:** for training-log-only scoring, use explicit
+`metric="val_mAP50"` with `direction="maximize"` and pass a custom metric
+extractor that reads `Validation mAP50`. When an `eval_fn` scores each
+recommendation through the standalone evaluate action, use its structured
+`test_mAP50` KPI instead. Do not rely on `metric="kpi"` for generated DINO runners
 unless you have verified the local resolver maps it to mAP50; loose fallback
 parsing can otherwise optimize `val_loss`.
 
