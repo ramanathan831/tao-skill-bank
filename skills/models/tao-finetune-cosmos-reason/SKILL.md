@@ -102,7 +102,7 @@ again.
 - **Formats:** llava, daft
 - **Accepted dataset intents:** training, evaluation, testing
 - **Training monitoring metrics:** `val/avg_loss`, `val/reward_avg`, `val/loss`
-- **Evaluate task metrics:** binary `accuracy`/balanced accuracy/precision/recall/F1, or text BLEU/ROUGE/BERTScore. The evaluate action does not emit `val/avg_loss`.
+- **Evaluate task metrics:** binary `accuracy`/balanced accuracy/precision/recall/F1, or text `BLEU`, `ROUGE*`, and `BERTScore_F1`. Monitor the exact scalar `BERTScore_F1` for free-form text; `BERTScore` is not an emitted key. The evaluate action does not emit `val/avg_loss`.
 - **AutoML metric contract:** do not use an evaluate job as a baseline for `val/avg_loss`. Either optimize an evaluate task metric consistently for baseline, every recommendation (`eval_fn`), and final evaluation, or obtain explicit approval for a training-loss proxy run without an impact baseline.
 - **Dataset URI examples:** `s3://bucket/cosmos/train`, `s3://bucket/cosmos/eval`, `/lustre/fsw/tao_datasets/cosmos_rl/train`, `/lustre/fsw/tao_datasets/cosmos_rl/eval`
 - **Input modes:** accept either dataset roots or direct spec-key paths. Root mode maps `<root>/annotations.json` plus `<root>` as the media path. Direct spec mode is valid when annotations and media live in different locations, for example `custom.train_dataset.annotation_path=/lustre/.../train.json` and `custom.train_dataset.media_path=/lustre/.../videos.tar.gz`.
