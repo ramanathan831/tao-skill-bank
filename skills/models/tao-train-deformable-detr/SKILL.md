@@ -40,7 +40,7 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 
 - **Dataset type:** object_detection
 - **Formats:** coco, coco_raw
-- **Default AutoML metric:** `test_mAP50`, maximized, when each recommendation is scored with the standalone `evaluate` action. Use `val_mAP50` only for training-log-only AutoML workflows.
+- **AutoML metric contract:** for evaluation-backed selection, use `test_mAP50` with maximize direction. Use `val_mAP50` only for training-log-only AutoML workflows.
 - **Training monitoring metrics:** `val_mAP50` for AP50; `val_mAP` for COCO/paper-style benchmark comparisons.
 - **Evaluate action metrics:** `test_mAP50` for AP50; `test_mAP` for COCO/paper-style benchmark comparisons. AutoML trials compared through the evaluate action must use the corresponding `test_*` KPI rather than looking for a `val_*` KPI in evaluator output.
 
