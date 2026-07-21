@@ -58,6 +58,7 @@ The agent MUST read this section before generating any training or AutoML script
 - **Dataset type:** object_detection
 - **Formats:** coco, coco_raw
 - **Accepted dataset intents:** training, evaluation, testing, calibration
+- **AutoML metric contract:** for the default evaluation-backed workflow, use `test_mAP50` with maximize direction. Use `test_mAP` only when the user explicitly requests COCO/paper-style mAP.
 - **Training monitoring metrics:** `val_mAP50` (logged as `Validation mAP50`) for quick operational checks; `val_mAP` for COCO/paper-style benchmark comparisons.
 - **Evaluate action metrics:** `test_mAP50` for AP50 and `test_mAP` for COCO mAP. AutoML workflows that score recommendations with the standalone evaluate action must use the corresponding `test_*` KPI.
 
