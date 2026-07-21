@@ -49,6 +49,9 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 - **Formats:** default
 - **AutoML training metric:** `train_loss` (the status logger's final
   `train_loss_epoch` value), with `direction=minimize`
+- **AutoML metric contract:** Use `train_loss` emitted during training and
+  minimize it. Treat `train_loss_epoch` as a log fallback alias only; use
+  standalone `hmean` solely to validate the selected checkpoint.
 - **Standalone evaluation metric:** `hmean`, with `direction=maximize`
 
 ### Per-Action Dataset Requirements
