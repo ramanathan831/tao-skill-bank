@@ -41,6 +41,10 @@ Non-train actions such as `inference`, `export`, and deploy flows stay in this m
 - **Dataset type:** image_classification
 - **Formats:** ssl
 - **Monitoring metric:** train_loss
+- **AutoML metric contract:** Use `train_loss` emitted by the train action and
+  minimize it. This model has no packaged evaluate action, so do not invent an
+  evaluation KPI; validate the selected `student_epoch_*` checkpoint through
+  inference.
 
 ### Per-Action Dataset Requirements
 
