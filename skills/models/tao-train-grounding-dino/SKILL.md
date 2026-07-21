@@ -40,8 +40,9 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 - **Dataset type:** object_detection
 - **Formats:** odvg, coco, raw
 - **Training monitoring metric:** `val_mAP50`
-- **AutoML/evaluation metric:** `test_mAP50`, maximized. The packaged
-  `evaluate` action emits `test_mAP50`; use that evaluator KPI for AutoML trial
+- **AutoML metric contract:** for evaluation-backed selection, use `test_mAP50`
+  with maximize direction. The packaged `evaluate` action emits `test_mAP50`;
+  use that evaluator KPI for AutoML trial
   comparison and final selection rather than the training-only `val_mAP50` key.
 
 ### Per-Action Dataset Requirements
