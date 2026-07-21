@@ -50,7 +50,7 @@ fi
 
 # 1. SDK + kubernetes extra installed.
 # nvidia-tao-sdk is on public PyPI; the pin below is stamped from the release manifest.
-PIN="nvidia-tao-sdk[kubernetes]==7.0.1"  # versions-key: wheels.tao_sdk_kubernetes
+PIN="nvidia-tao-sdk[kubernetes]==7.1.0rc38"  # versions-key: wheels.tao_sdk_kubernetes
 python -c "import tao_sdk" 2>/dev/null || {
   echo "Installing missing Python requirement: $PIN"
   python -m pip install "$PIN"
@@ -165,9 +165,19 @@ analysis = sdk.get_failure_analysis(job.id)
 
 ```python
 sdk.cancel_job(job.id)  # delete_namespaced_job with propagation_policy="Foreground"
+
+# For a confirmed-terminal S3-backed job, remove the exact UID-bound Job/pods
+# and then its job-scoped result prefix.
+sdk.delete_job_artifacts(job.id)
 ```
 
-`ttl_seconds_after_finished=3600` means completed Jobs auto-delete after 1h. To cancel an in-flight Job, `cancel_job` deletes it and its pods immediately.
+Completed Jobs are not TTL-deleted: their UID and terminal evidence remain
+available for safe recovery after an SDK restart. To cancel an in-flight Job,
+`cancel_job` deletes it and its pods with foreground propagation and reports
+success only after the writers are absent. For cleanup-supported S3 jobs,
+`delete_job_artifacts` first verifies and removes that exact terminal Job and
+its pods, then verifies deletion of the job-scoped S3 prefix. A same-name Job
+with a different UID is never deleted.
 
 ## GPU Operator dependency
 

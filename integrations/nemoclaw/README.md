@@ -47,9 +47,50 @@ Put datasets under `<workspace>/<name>/`; the agent discovers them with `tao_ls`
 | Tool | Purpose |
 |------|---------|
 | `tao_ls` / `tao_read` / `tao_write` | Inspect and author files in the host workspace |
-| `tao_run` | Launch a container on the host GPU (constrained: `nvcr.io/*` NGC images only, workspace-confined mounts, `shm_size` for DataLoaders) |
+| `tao_pull` | Pull an `nvcr.io/*` image into the host cache before launch |
+| `tao_run` | Launch a cached container image on the host GPU without pulling (workspace-confined per-job results, host UID:GID ownership, `shm_size` for DataLoaders) |
+| `tao_list` | List and recover jobs launched for this TAO workspace |
 | `tao_status` / `tao_logs` | Monitor a job |
-| `tao_stop` / `tao_rm` | Stop/remove a job's container (TAO containers only) |
+| `tao_stop` / `tao_rm` | Stop/remove a job's container layer (TAO containers only; bind-mounted outputs remain) |
+| `tao_cleanup_results` | Remove a terminal job and its verified, isolated result tree without `sudo` |
+
+## Output ownership and cleanup
+
+`tao_run` runs the container process as the UID:GID of the host user running
+the MCP server and preserves that user's non-privileged supplementary groups
+for shared-data access. Checkpoints, result directories, and other files created on the
+writable workspace mounts therefore remain removable by that host user without
+`sudo`. Because overriding an image's baked-in root user also makes `/root`
+unwritable, the bridge prepares a private home and common framework cache
+directories inside the exact per-job result path at `.tao-runtime/home` and
+sets `HOME`, `USER`, `LOGNAME`, and cache environment variables for the job.
+The bridge refuses to launch writable jobs when the bridge itself is running
+as root; start it as the submitting host user. The Docker socket's group is
+never passed into workloads, Linux capabilities are dropped, and
+`no-new-privileges` prevents setuid/file-capability elevation.
+
+The caller's `results_subdir` is a collection root. Each `tao_run` mounts a
+unique `<results_subdir>/.tao-jobs/<token>/` at `/results` and returns that
+exact relative path. This prevents cleanup of a failed experiment from
+deleting another run's winner. The bridge exposes subdirectories through one
+verified, fixed-root Docker local volume and Docker's traversal-safe
+`volume-subpath` support; it never gives Docker a caller-mutable host bind
+pathname. Containers carry managed labels that bind their identity to the
+result path plus its filesystem device/inode; lifecycle tools reject unrelated
+NGC containers or a different directory swapped into that pathname.
+
+`tao_stop` and `tao_rm` manage only the Docker process, container metadata, and
+writable container layer. They deliberately do not delete bind-mounted data,
+checkpoints, results, or `.tao-runtime` caches. Inspect and retain or delete
+those host files separately. For an interrupted or disposable run, call
+`tao_stop` and then `tao_cleanup_results`; cleanup refuses an active writer,
+validates the exact managed directory identity, deletes only that run's
+checkpoints and caches, and then removes the restart-disabled terminal
+container. If deletion fails, the container metadata is deliberately retained
+so the same cleanup call can be retried. Do not call `tao_rm` first when cleanup
+is intended, because removing the container also removes the trusted metadata.
+Results from older bridge versions may already be root-owned and need a one-time
+ownership repair by the host administrator.
 
 ## Security
 
@@ -74,7 +115,7 @@ only through the **bridge egress policy** the setup applies.
 ## Scope
 
 Runs TAO workflows on the host GPU. The agent reads the skill, authors the
-spec, stages models (containers inherit the host network, so HuggingFace / NGC
+spec, stages models (Docker's default outbound networking lets HuggingFace / NGC
 / S3 pulls work in-container), launches `tao_run`, and monitors — orchestrating
 multi-step workflows itself over the tools. Verified on hardware (DINO, Visual
 ChangeNet, DEFT AOI).
@@ -99,4 +140,6 @@ runtime; other TAO workflows run through this surface.
   server's `allowed_hosts` (already set in `server.py`).
 - Adding/changing tools requires `nemoclaw <sandbox> gateway restart` for the
   agent to re-fetch the tool list.
+- Docker must support `volume-subpath` mounts; setup fails closed at launch if
+  the host engine does not.
 - Tested against OpenShell 0.0.72. **Experimental** — NemoClaw is alpha.

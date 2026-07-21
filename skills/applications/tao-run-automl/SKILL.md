@@ -10,7 +10,7 @@ license: Apache-2.0
 compatibility: Requires docker + nvidia-container-toolkit. Workflows declare additional requirements.
 metadata:
   author: NVIDIA Corporation
-  version: "0.1.0"
+  version: "0.1.1"
 allowed-tools: Read Bash Write
 tags:
 - automl
@@ -347,6 +347,12 @@ At completion:
    recommendations and root causes, elapsed time, and final runtime notes.
 6. If this feeds a workflow such as AutoML + DEFT, pass the winning spec
    overrides and checkpoint through the workflow's declared handoff fields.
+7. With the default retention policy, verify that cleanup-supported, safely
+   prunable terminal trial artifacts were deleted and that the winning
+   training artifacts remain. Report protected promotion/resume parents or
+   conservative Hybrid results explicitly. A remote bind, named volume, or
+   other output route the SDK cannot reclaim must fail retention preflight
+   before the first trial rather than be silently retained.
 
 ## Common Pitfalls
 
@@ -360,3 +366,8 @@ At completion:
 - For gated HuggingFace models, verify `HF_TOKEN` is set without reading it.
 - If all recommendations fail, stop and summarize the shared root cause instead
   of launching more trials.
+- Do not disable `automl_delete_intermediate_ckpt` by default. Keeping every
+  trial can consume one full distributed checkpoint set per recommendation.
+- Do not bypass a retention-preflight failure by disabling cleanup unless the
+  user has explicitly accepted external ownership and manual lifecycle
+  management for every trial artifact.

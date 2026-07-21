@@ -51,11 +51,16 @@ validate-skills:
   stage: test
   image: python:3.12-slim
   before_script:
-    - pip install --quiet pyyaml
+    - pip install --quiet pyyaml pytest
   script:
     - bash scripts/validate-skills.sh
+    # Stdlib-only: validates NemoClaw Docker ownership/path confinement without MCP.
+    - PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s integrations/nemoclaw/tests -v
     # Embedded version pins must match versions.yaml (see scripts/stamp_versions.py).
     - python3 scripts/stamp_versions.py --check
+    # Schema drift guards (e.g. DINOv3 backbone enums, bug 6465432). Deep
+    # tao-core alignment checks self-skip here (no tao-core checkout in CI).
+    - python3 -m pytest scripts/tests -q
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH == "main"'

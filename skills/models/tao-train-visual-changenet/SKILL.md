@@ -53,6 +53,15 @@ Generated TAO Core schemas are packaged in `schemas/<action>.schema.json`, with 
 
 This model is AutoML-enabled at the model layer. Before handling any train-stage request, read `references/skill_info.yaml` and resolve the run override from either an explicit `automl_policy` value or the user's workflow request. Use `automl_policy: on` by default and only expose `on` / `off` in new launch prompts. Treat phrases like "turn off AutoML", "disable AutoML", "no HPO", or "plain training" as `automl_policy: off` for this run only. When `automl_policy: on`, `automl_enabled: true`, and both `schemas/train.schema.json` and `references/spec_template_train.yaml` are packaged, route the train action through `tao-skill-bank:tao-run-automl` by default with this model's `skill_dir`. Preserve workflow/application overrides for datasets, specs, output directories, GPU/platform settings, parent checkpoints, and `automl_policy`. Use direct model training only when `automl_policy: off` or the packaged train schema/template is missing; in the missing-schema case, report that AutoML is enabled but not runnable for this model until schemas are generated.
 
+Checkpoint retention is an orchestration policy, not an HPO parameter. Both
+packaged train templates default `train.checkpointer.enable_topk` and
+`train.checkpointer.replace_periodic` to `false`, preserving periodic saves
+controlled by `train.checkpoint_interval`. When AutoML checkpoint retention is
+enabled, the AutoML runner sets both flags to `true`, monitors `val_loss` in
+`min` mode, and uses `save_top_k: 1`; this replaces the periodic series with the
+single best checkpoint. When AutoML checkpoint retention is disabled, leave the
+bounded-retention overrides unset so periodic checkpoint behavior remains.
+
 Non-train actions declared by this model skill (`evaluate`, `inference`,
 `export`, `quantize`, `segment_evaluate`, and `segment_inference`) stay in this
 model skill. Do not present `segment_export` or `segment_quantize` as runnable
@@ -273,7 +282,7 @@ Classify needs a 4-column CSV (`input_path,golden_path,label,object_name`) plus 
 
 ## Important Parameters
 
-Key knobs include `train.validation_interval` (default 50, must be ≤ num_epochs), `train.checkpoint_interval` (default 200, must be ≤ num_epochs), `train.num_epochs` (default 100), `model.classify.eval_margin` (default 0.3, the precision/recall threshold), `model.classify.train_margin_euclid` (default 2.0), `model.classify.embedding_vectors` (default 5), `dataset.classify.batch_size` (default 16, must be > 1), `dataset.classify.fpratio_sampling` (default 0.25), and `train.classify.cls_weight` (default [1.0, 10.0]). Hardware: minimum 1 GPU with 16GB+ VRAM, recommended 8 GPUs (DDP); do not set `gpu_spec_key` (GPU count is managed internally by TAO), `num_nodes` (default 1) controls multi-node. See `references/tuning-parameters.md` for the full per-parameter guidance and hardware detail.
+Key knobs include `train.validation_interval` (default 50, must be ≤ num_epochs), `train.checkpoint_interval` (default 200, must be ≤ num_epochs when periodic checkpointing is active), `train.num_epochs` (default 100), `model.classify.eval_margin` (default 0.3, the precision/recall threshold), `model.classify.train_margin_euclid` (default 2.0), `model.classify.embedding_vectors` (default 5), `dataset.classify.batch_size` (default 16, must be > 1), `dataset.classify.fpratio_sampling` (default 0.25), and `train.classify.cls_weight` (default [1.0, 10.0]). The `train.checkpointer` fields are fixed lifecycle controls, not HPO search parameters. Hardware: minimum 1 GPU with 16GB+ VRAM, recommended 8 GPUs (DDP); do not set `gpu_spec_key` (GPU count is managed internally by TAO), `num_nodes` (default 1) controls multi-node. See `references/tuning-parameters.md` for the full per-parameter guidance and hardware detail.
 
 ## Error Patterns
 
@@ -286,5 +295,3 @@ Model-specific parent-model mappings are declared in `references/skill_info.yaml
 ## Deployment
 
 - [tao-deploy-visual-changenet](references/tao-deploy-visual-changenet.md)
-
-

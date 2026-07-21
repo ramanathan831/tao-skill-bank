@@ -20,7 +20,24 @@ SB="${1:?usage: setup-tao-nemoclaw.sh <sandbox-name> [workspace-root]}"
 WORKSPACE="${2:-$HOME/tao-workspace}"
 PORT=9901
 SERVER="$(cd "$(dirname "$0")" && pwd)/server.py"
-SKILL_REPO="https://github.com/NVIDIA-TAO/tao-skills-bank"
+# ── Skill bank source (three modes, priority order) ──────────────────────────
+#   1. SKILL_LOCAL=<path> — copy a local working tree (e.g. an SQA checkout with
+#      un-pushed changes) instead of cloning. Wins over the repo modes if set.
+#   2. SKILL_REPO + SKILL_REF (alias TAO_RELEASE) — clone/checkout repo @ ref.
+#
+# The bank's dotted image keys resolve to the installed checkout's versions.yaml,
+# so the source determines which TAO images every skill runs.
+#
+# Default (published): public GitHub distribution on `main`.
+# Internal SQA / pre-release — release/7.x branches live on the internal GitLab
+# repo (GitHub has only main + tags), so set BOTH:
+#   export SKILL_REPO="ssh://git@gitlab-master.nvidia.com:12051/nvidia-tao-toolkit/tao-skills-external.git"
+#   export SKILL_REF="release/7.1.0"          # or TAO_RELEASE=release/7.1.0
+# …or skip the network entirely and use a local checkout directly:
+#   export SKILL_LOCAL="$HOME/tao-skills-external"
+SKILL_LOCAL="${SKILL_LOCAL:-}"
+SKILL_REPO="${SKILL_REPO:-https://github.com/NVIDIA-TAO/tao-skills-bank}"
+SKILL_REF="${SKILL_REF:-${TAO_RELEASE:-main}}"
 
 log() { printf '\033[1;32m[tao-nemoclaw]\033[0m %s\n' "$*"; }
 die() { printf '\033[1;31m[tao-nemoclaw] ERROR:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -66,10 +83,22 @@ fi
 # skills/.../scripts/foo.py) without the agent copying files through its context.
 # The same clone is copied into the sandbox for the agent to read the skills.
 BANK="$WORKSPACE/tao-skills-external"
-if [ -d "$BANK/.git" ]; then
-  git -C "$BANK" pull -q
+if [ -n "$SKILL_LOCAL" ]; then
+  # Copy a local working tree into the workspace (drop its .git — the sandbox only
+  # needs the files). Lets SQA test un-pushed release/7.x skills without a push.
+  [ -d "$SKILL_LOCAL" ] || die "SKILL_LOCAL is not a directory: $SKILL_LOCAL"
+  src="$(cd "$SKILL_LOCAL" && pwd -P)"
+  if [ "$src" != "$(cd "$WORKSPACE" && pwd -P)/tao-skills-external" ]; then
+    rm -rf "$BANK"; cp -a "$src" "$BANK"; rm -rf "$BANK/.git"
+  fi
+  log "skill bank: local tree $src ($(git -C "$src" rev-parse --abbrev-ref HEAD 2>/dev/null || echo 'no-git'))"
+elif [ -d "$BANK/.git" ]; then
+  git -C "$BANK" fetch -q --depth 1 "$SKILL_REPO" "$SKILL_REF" \
+    && git -C "$BANK" checkout -q -B "$SKILL_REF" FETCH_HEAD
+  log "skill bank: $SKILL_REPO @ $SKILL_REF"
 else
-  git clone --depth 1 "$SKILL_REPO" "$BANK"
+  git clone --depth 1 -b "$SKILL_REF" "$SKILL_REPO" "$BANK"
+  log "skill bank: $SKILL_REPO @ $SKILL_REF"
 fi
 docker cp "$BANK" "$CID":/sandbox/    # -> /sandbox/tao-skills-external (agent reads skills)
 # OpenClaw discovers skills one level below its skills dir; the bank nests them.
@@ -165,5 +194,5 @@ case "$CODE" in
 esac
 
 log "Done. In the agent (nemoclaw $SB connect -> openclaw tui), ask:"
-log "  'What MCP tools do you have?'  -> expect tao_ls/read/write/run/status/logs/stop/rm"
+log "  'What MCP tools do you have?'  -> expect tao_ls/read/write/pull/run/list/status/logs/stop/rm/cleanup_results"
 log "Put datasets under $WORKSPACE/<name>/ ; the agent sees them via tao_ls."
