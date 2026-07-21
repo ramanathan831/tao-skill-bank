@@ -39,6 +39,9 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 - **Dataset type:** segmentation
 - **Formats:** odvg, coco, coco_raw
 - **Monitoring metric:** val_loss
+- **AutoML metric contract:** Use `val_loss` emitted during training and
+  minimize it. Standalone evaluation metrics are checkpoint-validation KPIs,
+  not the recommendation-selection objective.
 - **Evaluation checkpoint metrics:** `[segm] test_mAP50` and
   `[bbox] test_mAP50` when the checkpoint produces class predictions. A very
   short smoke-trained checkpoint can complete evaluation successfully with an
