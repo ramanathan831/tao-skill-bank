@@ -121,8 +121,11 @@ Optional. Val images and annotations configured alongside train paths.
 - **train.warmup_epochs**: Warmup epochs before full learning rate.
 - **dataset.load_mask**: Whether annotations contain pre-computed segmentation
   masks. Set this to `false` for COCO annotations that contain boxes but no
-  `segmentation` fields; MAL then generates masks from the boxes. Set it to
-  `true` only when every annotation contains segmentation data.
+  `segmentation` fields when performing training or inference without mask
+  ground truth. Keep it `true` when every annotation contains segmentation
+  data. AutoML validation that selects by `mIoU` requires segmentation ground
+  truth and `dataset.load_mask: true`; bbox-only evaluation emits non-finite
+  `mIoU` and must not be accepted as a valid AutoML objective.
 
 ## AutoML / HPO Notes
 
