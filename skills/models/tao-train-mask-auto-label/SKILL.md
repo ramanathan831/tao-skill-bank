@@ -37,6 +37,9 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 - **Dataset type:** segmentation
 - **Formats:** default
 - **Monitoring metric:** mIoU
+- **AutoML metric contract:** Use `mIoU` emitted by the evaluate action and
+  maximize it. Compare the recorded AutoML objective with the evaluator's
+  emitted `mIoU`; do not substitute training loss.
 
 ### Per-Action Dataset Requirements
 
@@ -116,7 +119,10 @@ Optional. Val images and annotations configured alongside train paths.
 - **dataset.crop_size**: Training crop size. Default 512. Use this key, not
   `model.crop_size`.
 - **train.warmup_epochs**: Warmup epochs before full learning rate.
-- **model.load_mask**: Whether to load pre-computed masks.
+- **dataset.load_mask**: Whether annotations contain pre-computed segmentation
+  masks. Set this to `false` for COCO annotations that contain boxes but no
+  `segmentation` fields; MAL then generates masks from the boxes. Set it to
+  `true` only when every annotation contains segmentation data.
 
 ## AutoML / HPO Notes
 
