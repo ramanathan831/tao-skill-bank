@@ -79,8 +79,8 @@ with `[ -n "$VAR" ]`.
    The platforms are equal-class peers — if the user has not chosen, ask;
    never default silently. Every platform skill implements the same
    **four-verb consumer contract** (`submit`/`status`/`logs`/`cancel`) over its
-   native CLI (`docker`/`kubectl`/`ssh`+`sbatch`/`brev exec`) — there is no
-   `nvidia-tao-sdk`.
+   native CLI (`docker`/`kubectl`/`ssh`+`sbatch`/`brev exec`) with no NVIDIA
+   Python execution dependency.
 
 4. **Construct the spec as nested dicts** (`{"train": {"num_epochs": 12}}`,
    never flat dotted keys), confirm with the user, then **execute the four
@@ -101,12 +101,11 @@ with `[ -n "$VAR" ]`.
 - **Container images are pinned per skill.** Each skill carries the exact
   image URI it was validated against; do not swap tags silently. Offer
   overrides only when the skill documents an override path.
-- **Execution is SDK-free.** Job tracking (`scripts/tao_job_record.py`),
+- **Execution and optimization are skill-owned.** Job tracking (`scripts/tao_job_record.py`),
   S3/data staging (`tao-data-io`, storage tiers A/B/C), and multi-node (the
   SLURM/K8s templates + `scripts/nccl_allreduce_probe.py`) are built into the
-  bank — no `nvidia-tao-sdk`. The one exception is AutoML search
-  (`tao-run-automl`), which uses the `nvidia-tao-automl` wheel and its
-  transitive SDK.
+  bank. AutoML search uses the same platform contract plus its bundled step
+  engine.
 
 ## Optional: Codex agent identity
 
