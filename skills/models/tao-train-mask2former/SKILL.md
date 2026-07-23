@@ -39,9 +39,7 @@ Non-train actions such as `evaluate`, `inference`, `export`, and deploy flows st
 - **Dataset type:** segmentation
 - **Formats:** coco_panoptic, coco
 - **Monitoring metric:** mIoU
-- **AutoML metric contract:** Use `mIoU` emitted by validation/evaluation and
-  maximize it. Compare the recorded objective directly with the emitted
-  `mIoU`; do not substitute training loss.
+- **AutoML metric:** Maximize emitted validation/evaluation `mIoU`; never substitute training loss.
 
 ### Per-Action Dataset Requirements
 
