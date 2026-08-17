@@ -46,6 +46,16 @@ def _video_args() -> SimpleNamespace:
         training_mode="dense",
         experiment_id="video-smoke",
         frames=8,
+        fps=None,
+        min_frames=None,
+        max_frames=None,
+        video_start=None,
+        video_end=None,
+        video_resized_height=None,
+        video_resized_width=None,
+        video_min_pixels=None,
+        video_max_pixels=0,
+        video_total_pixels=None,
         system_prompt="You are a helpful assistant.",
         container_cache_dir="/cache",
         run_mode="smoke",
@@ -57,8 +67,22 @@ def _video_args() -> SimpleNamespace:
     )
 
 
+def _system_pyav_runtime() -> dict[str, object]:
+    return {
+        "selected_profile": "system-pyav",
+        "video_decoder": "torchvision",
+        "frame_transfer": "host_rgb",
+        "video_cache_size": 0,
+        "decoder_cache_size": 1,
+        "sft_batch_threads": 1,
+        "dataloader_num_workers": 0,
+        "dataloader_prefetch_factor": None,
+    }
+
+
 def test_video_spec_and_environment_force_packaged_system_pyav_contract() -> None:
     args = _video_args()
+    runtime = _system_pyav_runtime()
     spec = MODULE._rl_spec(
         args,
         {"epochs": 1},
@@ -68,6 +92,7 @@ def test_video_spec_and_environment_force_packaged_system_pyav_contract() -> Non
         ["/data/val.json"],
         ["/data/val"],
         {},
+        runtime,
     )
     environment = MODULE._env(
         args,
@@ -77,6 +102,7 @@ def test_video_spec_and_environment_force_packaged_system_pyav_contract() -> Non
         ["/data/train"],
         ["/data/val.json"],
         ["/data/val"],
+        runtime,
     )
 
     assert spec["custom"]["video_decoder"] == "torchvision"
@@ -111,6 +137,7 @@ def test_cosmos_rl_preflight_rejects_dependency_abi_and_dispatch_regressions() -
         {"tag": "example.invalid/cosmos-rl:test"},
         "/models/cosmos3",
         "/data/train/example.mp4",
+        rl_video_runtime=_system_pyav_runtime(),
     )
 
     runtime = contract["container_runtime"]
@@ -125,10 +152,7 @@ def test_cosmos_rl_preflight_rejects_dependency_abi_and_dispatch_regressions() -
     assert "_tao_channels_last_3d" in runtime
     assert "DeepEP Python/extension ABI" in contract["checks"]
     assert "vLLM Qwen3-VL Conv3D dispatch guard" in contract["checks"]
-    assert (
-        "checksum-pinned software System PyAV with h264/hevc CPU resolution"
-        in contract["checks"]
-    )
+    assert "checksum-pinned software System PyAV image capability" in contract["checks"]
     assert "backward-safe Qwen3-VL PatchEmbed" in contract["checks"]
     assert "384 GiB free result/checkpoint space" in contract["checks"]
 

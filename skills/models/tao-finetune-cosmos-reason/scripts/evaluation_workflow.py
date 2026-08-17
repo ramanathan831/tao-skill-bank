@@ -405,7 +405,17 @@ def resolve(args: argparse.Namespace) -> dict[str, Any]:
     provenance["model.enable_lora"] = _source(enable_lora, "sealed_training_plan.training_mode_and_backend")
     provenance["model.base_model_path"] = _source(base_model_path, "sealed_training_plan.model_preparation")
 
-    frames = int(evaluation_contract.get("frames") or training.get("frames") or 0)
+    inherited_vision = evaluation_contract.get("vision")
+    if not isinstance(inherited_vision, Mapping):
+        inherited_vision = {}
+    inherited_vision = dict(inherited_vision)
+    frames = int(
+        inherited_vision.get("nframes")
+        or evaluation_contract.get("frames")
+        or training.get("frames")
+        or 0
+    )
+    fps = inherited_vision.get("fps")
     if args.max_video_pixels is not None:
         max_video_pixels = args.max_video_pixels
         provenance["vision.max_pixels"] = _source(max_video_pixels, "user")
@@ -423,9 +433,12 @@ def resolve(args: argparse.Namespace) -> dict[str, Any]:
         "model.dtype": precision,
         "evaluation.seed": seed,
         "evaluation.batch_size": batch_size,
-        "vision.num_frames": frames,
         "num_gpus": num_gpus,
     }
+    if fps is not None:
+        inherited_values["vision.fps"] = fps
+    else:
+        inherited_values["vision.num_frames"] = frames
     for field, value in inherited_values.items():
         provenance[field] = _source(value, "sealed_training_plan")
         if value in {"", None} or (value == 0 and field != "evaluation.seed"):
@@ -443,11 +456,28 @@ def resolve(args: argparse.Namespace) -> dict[str, Any]:
         )
 
     vision: dict[str, Any] = {
-        "num_frames": frames,
-        "max_pixels": max_video_pixels,
         "video_decoder": "pynvvideocodec",
         "video_cache_size": 0,
     }
+    if fps is not None:
+        vision["fps"] = fps
+    else:
+        vision["num_frames"] = frames
+    for field in (
+        "min_frames",
+        "max_frames",
+        "video_start",
+        "video_end",
+        "resized_height",
+        "resized_width",
+        "min_pixels",
+        "total_pixels",
+    ):
+        value = inherited_vision.get(field)
+        if value is not None:
+            vision[field] = value
+            provenance[f"vision.{field}"] = _source(value, "sealed_training_plan")
+    vision["max_pixels"] = max_video_pixels
     decoder_artifact = plan.get("decoder_artifact", {})
     if isinstance(decoder_artifact, Mapping) and decoder_artifact.get("enabled"):
         vision["video_override_map"] = decoder_artifact.get("path")
